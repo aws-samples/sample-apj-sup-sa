@@ -18,4 +18,4 @@ opentelemetry-instrumentation==0.60b1
 opentelemetry-instrumentation-logging==0.60b1
 langfuse==3.13.0
 opentelemetry-exporter-otlp-proto-http==1.39.1
-mem0ai==1.0.3
+mem0ai==2.0.0b2
