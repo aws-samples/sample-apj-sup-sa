@@ -43,7 +43,7 @@ fastapi==0.135.2
 greenlet==3.3.2
     # via sqlalchemy
 hypothesis==6.151.10
-idna==3.11
+idna==3.15
     # via anyio
 importlib-resources==6.5.2
     # via jsii
