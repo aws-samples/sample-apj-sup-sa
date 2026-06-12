@@ -1,0 +1,6 @@
+pipecat-ai[aws,deepgram]
+fastapi
+uvicorn[standard]
+python-dotenv
+websockets
+boto3
