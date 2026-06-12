@@ -4,3 +4,4 @@ uvicorn[standard]
 python-dotenv
 websockets
 boto3
+mcp

@@ -89,12 +89,28 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.aggregators.llm_response_universal import (
+    LLMContextAggregatorPair,
+)
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.aws.llm import AWSBedrockLLMService
 from pipecat.services.aws.stt import AWSTranscribeSTTService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramHttpTTSService
 from pipecat.transcriptions.language import Language
+
+# MCP (Model Context Protocol) — voice assistant가 AWS 공식 문서를 검색하도록
+# AWS Documentation MCP 서버를 LLM의 function calling 도구로 붙인다. import 실패는
+# (mcp 미설치 등) graceful하게 처리: 어시스턴트는 도구 없이 동작한다.
+try:
+    from mcp import StdioServerParameters
+    from pipecat.services.mcp_service import MCPClient
+
+    _MCP_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    StdioServerParameters = None  # type: ignore[assignment,misc]
+    MCPClient = None  # type: ignore[assignment,misc]
+    _MCP_AVAILABLE = False
 
 load_dotenv()
 
@@ -166,9 +182,17 @@ ASSISTANT_SYSTEM_PROMPT = (
     "transcript as context, then a question from a participant who said the "
     "wake word. Answer in ENGLISH, in ONE short sentence (under 25 words). "
     "Be direct: no preamble, no restating the question, no reading the "
-    "transcript back. If you can't answer from the transcript, say so in a few "
-    "words."
+    "transcript back. "
+    "For AWS factual or how-to questions, use the documentation search tools to "
+    "check official AWS docs before answering; for questions about the meeting "
+    "itself, just use the transcript. If you still can't answer, say so in a "
+    "few words."
 )
+
+# AWS Documentation MCP 서버 실행 커맨드. uvx가 패키지를 받아 stdio로 띄운다.
+# (인증/API 키 불필요 — 공개 AWS 문서를 검색/조회.)
+ASSISTANT_MCP_COMMAND = "uvx"
+ASSISTANT_MCP_ARGS = ["awslabs.aws-documentation-mcp-server@latest"]
 
 
 def _detect_wake_word(text: str) -> Optional[str]:
@@ -409,6 +433,7 @@ class _ResultSink(FrameProcessor):
         send: Any,  # async callable: (dict) -> awaitable
         bedrock_client: Any,
         assistant: Optional["_AssistantState"] = None,
+        assistant_llm_context: Optional[LLMContext] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -418,6 +443,11 @@ class _ResultSink(FrameProcessor):
         # (into the LLM→TTS stage of this same pipeline) — that frame is the gate
         # (the LLM only generates on LLMContextFrame, never on TranscriptionFrame).
         self._assistant = assistant
+        # PERSISTENT LLM context shared with the assistant aggregator. Reusing one
+        # context (system prompt + MCP tools) for the whole session lets
+        # function-call results accumulate so the aggregator can loop the LLM
+        # (search → read → answer). A fresh context per query would lose tools.
+        self._assistant_llm_context = assistant_llm_context
         self._assistant_context: deque[str] = deque(maxlen=ASSISTANT_CONTEXT_LIMIT)
         # Per-stream-session nonce. STABLE within this session (so retried /
         # duplicate finals dedupe identically) and DIFFERENT across sessions
@@ -512,7 +542,7 @@ class _ResultSink(FrameProcessor):
         speech flows past LLM/TTS untouched. We guard with a shared `_active`
         flag so a second wake word during an in-flight answer is ignored.
         """
-        if self._assistant is None:
+        if self._assistant is None or self._assistant_llm_context is None:
             return
         query = _detect_wake_word(text)
         if query is None:
@@ -538,15 +568,17 @@ class _ResultSink(FrameProcessor):
         user_message = (
             f"[Recent meeting transcript]\n{transcript}\n\n[Question]\n{query}"
         )
-        llm_context = LLMContext(
-            messages=[
-                {"role": "system", "content": ASSISTANT_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ]
+        # Append to the PERSISTENT context (system prompt + tools already there)
+        # and trigger generation. Tool-call results accumulate on this context so
+        # the assistant aggregator can loop the LLM until it produces an answer.
+        self._assistant_llm_context.add_message(
+            {"role": "user", "content": user_message}
         )
         logger.info(f"Wake word → assistant query={query!r}")
         # Push downstream so it reaches the LLM (next stage), not back to STT.
-        await self.push_frame(LLMContextFrame(context=llm_context), direction)
+        await self.push_frame(
+            LLMContextFrame(context=self._assistant_llm_context), direction
+        )
 
     def _monotonic_start_time(self, stt_start: Any, timestamp: Any) -> float:
         """Return a strictly increasing startTime for the next final.
@@ -746,6 +778,9 @@ class _Session:
         self._assistant: Optional[_AssistantState] = None
         self._assistant_output: Optional[_AssistantOutputSink] = None
         self._assistant_http: Optional[aiohttp.ClientSession] = None
+        self._assistant_context_obj: Optional[LLMContext] = None
+        self._assistant_mcp: Optional[Any] = None  # MCPClient when search enabled
+        self._mcp_setup_task: Optional[asyncio.Task] = None  # background MCP init
         self._task: Optional[PipelineTask] = None
         self._runner: Optional[PipelineRunner] = None
         self._runner_task: Optional[asyncio.Task] = None
@@ -886,12 +921,33 @@ class _Session:
                 assistant_llm = None
                 assistant_tts = None
 
+        # --- Assistant LLM context + MCP tools (AWS Docs search) --------------
+        # Persistent context (system prompt) shared with the assistant aggregator.
+        # MCP tools (AWS docs search) attach LATER, in the background, so we don't
+        # block `ready` on the slow `uvx` server startup (~8s) — blocking here
+        # tripped the client's ready timeout and dropped the connection. Until
+        # tools arrive the assistant answers transcript-only; once register_tools
+        # + context.set_tools() complete, search is available.
+        assistant_context: Optional[LLMContext] = None
+        assistant_aggregators = None
+        if self._assistant is not None and assistant_llm is not None:
+            assistant_context = LLMContext(
+                messages=[{"role": "system", "content": ASSISTANT_SYSTEM_PROMPT}],
+            )
+            self._assistant_context_obj = assistant_context
+            assistant_aggregators = LLMContextAggregatorPair(assistant_context)
+            if _MCP_AVAILABLE and os.getenv("ASSISTANT_MCP_ENABLED", "true").lower() != "false":
+                self._mcp_setup_task = asyncio.create_task(
+                    self._setup_assistant_mcp(assistant_llm, assistant_context)
+                )
+
         # --- Sink + single pipeline -------------------------------------------
         # One persistent pipeline does both jobs:
         #   STT → _ResultSink(transcribe/correct + wake-word gate)
-        #       → LLM → TTS → _AssistantOutputSink(assistant_* messages)
+        #       → LLM → TTS → _AssistantOutputSink → assistant_aggregator
         # The LLM only generates when _ResultSink pushes an LLMContextFrame on a
-        # wake word; ordinary TranscriptionFrames flow past LLM/TTS untouched.
+        # wake word; ordinary TranscriptionFrames flow past LLM/TTS untouched. The
+        # assistant aggregator loops the LLM on tool-call results (search→answer).
         self._sink = _ResultSink(
             meeting_id=self.meeting_id,
             session_id=self._session_id,
@@ -899,16 +955,27 @@ class _Session:
             send=self.send,
             bedrock_client=bedrock_client,
             assistant=self._assistant,
+            assistant_llm_context=assistant_context,
         )
 
         processors: list[FrameProcessor] = [self._stt, self._sink]
-        if self._assistant is not None and assistant_llm is not None and assistant_tts is not None:
+        if (
+            self._assistant is not None
+            and assistant_llm is not None
+            and assistant_tts is not None
+            and assistant_aggregators is not None
+        ):
             self._assistant_output = _AssistantOutputSink(
                 meeting_id=self.meeting_id,
                 send=self.send,
                 assistant=self._assistant,
             )
-            processors += [assistant_llm, assistant_tts, self._assistant_output]
+            processors += [
+                assistant_llm,
+                assistant_tts,
+                self._assistant_output,
+                assistant_aggregators.assistant(),
+            ]
 
         pipeline = Pipeline(processors)
         self._task = PipelineTask(
@@ -1037,6 +1104,43 @@ class _Session:
         except Exception:  # noqa: BLE001 - best effort on a dying socket
             pass
 
+    async def _setup_assistant_mcp(
+        self, assistant_llm: AWSBedrockLLMService, assistant_context: LLMContext
+    ) -> None:
+        """Start the AWS Docs MCP server and attach its tools to the assistant.
+
+        Runs in the background (not before `ready`) because `uvx` first-run can
+        take several seconds — long enough to trip the client's ready timeout.
+        On success, registers the tools on the LLM and sets them on the shared
+        context so subsequent wake-word queries can search. Best-effort: any
+        failure just leaves the assistant in transcript-only mode.
+        """
+        try:
+            # Register ONLY search_documentation. The read_documentation /
+            # read_sections / recommend tools tempt the LLM into multi-step
+            # chains (search → read → read → …), adding seconds + AWS round-trips
+            # per answer. The search result's title+context summary is enough for
+            # a one-sentence spoken answer, so we cap it at a single search call.
+            mcp = MCPClient(
+                StdioServerParameters(
+                    command=ASSISTANT_MCP_COMMAND, args=ASSISTANT_MCP_ARGS
+                ),
+                tools_filter=["search_documentation"],
+            )
+            await mcp.start()
+            tools_schema = await mcp.register_tools(assistant_llm)
+            assistant_context.set_tools(tools_schema)
+            self._assistant_mcp = mcp
+            logger.info(
+                "Assistant MCP ready: "
+                f"{[t.name for t in tools_schema.standard_tools]}"
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Assistant MCP setup failed; search disabled: {exc}")
+            self._assistant_mcp = None
+
     async def handle_audio(self, msg: dict[str, Any]) -> None:
         if not self._started or self._task is None:
             await self.send_error("Received audio before start")
@@ -1096,7 +1200,17 @@ class _Session:
                 logger.error(f"Error draining corrections: {exc}")
                 drain_failed = True
 
-        # Close the assistant's HTTP session (best-effort; never fails stop).
+        # Close the assistant's MCP connection (terminates the uvx child) and
+        # HTTP session — best-effort, never fails stop.
+        if self._mcp_setup_task is not None and not self._mcp_setup_task.done():
+            self._mcp_setup_task.cancel()
+            with contextlib.suppress(Exception):
+                await self._mcp_setup_task
+            self._mcp_setup_task = None
+        if self._assistant_mcp is not None:
+            with contextlib.suppress(Exception):
+                await self._assistant_mcp.close()
+            self._assistant_mcp = None
         if self._assistant_http is not None:
             with contextlib.suppress(Exception):
                 await self._assistant_http.close()
