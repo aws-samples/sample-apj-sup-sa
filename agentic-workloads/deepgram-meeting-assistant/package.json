@@ -14,7 +14,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@ssh.gitlab.aws.dev:korea-sup-sa/meeting-assistant.git"
+    "url": "https://github.com/aws-samples/sample-apj-sup-sa.git",
+    "directory": "agentic-workloads/deepgram-meeting-assistant"
   },
   "keywords": [
     "electron",
