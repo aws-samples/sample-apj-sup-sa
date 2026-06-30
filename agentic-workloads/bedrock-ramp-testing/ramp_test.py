@@ -29,8 +29,28 @@ RECOMMENDED RAMP-UP PROCEDURE (from AWS docs):
     consistently at 500 RPM, hold for 15 minutes, then scale to 750, then 1,125,
     and so on until you reach 2,000 RPM.
 
+ENDPOINTS:
+    This tool supports two Amazon Bedrock endpoints:
+
+    1. bedrock-runtime (default) — Uses the Converse API via boto3.
+       Best for: native AWS SDK integration, IAM auth, VPC endpoints.
+
+    2. bedrock-mantle — Uses the OpenAI-compatible Responses/Chat Completions API.
+       Best for: migrating from OpenAI, using OpenAI SDKs, testing the Mantle
+       distributed inference engine. Requires a Bedrock API key.
+       Endpoint: https://bedrock-mantle.<region>.api.aws/v1
+       Docs: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+
+    Note: bedrock-mantle has SEPARATE quotas from bedrock-runtime. Ramp testing
+    each endpoint independently is recommended.
+
 USAGE:
+    # Using bedrock-runtime (Converse API, default)
     python ramp_test.py --region us-east-1 --target-rpm 2000 --model-id us.moonshotai.kimi-k2.5
+
+    # Using bedrock-mantle (OpenAI-compatible API)
+    python ramp_test.py --region us-east-1 --target-rpm 2000 --model-id us.moonshotai.kimi-k2.5 \
+        --endpoint mantle --api-key <your-bedrock-api-key>
 
 LICENSE:
     MIT-0 (MIT No Attribution) — consistent with the repository.
@@ -39,6 +59,7 @@ LICENSE:
 import argparse
 import json
 import math
+import os
 import sys
 import time
 import threading
@@ -53,6 +74,12 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 from rich.panel import Panel
+
+try:
+    from openai import OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -114,6 +141,10 @@ class BedrockRampTester:
     """
     Implements the recommended ramp-up procedure for Amazon Bedrock throughput testing.
 
+    Supports two endpoints:
+    - bedrock-runtime: Native AWS Converse API (boto3, IAM auth)
+    - bedrock-mantle: OpenAI-compatible API (OpenAI SDK, API key auth)
+
     The procedure automatically finds your effective steady-state throughput and
     gradually scales up to your target RPM, holding at each level to confirm
     stability before proceeding.
@@ -130,6 +161,8 @@ class BedrockRampTester:
         error_threshold: float = 0.05,
         max_tokens: int = 100,
         dry_run: bool = False,
+        endpoint: str = "runtime",  # "runtime" or "mantle"
+        api_key: str | None = None,
     ):
         self.model_id = model_id
         self.region = region
@@ -140,11 +173,34 @@ class BedrockRampTester:
         self.error_threshold = error_threshold
         self.max_tokens = max_tokens
         self.dry_run = dry_run
+        self.endpoint = endpoint
+        self.api_key = api_key
 
         if not dry_run:
-            self.client = boto3.client("bedrock-runtime", region_name=region)
+            if endpoint == "mantle":
+                if not HAS_OPENAI:
+                    console.print(
+                        "[red]Error: openai package required for bedrock-mantle endpoint.[/red]\n"
+                        "Install with: pip install openai"
+                    )
+                    sys.exit(1)
+                key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("BEDROCK_API_KEY")
+                if not key:
+                    console.print(
+                        "[red]Error: API key required for bedrock-mantle endpoint.[/red]\n"
+                        "Pass --api-key or set BEDROCK_API_KEY / OPENAI_API_KEY env var.\n"
+                        "Create one at: https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+                    )
+                    sys.exit(1)
+                base_url = f"https://bedrock-mantle.{region}.api.aws/v1"
+                self.openai_client = OpenAI(base_url=base_url, api_key=key)
+                self.client = None
+            else:
+                self.client = boto3.client("bedrock-runtime", region_name=region)
+                self.openai_client = None
         else:
             self.client = None
+            self.openai_client = None
 
         # Shared counters for the current phase
         self._lock = threading.Lock()
@@ -163,11 +219,47 @@ class BedrockRampTester:
 
     def _invoke_model(self) -> None:
         """
-        Make a single Bedrock Converse call and record the outcome.
+        Make a single inference call and record the outcome.
 
-        Counts 503 / ThrottlingException as throttled (the signal to reduce rate).
+        Uses the Converse API (bedrock-runtime) or Chat Completions API
+        (bedrock-mantle) depending on the configured endpoint.
+
+        Counts 503 / ThrottlingException / 429 as throttled (the signal to reduce rate).
         All other errors are counted separately.
         """
+        if self.endpoint == "mantle":
+            self._invoke_mantle()
+        else:
+            self._invoke_runtime()
+
+    def _invoke_mantle(self) -> None:
+        """Invoke via bedrock-mantle (OpenAI-compatible Chat Completions API)."""
+        start = time.perf_counter()
+        try:
+            response = self.openai_client.chat.completions.create(
+                model=self.model_id,
+                messages=[{"role": "user", "content": TEST_PROMPT}],
+                max_tokens=self.max_tokens,
+                temperature=0.1,
+            )
+            latency_ms = (time.perf_counter() - start) * 1000
+            with self._lock:
+                self._success_count += 1
+                self._latencies.append(latency_ms)
+
+        except Exception as e:
+            error_str = str(e).lower()
+            # OpenAI SDK raises exceptions with status codes in the message
+            if any(code in error_str for code in ("429", "503", "rate_limit", "throttl", "service_unavailable")):
+                with self._lock:
+                    self._throttle_count += 1
+            else:
+                with self._lock:
+                    self._error_count += 1
+                console.print(f"[yellow]Non-throttle error (mantle): {e}[/yellow]")
+
+    def _invoke_runtime(self) -> None:
+        """Invoke via bedrock-runtime (Converse API)."""
         start = time.perf_counter()
         try:
             response = self.client.converse(
@@ -323,6 +415,8 @@ class BedrockRampTester:
             f"[bold]Amazon Bedrock Ramp Testing[/bold]\n\n"
             f"Model:       {self.model_id}\n"
             f"Region:      {self.region}\n"
+            f"Endpoint:    bedrock-{self.endpoint} "
+            f"({'OpenAI-compatible API' if self.endpoint == 'mantle' else 'Converse API'})\n"
             f"Target RPM:  {self.target_rpm}\n"
             f"Hold time:   {self.hold_minutes} min\n"
             f"Reduce by:   {self.reduction_factor:.0%} on 503\n"
@@ -480,6 +574,12 @@ def main():
                         help="Error rate threshold to trigger reduction (default: 0.05)")
     parser.add_argument("--max-tokens", type=int, default=100,
                         help="Max tokens per request (default: 100)")
+    parser.add_argument("--endpoint", choices=["runtime", "mantle"], default="runtime",
+                        help="Bedrock endpoint: 'runtime' (Converse API) or 'mantle' "
+                             "(OpenAI-compatible API) (default: runtime)")
+    parser.add_argument("--api-key", default=None,
+                        help="Bedrock API key for bedrock-mantle endpoint "
+                             "(or set BEDROCK_API_KEY / OPENAI_API_KEY env var)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show plan without making API calls")
     parser.add_argument("--output", default="results.json",
@@ -497,6 +597,8 @@ def main():
         error_threshold=args.error_threshold,
         max_tokens=args.max_tokens,
         dry_run=args.dry_run,
+        endpoint=args.endpoint,
+        api_key=args.api_key,
     )
 
     result = tester.run()
