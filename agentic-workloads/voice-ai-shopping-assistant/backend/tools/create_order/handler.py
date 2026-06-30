@@ -1,4 +1,4 @@
-"""create_order — AgentCore Gateway tool (SPEC §3.5), payment-gated.
+"""create_order — AgentCore Gateway tool, payment-gated.
 
 Turns the shopper's cart into a submitted order. Flow:
   1. read cart from Aurora, compute total
@@ -206,9 +206,8 @@ def _pay_x402(payment_required: dict) -> tuple[str, str, dict]:
 
     Uses the x402 *version "1"* shape with the merchant's full `accepts[0]`
     requirement forwarded verbatim (keeping `maxAmountRequired`). This is the
-    shape AgentCore ProcessPayment accepts — verified end-to-end by
-    backend/tools/payments/probe_payment.py (returns PROOF_GENERATED). The older
-    version "2" + `amount` shape is rejected.
+    shape AgentCore ProcessPayment accepts (it returns PROOF_GENERATED); the
+    older version "2" + `amount` shape is rejected.
     """
     accepts = (payment_required.get("accepts") or [{}])[0]
     session_id = _payment_session()

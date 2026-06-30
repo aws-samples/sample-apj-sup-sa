@@ -4,7 +4,7 @@
  * wire shapes and a future /ws agent can be swapped in by rewriting only this
  * file + the transport client.
  *
- * Data model (Lucy's direction): everything the shopper says lands on the LIST
+ * Data model: everything the shopper says lands on the LIST
  * first; the human then moves items LIST → CART; the cart is checked out.
  *   update_grocery_list / get_grocery_list → list
  *   add_to_cart / get_cart                 → cart (curated subset)

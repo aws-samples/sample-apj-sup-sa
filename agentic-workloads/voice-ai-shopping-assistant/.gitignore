@@ -67,3 +67,7 @@ backend/AGENTS.md
 
 # Office lock/temp files
 ~$*
+
+# CDK context cache (regenerable; pins account/AZ lookups — do not commit)
+backend/infra/cdk.context.json
+cdk.context.json

@@ -20,13 +20,13 @@ export const SEED: {
   profile: MockProfile;
 } = {
   profile: {
-    display_name: "Lucy",
+    display_name: "Demo Shopper",
     dietary: ["vegetarian"],
     avoid_allergens: ["peanuts"],
     preferred_brands: [
-      { category: "milk", brand: "Macro Organic" },
-      { category: "pasta", brand: "Barilla" },
-      { category: "bread", brand: "Helga's" },
+      { category: "milk", brand: "Harvest Lane" },
+      { category: "pasta", brand: "Sunny Meadow" },
+      { category: "bread", brand: "Honest Crumb" },
     ],
   },
 };

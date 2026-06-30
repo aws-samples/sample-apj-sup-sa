@@ -1,4 +1,4 @@
-"""get_order_status — AgentCore Gateway tool (SPEC §3.5), order observability.
+"""get_order_status — AgentCore Gateway tool, order observability.
 
 Returns the full cart/buying lifecycle for one order so the frontend (and the
 voice agent) can report progress: the Order, its event timeline, the payment

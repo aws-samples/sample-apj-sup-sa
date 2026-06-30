@@ -5,7 +5,7 @@ import { ToolsStack } from '../lib/tools-stack';
 import { DataStack } from '../lib/data-stack';
 import { WebStack } from '../lib/web-stack';
 
-// Sydney, pinned for all services (SPEC §intro). Account 597437436235.
+// Sydney, pinned for all services. Account from CDK env.
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT,
   region: process.env.CDK_DEFAULT_REGION ?? 'ap-southeast-2',
@@ -13,10 +13,10 @@ const env = {
 
 const app = new cdk.App();
 
-// Silo 1 — Database & Seed. Aurora SV2 PostgreSQL, seeded with Woolworths data.
+// Database & Seed. Aurora SV2 PostgreSQL, seeded with the Aisle catalogue.
 new DataStack(app, 'AisleDataStack', { env });
 
-// Silo 2 — Tools & Gateway. Stands up the AgentCore Gateway (no targets yet).
+// Tools & Gateway. Stands up the AgentCore Gateway and the tool Lambda targets.
 new ToolsStack(app, 'AisleToolsStack', { env });
 
 // Frontend — static site (S3 + CloudFront), serves frontend/dist.

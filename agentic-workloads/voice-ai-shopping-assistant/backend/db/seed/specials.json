@@ -1,2274 +1,538 @@
 [
   {
-    "special_id": "4758c196-323c-5c45-a526-aaaf739b3cca",
-    "product_id": "b26193cc-eb0b-5afe-bc45-15a8564e1bca",
-    "special_price_cents": 440,
-    "was_price_cents": 495,
-    "savings_cents": 55,
-    "special_type": "special"
-  },
-  {
-    "special_id": "5049a66f-75b5-5ed3-b290-5a57eb33f1d9",
-    "product_id": "398002bf-3d43-508e-bfb4-fbd1e8f3b58c",
-    "special_price_cents": 595,
-    "was_price_cents": 690,
-    "savings_cents": 95,
-    "special_type": "special"
-  },
-  {
-    "special_id": "3523b2f0-1e23-5934-b95f-abee03bd32ab",
-    "product_id": "c35ea92d-01bc-5edc-a301-1464361eed5b",
-    "special_price_cents": 950,
-    "was_price_cents": 1060,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b94064fa-4042-5f62-8ec3-9b22e47de060",
-    "product_id": "6669e2b7-224b-5e4a-95d1-3b1e2b4670b6",
-    "special_price_cents": 600,
-    "was_price_cents": 700,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "fa07ad6e-cfa0-50a4-9a88-52388dd78322",
-    "product_id": "dd0534fd-83d8-5f5c-9597-0ee048700bfe",
-    "special_price_cents": 350,
-    "was_price_cents": 410,
-    "savings_cents": 60,
-    "special_type": "special"
-  },
-  {
-    "special_id": "bb1405aa-6512-58dc-9bdf-19b67b3e9f8f",
-    "product_id": "277b5762-76d7-5c45-8481-2cb7421c8b75",
-    "special_price_cents": 440,
-    "was_price_cents": 550,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2023e304-3482-5b50-8096-563a1ba55dea",
-    "product_id": "f141dd6e-da02-57ff-a91f-a4e35de64b64",
-    "special_price_cents": 440,
-    "was_price_cents": 550,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "fa4ad750-0e04-5232-90d1-bed55e3680c7",
-    "product_id": "4c35e5a6-29b3-53e6-87d5-b9fb8dd111f1",
-    "special_price_cents": 440,
-    "was_price_cents": 550,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8cc7e312-8c6f-54e2-81aa-31c6acb54aeb",
-    "product_id": "83b9cf45-480a-5f9d-854c-9060f2977d96",
-    "special_price_cents": 440,
-    "was_price_cents": 550,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ca16ab18-02d4-53e9-b8b2-1aaaef3fb7de",
-    "product_id": "c8a0af33-08fa-521b-b9f4-da40f1f1e6a5",
-    "special_price_cents": 350,
-    "was_price_cents": 500,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "89d4ad55-b335-574d-8900-9686526b8243",
-    "product_id": "f5b46165-c9a1-57d8-ae05-cc02b27ec392",
-    "special_price_cents": 440,
-    "was_price_cents": 550,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a9155963-3209-58ea-abb8-a5f2a1f4ecc1",
-    "product_id": "15bcc6bf-ba1d-5698-9e94-b154b0547228",
-    "special_price_cents": 890,
-    "was_price_cents": 990,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "10d94841-0c4d-5985-be74-512dc2f709e6",
-    "product_id": "bdcb3c98-06f5-5792-a7bf-e5cf66a5c95d",
-    "special_price_cents": 370,
-    "was_price_cents": 415,
-    "savings_cents": 45,
-    "special_type": "special"
-  },
-  {
-    "special_id": "fadba187-b87f-5d44-883d-59a271142fc8",
-    "product_id": "09d24496-5021-569c-95a3-0a6c9754343a",
-    "special_price_cents": 550,
-    "was_price_cents": 600,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "35616c49-ffbb-5862-abd4-856e63846877",
-    "product_id": "6d7b1453-73f0-5a25-937d-100748c929d6",
-    "special_price_cents": 550,
-    "was_price_cents": 600,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a575b306-f756-51f5-ae5c-6e9c77496df6",
-    "product_id": "b7ded613-7b39-5bef-a272-2174c18f49dc",
-    "special_price_cents": 550,
-    "was_price_cents": 600,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "add951c2-24c8-5e2a-8a7e-7e4062e3d916",
-    "product_id": "92e47529-bf5f-5978-8d48-bfefb8eba50f",
-    "special_price_cents": 750,
-    "was_price_cents": 800,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2df71159-cbff-5de4-94ea-d03afd306a03",
-    "product_id": "5c15bc67-1385-5bf4-afd7-99a71272f2e1",
-    "special_price_cents": 1900,
-    "was_price_cents": 3800,
-    "savings_cents": 1900,
+    "special_id": "72bc33f2-b13c-5690-87ec-88738c0cc7be",
+    "product_id": "ccdac20e-50a3-5aa0-bcb9-3198ea8a3536",
+    "special_price_cents": 215,
+    "was_price_cents": 429,
+    "savings_cents": 214,
     "special_type": "half_price"
   },
   {
-    "special_id": "3ea33261-226f-5d2a-9156-908efa824370",
-    "product_id": "e71e888c-de35-5f6c-b78d-d1b656654942",
-    "special_price_cents": 150,
-    "was_price_cents": 320,
-    "savings_cents": 170,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "cf3d076a-8313-52a9-973f-1bc15f587137",
-    "product_id": "4f77fe53-3719-5bfc-9d43-fa16a131039a",
-    "special_price_cents": 210,
-    "was_price_cents": 350,
-    "savings_cents": 140,
+    "special_id": "de37ad11-8f18-5f4d-812c-1f9ea0e10ffc",
+    "product_id": "b9992b17-b08b-56fa-b454-8d018a1a9795",
+    "special_price_cents": 275,
+    "was_price_cents": 409,
+    "savings_cents": 134,
     "special_type": "special"
   },
   {
-    "special_id": "3dc463d3-022e-5be3-a849-737a8ae81d67",
-    "product_id": "3764571b-8cda-53f2-bfb8-b8802bbe1ce4",
-    "special_price_cents": 350,
-    "was_price_cents": 500,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4c7d022b-3918-503c-a700-7e270a311b46",
-    "product_id": "1aebe5ba-e4ef-5024-a953-7f37da188823",
-    "special_price_cents": 350,
-    "was_price_cents": 500,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "fa7d10fa-cfa1-54b2-854a-0100e46a13ae",
-    "product_id": "17d97d30-db59-55c0-914e-8be2474b3f41",
-    "special_price_cents": 350,
-    "was_price_cents": 500,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "aba4d80d-9ba7-5f5e-8dda-df6db4936f07",
-    "product_id": "7a37cdfc-67ae-57d9-b581-a2aa99dc5ea5",
-    "special_price_cents": 420,
-    "was_price_cents": 600,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2ede5b6b-8d5b-52b0-97ed-7adba739a841",
-    "product_id": "906ecac6-dd5c-544a-b487-eba2ae6d5783",
-    "special_price_cents": 280,
-    "was_price_cents": 360,
-    "savings_cents": 80,
-    "special_type": "special"
-  },
-  {
-    "special_id": "aa7cab50-6966-504a-b8d2-3a6083211ef0",
-    "product_id": "ec188fdf-163a-52a8-8704-a6e9d4d186d6",
-    "special_price_cents": 280,
-    "was_price_cents": 355,
-    "savings_cents": 75,
-    "special_type": "special"
-  },
-  {
-    "special_id": "fd787a6a-0f13-5346-a091-787da0d17b85",
-    "product_id": "89680a89-abca-57c0-9793-317ac99861ea",
-    "special_price_cents": 260,
-    "was_price_cents": 350,
-    "savings_cents": 90,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f04e308b-c201-5177-8509-fa220495d2a3",
-    "product_id": "af249065-52b7-51f3-bc5e-7a8f04a3e6e5",
-    "special_price_cents": 200,
-    "was_price_cents": 250,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b29d5e77-755b-593e-b6fb-106fab45068d",
-    "product_id": "e6460320-3dca-5df1-9287-764e65c40483",
-    "special_price_cents": 400,
-    "was_price_cents": 500,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "991c1473-538d-5e29-b0e4-229f8373d32d",
-    "product_id": "48db0c6d-435f-53d8-b772-193d783c064d",
-    "special_price_cents": 700,
-    "was_price_cents": 950,
-    "savings_cents": 250,
-    "special_type": "special"
-  },
-  {
-    "special_id": "50ff29a8-398f-5a16-838d-d67623f73333",
-    "product_id": "dc7e4803-0c39-5d7f-98bb-3c63f6c62a6f",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9fff66d1-dbad-5fd7-9d8b-a0e6671dc365",
-    "product_id": "b906ee32-a0da-560c-a965-e28b1d66d88c",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7d0c7d05-8229-5955-afbd-1a58be12dc51",
-    "product_id": "4c75a488-0eb8-53a1-b2a0-7eac98f10d6f",
-    "special_price_cents": 385,
-    "was_price_cents": 550,
-    "savings_cents": 165,
-    "special_type": "special"
-  },
-  {
-    "special_id": "af46b8ab-502f-5d6f-a12c-6de13fd6c03d",
-    "product_id": "52d7a20b-5213-560c-91b4-9e4ff6366100",
-    "special_price_cents": 590,
-    "was_price_cents": 790,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "74d75707-2fae-5525-a260-43e54f15c838",
-    "product_id": "16cce439-dbf0-51a5-b3f2-f4613377c85c",
-    "special_price_cents": 590,
-    "was_price_cents": 790,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "14869887-7c49-5253-8d12-32f5b03a1d51",
-    "product_id": "2e8fc00a-0a13-539c-9b61-1a1bbec7c780",
-    "special_price_cents": 385,
-    "was_price_cents": 550,
-    "savings_cents": 165,
-    "special_type": "special"
-  },
-  {
-    "special_id": "54bd4b0c-c78e-52ef-a8df-32fb00b04e88",
-    "product_id": "6e6e48f6-6999-5516-84a2-99ffba82890d",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "0059f1bb-a534-52c7-998e-68ce9a07060d",
-    "product_id": "3c950b16-e497-5ccb-a31b-0ca236935ede",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f1c7c2da-e51a-5764-ae3b-36c75e1ea0c9",
-    "product_id": "da2a4bf1-fc55-5842-aaf5-3fd8a577e7a6",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "0c45f86a-8c34-58e6-a866-d41788c36f81",
-    "product_id": "54c5cd0e-61dd-5480-91dc-df63cf5bfc5e",
-    "special_price_cents": 550,
-    "was_price_cents": 690,
-    "savings_cents": 140,
-    "special_type": "special"
-  },
-  {
-    "special_id": "894ea4fd-5bfa-5fd4-8ccc-c760d8e3fc1e",
-    "product_id": "0107d7f6-48c6-51f1-8230-cc9cf504ad22",
-    "special_price_cents": 450,
-    "was_price_cents": 570,
-    "savings_cents": 120,
-    "special_type": "special"
-  },
-  {
-    "special_id": "77761675-8b53-5121-8654-f9ab5956b829",
-    "product_id": "eae755a5-ff7c-5ad0-9c60-c2ba0b9c5957",
-    "special_price_cents": 450,
-    "was_price_cents": 570,
-    "savings_cents": 120,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4bdbe8cd-fd14-5b24-8b7a-8a798b867acc",
-    "product_id": "f6d06ecb-4e0f-53ca-9421-62bef14c3288",
-    "special_price_cents": 400,
-    "was_price_cents": 500,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a6a4ed61-d72f-58de-929d-31946625353c",
-    "product_id": "f8813e1c-f151-5124-96e8-77402729b079",
-    "special_price_cents": 1400,
-    "was_price_cents": 1550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9081b47a-262e-5a6d-a801-094350c28587",
-    "product_id": "a7725562-eeee-523c-b33b-e14483b5d151",
-    "special_price_cents": 1700,
-    "was_price_cents": 1900,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "00db5d0c-c0dc-5abf-b57a-0669f35d01ad",
-    "product_id": "b4a6faed-3a87-5e47-860c-3c2fbe5d586b",
-    "special_price_cents": 1050,
-    "was_price_cents": 1350,
-    "savings_cents": 300,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2fa74ef5-6247-5500-8e23-b8c544ecc447",
-    "product_id": "d5098780-5a71-5724-8f70-b9ae87f939ab",
-    "special_price_cents": 700,
-    "was_price_cents": 900,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e80ebe5d-0fbc-52fc-859b-257c8bc95ff2",
-    "product_id": "24faad02-6478-5f66-96ba-04208feb643d",
-    "special_price_cents": 1500,
-    "was_price_cents": 1900,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "5ad831a5-2eff-5b4a-9bd4-517566b99b7b",
-    "product_id": "d49431e8-3454-55fa-9ac4-6db21ffa0d4b",
-    "special_price_cents": 850,
-    "was_price_cents": 1150,
-    "savings_cents": 300,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8f94e361-b966-5e86-9952-920d6ec2c9db",
-    "product_id": "957393dc-9102-5f0d-a85e-1239db453813",
-    "special_price_cents": 1020,
-    "was_price_cents": 1200,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c7acc3c0-d03c-54c8-a659-83daadcfb1f5",
-    "product_id": "a688cc74-a9c1-5b5d-9df0-87c823b4a2e2",
-    "special_price_cents": 3300,
-    "was_price_cents": 3960,
-    "savings_cents": 660,
-    "special_type": "special"
-  },
-  {
-    "special_id": "108f1420-4cfb-5262-b4c0-f0e9a8c72f56",
-    "product_id": "1eb7a114-7861-5285-811b-ff0a32659aad",
-    "special_price_cents": 1500,
-    "was_price_cents": 1800,
-    "savings_cents": 300,
-    "special_type": "special"
-  },
-  {
-    "special_id": "74a5ea11-7d25-509d-802e-69b9d0416fed",
-    "product_id": "22eb3e7a-2c01-54e7-becf-aeeca206c461",
-    "special_price_cents": 2300,
-    "was_price_cents": 2800,
-    "savings_cents": 500,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9832a72e-2152-50f1-891a-a0585df984db",
-    "product_id": "e1bed0f7-62a8-53c5-87b2-e00e5ea0c649",
-    "special_price_cents": 2900,
-    "was_price_cents": 3500,
-    "savings_cents": 600,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a98ea129-d7df-543b-9727-c44ec68fcefc",
-    "product_id": "04643020-d2c0-53cf-8de2-2dc451c1e912",
-    "special_price_cents": 2600,
-    "was_price_cents": 3200,
-    "savings_cents": 600,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8cc8555b-1b41-52e1-89d2-544f6b90b409",
-    "product_id": "0bf21f7a-9921-5791-8e4a-204c749da1d9",
-    "special_price_cents": 1000,
-    "was_price_cents": 1160,
-    "savings_cents": 160,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4870bed5-daa0-5c96-b100-9824caf4011b",
-    "product_id": "ccdae571-2769-56fc-83e6-a7c475113ff9",
-    "special_price_cents": 2600,
-    "was_price_cents": 3500,
-    "savings_cents": 900,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2303a7a5-198b-53f1-92da-d316956b33c8",
-    "product_id": "92219efc-88e9-551e-a8b3-31b5842b80ec",
-    "special_price_cents": 1200,
-    "was_price_cents": 1400,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c0aedbcf-a14b-5ee8-9577-c2b56c5c5716",
-    "product_id": "f853eab5-08b3-566e-8ff1-e891b9ac22a5",
-    "special_price_cents": 480,
-    "was_price_cents": 800,
-    "savings_cents": 320,
-    "special_type": "special"
-  },
-  {
-    "special_id": "649be1c4-3cc6-5ee4-b9dc-92722510c354",
-    "product_id": "09ac3c4e-bd4e-5506-b104-bbe21d19b236",
-    "special_price_cents": 750,
-    "was_price_cents": 900,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "210d3f3c-3388-5ca8-845b-bf29aa642157",
-    "product_id": "32f206dc-ac51-54ee-bdfb-fafd983f819c",
-    "special_price_cents": 880,
-    "was_price_cents": 1100,
-    "savings_cents": 220,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a5cf0596-1a44-51a4-a09e-5e17de5c182e",
-    "product_id": "e1fd4dc2-b2eb-5217-a7f6-b3a48264509b",
-    "special_price_cents": 450,
-    "was_price_cents": 500,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "db98c780-ac89-53d4-90ad-a63997329e56",
-    "product_id": "620a25b4-e184-572b-89f8-45942ee5f616",
-    "special_price_cents": 460,
-    "was_price_cents": 580,
-    "savings_cents": 120,
-    "special_type": "special"
-  },
-  {
-    "special_id": "6c49cb9c-c389-5d85-9c10-91fe5d48328d",
-    "product_id": "c3a1c607-a236-5911-8e6b-92f3a0e64755",
-    "special_price_cents": 495,
-    "was_price_cents": 550,
-    "savings_cents": 55,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e9880d1f-1423-5820-a7e1-ecf64dac4caf",
-    "product_id": "d45ad9f3-9536-5acf-8afa-5af4299d4271",
-    "special_price_cents": 470,
-    "was_price_cents": 570,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b99954b6-c990-520a-ae72-9774619afb9c",
-    "product_id": "42d1f538-1f19-5af8-a2cf-729564d8496d",
-    "special_price_cents": 470,
-    "was_price_cents": 570,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "159ce285-07c3-5d75-a479-48414de9bcbb",
-    "product_id": "5f70273a-1dc4-5ae2-b708-7c51d16990dc",
-    "special_price_cents": 470,
-    "was_price_cents": 570,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ea99fd7c-a049-568e-a364-0f331303efa3",
-    "product_id": "93cdce12-b79e-5012-aa11-60914af4643e",
-    "special_price_cents": 470,
-    "was_price_cents": 570,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c89cb146-581d-5648-a0ce-ff9bb5b65cfc",
-    "product_id": "9b679ae4-d9db-5842-8ce9-6ab6a7e3ae9a",
-    "special_price_cents": 375,
-    "was_price_cents": 500,
-    "savings_cents": 125,
-    "special_type": "special"
-  },
-  {
-    "special_id": "1cde999f-1c02-546b-ac27-a9f4cad1dea2",
-    "product_id": "d55ac8b9-8fee-53cc-a7a1-7afee666598f",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4e1f3eca-597d-5dd6-8579-7458d2de9c4d",
-    "product_id": "b6c8a006-7dc6-5dd5-b0ad-5fc893c6601a",
-    "special_price_cents": 650,
-    "was_price_cents": 750,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9574903a-0509-51d1-ac45-6999673c07fb",
-    "product_id": "29c1249b-dcee-574f-a27f-a9c621e661fe",
-    "special_price_cents": 350,
-    "was_price_cents": 700,
-    "savings_cents": 350,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "bc755332-0a39-5bfa-9438-a38cddc7e72c",
-    "product_id": "1bba942c-842b-5874-8a78-090fabcc27fb",
-    "special_price_cents": 500,
-    "was_price_cents": 1000,
-    "savings_cents": 500,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "ab2b50e4-d467-5104-a877-d86389d665f6",
-    "product_id": "7e9a2ab7-b1bf-5d3e-ae50-3a571af4ff6c",
-    "special_price_cents": 15095,
-    "was_price_cents": 19995,
-    "savings_cents": 4900,
-    "special_type": "special"
-  },
-  {
-    "special_id": "3cfa5d24-b268-5c84-bed7-014163fc6943",
-    "product_id": "be29fe0f-47fe-5701-add9-a92f31f434ac",
-    "special_price_cents": 500,
-    "was_price_cents": 700,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ae1af178-cd52-5b32-b2eb-c289b79a50d2",
-    "product_id": "60afb7c3-b4d6-5ee6-8985-870808b24a29",
-    "special_price_cents": 500,
-    "was_price_cents": 700,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "0217a60d-7ebb-557c-b3f1-d7827f92f600",
-    "product_id": "8a9e6563-6092-50a9-bf68-1e78b40e145a",
-    "special_price_cents": 500,
-    "was_price_cents": 550,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8796b0c5-2fe6-55f6-9517-3542dbca82c1",
-    "product_id": "80f310b8-9ef1-5f3b-9530-6749141ec457",
-    "special_price_cents": 500,
-    "was_price_cents": 550,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b38120f1-dd1b-54b7-af24-c635188d7cef",
-    "product_id": "539b8d91-e717-5997-9c40-397938dfd631",
-    "special_price_cents": 360,
-    "was_price_cents": 450,
-    "savings_cents": 90,
-    "special_type": "special"
-  },
-  {
-    "special_id": "71036d3d-b279-5e90-a5e3-d2c24fb9520d",
-    "product_id": "5cd639be-dc67-5276-8475-1324e17df5ed",
+    "special_id": "ae3a032e-f2b4-5c01-b8af-f98f9d7e1d22",
+    "product_id": "7982aa30-24d4-5704-bd44-89e64e02c9a5",
     "special_price_cents": 345,
-    "was_price_cents": 495,
-    "savings_cents": 150,
+    "was_price_cents": 519,
+    "savings_cents": 174,
     "special_type": "special"
   },
   {
-    "special_id": "090b7cc0-dc2f-5d3f-be6a-0726d5d7d52b",
-    "product_id": "f85d5dbd-10cf-58f7-9b4d-70fad3562f58",
-    "special_price_cents": 495,
+    "special_id": "4d6cf7fb-51f2-5d69-9e29-0492d0590dec",
+    "product_id": "95735c6a-069f-5510-8cc1-2abdda5db3f7",
+    "special_price_cents": 505,
+    "was_price_cents": 1009,
+    "savings_cents": 504,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "008187c4-4017-5dfc-a020-cb38bdbd4f54",
+    "product_id": "732a804e-6f9d-54d5-98c0-8a99ebd7a16a",
+    "special_price_cents": 535,
     "was_price_cents": 595,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b3812fc1-1010-588e-a3bb-da4765b8035a",
-    "product_id": "208aa4fc-7dc0-5b83-a713-bc9b56382fc2",
-    "special_price_cents": 495,
-    "was_price_cents": 595,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ba9ecfce-3010-5a89-8f0e-c48f09233a43",
-    "product_id": "025bf66c-cf75-5dce-a65a-c8607fdda7bb",
-    "special_price_cents": 200,
-    "was_price_cents": 300,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "eb0c199b-f3c7-5cd6-9f2f-eb1ab6073748",
-    "product_id": "28c94bc2-3487-5def-a9ee-9946a4ad6004",
-    "special_price_cents": 200,
-    "was_price_cents": 300,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c6e7619a-524f-5a20-8908-675022e37501",
-    "product_id": "dcf266f1-5bb2-5b06-80eb-f2e793b68f70",
-    "special_price_cents": 200,
-    "was_price_cents": 300,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e901daac-6544-5017-839a-9959f8e18a07",
-    "product_id": "c39e4b75-f080-5d0f-b54f-c9c931244398",
-    "special_price_cents": 240,
-    "was_price_cents": 300,
     "savings_cents": 60,
     "special_type": "special"
   },
   {
-    "special_id": "166902a1-7f73-5975-b30b-661802462078",
-    "product_id": "089c6782-8d81-5e8f-9279-750efd8c9e5f",
-    "special_price_cents": 370,
-    "was_price_cents": 430,
-    "savings_cents": 60,
+    "special_id": "26448043-ff83-5af1-a3d7-b57d6000582b",
+    "product_id": "d13a0d47-3513-59bc-874e-ebedd6793e40",
+    "special_price_cents": 265,
+    "was_price_cents": 289,
+    "savings_cents": 24,
     "special_type": "special"
   },
   {
-    "special_id": "e2d6e11e-8d77-5999-aa61-31a424500392",
-    "product_id": "23523867-ee33-53c1-9105-4c27513fddb0",
-    "special_price_cents": 690,
-    "was_price_cents": 800,
-    "savings_cents": 110,
+    "special_id": "116b8825-9ea2-5ed3-a0d4-52968bbc4f63",
+    "product_id": "3b20bd74-43be-5e20-b37c-35f3f071da19",
+    "special_price_cents": 295,
+    "was_price_cents": 349,
+    "savings_cents": 54,
     "special_type": "special"
   },
   {
-    "special_id": "ddbd1fee-becb-5ce7-84bd-f3556824bb74",
-    "product_id": "ca29a667-6e9b-513c-a078-f171c0f5925b",
-    "special_price_cents": 690,
-    "was_price_cents": 800,
-    "savings_cents": 110,
-    "special_type": "special"
+    "special_id": "1df7b058-51e0-5ba2-918d-b571f57c2664",
+    "product_id": "61b3ce29-dc85-5a0a-b875-af0be94d260e",
+    "special_price_cents": 195,
+    "was_price_cents": 385,
+    "savings_cents": 190,
+    "special_type": "half_price"
   },
   {
-    "special_id": "0d2cdbac-a0cd-5b81-8d1d-dfc21c1bf254",
-    "product_id": "b9cad23c-f6e5-5e54-b72d-37bf30a9cbcc",
-    "special_price_cents": 995,
-    "was_price_cents": 1195,
-    "savings_cents": 200,
-    "special_type": "special"
+    "special_id": "ddd10a4b-8578-5ceb-85c6-7a5b31a79e68",
+    "product_id": "9505de33-cf02-5d3a-98f2-4f7f0eb45064",
+    "special_price_cents": 245,
+    "was_price_cents": 365,
+    "savings_cents": 120,
+    "special_type": "member_price"
   },
   {
-    "special_id": "58ce0431-934f-50fe-bfdb-fbba31aa2bde",
-    "product_id": "aea43187-1be5-5321-b31b-93e9a2ea34b9",
-    "special_price_cents": 400,
-    "was_price_cents": 500,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "5f781c4a-9901-5b5d-aec4-54fdc6e20c33",
-    "product_id": "9c0d49f8-5b78-5f2a-9aab-454a465a42e1",
-    "special_price_cents": 605,
-    "was_price_cents": 710,
-    "savings_cents": 105,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e7f1e203-604b-539b-8cd4-3b2431072e7d",
-    "product_id": "f8e7fc35-5f43-5a3e-8d91-1bf77f716aed",
-    "special_price_cents": 375,
-    "was_price_cents": 500,
-    "savings_cents": 125,
-    "special_type": "special"
-  },
-  {
-    "special_id": "57993902-8090-5168-8063-d6fe165a73d9",
-    "product_id": "0c092988-c080-5fa1-b033-7149939607b2",
-    "special_price_cents": 585,
-    "was_price_cents": 650,
-    "savings_cents": 65,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c9858e39-5eab-5be2-b891-6810881355e7",
-    "product_id": "ef34eefd-1c3b-538e-8496-3f78ddd45132",
-    "special_price_cents": 330,
-    "was_price_cents": 380,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "244880dc-8620-51d2-9da9-f4627e6bd9b4",
-    "product_id": "32fd7a91-d635-5fa2-8bcb-9a6c33672ac9",
-    "special_price_cents": 1600,
-    "was_price_cents": 2700,
-    "savings_cents": 1100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2af54be2-3fd0-5902-bf8e-0310a29fb0e8",
-    "product_id": "a9e26d71-3a3e-57a1-b644-d0caba1b2143",
-    "special_price_cents": 2000,
-    "was_price_cents": 2500,
-    "savings_cents": 500,
-    "special_type": "special"
-  },
-  {
-    "special_id": "3ad2f23a-4d90-55ba-89a1-ef1f814c10d1",
-    "product_id": "b147b440-f407-58ca-903d-5bbe8bdaf0f9",
-    "special_price_cents": 1600,
-    "was_price_cents": 2600,
-    "savings_cents": 1000,
-    "special_type": "special"
-  },
-  {
-    "special_id": "843fe336-f022-5a04-857e-78a1007267ff",
-    "product_id": "c44070b3-fdb6-545f-909c-05aae3d36134",
-    "special_price_cents": 600,
-    "was_price_cents": 700,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b1d2d121-e2f4-5ebb-9d07-2feb478edf56",
-    "product_id": "78513ff1-e726-5f1f-99ed-ba1bb7ceebdb",
-    "special_price_cents": 550,
-    "was_price_cents": 700,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "24bf9939-912c-57cd-9798-41b61b900fbe",
-    "product_id": "2bd5a0c6-2714-5c70-a791-5ab10eb44207",
-    "special_price_cents": 200,
-    "was_price_cents": 250,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "000cc600-a541-50a8-b099-6a9f63d178d9",
-    "product_id": "2935f47b-1699-5654-adcb-9bbb4a7f4256",
-    "special_price_cents": 135,
-    "was_price_cents": 170,
-    "savings_cents": 35,
-    "special_type": "special"
-  },
-  {
-    "special_id": "33904fd1-b19b-5eac-b8a5-4ac85a59dcfc",
-    "product_id": "0d1ea339-0801-528f-84df-262cd624070c",
-    "special_price_cents": 135,
-    "was_price_cents": 170,
-    "savings_cents": 35,
-    "special_type": "special"
-  },
-  {
-    "special_id": "dc161044-f246-5a2b-ac6a-5b15b767d2fe",
-    "product_id": "9e01ebc6-ba1b-57ab-bc1b-b8baf7e362b8",
-    "special_price_cents": 200,
-    "was_price_cents": 295,
-    "savings_cents": 95,
-    "special_type": "special"
-  },
-  {
-    "special_id": "995139ef-e8fb-5eb9-af9b-fc0ebbf75c25",
-    "product_id": "4b7b23d7-f497-526a-b6ad-7ed37afd6508",
-    "special_price_cents": 135,
-    "was_price_cents": 170,
-    "savings_cents": 35,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9e59dce9-51cd-5d98-acde-92c47f3c30d2",
-    "product_id": "719cce25-67ab-52f1-90eb-2f032649a5f2",
-    "special_price_cents": 135,
-    "was_price_cents": 170,
-    "savings_cents": 35,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4f678ac9-a980-5d53-8fa1-504c6b3ffbdd",
-    "product_id": "79aae4e2-94b9-5c39-9db0-881f7417f0a0",
-    "special_price_cents": 390,
-    "was_price_cents": 450,
-    "savings_cents": 60,
-    "special_type": "special"
-  },
-  {
-    "special_id": "dd0caedf-a948-5c9f-933a-d28a8f0cccf5",
-    "product_id": "9f64f39e-96e0-57f4-8d48-82698410716a",
-    "special_price_cents": 390,
-    "was_price_cents": 450,
-    "savings_cents": 60,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2207ef9d-ab82-540e-a5d7-7e7970c67445",
-    "product_id": "aa9c32d1-9744-54aa-b020-ff8625c6922a",
-    "special_price_cents": 200,
-    "was_price_cents": 275,
-    "savings_cents": 75,
-    "special_type": "special"
-  },
-  {
-    "special_id": "1e515349-013a-51fd-b9ce-77f8ab43484e",
-    "product_id": "51694a7a-ef3e-598a-9568-e1d6dd630e05",
-    "special_price_cents": 200,
-    "was_price_cents": 275,
-    "savings_cents": 75,
-    "special_type": "special"
-  },
-  {
-    "special_id": "d073ec6d-1db4-5667-a553-6a7c46ef8f34",
-    "product_id": "76c1783f-eb69-5df9-ae54-fcb06f8b57a4",
-    "special_price_cents": 2400,
-    "was_price_cents": 3000,
-    "savings_cents": 600,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f2650af5-a30b-5fe7-89a4-3d8b01473b23",
-    "product_id": "45b1812f-de64-519f-b3f5-b34299d8b97f",
-    "special_price_cents": 1150,
-    "was_price_cents": 1350,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "297f8772-7f7b-565e-9e1e-b804658a4f73",
-    "product_id": "123c0476-af1d-5364-876c-3a667ffa8523",
-    "special_price_cents": 200,
-    "was_price_cents": 275,
-    "savings_cents": 75,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ec0ad8d3-d517-5e25-bb17-0626103a1585",
-    "product_id": "42035128-603f-5f69-b296-7b84ed60279c",
-    "special_price_cents": 250,
-    "was_price_cents": 350,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4ad29b39-5595-5aee-b0a4-0faf8c6923f5",
-    "product_id": "ac813bdd-b158-542b-b443-ef5b5fc94d12",
-    "special_price_cents": 250,
-    "was_price_cents": 350,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "45a8bd85-27ce-5dc1-9016-732dd47f3fe3",
-    "product_id": "bffe7b08-e035-5287-b06e-23ff0242dd43",
-    "special_price_cents": 700,
-    "was_price_cents": 900,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "855ef439-6a8f-570e-a36d-0dd693141a13",
-    "product_id": "f1bd47b6-96ab-5f2f-9499-10949d528ea4",
+    "special_id": "d3b2ea64-b1ef-50c5-b472-cc06c0103efd",
+    "product_id": "f2baaa24-9f81-58da-abe0-c66856877986",
     "special_price_cents": 275,
-    "was_price_cents": 550,
-    "savings_cents": 275,
+    "was_price_cents": 339,
+    "savings_cents": 64,
+    "special_type": "special"
+  },
+  {
+    "special_id": "208eb3ad-f8b9-5a4a-ad95-0b219e1bda88",
+    "product_id": "88f8ccbe-596a-5f99-8cfc-498149065160",
+    "special_price_cents": 125,
+    "was_price_cents": 245,
+    "savings_cents": 120,
     "special_type": "half_price"
   },
   {
-    "special_id": "c53a7d85-e3ba-52ed-b97b-6a3469d01739",
-    "product_id": "9e6093ea-1b9f-577b-9723-a0738491c32e",
-    "special_price_cents": 400,
-    "was_price_cents": 500,
-    "savings_cents": 100,
-    "special_type": "special"
+    "special_id": "3277a4d2-0bcb-5ce1-88ff-6cf4b94e7725",
+    "product_id": "27d56d17-67b6-5e72-818e-9cd4aa0238f4",
+    "special_price_cents": 435,
+    "was_price_cents": 545,
+    "savings_cents": 110,
+    "special_type": "member_price"
   },
   {
-    "special_id": "0d0aed23-b4a2-5651-b182-2af572297313",
-    "product_id": "e2c18f6a-d48f-5543-88f3-e11f67f12255",
-    "special_price_cents": 400,
-    "was_price_cents": 500,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8789a084-1865-5375-addc-9762b9dd4311",
-    "product_id": "183bbbe1-dbae-51a3-90ad-70d8978b9fdc",
-    "special_price_cents": 200,
-    "was_price_cents": 250,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "0cb948cc-9ca9-5193-b30a-04c15cb81985",
-    "product_id": "ead23f22-7477-550d-9d64-5f99333303c5",
-    "special_price_cents": 175,
-    "was_price_cents": 220,
-    "savings_cents": 45,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b7dac279-0905-5bf2-8493-a9e575f33d2b",
-    "product_id": "5e4bebac-dbcd-5517-a184-54288305a8ea",
-    "special_price_cents": 250,
-    "was_price_cents": 300,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b46df049-5f17-5f02-a5c1-b11cab76c56f",
-    "product_id": "ae93b3d5-6ae1-5ac9-be86-cc6950d5cf64",
-    "special_price_cents": 140,
-    "was_price_cents": 280,
-    "savings_cents": 140,
+    "special_id": "5fc42ea5-8e8d-570c-b321-fa28659f3586",
+    "product_id": "f92a509c-037d-506c-8181-89202fd15d20",
+    "special_price_cents": 135,
+    "was_price_cents": 279,
+    "savings_cents": 144,
     "special_type": "half_price"
   },
   {
-    "special_id": "e535aa39-61fc-537e-8277-57eba6112035",
-    "product_id": "f9bace32-52b4-58af-a659-d6c8289d5d2c",
-    "special_price_cents": 340,
-    "was_price_cents": 380,
+    "special_id": "635e302b-4789-5184-8dc4-f16ebed4d680",
+    "product_id": "e04711db-e5be-548d-a1cc-496304da14f6",
+    "special_price_cents": 225,
+    "was_price_cents": 245,
+    "savings_cents": 20,
+    "special_type": "special"
+  },
+  {
+    "special_id": "ebd45f93-04cb-5c82-b6c6-19ab8c3b226e",
+    "product_id": "6510297a-2e97-5b71-b242-a863650b9e05",
+    "special_price_cents": 265,
+    "was_price_cents": 329,
+    "savings_cents": 64,
+    "special_type": "special"
+  },
+  {
+    "special_id": "a57ef53b-5db0-5a22-bd2b-35ca6aae3018",
+    "product_id": "5a980321-7e93-54a1-a9af-cda641d21bdc",
+    "special_price_cents": 135,
+    "was_price_cents": 155,
+    "savings_cents": 20,
+    "special_type": "special"
+  },
+  {
+    "special_id": "da7fbfb1-bf62-596f-be36-fcb78b0ea828",
+    "product_id": "24c5b7a7-4043-58ea-b7c5-c99665aab5ee",
+    "special_price_cents": 245,
+    "was_price_cents": 285,
+    "savings_cents": 40,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "ced60a0b-e214-5677-9081-73298d98bf48",
+    "product_id": "0fadee69-cfd8-57af-8e9c-8abd7f89a2cf",
+    "special_price_cents": 75,
+    "was_price_cents": 109,
+    "savings_cents": 34,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "943217e2-62a2-5d2d-98a1-4ec771db1326",
+    "product_id": "4e38d9f4-1961-5bbf-ae34-bb89a526504a",
+    "special_price_cents": 95,
+    "was_price_cents": 119,
+    "savings_cents": 24,
+    "special_type": "special"
+  },
+  {
+    "special_id": "02b07008-9ecf-5947-a4bd-74ce4d7dc4ab",
+    "product_id": "5c52d071-bbff-5db2-958d-73a5e560a58d",
+    "special_price_cents": 205,
+    "was_price_cents": 259,
+    "savings_cents": 54,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "1e0a6a32-6822-5f51-8e70-aaaa15a8b9c1",
+    "product_id": "7acd464c-8a6a-5e3d-904b-a2ec21256535",
+    "special_price_cents": 145,
+    "was_price_cents": 185,
     "savings_cents": 40,
     "special_type": "special"
   },
   {
-    "special_id": "a8bbb11c-56fd-59ee-b034-ffa2dd722ed5",
-    "product_id": "4c7fa91c-6800-58ae-9cb9-82736c3c12ba",
-    "special_price_cents": 390,
-    "was_price_cents": 495,
-    "savings_cents": 105,
+    "special_id": "1ee4328d-6f75-52cd-b8b0-672aabf2967f",
+    "product_id": "ce403c2b-658e-5088-a7ee-a54ae72d3198",
+    "special_price_cents": 955,
+    "was_price_cents": 1279,
+    "savings_cents": 324,
     "special_type": "special"
   },
   {
-    "special_id": "476da9fa-ea10-55cd-a4f5-311399b814ad",
-    "product_id": "323c1b4a-3dc6-58a6-8193-b70e52c69a9f",
-    "special_price_cents": 280,
-    "was_price_cents": 350,
-    "savings_cents": 70,
+    "special_id": "24e99a92-2223-575e-9d84-7424624ecfc4",
+    "product_id": "2daa3960-47cd-564f-9b09-406eefb205c2",
+    "special_price_cents": 475,
+    "was_price_cents": 945,
+    "savings_cents": 470,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "7ab22f98-210d-5c09-8cdc-c10fc0c49351",
+    "product_id": "f117d44c-fbb7-517b-bed9-d58f63a05376",
+    "special_price_cents": 455,
+    "was_price_cents": 679,
+    "savings_cents": 224,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "42312d9c-fdbd-5cba-a194-332bf6f36346",
+    "product_id": "9e37d39e-ee15-5174-b341-0f73c3eb6ddd",
+    "special_price_cents": 455,
+    "was_price_cents": 535,
+    "savings_cents": 80,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "cda00582-659f-59dd-93ef-32dd71f8a947",
+    "product_id": "f581e45d-d29b-593f-b205-1654061a4226",
+    "special_price_cents": 365,
+    "was_price_cents": 539,
+    "savings_cents": 174,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "6d1442f7-4258-5bec-af45-9886d0aacfb6",
+    "product_id": "351175da-850b-5b8c-80e7-46547951ad90",
+    "special_price_cents": 285,
+    "was_price_cents": 385,
+    "savings_cents": 100,
     "special_type": "special"
   },
   {
-    "special_id": "8bfcca99-7c4c-594a-a91b-8e65e8eca072",
-    "product_id": "413380eb-012f-5b43-830f-b872bb54a87c",
-    "special_price_cents": 280,
-    "was_price_cents": 350,
-    "savings_cents": 70,
+    "special_id": "aa42a60d-7a31-570f-8c02-b91854bf07a9",
+    "product_id": "455ebd1f-8441-5dbd-b703-7043dda70a90",
+    "special_price_cents": 205,
+    "was_price_cents": 305,
+    "savings_cents": 100,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "171850a8-2fbd-58d7-b778-0e186176814a",
+    "product_id": "5dfd500a-7eec-52f1-8005-9d2aa2491d91",
+    "special_price_cents": 355,
+    "was_price_cents": 389,
+    "savings_cents": 34,
     "special_type": "special"
   },
   {
-    "special_id": "3f38b721-10a7-57e5-8718-3931b0d20467",
-    "product_id": "12c275a2-d4e3-50e2-9f08-5f23dd3c60db",
-    "special_price_cents": 400,
-    "was_price_cents": 800,
-    "savings_cents": 400,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "684f0f99-da0d-5641-8f96-f8508499295b",
-    "product_id": "ea91e235-1ead-53c9-b548-bcdb4966b34c",
-    "special_price_cents": 1800,
-    "was_price_cents": 3600,
-    "savings_cents": 1800,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "a2528326-568c-56af-aecc-3ebfe6f5ddf5",
-    "product_id": "ff0bab4c-e9d0-5b45-b8e1-70af71758662",
-    "special_price_cents": 1800,
-    "was_price_cents": 3600,
-    "savings_cents": 1800,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "094372cf-c0af-5561-8538-9aae3d16c851",
-    "product_id": "65dc03a8-54b3-5920-8233-34b44f202a32",
-    "special_price_cents": 440,
-    "was_price_cents": 550,
-    "savings_cents": 110,
-    "special_type": "special"
-  },
-  {
-    "special_id": "98bd2b9a-8c8e-52af-8ac8-7de56a7f2175",
-    "product_id": "943ff419-10cc-5214-988f-532905331380",
-    "special_price_cents": 490,
-    "was_price_cents": 700,
-    "savings_cents": 210,
-    "special_type": "special"
-  },
-  {
-    "special_id": "0a69ec54-0dbf-5e8b-9151-e00630815a26",
-    "product_id": "38b355b8-e352-5d0a-b7fb-a0c19240b461",
-    "special_price_cents": 400,
-    "was_price_cents": 800,
-    "savings_cents": 400,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "9e7eafa5-c0f1-5ff5-a069-e516d9914b32",
-    "product_id": "11bd6956-a475-5609-915d-7f50d88ecf87",
-    "special_price_cents": 400,
-    "was_price_cents": 800,
-    "savings_cents": 400,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "5776d940-f173-5330-ad63-f051ca9cec93",
-    "product_id": "b11f4fab-bd84-5d58-bfe7-bd9429c74268",
-    "special_price_cents": 250,
-    "was_price_cents": 330,
+    "special_id": "723ee6bd-6c6e-5554-a453-0b29b361a49c",
+    "product_id": "60f68c1a-0d70-5e88-9088-4c43e5c110c4",
+    "special_price_cents": 725,
+    "was_price_cents": 805,
     "savings_cents": 80,
     "special_type": "special"
   },
   {
-    "special_id": "0a32d9f1-7521-5ca8-acf9-fab3056d91f0",
-    "product_id": "8c2a1d93-0048-54f3-898b-6c89d1b0fc5c",
-    "special_price_cents": 240,
-    "was_price_cents": 400,
-    "savings_cents": 160,
+    "special_id": "aacfc387-3d01-5924-99e4-1a57450d0a28",
+    "product_id": "a44301e2-c5a6-5149-acc5-100f6c7be285",
+    "special_price_cents": 365,
+    "was_price_cents": 429,
+    "savings_cents": 64,
     "special_type": "special"
   },
   {
-    "special_id": "8db22fd4-57a1-51b8-a30b-1a3afdc7e651",
-    "product_id": "8e1c18db-f0d0-5f30-af39-b77310294bfb",
-    "special_price_cents": 240,
-    "was_price_cents": 400,
-    "savings_cents": 160,
+    "special_id": "7be28779-6e6d-5240-969b-d3c65b908300",
+    "product_id": "27592379-b568-5a37-8f42-906099ff89bf",
+    "special_price_cents": 565,
+    "was_price_cents": 709,
+    "savings_cents": 144,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "05817ec9-153c-5c1c-866c-034180fae7e3",
+    "product_id": "47ab79db-d09c-5440-89e2-df2f30b944b1",
+    "special_price_cents": 435,
+    "was_price_cents": 655,
+    "savings_cents": 220,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "75c2f466-b317-5dd4-8f08-ae9f34503661",
+    "product_id": "7afab063-1d7e-5fab-89d1-15b9e465eacb",
+    "special_price_cents": 315,
+    "was_price_cents": 395,
+    "savings_cents": 80,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "ffba5238-eb18-55ca-bc23-14b396c753b7",
+    "product_id": "f724a2bb-7bdc-5baa-811c-76d5ec9946b5",
+    "special_price_cents": 145,
+    "was_price_cents": 219,
+    "savings_cents": 74,
     "special_type": "special"
   },
   {
-    "special_id": "4a9db317-8310-5dc7-940e-d3233f5c7019",
-    "product_id": "cb124e26-37e1-5aa2-8632-763356731ba1",
-    "special_price_cents": 240,
-    "was_price_cents": 400,
-    "savings_cents": 160,
+    "special_id": "616e15d2-137a-5317-8958-9497ee083858",
+    "product_id": "bdbb3302-038e-5025-b683-ff520c186ba1",
+    "special_price_cents": 555,
+    "was_price_cents": 689,
+    "savings_cents": 134,
     "special_type": "special"
   },
   {
-    "special_id": "af8be49a-d1ae-5f16-9ba5-2c6689c18c7f",
-    "product_id": "a8e16ed2-8659-5f0e-88e4-f88cc31b25ba",
-    "special_price_cents": 240,
-    "was_price_cents": 400,
-    "savings_cents": 160,
+    "special_id": "0f5095b3-5249-5bf1-aa37-7228d3c5e181",
+    "product_id": "2477eb9c-b812-5405-9a52-8606bee84ea9",
+    "special_price_cents": 485,
+    "was_price_cents": 605,
+    "savings_cents": 120,
     "special_type": "special"
   },
   {
-    "special_id": "05dbf95e-838a-5655-a87b-003ff2e326c0",
-    "product_id": "ae8427da-95ea-560b-aa87-9f10b0810c4f",
-    "special_price_cents": 420,
-    "was_price_cents": 600,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e0aa60bc-2c4a-57d0-8065-0385c1ff1a13",
-    "product_id": "1781d706-ed04-5791-bb54-e454596c1039",
-    "special_price_cents": 420,
-    "was_price_cents": 600,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9fe67c20-9dac-56df-9258-ba078d566eb2",
-    "product_id": "0a8dd610-5f64-5504-a363-84cf1d14a842",
-    "special_price_cents": 420,
-    "was_price_cents": 600,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "433ce062-211e-5d37-a5cc-a0cade252d65",
-    "product_id": "0ef7b1e6-2707-5dbc-a559-51ecf72b6b88",
-    "special_price_cents": 420,
-    "was_price_cents": 600,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "741a2071-5a57-5a39-adca-575643ca5191",
-    "product_id": "9c3f4122-ad78-52b1-894b-cdc61884b0f7",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "fa1920ac-6a05-576e-b02d-79502975b85b",
-    "product_id": "5bfb0092-7fac-52a4-9adf-4aecceb5caa6",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "d9e2d39d-cce2-5d31-9f66-3d847da7e8bf",
-    "product_id": "720085a7-1232-5bba-850b-f0b5c7f9cbd4",
-    "special_price_cents": 350,
-    "was_price_cents": 450,
+    "special_id": "d4ec0288-8d19-57f4-bcbd-362b3ebc0371",
+    "product_id": "52996665-38b4-5a43-9393-54c56faf8010",
+    "special_price_cents": 285,
+    "was_price_cents": 385,
     "savings_cents": 100,
-    "special_type": "special"
+    "special_type": "member_price"
   },
   {
-    "special_id": "3f178697-d7f5-5db7-a16f-db668aedf49d",
-    "product_id": "c7bca759-0375-58de-9007-776645e30153",
-    "special_price_cents": 175,
-    "was_price_cents": 220,
-    "savings_cents": 45,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9bbf723f-89a5-5052-b8ec-9dfe5e461daf",
-    "product_id": "3070819e-d7be-503a-bc58-fbee84f1d7ce",
-    "special_price_cents": 550,
-    "was_price_cents": 720,
-    "savings_cents": 170,
-    "special_type": "special"
-  },
-  {
-    "special_id": "cce9d882-eaf7-5194-aef5-4d7929bbba38",
-    "product_id": "08290139-6218-538b-8771-e40ada212848",
-    "special_price_cents": 325,
-    "was_price_cents": 400,
-    "savings_cents": 75,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7c8edbb2-48fe-5460-80cd-ae33548e6ceb",
-    "product_id": "17c062b8-31a0-5004-8b90-c6979e9e83b8",
-    "special_price_cents": 325,
-    "was_price_cents": 400,
-    "savings_cents": 75,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2ce1e550-db36-582f-b711-6e9814eace3c",
-    "product_id": "2a7ec0f9-64bb-50a6-8aa5-1771d3bc197d",
+    "special_id": "65f8c681-9bd6-5659-9e74-ff6648c1cab8",
+    "product_id": "d564f52d-0d8a-5fda-b9e4-989bb2acd382",
     "special_price_cents": 225,
-    "was_price_cents": 450,
-    "savings_cents": 225,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "8ff5956d-21d2-59e6-b279-1ed950cccd09",
-    "product_id": "cc69b034-64e8-5a0e-b6b5-7fbfefc9bfb4",
-    "special_price_cents": 200,
-    "was_price_cents": 400,
-    "savings_cents": 200,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "1133f3f3-e551-57ae-950c-ae101b8ca5dc",
-    "product_id": "91cf5946-5477-5529-a8ba-d27647bf4f0d",
-    "special_price_cents": 225,
-    "was_price_cents": 450,
-    "savings_cents": 225,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "6e246bf4-d21e-573a-8873-887f9f5a1eb1",
-    "product_id": "6dbbf1b9-ae4f-51bd-90ee-a97b3d877634",
-    "special_price_cents": 200,
-    "was_price_cents": 400,
-    "savings_cents": 200,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "a3876644-99cb-589a-a8b6-fade6b1fe92b",
-    "product_id": "b1c22956-4be0-5830-8556-204b250c90ca",
-    "special_price_cents": 175,
-    "was_price_cents": 350,
-    "savings_cents": 175,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "403dc530-e143-53a2-a118-68f6cd2e48ca",
-    "product_id": "e7ad9ac9-f9a6-555f-896a-ae625effbc63",
-    "special_price_cents": 175,
-    "was_price_cents": 350,
-    "savings_cents": 175,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "c02acc3e-e281-505d-bf69-49a93fe38ee1",
-    "product_id": "ad1bad8e-e178-52d9-9126-13730911b6a5",
-    "special_price_cents": 200,
-    "was_price_cents": 400,
-    "savings_cents": 200,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "1541ed27-f1d4-5bd6-8769-48a4dc53aeed",
-    "product_id": "376140eb-41da-5b15-9a4d-a04ee28e9546",
-    "special_price_cents": 175,
-    "was_price_cents": 350,
-    "savings_cents": 175,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "a356f4bf-c0cb-5178-8aab-d088c54ecc9c",
-    "product_id": "02358c10-06ee-5eba-a408-7dae4daebd76",
-    "special_price_cents": 450,
-    "was_price_cents": 750,
-    "savings_cents": 300,
+    "was_price_cents": 279,
+    "savings_cents": 54,
     "special_type": "special"
   },
   {
-    "special_id": "936230ae-68ac-562d-8c07-2214310bd0b9",
-    "product_id": "c9982dca-6b41-5fb3-bca8-4095b6aefc20",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "fe1b9eff-1cc4-5c1b-882c-d0ddc1da5aa0",
-    "product_id": "17715dd9-5ed1-577a-a861-3af835cc5509",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "569e9cdc-2475-56da-98c7-a1dc75d753dc",
-    "product_id": "5ad9e768-9920-5ebe-be8c-63aeb5aed501",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "67b3475b-3cc9-5f3a-9674-0561a9fcef35",
-    "product_id": "ce63bf65-3856-5519-84be-3ec73372f296",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "96ab0142-37b1-548c-bf93-9dc1f0821b56",
-    "product_id": "24e5b0a1-ad28-5f1f-aff4-3935451a5293",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "2f601f80-3732-533e-8560-dc38264f87cc",
-    "product_id": "f1717b4c-44ce-522e-9187-1af40f3f9853",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "559cfa1d-8c21-59ef-a0b0-99cb98c21fc3",
-    "product_id": "a9d3305f-c3fc-5ea6-989a-bf577e474a40",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "5a292195-2295-56fe-854a-70d569457c50",
-    "product_id": "454adccc-5ada-5c02-9833-6bdc5b716717",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "2a3b694f-8e30-50e8-bb40-33ec5bfae969",
-    "product_id": "00e340da-e816-526d-aaaf-071ad7ba810b",
-    "special_price_cents": 570,
-    "was_price_cents": 850,
-    "savings_cents": 280,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a664f63c-f55d-5cd9-9f9f-c1b8237cc450",
-    "product_id": "fd688bc4-f7c3-5444-b8c0-21eae53d3763",
-    "special_price_cents": 570,
-    "was_price_cents": 850,
-    "savings_cents": 280,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4139cc1f-f133-58bc-a182-04efbb8e740e",
-    "product_id": "9721e4e4-5a03-53f6-8299-cba63e9c8fe0",
-    "special_price_cents": 650,
-    "was_price_cents": 900,
-    "savings_cents": 250,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ae65170c-ddc0-5314-a0a6-ec96117114f5",
-    "product_id": "2f59dac2-8f42-5787-9af0-6531d3078916",
-    "special_price_cents": 650,
-    "was_price_cents": 900,
-    "savings_cents": 250,
-    "special_type": "special"
-  },
-  {
-    "special_id": "358ca729-6422-5405-9c7c-88d8d884c3c2",
-    "product_id": "14ea42eb-f54f-538a-bd6d-fef63f84de83",
-    "special_price_cents": 650,
-    "was_price_cents": 900,
-    "savings_cents": 250,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f78bd269-ba2c-5de1-8013-8616267c908a",
-    "product_id": "d924022b-55f3-552b-89f5-27c1236ea081",
+    "special_id": "126c084b-ee32-5e6f-b6a5-e94a1f45853d",
+    "product_id": "2c5509f3-d8f7-5228-b7e5-9c34ee799ffb",
     "special_price_cents": 495,
-    "was_price_cents": 990,
-    "savings_cents": 495,
+    "was_price_cents": 545,
+    "savings_cents": 50,
+    "special_type": "special"
+  },
+  {
+    "special_id": "ff7cebaf-2a13-5d4e-a952-acdb3db91a15",
+    "product_id": "8f2f5e65-31f0-59bd-82c2-bd184217b128",
+    "special_price_cents": 685,
+    "was_price_cents": 809,
+    "savings_cents": 124,
+    "special_type": "special"
+  },
+  {
+    "special_id": "c467a7e1-34e1-5a1d-9540-c182455ab4c0",
+    "product_id": "f080ac32-a9ae-56d9-a30b-a58c744280fc",
+    "special_price_cents": 1425,
+    "was_price_cents": 1899,
+    "savings_cents": 474,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "e54226a8-0096-50b0-8e64-a5db88db2a71",
+    "product_id": "e22f7f1f-0c67-51a5-bd16-366885569d17",
+    "special_price_cents": 325,
+    "was_price_cents": 439,
+    "savings_cents": 114,
+    "special_type": "special"
+  },
+  {
+    "special_id": "d759764a-54bb-5de5-b83a-47c49b23c006",
+    "product_id": "3fdc193f-fc6b-5917-913e-22099471671a",
+    "special_price_cents": 175,
+    "was_price_cents": 355,
+    "savings_cents": 180,
     "special_type": "half_price"
   },
   {
-    "special_id": "12ab8ae3-abe0-5e2f-b1eb-6bafdad0b56d",
-    "product_id": "43fc6e0f-7510-5b8f-875b-dcd4fe414426",
-    "special_price_cents": 360,
-    "was_price_cents": 450,
+    "special_id": "1c4dba6d-bcfc-5142-8e38-98f5614087d8",
+    "product_id": "a119b7df-2bc9-527d-bd2d-9d1b62f7b9e3",
+    "special_price_cents": 375,
+    "was_price_cents": 465,
     "savings_cents": 90,
     "special_type": "special"
   },
   {
-    "special_id": "49ab2b79-18c2-593d-a769-1058ea22c945",
-    "product_id": "2298befb-c510-5a3b-b1f4-4453fa1d6c6a",
-    "special_price_cents": 700,
-    "was_price_cents": 950,
-    "savings_cents": 250,
+    "special_id": "46132020-d21b-5659-bfcf-76b8e459ba12",
+    "product_id": "b256069e-bf1c-552a-90bc-f2c1db155d87",
+    "special_price_cents": 305,
+    "was_price_cents": 379,
+    "savings_cents": 74,
     "special_type": "special"
   },
   {
-    "special_id": "acb3272b-a23a-5882-8bb4-5d4a10816e61",
-    "product_id": "a95d2672-57b5-5a21-b6c0-54fcb0909b62",
-    "special_price_cents": 400,
-    "was_price_cents": 450,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "2f68ff4f-7a02-5f3e-b05b-542bc2714086",
-    "product_id": "b73b2a9c-9be9-5c08-be5b-daa78a111222",
-    "special_price_cents": 350,
-    "was_price_cents": 550,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8fac3cbd-b2ef-50a8-a2c1-4df4020d9792",
-    "product_id": "a94ca0f5-4d90-5de7-ab7b-e99af1426a10",
-    "special_price_cents": 400,
-    "was_price_cents": 450,
-    "savings_cents": 50,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c1324646-6917-58a7-a6e5-73ce1044d002",
-    "product_id": "28e6dcd4-8fa7-59fd-ac83-4b0349a3da97",
-    "special_price_cents": 700,
-    "was_price_cents": 950,
-    "savings_cents": 250,
-    "special_type": "special"
-  },
-  {
-    "special_id": "381a8515-1e1b-5444-b885-bf0f7a87f0e3",
-    "product_id": "269ddb03-043f-524d-b3c2-3edda02ecca1",
-    "special_price_cents": 495,
-    "was_price_cents": 990,
-    "savings_cents": 495,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "2fe5bf6e-e63e-5dc1-a4c0-54b75f7d56ba",
-    "product_id": "2293182c-0536-5129-8348-944a6e16cc8b",
-    "special_price_cents": 275,
-    "was_price_cents": 550,
-    "savings_cents": 275,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "cd4a1426-d227-590c-9265-501530567d3a",
-    "product_id": "8bd99b8a-8419-58b1-8de6-49300adddf0d",
-    "special_price_cents": 690,
-    "was_price_cents": 890,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e635584d-dff5-5f7e-b8fc-093995c51212",
-    "product_id": "e207f46a-bae7-5eed-802c-338c1982241d",
-    "special_price_cents": 890,
-    "was_price_cents": 1200,
-    "savings_cents": 310,
-    "special_type": "special"
-  },
-  {
-    "special_id": "37c80ec5-0857-51a9-80b1-1f00006d5d24",
-    "product_id": "dd75a871-6d28-56a6-a17b-ca021c6d5616",
-    "special_price_cents": 995,
-    "was_price_cents": 1195,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "49cc40ef-cd65-57b6-b208-e0099682c1b5",
-    "product_id": "2c04820c-ab30-5061-ab11-3a2dd049d719",
-    "special_price_cents": 995,
-    "was_price_cents": 1195,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b2ff9d8e-ea98-57bd-9ed1-c8947e381f69",
-    "product_id": "beba6a00-5df5-5da3-abef-3a8274e8dc86",
-    "special_price_cents": 995,
-    "was_price_cents": 1195,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "1e4b3b54-451b-50e1-92bb-b8ff24f1ffea",
-    "product_id": "93e6d2cf-187b-5c7f-a881-5b2ac5e912d1",
-    "special_price_cents": 995,
-    "was_price_cents": 1195,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f78f0bf0-4844-57da-9fd4-c07ba82a5132",
-    "product_id": "ecbf0382-2255-5fc4-8fec-d2355613de75",
-    "special_price_cents": 995,
-    "was_price_cents": 1195,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "a3a8e0ed-14e6-52a2-b5c6-a18ea850a5a9",
-    "product_id": "560a61a0-caef-586c-848a-4105ca973c9c",
-    "special_price_cents": 1295,
-    "was_price_cents": 1395,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "eeed24f5-a069-5935-8f3e-dceb446ff6d9",
-    "product_id": "d36ceab0-115f-5d7d-be66-f144630a5280",
-    "special_price_cents": 1295,
-    "was_price_cents": 1395,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "36d1c963-da89-5625-be41-e34b51cb7258",
-    "product_id": "ced9c729-8458-566c-a2a8-5ea3ffeb6a4e",
-    "special_price_cents": 795,
-    "was_price_cents": 995,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b0a5dfea-dde8-538c-a802-1c35c2b48f08",
-    "product_id": "80ab4ee4-3a9c-56d1-8ca5-19b3309613c7",
-    "special_price_cents": 795,
-    "was_price_cents": 995,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "56ba29b2-a592-5085-92d9-b8233cc4c89e",
-    "product_id": "c5a2d219-3657-5525-a522-c5d47b43493e",
-    "special_price_cents": 210,
-    "was_price_cents": 420,
-    "savings_cents": 210,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "9d91cd4d-3208-5028-9e23-24cfcca71614",
-    "product_id": "fccc22d4-4295-5da1-868e-a6a418a9d5c2",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f2674b07-2a93-5f2e-90fb-9902ab294bf8",
-    "product_id": "60ba4055-2ec1-5217-b838-991e7a515597",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "5d1d7397-0a15-5877-87f2-11df1d893838",
-    "product_id": "b70893b5-fb1c-5c07-bda7-ce047da0db09",
-    "special_price_cents": 400,
-    "was_price_cents": 550,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "68356dd9-c396-5668-8dc0-d8ac7a9cb7b4",
-    "product_id": "c9b0ca3b-e854-5162-92fd-9814daf6e781",
-    "special_price_cents": 500,
-    "was_price_cents": 695,
-    "savings_cents": 195,
-    "special_type": "special"
-  },
-  {
-    "special_id": "dc874cc5-63d5-5206-84b5-f320585220fe",
-    "product_id": "0cffad98-a83b-5c34-87be-8260b349dec5",
-    "special_price_cents": 350,
-    "was_price_cents": 480,
-    "savings_cents": 130,
-    "special_type": "special"
-  },
-  {
-    "special_id": "927f7015-bcff-5e37-8763-d755862d7396",
-    "product_id": "12497f32-61c0-5b1d-b2ea-de890dba11ba",
-    "special_price_cents": 350,
-    "was_price_cents": 480,
-    "savings_cents": 130,
-    "special_type": "special"
-  },
-  {
-    "special_id": "011ce842-3ea4-5d96-9f66-daf6af327951",
-    "product_id": "0bb4bf3e-7a8a-5bd6-a422-542a4252bb52",
-    "special_price_cents": 500,
-    "was_price_cents": 640,
-    "savings_cents": 140,
-    "special_type": "special"
-  },
-  {
-    "special_id": "34695296-487b-5543-ba63-c7f6dfe78738",
-    "product_id": "ed7ca1ad-eb80-5ab5-9f5b-8b95999dce3e",
-    "special_price_cents": 200,
-    "was_price_cents": 335,
-    "savings_cents": 135,
-    "special_type": "special"
-  },
-  {
-    "special_id": "48b9d63e-79b6-51f6-a617-59cb45703eb4",
-    "product_id": "7adf67e9-ab2d-5b27-aef7-def16e09206a",
-    "special_price_cents": 270,
-    "was_price_cents": 450,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7ae0eca9-6ac0-53cc-8c8f-c6876aa14100",
-    "product_id": "8759e3dd-0fb1-5b7d-ac86-7811ebada1f9",
-    "special_price_cents": 210,
-    "was_price_cents": 420,
-    "savings_cents": 210,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "bacdd230-26ce-516f-94a6-46090fd77164",
-    "product_id": "b433df0c-5428-53d8-ad53-546587f3c948",
-    "special_price_cents": 2600,
-    "was_price_cents": 3750,
-    "savings_cents": 1150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "3bd3a950-e9e2-5f29-8a24-5dfe654cfae6",
-    "product_id": "3cb273b8-2c8e-52ba-a05d-7d527abcac8c",
-    "special_price_cents": 2600,
-    "was_price_cents": 3750,
-    "savings_cents": 1150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "dec855a0-8389-5f2f-8773-8490eb0931f3",
-    "product_id": "5170fbe3-3997-51c6-a892-d2073ba2a65d",
-    "special_price_cents": 210,
-    "was_price_cents": 420,
-    "savings_cents": 210,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "ec013a41-ee5f-5155-b562-ba0267a91d7d",
-    "product_id": "94f48852-0a9b-5f8f-80a4-42ec87c97ae2",
-    "special_price_cents": 795,
-    "was_price_cents": 995,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "1cb608c4-9453-5a20-9527-8a6650e4ace7",
-    "product_id": "f51b5c83-2969-5838-81b3-c2cae67b0512",
-    "special_price_cents": 210,
-    "was_price_cents": 420,
-    "savings_cents": 210,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "5b3f4f9a-b843-5cb4-8fe1-b1cb430599d3",
-    "product_id": "f7e6d0b2-6d69-5ede-a5f1-99a3d8cf593b",
-    "special_price_cents": 360,
-    "was_price_cents": 400,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f00244c6-e19b-52f2-891e-4f8225c6a53f",
-    "product_id": "3d0fd458-106a-596e-9fa9-cbd605cab930",
-    "special_price_cents": 360,
-    "was_price_cents": 400,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7f46c216-1e24-53d8-8f6c-eec943d1fbdb",
-    "product_id": "1311d3f3-2894-5fd3-ad96-1ea393164fa9",
-    "special_price_cents": 360,
-    "was_price_cents": 400,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ca54c221-6e70-515d-8659-0fc3445a2933",
-    "product_id": "9b058164-67b8-5d78-8f1f-d2b4f2483e00",
-    "special_price_cents": 360,
-    "was_price_cents": 400,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "fd95109b-1ab5-50e3-9ef7-6f3c34d1c033",
-    "product_id": "9f541682-7617-5827-a53b-63029a54af91",
-    "special_price_cents": 360,
-    "was_price_cents": 400,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7a3aac24-8f50-5846-b0de-8a860ec379cd",
-    "product_id": "ada69126-4b2a-5b91-b27a-988600d6a0fa",
-    "special_price_cents": 990,
-    "was_price_cents": 1650,
-    "savings_cents": 660,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e7a06b18-872c-5ba8-9cd4-673206d2a477",
-    "product_id": "50af1804-ec3a-5f78-88ca-fd17fad5af29",
-    "special_price_cents": 280,
-    "was_price_cents": 350,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b2d3b66c-8a63-5afb-96c2-46deb1ef704e",
-    "product_id": "fd38ebbc-99a9-561c-ae2a-f84a2ede8ff9",
-    "special_price_cents": 280,
-    "was_price_cents": 350,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "e425ee6a-66f4-5d50-8c80-021a2e48e023",
-    "product_id": "95ae19dd-b9b0-570f-8e13-471b3f033597",
-    "special_price_cents": 600,
-    "was_price_cents": 1000,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8bb1e9de-52dd-59e4-8032-d6b219ea3399",
-    "product_id": "8e2075f4-ec89-5386-bf70-609ad2123a9e",
-    "special_price_cents": 280,
-    "was_price_cents": 350,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b2a1138c-ad60-5513-abd9-7cf18e7cc14c",
-    "product_id": "0b503be2-f9d5-554d-9948-3790c1e51014",
-    "special_price_cents": 600,
-    "was_price_cents": 1000,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "eb813f2f-9caa-5179-8ea6-dc90190c1cbb",
-    "product_id": "a26339ac-c850-5218-ad10-784c1ad6819c",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "381cc3b1-004c-576c-a980-70e0ff41480a",
-    "product_id": "b2ee5f04-5962-51cb-8c99-65bd2251a784",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "0ca1c8d6-0dd1-5d4b-addf-49c07317ba68",
-    "product_id": "b9eb7aaa-3a25-5c34-aeb1-5e24e64e7012",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4c8400b8-080d-55c2-b564-dfa2369c0287",
-    "product_id": "1101951b-a43b-5c84-8b29-4e2f05f07342",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "d8f13a1d-8289-53d7-9bdb-c329cc4d32f6",
-    "product_id": "ad205316-6e3b-538b-b279-ae85b53a3a7a",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "01b3d6f0-639e-5db1-8e94-b00cdb4a32dd",
-    "product_id": "9cde2a03-9d05-53eb-a70a-86e68bb8fadd",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "764e0da5-c116-5491-80f8-511c6042d698",
-    "product_id": "121658eb-501b-52ce-bb06-9fd851b7e172",
-    "special_price_cents": 570,
-    "was_price_cents": 950,
-    "savings_cents": 380,
-    "special_type": "special"
-  },
-  {
-    "special_id": "93b68302-2e58-5943-b340-f0964070b998",
-    "product_id": "a1248e0b-6ac2-5b5d-9800-8f5a12e5bbb0",
-    "special_price_cents": 400,
-    "was_price_cents": 800,
-    "savings_cents": 400,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "6781d710-ee3c-5f08-9fd6-ad2402085aa5",
-    "product_id": "3323d12c-d637-5a40-8770-838cd2d1f9f7",
-    "special_price_cents": 200,
-    "was_price_cents": 270,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "d654c380-20e1-5415-9a28-fb1c521d4e61",
-    "product_id": "a2c028dc-6e75-5bd3-b398-6a6bfcf07269",
-    "special_price_cents": 200,
-    "was_price_cents": 270,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "6c2a98b7-1175-56f8-9b4c-e38b43f9450d",
-    "product_id": "2de699e9-8232-5f23-b3e1-d2d61034dac2",
-    "special_price_cents": 200,
-    "was_price_cents": 270,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "68ab325a-b88c-5c37-b64a-f183227a91ce",
-    "product_id": "b7d394bb-d7a4-523c-8b0d-377c4d1e15b1",
-    "special_price_cents": 200,
-    "was_price_cents": 270,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "6454611a-c398-5102-b6a2-a089fda5b40b",
-    "product_id": "3e0070d5-cd78-5b85-82dc-eeb9cc8ed2f4",
-    "special_price_cents": 200,
-    "was_price_cents": 270,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7943ecfe-da38-5667-bc70-377b8e183dc5",
-    "product_id": "a3c93f44-77e0-5e51-bb9e-b6257cb16598",
-    "special_price_cents": 200,
-    "was_price_cents": 270,
-    "savings_cents": 70,
-    "special_type": "special"
-  },
-  {
-    "special_id": "664a455b-4777-5ef8-aaba-ef502fd9a5ca",
-    "product_id": "4265f363-6246-5de7-bc26-fcda5a8b6928",
-    "special_price_cents": 945,
-    "was_price_cents": 1050,
-    "savings_cents": 105,
-    "special_type": "special"
-  },
-  {
-    "special_id": "30863194-14f0-51d3-8b7b-2a9fea1dec1d",
-    "product_id": "631dbd9e-bae0-51c1-a6a5-178e918cdd0d",
-    "special_price_cents": 1200,
-    "was_price_cents": 1350,
-    "savings_cents": 150,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ceb25390-f897-572c-93f7-d1c226343049",
-    "product_id": "adbcfd7b-9376-5ecb-a9b5-a655eaebd174",
-    "special_price_cents": 720,
-    "was_price_cents": 900,
-    "savings_cents": 180,
-    "special_type": "special"
-  },
-  {
-    "special_id": "4b747e41-5fa3-5b54-905d-7d26b2aad570",
-    "product_id": "e3eb4f8d-032b-599f-872a-2f7310bc1ddb",
-    "special_price_cents": 500,
-    "was_price_cents": 1000,
-    "savings_cents": 500,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "5ef312c6-d6da-5cf7-beb5-6fe5fc218a45",
-    "product_id": "8fff3a69-ee58-5708-b8c8-2757d7c65dc0",
-    "special_price_cents": 245,
-    "was_price_cents": 350,
-    "savings_cents": 105,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7028cf5c-49c2-525d-8ab2-333326d7ab56",
-    "product_id": "c5296d02-84f9-50b0-91f0-239f4ced0eca",
-    "special_price_cents": 1600,
-    "was_price_cents": 3200,
-    "savings_cents": 1600,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "ae68bb34-599d-5d0b-bf41-3cd34c274884",
-    "product_id": "5740b183-c5e6-5302-b05b-a862e812cb99",
-    "special_price_cents": 1600,
-    "was_price_cents": 3200,
-    "savings_cents": 1600,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "ea76f808-d0b2-5637-b347-8e08e59b8bba",
-    "product_id": "20166230-f36b-50e3-a001-ea1f2f4054d3",
-    "special_price_cents": 1600,
-    "was_price_cents": 3200,
-    "savings_cents": 1600,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "7a8d8c6f-aa6d-5ed2-9000-b685f3c9d257",
-    "product_id": "d964cd86-4d4b-5533-907a-2d1c2d782c47",
-    "special_price_cents": 500,
-    "was_price_cents": 600,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "16cf1c37-9af0-5346-9e68-5cf45c7697ff",
-    "product_id": "1a4ab845-d881-50aa-ba0f-d1c1f54c5c5c",
-    "special_price_cents": 300,
-    "was_price_cents": 440,
-    "savings_cents": 140,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8bdc5f9a-f441-53b0-abdf-a4b2c8198e3e",
-    "product_id": "82407185-8ae5-5ff8-beff-5f6874eeb164",
-    "special_price_cents": 945,
-    "was_price_cents": 1350,
-    "savings_cents": 405,
-    "special_type": "special"
-  },
-  {
-    "special_id": "13d1c3a1-2402-5a94-bb69-1fdc0a373b53",
-    "product_id": "b3e77d02-16af-55f1-89da-b78a861e5782",
-    "special_price_cents": 720,
-    "was_price_cents": 1200,
-    "savings_cents": 480,
-    "special_type": "special"
-  },
-  {
-    "special_id": "363d8c15-65c9-5097-93b6-545904b90f66",
-    "product_id": "c80d88b4-ce91-507e-9818-88c9a4efa58d",
-    "special_price_cents": 550,
-    "was_price_cents": 1100,
-    "savings_cents": 550,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "95b17788-9fef-5659-b47c-ab211e64bf02",
-    "product_id": "74e844c7-7f12-598c-935f-bfc833357d5e",
-    "special_price_cents": 350,
-    "was_price_cents": 700,
-    "savings_cents": 350,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "43e718d4-2857-560c-8a6c-3616e7927232",
-    "product_id": "fdf2f0f7-d2ab-5582-8ad9-bb839d31e6b3",
-    "special_price_cents": 275,
-    "was_price_cents": 550,
-    "savings_cents": 275,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "259cba0f-980f-5eb9-82a7-892fb9a7d8a3",
-    "product_id": "6cb8e51d-c335-56c6-9b27-ad90b5a99bfb",
-    "special_price_cents": 400,
-    "was_price_cents": 800,
-    "savings_cents": 400,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "c9a7b60b-7c57-5247-8a70-a13c6f8f67f4",
-    "product_id": "a3d71e06-7a79-5661-9e75-92eca9594b58",
-    "special_price_cents": 525,
-    "was_price_cents": 1050,
-    "savings_cents": 525,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "1348c3d0-275c-5333-9a3e-4087971d8cbe",
-    "product_id": "40a8cfb7-2605-50dd-9ebd-f1e795313113",
-    "special_price_cents": 275,
-    "was_price_cents": 550,
-    "savings_cents": 275,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "3c14d30a-f6ad-570b-95da-84900c0391b8",
-    "product_id": "72995c61-c9b3-5856-b375-cd97855e1cf3",
-    "special_price_cents": 900,
-    "was_price_cents": 1300,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9519a1e6-df34-5d76-b6e4-3649ebfe5473",
-    "product_id": "dff922f5-24b5-5fb4-8d0a-ddbf9bdbe892",
-    "special_price_cents": 900,
-    "was_price_cents": 1300,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "77fde396-08bf-5b33-be17-cbf110a831cc",
-    "product_id": "56c50073-275f-5d93-999d-511dd7d6d7e5",
-    "special_price_cents": 900,
-    "was_price_cents": 1300,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "c6e3eb4f-1ace-5571-a5f0-cc167e38806f",
-    "product_id": "1078bb25-10a5-53ee-91a6-7a33f4eb3026",
-    "special_price_cents": 1330,
-    "was_price_cents": 1900,
-    "savings_cents": 570,
-    "special_type": "special"
+    "special_id": "9bbdbeac-1b44-52c2-a88a-4bf1c94ccbc9",
+    "product_id": "51aee465-523a-5feb-8af2-35d5dd5daca1",
+    "special_price_cents": 325,
+    "was_price_cents": 485,
+    "savings_cents": 160,
+    "special_type": "member_price"
   },
   {
-    "special_id": "4608d476-eb96-5d7e-8641-f38eed8000f1",
-    "product_id": "7e5cb4b6-d955-56bb-bdbb-688ec86e74e1",
-    "special_price_cents": 900,
-    "was_price_cents": 1300,
-    "savings_cents": 400,
+    "special_id": "32e12cfb-5c21-5eaf-a825-24df25fee7fe",
+    "product_id": "b57ca101-d54b-50fa-bdbf-bb91f9510574",
+    "special_price_cents": 255,
+    "was_price_cents": 345,
+    "savings_cents": 90,
     "special_type": "special"
   },
   {
-    "special_id": "b55f1b37-4a69-5559-b096-5596cac0b261",
-    "product_id": "3079006c-8adf-5393-b5d1-69d32cf8094c",
-    "special_price_cents": 1330,
-    "was_price_cents": 1900,
-    "savings_cents": 570,
+    "special_id": "de10095e-5943-5619-a036-6d527fd82aed",
+    "product_id": "9d7ffe3e-685d-529f-94d1-ced9d3bce04d",
+    "special_price_cents": 405,
+    "was_price_cents": 449,
+    "savings_cents": 44,
     "special_type": "special"
-  },
-  {
-    "special_id": "33a4d3b1-49bd-535a-9b86-0e60cbb9ce63",
-    "product_id": "df35d61a-5360-5bd9-95da-ad13dce4b46e",
-    "special_price_cents": 900,
-    "was_price_cents": 1300,
-    "savings_cents": 400,
-    "special_type": "special"
-  },
-  {
-    "special_id": "8eb2421d-30cb-5e10-a0c1-2623656da992",
-    "product_id": "ca429587-66d6-552a-b99c-46a3a1eb242b",
-    "special_price_cents": 550,
-    "was_price_cents": 1100,
-    "savings_cents": 550,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "cc426105-878a-5c1f-be1e-bf218939729d",
-    "product_id": "2bc927fd-2404-5ed8-b019-cdbd2d162479",
-    "special_price_cents": 250,
-    "was_price_cents": 500,
-    "savings_cents": 250,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "15a77258-b658-5959-8fbc-c77cbc9a9ea4",
-    "product_id": "3abceb1d-28bd-5434-b9fb-57de3a1d0a43",
-    "special_price_cents": 1975,
-    "was_price_cents": 3950,
-    "savings_cents": 1975,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "d7a8097d-5b51-5c36-b6fe-1fef9d790139",
-    "product_id": "dfa8b1cf-7c84-5dca-a169-6cff11847c2f",
-    "special_price_cents": 1750,
-    "was_price_cents": 3500,
-    "savings_cents": 1750,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "e0356248-e0d4-5f8a-ad2e-348f2779eecb",
-    "product_id": "2c25b90e-2ebb-5cec-aace-409d45535072",
-    "special_price_cents": 2475,
-    "was_price_cents": 4950,
-    "savings_cents": 2475,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "c5b4b753-5901-5e87-9779-2fe01bd18baa",
-    "product_id": "f2484991-9a6d-5d89-8a5d-1ddf51a82718",
-    "special_price_cents": 1975,
-    "was_price_cents": 3950,
-    "savings_cents": 1975,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "63f155a1-b3f3-5105-814a-f532453c331a",
-    "product_id": "aa8da72f-e9f3-51be-94ad-f945bdf03796",
-    "special_price_cents": 2750,
-    "was_price_cents": 5500,
-    "savings_cents": 2750,
-    "special_type": "half_price"
-  },
-  {
-    "special_id": "aedebdfe-57b8-5307-8817-a44fab706258",
-    "product_id": "cb530309-908d-5946-a00a-5406b789ac5b",
-    "special_price_cents": 2475,
-    "was_price_cents": 4950,
-    "savings_cents": 2475,
-    "special_type": "half_price"
   },
   {
-    "special_id": "73821dac-5083-5429-bc42-7f28c02da3ec",
-    "product_id": "5e2fb573-c3ca-5d06-a135-f47d03278a8f",
-    "special_price_cents": 1250,
-    "was_price_cents": 2500,
-    "savings_cents": 1250,
-    "special_type": "half_price"
+    "special_id": "752de7a5-22ac-54b3-aeb0-870b45c7a1a3",
+    "product_id": "586da17d-c0c5-506c-b8da-e6f7c4948c78",
+    "special_price_cents": 225,
+    "was_price_cents": 279,
+    "savings_cents": 54,
+    "special_type": "member_price"
   },
   {
-    "special_id": "8d841728-718c-572d-b797-56020fd01a75",
-    "product_id": "620384d1-1e8a-5832-8ba8-fd32dfdeb873",
-    "special_price_cents": 1750,
-    "was_price_cents": 3500,
-    "savings_cents": 1750,
-    "special_type": "half_price"
+    "special_id": "072e7337-092c-5f37-9679-0d646152f6c0",
+    "product_id": "7495832c-3208-5b88-9568-afb9e4fa9560",
+    "special_price_cents": 385,
+    "was_price_cents": 519,
+    "savings_cents": 134,
+    "special_type": "member_price"
   },
   {
-    "special_id": "c6d93cf5-514e-52dd-88ab-0c04e907a852",
-    "product_id": "5f7628cd-7071-55b2-ac8b-f46f7ae6df0b",
-    "special_price_cents": 700,
-    "was_price_cents": 900,
-    "savings_cents": 200,
+    "special_id": "8ac84fc5-b09b-52b5-9073-5984e23c2676",
+    "product_id": "0c09db4f-f18f-587b-8db8-6448e6ceb0d3",
+    "special_price_cents": 265,
+    "was_price_cents": 329,
+    "savings_cents": 64,
     "special_type": "special"
   },
   {
-    "special_id": "3a2c8d1a-7973-561c-a362-d44aa6264335",
-    "product_id": "cc058010-75c8-57ce-89ed-1594b408011b",
-    "special_price_cents": 375,
+    "special_id": "c453e772-65b1-5497-ab43-79a743532562",
+    "product_id": "cadb55be-97c8-590b-bb39-c8ec3e60a606",
+    "special_price_cents": 315,
     "was_price_cents": 425,
-    "savings_cents": 50,
-    "special_type": "special"
+    "savings_cents": 110,
+    "special_type": "member_price"
   },
   {
-    "special_id": "190000bc-e1b1-5a2a-8b11-7d974cba7565",
-    "product_id": "7e695511-53e6-5852-889b-5d8c05128c8e",
-    "special_price_cents": 350,
-    "was_price_cents": 450,
-    "savings_cents": 100,
-    "special_type": "special"
+    "special_id": "97bb53f0-065d-5907-b831-abc2f194d3d5",
+    "product_id": "c2f0dd2a-b26c-5b2b-bbff-c6747671a1b5",
+    "special_price_cents": 1485,
+    "was_price_cents": 2975,
+    "savings_cents": 1490,
+    "special_type": "half_price"
   },
   {
-    "special_id": "3df7ffc2-2577-52f7-8ef0-8975569bc19f",
-    "product_id": "134738b8-bf2e-5879-b7d9-7e81126255db",
-    "special_price_cents": 350,
-    "was_price_cents": 450,
-    "savings_cents": 100,
-    "special_type": "special"
-  },
-  {
-    "special_id": "ac1e689b-9d62-5303-bcb8-2ce7991f01ff",
-    "product_id": "8c160a5b-ad5a-5e15-aeac-d7a232cef44b",
-    "special_price_cents": 1000,
-    "was_price_cents": 1200,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "7dbc9ef1-4328-5994-95e7-cdf88d3a3073",
-    "product_id": "30acfdbc-79f3-52bf-ad1e-d3ce231dff71",
-    "special_price_cents": 1000,
-    "was_price_cents": 1200,
-    "savings_cents": 200,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f8ce445a-4e76-5929-8926-7f8f8979b72d",
-    "product_id": "7d849f18-7674-5f89-8549-04ef71591574",
-    "special_price_cents": 190,
-    "was_price_cents": 230,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "f2a5102e-73f9-584d-ab52-a1bbf0e509ca",
-    "product_id": "39905c46-5792-501a-bccd-6bbf88b5c243",
-    "special_price_cents": 190,
-    "was_price_cents": 230,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "6af1dd7f-f085-5554-b47f-0fa4a61859e8",
-    "product_id": "07acaf98-31f9-5809-9fb6-d8f57b0a3ff6",
-    "special_price_cents": 190,
-    "was_price_cents": 230,
-    "savings_cents": 40,
-    "special_type": "special"
-  },
-  {
-    "special_id": "d7dd2122-c9e8-54b2-89b9-830d022bff3e",
-    "product_id": "03eaabab-7a16-5ac4-9fc0-0cac78d1a78d",
-    "special_price_cents": 245,
-    "was_price_cents": 350,
-    "savings_cents": 105,
-    "special_type": "special"
-  },
-  {
-    "special_id": "9136127d-8753-527f-99c2-abf471761a34",
-    "product_id": "2efde6b0-e4ef-5cee-b135-04b8bffa4517",
-    "special_price_cents": 1540,
-    "was_price_cents": 2200,
+    "special_id": "16083c96-e766-51cf-a6ab-8e51a5ae5df2",
+    "product_id": "d5aaedaf-e5e5-5935-abf2-a35f3c78d08e",
+    "special_price_cents": 2645,
+    "was_price_cents": 3305,
     "savings_cents": 660,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "7eed0dd3-c0a9-551a-91d6-f2c38e39def7",
+    "product_id": "8a7e3468-cba4-5753-bcd6-994969a70426",
+    "special_price_cents": 275,
+    "was_price_cents": 409,
+    "savings_cents": 134,
     "special_type": "special"
   },
   {
-    "special_id": "b4c375bb-6008-5aa4-8108-82d490de2cbe",
-    "product_id": "b25da5df-17cb-5a42-a3f7-ddc8bd7f1c44",
-    "special_price_cents": 245,
-    "was_price_cents": 350,
-    "savings_cents": 105,
+    "special_id": "4d5492ad-561c-5768-bf93-b1548e018276",
+    "product_id": "180cf460-e029-55a9-9ec0-31a576e773b6",
+    "special_price_cents": 315,
+    "was_price_cents": 395,
+    "savings_cents": 80,
     "special_type": "special"
   },
   {
-    "special_id": "85f7be1a-e946-5b97-8d72-0054c9b05610",
-    "product_id": "f1edf3f3-cd50-5888-a69f-c7970218f2f4",
-    "special_price_cents": 245,
-    "was_price_cents": 350,
-    "savings_cents": 105,
+    "special_id": "72ead436-2aa8-5cdf-af4e-8e01791b222e",
+    "product_id": "53c6cb7e-fb4b-5aea-aff4-0bb65b6f3a55",
+    "special_price_cents": 435,
+    "was_price_cents": 485,
+    "savings_cents": 50,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "23e5407c-8621-57c0-97f4-49a4a663550c",
+    "product_id": "89db0821-8ff1-5946-8bb4-2f9821568043",
+    "special_price_cents": 225,
+    "was_price_cents": 305,
+    "savings_cents": 80,
     "special_type": "special"
   },
   {
-    "special_id": "fb9a6b45-65e9-55e0-9619-100fdfa0c31d",
-    "product_id": "83606fde-151e-5a72-9faa-e9bd48ba5fd3",
-    "special_price_cents": 1320,
-    "was_price_cents": 1650,
-    "savings_cents": 330,
-    "special_type": "special"
-  },
-  {
-    "special_id": "b1696546-8150-5e3e-a39d-69a2408861be",
-    "product_id": "a945f579-9427-5ace-8e3c-ef81487c40d0",
-    "special_price_cents": 1000,
-    "was_price_cents": 1450,
+    "special_id": "a502a7e0-e138-5084-8f65-609d24ab9319",
+    "product_id": "b9ad8154-3748-5d5f-96f7-cc48d6ab91b7",
+    "special_price_cents": 925,
+    "was_price_cents": 1375,
     "savings_cents": 450,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "51464603-5c3f-5078-854f-0a09efff3e8a",
+    "product_id": "70088953-09d9-5028-8143-9edd2e6409be",
+    "special_price_cents": 325,
+    "was_price_cents": 479,
+    "savings_cents": 154,
     "special_type": "special"
   },
   {
-    "special_id": "b840d086-25e1-5b5e-9cf6-603036cc388e",
-    "product_id": "563018f4-1f4a-51f7-8857-a0fdc7b4a9c2",
-    "special_price_cents": 300,
-    "was_price_cents": 500,
-    "savings_cents": 200,
+    "special_id": "a240af13-2b48-589a-b972-36771152c186",
+    "product_id": "ec8af2c7-f311-5610-b7cd-1ce8eb7f154d",
+    "special_price_cents": 555,
+    "was_price_cents": 735,
+    "savings_cents": 180,
+    "special_type": "special"
+  },
+  {
+    "special_id": "a013553a-fe5e-5eca-8de0-f5acb8741c2d",
+    "product_id": "79bf0217-918b-54f0-bd21-05c7de40b401",
+    "special_price_cents": 1955,
+    "was_price_cents": 2439,
+    "savings_cents": 484,
+    "special_type": "special"
+  },
+  {
+    "special_id": "e58bc5a5-c94e-56c5-a1c0-2f242266f73c",
+    "product_id": "ca6b5110-3c2f-5e01-834c-dafda763b6b4",
+    "special_price_cents": 1855,
+    "was_price_cents": 2319,
+    "savings_cents": 464,
+    "special_type": "special"
+  },
+  {
+    "special_id": "7881d90f-3800-5205-9dc0-4ebf46513e8d",
+    "product_id": "8a576137-e02d-516b-9ed1-2439deb65192",
+    "special_price_cents": 1625,
+    "was_price_cents": 1915,
+    "savings_cents": 290,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "bbeffc3a-a2b2-5477-b68f-0fddf836b67b",
+    "product_id": "472801ab-fa7b-500a-8acf-1885ac400d38",
+    "special_price_cents": 695,
+    "was_price_cents": 1395,
+    "savings_cents": 700,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "fb272bab-1ca7-537e-a204-165fa28cb1c2",
+    "product_id": "75f9ec23-7df1-560d-9f30-3b3d4f2add91",
+    "special_price_cents": 1175,
+    "was_price_cents": 1565,
+    "savings_cents": 390,
     "special_type": "special"
   }
 ]

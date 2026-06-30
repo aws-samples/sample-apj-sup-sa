@@ -1,8 +1,8 @@
-# Silo 3 — Voice Agent (pipecat on AgentCore Runtime) (`AgentStack`)
+# Voice Agent (pipecat on AgentCore Runtime) (`AgentStack`)
 
-**Owns (writes only here):** `agent/**` (EXCEPT `contracts.py`, which is frozen),
-`infra/lib/agent-stack.ts`.
-**Deploys:** `AgentStack` (ECR image + AgentCore Runtime + Memory + runtime IAM role).
+**Deploys:** `AgentStack` (ECR image + AgentCore Runtime + Memory + runtime IAM
+role; resources defined in `infra/lib/agent-stack.ts`). `contracts.py` is the
+shared wire contract — change it only via a coordinated `CONTRACT_VERSION` bump.
 
 ## Build
 - ARM64 container, host `0.0.0.0:8080`, endpoints `/ws` (voice) + `/ping` (health),
@@ -22,7 +22,7 @@
 - `prompts.py` — home vs store system prompts (mode from `init` message).
 - AgentCore **Memory** keyed by `session_id`.
 
-Emit WS events EXACTLY per `contracts.py` (frozen). Do not edit `contracts.py`.
+Emit WS events per the shapes documented in `contracts.py`.
 
 ## Env (from Secrets Manager / SSM)
 `DEEPGRAM_API_KEY`, `AWS_REGION`, `BEDROCK_MODEL_ID`, `GATEWAY_MCP_URL`, `MEMORY_ID`.

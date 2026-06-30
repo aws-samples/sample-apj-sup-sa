@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Deploy the /start Lambda and expose it via a Function URL.
+# Deploy the /start Lambda (code + config). Exposure is via API Gateway, never a
+# public Lambda Function URL (see the security note below).
 # Reads AGENT_RUNTIME_ARN + DAILY_ROOM_URL from lambda/start.env (written by launch.sh)
 # or from agent/.env (for DAILY_ROOM_URL). Creates an IAM role allowing
 # bedrock-agentcore:InvokeAgentRuntime, packages handler.py, and configures env + URL.
@@ -8,7 +9,7 @@
 set -e
 cd "$(dirname "$0")/.."   # repo root: agentcore-pipecat/
 
-FUNCTION_NAME="${FUNCTION_NAME:-summit-start}"
+FUNCTION_NAME="${FUNCTION_NAME:-aisle-start}"
 RUNTIME="python3.13"
 HANDLER="handler.handler"
 START_ENV="./lambda/start.env"
@@ -34,7 +35,7 @@ ALLOWED_ORIGIN="${ALLOWED_ORIGIN:-*}"
 DEMO_USER_ID="${DEMO_USER_ID:-demo-user}"
 
 # --- IAM role for the Lambda ---
-ROLE_NAME="summit-start-lambda-role"
+ROLE_NAME="aisle-start-lambda-role"
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
 cat > /tmp/lambda-trust.json << 'EOF'
 { "Version": "2012-10-17", "Statement": [
@@ -61,8 +62,8 @@ echo "Waiting for IAM role to propagate..."
 sleep 10
 
 # --- Package ---
-rm -f /tmp/summit-start.zip
-( cd lambda && zip -q /tmp/summit-start.zip handler.py )
+rm -f /tmp/aisle-start.zip
+( cd lambda && zip -q /tmp/aisle-start.zip handler.py )
 
 ENV_VARS="Variables={AGENT_RUNTIME_ARN=$AGENT_RUNTIME_ARN,DAILY_ROOM_URL=$DAILY_ROOM_URL,ALLOWED_ORIGIN=$ALLOWED_ORIGIN,DEMO_USER_ID=$DEMO_USER_ID}"
 
@@ -70,7 +71,7 @@ ENV_VARS="Variables={AGENT_RUNTIME_ARN=$AGENT_RUNTIME_ARN,DAILY_ROOM_URL=$DAILY_
 if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$AWS_REGION" &>/dev/null; then
     echo "Updating existing function $FUNCTION_NAME ..."
     aws lambda update-function-code --function-name "$FUNCTION_NAME" \
-        --zip-file fileb:///tmp/summit-start.zip --region "$AWS_REGION" >/dev/null
+        --zip-file fileb:///tmp/aisle-start.zip --region "$AWS_REGION" >/dev/null
     aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$AWS_REGION"
     aws lambda update-function-configuration --function-name "$FUNCTION_NAME" \
         --timeout 30 --environment "$ENV_VARS" --region "$AWS_REGION" >/dev/null
@@ -78,32 +79,32 @@ else
     echo "Creating function $FUNCTION_NAME ..."
     aws lambda create-function --function-name "$FUNCTION_NAME" \
         --runtime "$RUNTIME" --handler "$HANDLER" --role "$ROLE_ARN" \
-        --timeout 30 --zip-file fileb:///tmp/summit-start.zip \
+        --timeout 30 --zip-file fileb:///tmp/aisle-start.zip \
         --environment "$ENV_VARS" --region "$AWS_REGION" >/dev/null
     aws lambda wait function-active --function-name "$FUNCTION_NAME" --region "$AWS_REGION"
 fi
 
 # --- Exposure is via API Gateway (managed separately), NOT a Lambda Function URL ---
-# A public Lambda Function URL (AuthType=NONE) was previously created here and
-# flagged as a Sev2. It has been removed and replaced with an API Gateway REST
-# API ("summit-start-api"). This script intentionally does NOT (re)create a
-# Function URL — doing so would regress that security fix.
+# Do NOT expose /start via a public Lambda Function URL (AuthType=NONE): it is
+# unauthenticated and would let anyone launch bot sessions on your account. Use
+# an API Gateway REST API instead. This script intentionally does NOT (re)create
+# a Function URL — doing so would regress that security posture.
 #
 # If a stale Function URL somehow exists, remove it:
 #   aws lambda delete-function-url-config --function-name "$FUNCTION_NAME" --region "$AWS_REGION"
 
 # Safety guard: refuse to leave a public Function URL in place.
 if aws lambda get-function-url-config --function-name "$FUNCTION_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-    echo "⚠️  A Lambda Function URL exists on $FUNCTION_NAME — deleting it to keep the Sev2 fix intact."
+    echo "WARNING: A Lambda Function URL exists on $FUNCTION_NAME — deleting it to keep /start non-public."
     aws lambda delete-function-url-config --function-name "$FUNCTION_NAME" --region "$AWS_REGION" || true
     aws lambda remove-permission --function-name "$FUNCTION_NAME" \
         --statement-id FunctionURLAllowPublicAccess --region "$AWS_REGION" 2>/dev/null || true
 fi
 
-rm -f /tmp/lambda-trust.json /tmp/lambda-invoke.json /tmp/summit-start.zip
+rm -f /tmp/lambda-trust.json /tmp/lambda-invoke.json /tmp/aisle-start.zip
 
 API_ID=$(aws apigateway get-rest-apis --region "$AWS_REGION" \
-    --query "items[?name=='summit-start-api'].id | [0]" --output text 2>/dev/null)
+    --query "items[?name=='aisle-start-api'].id | [0]" --output text 2>/dev/null)
 echo ""
 echo "✅ /start Lambda code/config deployed (no Function URL created)."
 if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then

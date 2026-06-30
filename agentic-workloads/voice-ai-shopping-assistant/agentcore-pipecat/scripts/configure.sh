@@ -11,7 +11,7 @@ fi
 
 source ./agent/.env
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
-ROLE_NAME="AmazonBedrockAgentCoreSDKRuntime-${AWS_REGION}-summit"
+ROLE_NAME="AmazonBedrockAgentCoreSDKRuntime-${AWS_REGION}-aisle"
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
 
 # Create the execution role if it doesn't exist yet.
@@ -25,7 +25,7 @@ echo "Configuring AgentCore with execution role: $ROLE_ARN"
 # fight our setup. Leave it as-is.
 uv run agentcore configure \
     -e ./agent/pipecat-agent.py \
-    --name summit_agent \
+    --name aisle_agent \
     --container-runtime docker \
     --disable-memory \
     --execution-role "$ROLE_ARN" \

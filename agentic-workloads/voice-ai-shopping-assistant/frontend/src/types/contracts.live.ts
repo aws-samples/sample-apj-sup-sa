@@ -1,9 +1,9 @@
 /**
- * LIVE (deployed) contract — shapes verified by invoking the deployed Lambdas in
- * account 597437436235 (ap-southeast-2): SearchProducts / AddToCart / GetCart /
+ * LIVE (deployed) contract — shapes verified by invoking the deployed Lambdas
+ * (ap-southeast-2): SearchProducts / AddToCart / GetCart /
  * CreateOrder, plus the (incoming) update_grocery_list list tool.
  *
- * Data model (per Lucy's direction): everything the shopper says lands on the
+ * Data model: everything the shopper says lands on the
  * LIST first; items are then moved LIST → CART; the cart is checked out.
  *   update_grocery_list → list   (UC1 — the persistent list)
  *   add_to_cart/get_cart → cart   (the curated "ready to buy" subset)

@@ -1,4 +1,4 @@
-"""add_to_cart — AgentCore Gateway tool (SPEC §3.5).
+"""add_to_cart — AgentCore Gateway tool.
 
 Adds a product to the shopper's session cart and returns the updated Cart.
 Creates the cart on first add. Re-adding the same product increments its qty.

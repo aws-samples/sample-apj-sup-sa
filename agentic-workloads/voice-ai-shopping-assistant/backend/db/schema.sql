@@ -1,16 +1,17 @@
 -- Aisle — Aurora Serverless v2 (PostgreSQL) schema.
--- snake_case, plural tables (SPEC §2, §3.6). Money is integer cents.
+-- snake_case, plural tables. Money is integer cents.
 --
--- This file covers Silo 1's products + specials (this task's scope). The
--- cart/order/recipe tables from SPEC §3.6 are added in a later pass; the
--- products columns below match the frozen `Product` contract in
--- backend/agent/contracts.py exactly.
+-- Covers the full data model: products + specials (catalogue), grocery_items
+-- (the persistent list), carts/cart_items, orders/order_events/order_artifacts/
+-- order_items, and the checkout support tables (virtual_cards, merchants). The
+-- products columns below match the `Product` shape in
+-- backend/agent/contracts.py.
 
 -- Idempotent (re-runnable by the seed loader on each deploy).
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 
 -- ---------------------------------------------------------------------------
--- products — the live store inventory (mirrors Product, SPEC §3.5/§3.6)
+-- products — the live store inventory (mirrors the Product contract)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS products (
   product_id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,7 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_grocery_items_user ON grocery_items (user_id, sta
 
 -- ---------------------------------------------------------------------------
 -- carts / cart_items — the shopper's working basket, keyed by session_id
---   (SPEC §3.6). One open cart per session; cart_items snapshot name + price
+--   One open cart per session; cart_items snapshot name + price
 --   at add time so the cart total is stable even if a product's price changes.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS carts (
@@ -114,8 +115,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
 CREATE INDEX IF NOT EXISTS idx_cart_items_cart ON cart_items (cart_id);
 
 -- ---------------------------------------------------------------------------
--- orders / order_items — a submitted order (SPEC §3.6). order_items is an
---   additive line-item snapshot (beyond §3.6) so an order can be reconstructed
+-- orders / order_items — a submitted order. order_items is an
+--   additive line-item snapshot so an order can be reconstructed
 --   for the frontend independently of the cart, which may change afterwards.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS orders (
@@ -229,6 +230,12 @@ ALTER TABLE virtual_cards ADD COLUMN IF NOT EXISTS stripe_card_id text;
 --                              checkout, paying with a Stripe-issued card.
 --   This generalises the agent beyond grocery: any merchant declares how it can
 --   be paid, and the agent picks the matching tool.
+--   INTEGRATING A REAL MERCHANT: insert a row here pointing `endpoint` at the
+--   real service. supports_x402=true expects the endpoint to return HTTP 402
+--   with x402 requirements and settle the signed proof via a facilitator (the
+--   bundled merchant_api/delivery_api are demo stand-ins that don't settle
+--   on-chain). supports_x402=false routes through the browser pathway — see the
+--   note in backend/tools/storefront/handler.py.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS merchants (
   merchant_id    text PRIMARY KEY,             -- stable slug, e.g. 'aisle-grocery'

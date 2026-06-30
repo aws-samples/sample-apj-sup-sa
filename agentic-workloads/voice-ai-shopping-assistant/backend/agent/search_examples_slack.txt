@@ -1,5 +1,5 @@
 search_products — example queries the agent can make
-(upgraded: ~1,860 Woolworths items + semantic search. All verified live.)
+(synthetic Aisle catalogue + semantic search. All verified live.)
 
 1. Plain find / multi-word
 - "Do you have Tim Tams?" -> {"query":"tim tam"}

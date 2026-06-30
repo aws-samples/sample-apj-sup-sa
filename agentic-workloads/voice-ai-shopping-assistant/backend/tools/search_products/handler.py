@@ -1,4 +1,4 @@
-"""search_products — AgentCore Gateway tool (SPEC §3.5).
+"""search_products — AgentCore Gateway tool.
 
 Searches the store inventory and answers the questions a shopper actually asks
 when choosing a product: not just "find milk", but "cheap gluten-free pasta with

@@ -1,7 +1,7 @@
 """storefront — a minimal x402-funded grocery checkout the AgentCore browser drives.
 
-Stands in for a real storefront, but seeded with the SAME Woolworths products as
-the Aisle catalogue (via the order's order_items in Aurora). The async browser
+Stands in for a real storefront, seeded with the SAME synthetic Aisle catalogue
+products (via the order's order_items in Aurora). The async browser
 worker navigates here, types the bridge-issued virtual card, and clicks Pay —
 exercising a real browser checkout that completes a real AgentCore-funded payment
 (through the mock x402->card bridge in virtual_cards).
@@ -16,6 +16,14 @@ SigV4-signs each navigation, so the storefront is NOT public):
 
 Browser-automation friendly: stable data-testid selectors, no captcha, no JS
 framework — predictable DOM the worker can drive deterministically.
+
+INTEGRATING A REAL STOREFRONT: this stands in for a merchant's checkout. To
+drive a real site instead, register the merchant in the `merchants` table
+(`endpoint` = its base URL) and update the selectors/navigation in
+backend/tools/place_order_async/handler.py to match that site's DOM and auth.
+Only automate sites you operate or are authorized to automate, and respect their
+terms of use — do NOT add bot-detection / CAPTCHA circumvention to drive a third
+party's site.
 
 Env: DB coords from SSM /aisle/db/* (same pattern as the tool Lambdas).
 """

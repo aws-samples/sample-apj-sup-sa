@@ -1,9 +1,9 @@
-"""FROZEN CONTRACT — source of truth for all wire payloads.
+"""Wire payload + tool-result shapes for the Aisle agent.
 
-This file and frontend/src/types/contracts.ts MUST stay in lockstep. Any field
-change is a coordinated two-file PR with a `CONTRACT_VERSION` bump (see SPEC §2).
+Documents the shapes exchanged over the WebSocket and the AgentCore Gateway
+tool results. Bump `CONTRACT_VERSION` on any breaking field change.
 
-Rules (SPEC §2):
+Rules:
 - All JSON wire fields are snake_case.
 - IDs are string UUIDv4. Money is integer cents (`*_cents`), never float.
 - Timestamps are ISO-8601 UTC strings.
@@ -12,12 +12,10 @@ Rules (SPEC §2):
 There is ONE assistant (no `mode`); the user chooses fulfillment mid-conversation
 (online delivery / click & collect, or just keep the list to shop in-store).
 
-NOTE (merge): the AgentCore Gateway TOOL surface (ToolName, TOOL_RESULT_KEYS, and
-the tool result shapes) is owned by this project and reflects the LIVE deployed
-tools — cart-based ordering (add_to_cart/get_cart/remove_from_cart/create_order)
-plus get_order_status, grocery list, offers, and changes. The non-tool surface
-(user profile, WebSocket events incl. OrderProgressEvent) follows the re-locked
-v2 spec from main.
+The AgentCore Gateway TOOL surface (ToolName, TOOL_RESULT_KEYS, and the tool
+result shapes) reflects the deployed tools — cart-based ordering
+(add_to_cart/get_cart/remove_from_cart/create_order) plus get_order_status,
+grocery list, offers, and changes.
 
 These dataclasses describe shapes; serialize with dataclasses.asdict(). They are
 intentionally dependency-free so any silo can import them.
@@ -83,7 +81,7 @@ ToolName = Literal[
 # search_products filters. No UserProfile payload / profile tool.
 
 # ---------------------------------------------------------------------------
-# Domain objects (shared by tools §3.5 and UI §3.1)
+# Domain objects (shared by the tools and the UI)
 # ---------------------------------------------------------------------------
 @dataclass
 class Product:
@@ -281,7 +279,7 @@ class RelevantChange:
 
 
 # ---------------------------------------------------------------------------
-# Session Broker HTTP response (SPEC §3.1 / §3.2)
+# Session Broker HTTP response
 #   GET {VITE_SESSION_API_URL}/session
 # ---------------------------------------------------------------------------
 @dataclass
@@ -294,7 +292,7 @@ class SessionResponse:
 
 
 # ---------------------------------------------------------------------------
-# WebSocket text events (SPEC §3.4). Audio is binary, NOT wrapped in JSON:
+# WebSocket text events Audio is binary, NOT wrapped in JSON:
 #   uplink  = PCM16 mono 16 kHz
 #   downlink= PCM   mono 24 kHz
 # ---------------------------------------------------------------------------
@@ -309,7 +307,7 @@ class InitMessage:
 
 @dataclass
 class UserActionMessage:
-    # confirm_order / cancel_order gate the real payment (SPEC §3.3, §5.1)
+    # confirm_order / cancel_order gate the real payment
     action: Literal["mute", "unmute", "end", "confirm_order", "cancel_order"]
     type: Literal["user_action"] = "user_action"
     v: int = CONTRACT_VERSION
@@ -335,14 +333,14 @@ class AgentStateEvent:
 @dataclass
 class ToolResultEvent:
     tool: ToolName
-    data: dict  # shape per SPEC §3.5 (e.g. {"products": [...]}, {"cart": {...}})
+    data: dict  # shape (e.g. {"products": [...]}, {"cart": {...}})
     type: Literal["tool_result"] = "tool_result"
     v: int = CONTRACT_VERSION
 
 
 @dataclass
 class OrderProgressEvent:
-    """Live UC2 ordering progress as the agent drives the Woolworths browser.
+    """Live UC2 ordering progress as the agent drives the storefront browser.
 
     place_order-style fulfillment blocks at the "reviewing" step until a
     confirm_order / cancel_order UserActionMessage (or spoken yes/no) arrives.
@@ -366,11 +364,11 @@ class ErrorEvent:
 
 
 # ---------------------------------------------------------------------------
-# Tool I/O contract (SPEC §3.5).
+# Tool I/O contract
 #
-# CORRECTION (verified against AWS docs + live gateway): AgentCore Gateway
-# delivers the tool arguments DIRECTLY as the Lambda `event` (e.g.
-# {"query": "milk"}), NOT wrapped in {"arguments": {...}} as SPEC §3.5 states.
+# Verified against AWS docs + the live gateway: AgentCore Gateway delivers the
+# tool arguments DIRECTLY as the Lambda `event` (e.g. {"query": "milk"}), NOT
+# wrapped in {"arguments": {...}}.
 # The prefixed tool name is in context.client_context.custom
 # ['bedrockAgentCoreToolName'] as "<target_name>___<tool_name>".
 # The Lambda returns {"data": {...}} on success or {"error": {...}} on failure.

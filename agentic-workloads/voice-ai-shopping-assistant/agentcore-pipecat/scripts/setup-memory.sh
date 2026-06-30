@@ -10,7 +10,7 @@
 #
 # Run under YOUR own (admin) credentials — resource creation is NOT done by the
 # runtime execution role:
-#   AWS_PROFILE=aisle-hackathon ./scripts/setup-memory.sh
+#   AWS_PROFILE=your-profile ./scripts/setup-memory.sh
 #
 # On success it prints the memory id. Copy it into agent/.env as MEMORY_ID=...
 

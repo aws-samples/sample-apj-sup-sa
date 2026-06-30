@@ -16,19 +16,19 @@ import { Construct } from 'constructs';
 const TOOLS_ROOT = path.join(__dirname, '..', '..', 'tools');
 
 /**
- * Silo 2 — Tools & Gateway (SPEC §3.5, §4).
+ * Tools & Gateway.
  *
  * Stands up a single AgentCore Gateway as the MCP entry point for the voice
- * agent. Tools (one Lambda per tool, each a `CfnGatewayTarget`) are added
- * incrementally as they land — the gateway is fully functional with zero
- * targets, so the runtime team can integrate against a live MCP URL now.
+ * agent. Tools (one Lambda per tool, each a `CfnGatewayTarget`) can be added
+ * incrementally — the gateway is functional with zero targets, so the runtime
+ * can integrate against a live MCP URL early.
  *
  * Inbound auth: AWS_IAM — the runtime's IAM role SigV4-signs its MCP calls,
  * no Cognito/OAuth infra. Tool search: SEMANTIC (create-time only; locked in).
  *
- * Exports (SSM, consumed by the runtime team / Silo 3):
- *   /aisle/gateway/mcp_url  — the MCP endpoint  -> their GATEWAY_MCP_URL env
- *   /aisle/gateway/arn      — gateway ARN       -> Resource in their IAM policy
+ * Exports (SSM, consumed by the AgentCore Runtime in AgentStack):
+ *   /aisle/gateway/mcp_url  — the MCP endpoint  -> GATEWAY_MCP_URL env
+ *   /aisle/gateway/arn      — gateway ARN       -> Resource in the IAM policy
  */
 export class ToolsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -82,7 +82,7 @@ export class ToolsStack extends cdk.Stack {
       deadLetterQueue: { queue: fulfillmentDlq, maxReceiveCount: 2 },
     });
 
-    // ---- Tool: search_products (SPEC §3.5) ----
+    // ---- Tool: search_products ----
     const searchProducts = this.dbToolLambda('SearchProductsFn', 'search_products');
     // Semantic search path embeds the query with Bedrock Cohere Embed v3.
     searchProducts.addToRolePolicy(new iam.PolicyStatement({
@@ -136,7 +136,7 @@ export class ToolsStack extends cdk.Stack {
       },
     });
 
-    // ---- Tool: add_to_cart (SPEC §3.5) ----
+    // ---- Tool: add_to_cart ----
     const addToCart = this.dbToolLambda('AddToCartFn', 'add_to_cart');
     this.addLambdaTool(gateway, gatewayRole, addToCart, {
       targetName: 'add-to-cart',
@@ -157,7 +157,7 @@ export class ToolsStack extends cdk.Stack {
       },
     });
 
-    // ---- Tool: get_cart (SPEC §3.5) ----
+    // ---- Tool: get_cart ----
     const getCart = this.dbToolLambda('GetCartFn', 'get_cart');
     this.addLambdaTool(gateway, gatewayRole, getCart, {
       targetName: 'get-cart',
@@ -174,9 +174,7 @@ export class ToolsStack extends cdk.Stack {
     });
 
     // ---- Tool: remove_from_cart ----
-    // (Originally created via CLI for the demo; folded into CDK here so IaC is
-    // authoritative. The deployed function is x86_64/128MB; dbToolLambda uses the
-    // stack-standard arm64/256MB — a benign drift a future deploy harmonises.)
+    // Defined in CDK like the other tools so IaC stays authoritative.
     const removeFromCart = this.dbToolLambda('RemoveFromCartFn', 'remove_from_cart');
     this.addLambdaTool(gateway, gatewayRole, removeFromCart, {
       targetName: 'remove-from-cart',
@@ -233,7 +231,7 @@ export class ToolsStack extends cdk.Stack {
     });
     const merchantUrl = merchantApi.url; // API stage URL; create_order POSTs here (SigV4-signed)
 
-    // ---- Tool: create_order (SPEC §3.5) — payment-gated ----
+    // ---- Tool: create_order — payment-gated ----
     // Payment leg is flag-gated: PAYMENTS_ENABLED + the payment resource ids come
     // from the AgentCore Payments setup script (env at deploy time). Off by default
     // so the order flow is demoable before the testnet wallet is funded.
@@ -561,7 +559,7 @@ export class ToolsStack extends cdk.Stack {
       resources: [storefrontApi.arnForExecuteApi(), cardBrokerApi.arnForExecuteApi()],
     }));
 
-    // ---- SSM exports (cross-stack handoff, never hard refs — SPEC §4) ----
+    // ---- SSM exports (cross-stack handoff, never hard refs) ----
     new ssm.StringParameter(this, 'StorefrontApiIdParam', {
       parameterName: '/aisle/storefront/api_id',
       stringValue: storefrontApiId,

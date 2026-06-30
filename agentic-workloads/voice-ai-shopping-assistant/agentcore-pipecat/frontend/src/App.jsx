@@ -5,7 +5,7 @@ import CartPanel from './components/CartPanel.jsx';
 
 const START_URL =
   import.meta.env.VITE_START_URL ||
-  'https://l5uf3gixrj.execute-api.ap-southeast-2.amazonaws.com/prod';
+  'https://<your-start-api-id>.execute-api.ap-southeast-2.amazonaws.com/prod';
 
 export default function App() {
   const [state, setState] = useState('idle'); // idle | connecting | connected | error
@@ -118,7 +118,7 @@ export default function App() {
           <h1>Aisle</h1>
           <p className="lede">
             Talk to Aisle to find groceries, compare brands and specials, build a
-            cart, and place a pickup order — all by voice, on the live Woolworths range.
+            cart, and place a pickup order — all by voice, across the Aisle range.
           </p>
           <button className="btn-primary" onClick={connect}>Start shopping</button>
           {state === 'error' && <p className="error">{error}</p>}

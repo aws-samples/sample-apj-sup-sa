@@ -1,4 +1,4 @@
-"""get_cart — AgentCore Gateway tool (SPEC §3.5).
+"""get_cart — AgentCore Gateway tool.
 
 Returns the shopper's current session cart. Event = bare args {session_id};
 returns {"data": {"cart": Cart}}. Empty (never-used) session returns an empty

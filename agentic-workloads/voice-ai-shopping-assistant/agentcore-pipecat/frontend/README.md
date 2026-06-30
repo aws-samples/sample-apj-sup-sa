@@ -28,7 +28,7 @@ Click **Start shopping**, allow the mic, and talk:
 - "Add the cheapest one to my cart." → "Place a pickup order."
 
 ## Notes
-- `/start` is the **API Gateway** endpoint (not a Lambda Function URL — Sev2).
+- `/start` is the **API Gateway** endpoint (not a public Lambda Function URL).
 - Audio-only today; when the Tavus avatar is enabled on the agent, its video
   track renders automatically in the agent tile.
 - For a public deploy, build (`npm run build`) → host `dist/` on S3/CloudFront.

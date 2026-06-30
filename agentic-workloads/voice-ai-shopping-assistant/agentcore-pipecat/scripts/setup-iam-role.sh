@@ -12,7 +12,7 @@ fi
 
 source ./agent/.env
 
-ROLE_NAME="AmazonBedrockAgentCoreSDKRuntime-${AWS_REGION}-summit"
+ROLE_NAME="AmazonBedrockAgentCoreSDKRuntime-${AWS_REGION}-aisle"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 echo "Creating IAM execution role for AgentCore..."
@@ -34,7 +34,7 @@ EOF
 aws iam create-role \
     --role-name "$ROLE_NAME" \
     --assume-role-policy-document file:///tmp/trust-policy.json \
-    --description "Execution role for AgentCore Runtime (Summit voice agent)" \
+    --description "Execution role for AgentCore Runtime (Aisle voice agent)" \
     2>/dev/null || echo "Role already exists, continuing..."
 
 ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"

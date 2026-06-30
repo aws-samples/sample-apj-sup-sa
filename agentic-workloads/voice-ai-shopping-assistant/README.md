@@ -3,7 +3,7 @@
 Aisle is a voice-first shopping assistant. You talk to it the way you'd talk to
 a knowledgeable shop assistant: keep a running list, ask which product actually
 fits your needs (gluten-free, cheapest, on special, the right part), get recipe
-ideas, and place a real order, all by voice. It's built for the two moments
+ideas, and place an order end-to-end, all by voice. It's built for the two moments
 shopping is hardest: **at home** while planning, and **in-store** while staring
 at a shelf of near-identical products. The same idea generalises beyond
 groceries to pharmacies, hardware, and any catalog where the product
@@ -19,8 +19,8 @@ Payments), with a **Pipecat** voice pipeline (Deepgram + Bedrock Claude) and an
 
 - **Natural voice shopping** multilingual speech in, spoken answers out, with
   an optional video avatar.
-- **Grounded product knowledge** semantic + lexical search over a real catalog
-  (~1,860 products), with allergen, dietary, price, and specials awareness.
+- **Grounded product knowledge** semantic + lexical search over a synthetic
+  grocery catalogue (~435 products), with allergen, dietary, price, and specials awareness.
 - **Remembers you** conversational context and per-user preferences (dietary
   needs, favourite brands) persist across sessions via AgentCore Memory.
 - **Actually checks out** a dual-pathway checkout that pays each merchant the
@@ -100,28 +100,25 @@ fulfilment still runs and logs every step. See
 | Path | What it is |
 |---|---|
 | `agentcore-pipecat/` | The voice agent that runs on AgentCore Runtime (Pipecat pipeline, Daily/Tavus transport, tools, deploy scripts). |
-| `backend/db/` | Aurora schema + seed (catalog, specials, recipes, grocery list). `DataStack`. |
+| `backend/db/` | Aurora schema + synthetic catalogue seed (products, specials) and the seed loader. `DataStack`. |
 | `backend/tools/` | Lambda tools behind the AgentCore Gateway, plus the checkout merchants (`card_broker`, `delivery_api`, `merchant_api`, `storefront`) and the async `place_order_async` worker. `ToolsStack`. |
-| `backend/agent/` | Frozen wire contracts (`contracts.py`) shared across silos. |
+| `backend/agent/` | Wire payload + tool-result shapes (`contracts.py`). |
 | `backend/api/` | Session Broker (mints pre-signed session access). `ApiStack`. |
 | `backend/infra/` | AWS CDK app and stacks. |
 | `frontend/` | React/Vite voice UI (CloudFront + S3). `WebStack`. |
 | `docs/` | Checkout + Stripe Issuing guides. |
-| `SPEC.md` | Original technical spec (historical; some choices, e.g. transport, evolved during the build). |
-| `old-spec-do-not-use/`, `zz-demo-project-read-only/` | Archived reference material. |
 
 ---
 
 ## Wire contracts
 
-The Python and TypeScript contracts are kept in lockstep (`CONTRACT_VERSION = 3`):
-
-- [`backend/agent/contracts.py`](./backend/agent/contracts.py): source of truth.
-- [`frontend/src/types/contracts.ts`](./frontend/src/types/contracts.ts): TS mirror.
+- [`backend/agent/contracts.py`](./backend/agent/contracts.py) documents the
+  wire payload and tool-result shapes.
+- [`frontend/src/types/contracts.live.ts`](./frontend/src/types/contracts.live.ts)
+  holds the TypeScript types the frontend consumes from the deployed agent.
 
 All wire fields are `snake_case`, money is integer cents, ids are UUIDv4,
-timestamps are ISO-8601 UTC, and every payload carries a `v` version. Changing a
-field is a coordinated two-file change with a `CONTRACT_VERSION` bump.
+timestamps are ISO-8601 UTC, and every payload carries a `v` version.
 
 ---
 
@@ -140,9 +137,33 @@ the required Deepgram / Tavus / Daily credentials).
 
 ---
 
+## Going beyond the demo (real sources)
+
+This sample runs end-to-end on synthetic data and demo merchants. To wire it to
+real sources, start at these seams:
+
+- **Real product catalogue** — replace `backend/db/seed/generate_catalogue.py`
+  with your own product source, emitting the same `products.json` /
+  `specials.json` shape (`Product` in `backend/agent/contracts.py`). Mind the
+  licensing/terms of any third-party product data or images you ingest.
+- **Real card issuing** — flip `STRIPE_MODE=live`; see
+  [`docs/STRIPE_ISSUING.md`](./docs/STRIPE_ISSUING.md).
+- **Real merchant / storefront** — register the merchant in the `merchants`
+  table (`backend/db/schema.sql`) and, for the browser pathway, adapt the
+  selectors/navigation in `backend/tools/place_order_async/handler.py` to the
+  target site. **Only automate sites you operate or are authorized to automate,
+  respect their terms of use, and do not add bot-detection / CAPTCHA
+  circumvention.** An x402-native merchant settles the signed payment proof via
+  a facilitator (the bundled merchant APIs are non-settling stand-ins).
+
+> Defaults are safe for a public demo: payments run **simulated / on testnet**,
+> the browser drives an IAM-authorized demo storefront you own, and no real money
+> moves until you opt in.
+
+---
+
 ## Documentation
 
 - [`docs/CHECKOUT_TOOL.md`](./docs/CHECKOUT_TOOL.md): the `create_order` tool, both pathways, simulation vs live, and observability.
 - [`docs/STRIPE_ISSUING.md`](./docs/STRIPE_ISSUING.md): the `STRIPE_MODE` flag and how to switch a fork to real Stripe Issuing.
 - [`agentcore-pipecat/README.md`](./agentcore-pipecat/README.md): voice agent runtime + deployment.
-- [`SPEC.md`](./SPEC.md): original spec (historical reference).

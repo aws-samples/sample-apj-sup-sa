@@ -8,7 +8,7 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as path from "path";
 
 /**
- * WebStack (SPEC §4, Silo 4) — static hosting for the Aisle frontend.
+ * WebStack — static hosting for the Aisle frontend.
  *
  *   private S3 bucket (OAC, no public access)
  *   → CloudFront distribution (HTTPS only, SPA 403/404 → /index.html)

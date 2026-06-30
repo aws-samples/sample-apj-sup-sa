@@ -5,9 +5,8 @@ If `qty` is given, decrements by that amount (deleting the line when it reaches
 zero); otherwise removes the line entirely. Event = bare args
 {session_id, product_id, qty?}; returns {"data": {"cart": Cart}}.
 
-Mirrors AisleToolsStack-AddToCart's DB access (Aurora Data API, SSM-config,
-carts / cart_items schema). NOTE: created via CLI for the demo — fold into
-AisleToolsStack (ToolsStack CDK) to keep IaC authoritative.
+Mirrors AddToCart's DB access (Aurora Data API, SSM-config,
+carts / cart_items schema).
 """
 from __future__ import annotations
 

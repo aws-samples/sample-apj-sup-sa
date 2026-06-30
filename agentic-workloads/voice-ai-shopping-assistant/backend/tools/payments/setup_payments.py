@@ -77,7 +77,11 @@ def ensure_service_role(iam, account_id: str) -> str:
             Description="Role AgentCore Payments manager assumes (Aisle demo)",
         )
         arn = r["Role"]["Arn"]
-        # Broad inline policy for the demo; tighten for production.
+        # Broad inline policy to keep this setup script simple. FOR PRODUCTION:
+        # scope to least privilege — replace "bedrock-agentcore:*" with the
+        # specific payment actions you call (e.g. CreatePaymentInstrument,
+        # CreatePaymentSession, ProcessPayment) and scope "Resource" to your
+        # payment-manager ARN and the specific secret ARN instead of "*".
         iam.put_role_policy(
             RoleName=role_name, PolicyName="payments",
             PolicyDocument=json.dumps({

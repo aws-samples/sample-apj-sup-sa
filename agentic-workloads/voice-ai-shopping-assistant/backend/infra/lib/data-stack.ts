@@ -12,14 +12,14 @@ import * as path from 'path';
 import { Construct } from 'constructs';
 
 /**
- * Silo 1 — Database & Seed (SPEC §3.6, §4).
+ * Database & Seed.
  *
  * Aurora Serverless v2 PostgreSQL with the Data API (HTTP SQL — no VPC client,
  * no connection pool, so tool Lambdas need no VPC). Auto-pauses to 0 ACU when
- * idle. Seeded on deploy with real Woolworths inventory (products + specials)
+ * idle. Seeded on deploy with the synthetic Aisle catalogue (products + specials)
  * via a custom-resource Lambda using rds-data BatchExecuteStatement.
  *
- * Exports (SSM, consumed by Silo 2 tool Lambdas):
+ * Exports (SSM, consumed by the tool Lambdas in ToolsStack):
  *   /aisle/db/cluster_arn · /aisle/db/secret_arn · /aisle/db/name
  */
 export class DataStack extends cdk.Stack {
@@ -68,14 +68,14 @@ export class DataStack extends cdk.Stack {
     const dbAssetPath = path.join(__dirname, '..', '..', 'db');
     const dbAsset = new assets.Asset(this, 'DbAsset', {
       path: dbAssetPath,
-      exclude: ['*.pyc', '__pycache__', 'seed/scrape_woolworths.py'],
+      exclude: ['*.pyc', '__pycache__', 'seed/generate_catalogue.py'],
     });
     const seedFn = new lambda.Function(this, 'SeedLoader', {
       runtime: lambda.Runtime.PYTHON_3_12,
       architecture: lambda.Architecture.ARM_64,
       handler: 'seed_loader.handler',
       code: lambda.Code.fromAsset(dbAssetPath, {
-        exclude: ['*.pyc', '__pycache__', 'seed/scrape_woolworths.py'],
+        exclude: ['*.pyc', '__pycache__', 'seed/generate_catalogue.py'],
       }),
       timeout: Duration.minutes(15),
       memorySize: 512,
@@ -108,7 +108,7 @@ export class DataStack extends cdk.Stack {
     });
     seed.node.addDependency(cluster);
 
-    // ---- SSM exports (cross-stack handoff — SPEC §4) ----
+    // ---- SSM exports (cross-stack handoff) ----
     new ssm.StringParameter(this, 'ClusterArnParam', {
       parameterName: '/aisle/db/cluster_arn',
       stringValue: cluster.clusterArn,

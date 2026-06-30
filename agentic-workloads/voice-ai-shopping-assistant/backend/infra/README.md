@@ -1,17 +1,17 @@
 # infra — AWS CDK (TypeScript) app
 
-CDK v2. **One stack per silo** so deploys don't overlap; cross-stack values pass
-through **SSM Parameter Store** (`/aisle/*`), never hard refs, so each silo deploys
-independently.
+CDK v2. **One stack per component** so deploys don't overlap; cross-stack values
+pass through **SSM Parameter Store** (`/aisle/*`), never hard refs, so each stack
+deploys independently.
 
 ```
 infra/
-  bin/aisle.ts            # app wiring (Agent 5)
-  lib/data-stack.ts       # Agent 1 — Aurora SV2 + Secret + seed runner
-  lib/tools-stack.ts      # Agent 2 — tool Lambdas + AgentCore Gateway
-  lib/agent-stack.ts      # Agent 3 — ECR image + AgentCore Runtime + Memory
-  lib/api-stack.ts        # Agent 5 — Session Broker Lambda + Function URL
-  lib/web-stack.ts        # Agent 5 shell + Agent 4 bundle — S3 + CloudFront (OAC)
+  bin/aisle.ts            # CDK app wiring
+  lib/data-stack.ts       # Aurora SV2 + Secret + seed runner
+  lib/tools-stack.ts      # tool Lambdas + AgentCore Gateway
+  lib/agent-stack.ts      # ECR image + AgentCore Runtime + Memory
+  lib/api-stack.ts        # Session Broker Lambda + Function URL
+  lib/web-stack.ts        # S3 + CloudFront (OAC)
 ```
 
 | Stack | Exports (SSM) | Consumes |

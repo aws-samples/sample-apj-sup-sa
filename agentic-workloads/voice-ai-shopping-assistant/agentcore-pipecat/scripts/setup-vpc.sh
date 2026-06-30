@@ -20,7 +20,7 @@ echo ""
 echo "Creating VPC..."
 VPC_ID=$(aws ec2 create-vpc \
     --cidr-block 10.0.0.0/16 \
-    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=agentcore-summit-vpc}]' \
+    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=agentcore-aisle-vpc}]' \
     --region "$AWS_REGION" --query 'Vpc.VpcId' --output text)
 echo "✅ VPC created: $VPC_ID"
 
@@ -29,7 +29,7 @@ aws ec2 modify-vpc-attribute --vpc-id "$VPC_ID" --enable-dns-hostnames --region 
 echo ""
 echo "Creating Internet Gateway..."
 IGW_ID=$(aws ec2 create-internet-gateway \
-    --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=agentcore-summit-igw}]' \
+    --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=agentcore-aisle-igw}]' \
     --region "$AWS_REGION" --query 'InternetGateway.InternetGatewayId' --output text)
 aws ec2 attach-internet-gateway --vpc-id "$VPC_ID" --internet-gateway-id "$IGW_ID" --region "$AWS_REGION"
 echo "✅ Internet Gateway: $IGW_ID"
@@ -58,14 +58,14 @@ echo "✅ Private: $PRIVATE_SUBNET_1, $PRIVATE_SUBNET_2"
 echo ""
 echo "Allocating Elastic IP for NAT Gateway..."
 EIP_ALLOC_ID=$(aws ec2 allocate-address --domain vpc \
-    --tag-specifications 'ResourceType=elastic-ip,Tags=[{Key=Name,Value=agentcore-summit-nat-eip}]' \
+    --tag-specifications 'ResourceType=elastic-ip,Tags=[{Key=Name,Value=agentcore-aisle-nat-eip}]' \
     --region "$AWS_REGION" --query 'AllocationId' --output text)
 echo "✅ Elastic IP: $EIP_ALLOC_ID"
 
 echo ""
 echo "Creating NAT Gateway (this may take a few minutes)..."
 NAT_GW_ID=$(aws ec2 create-nat-gateway --subnet-id "$PUBLIC_SUBNET_1" --allocation-id "$EIP_ALLOC_ID" \
-    --tag-specifications 'ResourceType=natgateway,Tags=[{Key=Name,Value=agentcore-summit-nat}]' \
+    --tag-specifications 'ResourceType=natgateway,Tags=[{Key=Name,Value=agentcore-aisle-nat}]' \
     --region "$AWS_REGION" --query 'NatGateway.NatGatewayId' --output text)
 aws ec2 wait nat-gateway-available --nat-gateway-ids "$NAT_GW_ID" --region "$AWS_REGION"
 echo "✅ NAT Gateway: $NAT_GW_ID"
@@ -90,9 +90,9 @@ echo "✅ Private route table: $PRIVATE_RT_ID"
 
 echo ""
 echo "Creating security group..."
-SG_ID=$(aws ec2 create-security-group --group-name agentcore-summit-sg \
-    --description "Security group for AgentCore Summit runtime" --vpc-id "$VPC_ID" \
-    --tag-specifications 'ResourceType=security-group,Tags=[{Key=Name,Value=agentcore-summit-sg}]' \
+SG_ID=$(aws ec2 create-security-group --group-name agentcore-aisle-sg \
+    --description "Security group for AgentCore Aisle runtime" --vpc-id "$VPC_ID" \
+    --tag-specifications 'ResourceType=security-group,Tags=[{Key=Name,Value=agentcore-aisle-sg}]' \
     --region "$AWS_REGION" --query 'GroupId' --output text)
 aws ec2 authorize-security-group-egress --group-id "$SG_ID" \
     --ip-permissions IpProtocol=-1,FromPort=-1,ToPort=-1,IpRanges='[{CidrIp=0.0.0.0/0}]' \

@@ -2,8 +2,8 @@
 # Aisle — voice AI grocery shopping assistant (Amazon Bedrock AgentCore Runtime).
 #
 # Cascaded pipeline: Deepgram STT (multilingual) -> Bedrock Claude -> Deepgram Aura TTS.
-# Tools (search_products, variants, recipes, cart, order) run in-agent against a mock
-# inventory for the demo; see SPEC.md for the full Aurora + Gateway/MCP design.
+# Tools (search_products, variants, cart, order) call the live AgentCore Gateway
+# (MCP), which fronts the Lambda tools backed by the Aisle catalogue in Aurora.
 #
 # The bot is invoked per session by AgentCore Runtime. The invocation payload
 # carries the Daily room URL to join; media flows through Daily, not AgentCore.
@@ -75,8 +75,9 @@ CUSTOM_GREETING = (
 NO_JOIN_TIMEOUT_SECS = int(os.getenv("NO_JOIN_TIMEOUT_SECS", "120"))
 
 # Persistent per-user id so the grocery list / personalisation survives across
-# sessions ("remembers me"). One known demo user for this demo (SPEC §3.2).
-DEMO_USER_ID = os.getenv("DEMO_USER_ID", "demo-user-isaac")
+# sessions ("remembers me"). A single known demo user; set DEMO_USER_ID to use
+# a per-user id in production.
+DEMO_USER_ID = os.getenv("DEMO_USER_ID", "demo-user")
 
 
 def _dollars(cents: int) -> str:
@@ -84,12 +85,12 @@ def _dollars(cents: int) -> str:
 
 
 # Tool definitions in FunctionSchema format for Pipecat. Backed by the live
-# AgentCore Gateway (real Woolworths inventory + cart/order in Aurora).
+# AgentCore Gateway (the Aisle catalogue + cart/order in Aurora).
 TOOLS = ToolsSchema(
     standard_tools=[
         FunctionSchema(
             name="search_products",
-            description="Search the live Woolworths inventory by name or category. Returns matching products with brand, price, size, allergens, dietary tags, and any current special. Use when the shopper wants to find or buy an item or asks what's available.",
+            description="Search the Aisle catalogue by name or category. Returns matching products with brand, price, size, allergens, dietary tags, and any current special. Use when the shopper wants to find or buy an item or asks what's available.",
             properties={
                 "query": {"type": "string", "description": "Product name or keyword, e.g. 'milk', 'gluten free pasta'."},
                 "category": {"type": "string", "description": "Optional category filter, e.g. 'dairy', 'bakery'."},
@@ -107,7 +108,7 @@ TOOLS = ToolsSchema(
         ),
         FunctionSchema(
             name="add_to_cart",
-            description="Add a product to the shopper's cart. Accepts the product name (e.g. 'the Barilla spaghetti') or a product_id from a recent search.",
+            description="Add a product to the shopper's cart. Accepts the product name (e.g. 'the Sunny Meadow spaghetti') or a product_id from a recent search.",
             properties={
                 "product": {"type": "string", "description": "Product name or product_id to add."},
                 "qty": {"type": "integer", "description": "Quantity (default 1)."},
@@ -139,7 +140,7 @@ TOOLS = ToolsSchema(
         ),
         FunctionSchema(
             name="get_offers",
-            description="Browse what's currently on special at Woolworths, biggest savings first, optionally within a category. Use when the shopper asks what's on special or what the deals are.",
+            description="Browse what's currently on special in the Aisle catalogue, biggest savings first, optionally within a category. Use when the shopper asks what's on special or what the deals are.",
             properties={
                 "category": {"type": "string", "description": "Optional category filter, e.g. 'dairy', 'drinks'."},
                 "limit": {"type": "integer", "description": "Max offers (1-50, default 10)."},
@@ -303,7 +304,7 @@ async def run_bot(
         context = LLMContext(messages, tools=TOOLS)
         context_aggregator = LLMContextAggregatorPair(context)
 
-        # Live AgentCore Gateway (real Woolworths inventory + cart/order in Aurora).
+        # Live AgentCore Gateway (the Aisle catalogue + cart/order in Aurora).
         gateway = GatewayMCPClient()
         last_products = []  # most recent search/variant results, for name -> id resolution
         participant_joined = {"v": False}  # tracked by the no-join watchdog

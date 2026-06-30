@@ -14,34 +14,54 @@ Prints + saves the new instrument/session ids for `cdk deploy`.
 from __future__ import annotations
 
 import json
+import os
+import sys
 import uuid
 from pathlib import Path
 
 import boto3
 
-REGION = "ap-southeast-2"
-USER_ID = "aisle-demo-user"
+REGION = os.environ.get("AWS_REGION", "ap-southeast-2")
+USER_ID = os.environ.get("AISLE_PAYMENT_USER_ID", "aisle-demo-user")
 NETWORK = "ETHEREUM"
-WALLET_EMAIL = "james.dinh12@gmail.com"   # real inbox so the wallet hub OTP login works
+# A real inbox you control so the wallet-hub OTP login works. Provide your own.
+WALLET_EMAIL = os.environ.get("AISLE_WALLET_EMAIL", "")
 SESSION_BUDGET_USDC = "1.00"
 SESSION_EXPIRY_MINUTES = 60
-
-# Existing AgentCore resources (manager + connector already wired and READY).
-MGR_ARN = "arn:aws:bedrock-agentcore:ap-southeast-2:597437436235:payment-manager/aislepma925d5e4-dg3dsbmd1x"
-CONNECTOR_ID = "aisleconnfb53c70b-uz8gnrh1iw"
 
 RESOURCES_PATH = Path.home() / ".aisle" / "payment-resources.json"
 
 
+def _load_resource_ids() -> tuple[str, str]:
+    """Resolve the existing manager ARN + connector id (env first, then the
+    local resources file written by setup_payments.py). Nothing account-specific
+    is committed to the repo."""
+    mgr_arn = os.environ.get("AISLE_PAYMENT_MANAGER_ARN")
+    connector_id = os.environ.get("AISLE_PAYMENT_CONNECTOR_ID")
+    if (not mgr_arn or not connector_id) and RESOURCES_PATH.exists():
+        saved = json.loads(RESOURCES_PATH.read_text())
+        mgr_arn = mgr_arn or saved.get("paymentManagerArn")
+        connector_id = connector_id or saved.get("paymentConnectorId")
+    if not mgr_arn or not connector_id:
+        sys.exit(
+            "ERROR: set AISLE_PAYMENT_MANAGER_ARN and AISLE_PAYMENT_CONNECTOR_ID "
+            f"(or run setup_payments.py first to populate {RESOURCES_PATH})."
+        )
+    if not WALLET_EMAIL:
+        sys.exit("ERROR: set AISLE_WALLET_EMAIL to an inbox you control (wallet-hub OTP login).")
+    return mgr_arn, connector_id
+
+
 def main() -> None:
+    mgr_arn, connector_id = _load_resource_ids()
     sess = boto3.Session(region_name=REGION)
     data = sess.client("bedrock-agentcore")
 
     print("1. Payment instrument bound to key-owned wallet...")
     inst = data.create_payment_instrument(
         userId=USER_ID,
-        paymentManagerArn=MGR_ARN,
-        paymentConnectorId=CONNECTOR_ID,
+        paymentManagerArn=mgr_arn,
+        paymentConnectorId=connector_id,
         paymentInstrumentType="EMBEDDED_CRYPTO_WALLET",
         paymentInstrumentDetails={"embeddedCryptoWallet": {
             "network": NETWORK,
@@ -58,7 +78,7 @@ def main() -> None:
     print("2. Payment session...")
     psession = data.create_payment_session(
         userId=USER_ID,
-        paymentManagerArn=MGR_ARN,
+        paymentManagerArn=mgr_arn,
         limits={"maxSpendAmount": {"value": SESSION_BUDGET_USDC, "currency": "USD"}},
         expiryTimeInMinutes=SESSION_EXPIRY_MINUTES,
     )
@@ -67,15 +87,15 @@ def main() -> None:
 
     print("\nDeploy env (export these, then `cdk deploy AisleToolsStack`):")
     print(f"  export AISLE_PAYMENTS_ENABLED=true")
-    print(f"  export AISLE_PAYMENT_MANAGER_ARN={MGR_ARN}")
+    print(f"  export AISLE_PAYMENT_MANAGER_ARN={mgr_arn}")
     print(f"  export AISLE_PAYMENT_INSTRUMENT_ID={inst_id}")
     print(f"  export AISLE_PAYMENT_SESSION_ID={session_id}")
     print(f"  export AISLE_PAYMENT_USER_ID={USER_ID}")
     print(f"  export AISLE_PAYTO_ADDRESS={wallet_addr}")
 
     RESOURCES_PATH.write_text(json.dumps({
-        "paymentManagerArn": MGR_ARN,
-        "paymentConnectorId": CONNECTOR_ID,
+        "paymentManagerArn": mgr_arn,
+        "paymentConnectorId": connector_id,
         "paymentInstrumentId": inst_id,
         "paymentSessionId": session_id,
         "userId": USER_ID,
