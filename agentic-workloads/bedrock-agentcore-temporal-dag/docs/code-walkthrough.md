@@ -1,27 +1,27 @@
-# コード解説
+# Code Walkthrough
 
-## 全体構成
+## Repository Structure
 
 ```
-workflow/              Temporal Worker（DAG実行エンジン）
-  main.py             Worker起動
-  demo.py             デモCLI（進捗表示付き）
-  flows/              Workflow定義（DAGのフロー）
-  activities.py       Activity定義（Agent呼び出しの単位）
-  a2a_client.py       A2Aプロトコルの通信層
+workflow/              Temporal Worker (DAG execution engine)
+  main.py             Worker entrypoint
+  demo.py             Demo CLI with live progress display
+  flows/              Workflow definitions (DAG flows)
+  activities.py       Activity definitions (Agent invocation units)
+  a2a_client.py       A2A protocol communication layer
 
-agents/               各Agent（AgentCore Runtime上で独立稼働）
-  gather/main.py      情報収集Agent
-  analyze/main.py     分析Agent
-  evaluate/main.py    評価Agent
-  synthesize/main.py  統合Agent
+agents/               Individual Agents (each runs on AgentCore Runtime)
+  gather/main.py      Information gathering Agent
+  analyze/main.py     Analysis Agent
+  evaluate/main.py    Evaluation Agent
+  synthesize/main.py  Synthesis Agent
 
-cdk/                  CDKインフラ定義
+cdk/                  CDK infrastructure definitions
 ```
 
 ## Orchestrator
 
-### main.py — Worker起動
+### main.py — Worker entrypoint
 
 ```python
 worker = Worker(
@@ -33,29 +33,29 @@ worker = Worker(
 await worker.run()
 ```
 
-Temporal Worker は poll型です。Temporal Cloud に接続し、`daf-orchestrator` キューからタスクを取得して実行します。インバウンドポートは不要で、ECS Fargate上ではアウトバウンド通信のみで動作します。
+The Temporal Worker uses a poll-based model. It connects to Temporal Cloud and pulls tasks from the `daf-orchestrator` queue. No inbound ports are required — only outbound traffic is needed, making it a natural fit for ECS Fargate.
 
-### flows/research_pipeline.py — DAGフロー定義
+### flows/research_pipeline.py — DAG flow definition
 
-このファイルがシステムの中核です。Python コードで DAG を直接表現します。
+This file is the core of the system. The DAG is expressed directly as Python code.
 
 ```
-gather → [analyze, evaluate] → (条件: score < 0.7 なら re_analyze) → synthesize
+gather → [analyze, evaluate] → (conditional: re_analyze if score < 0.7) → synthesize
 ```
 
-**設計ポイント:**
+**Design highlights:**
 
-- `@workflow.defn` + `@workflow.run`: Temporal Workflow として登録。Temporal がこのコードの実行状態を永続化します
-- `workflow.execute_activity("invoke_agent", args=[...])`: Agent呼び出しを Activity として実行。失敗時は Temporal がリトライをスケジュールします
-- `asyncio.gather(...)`: fan-out を表現。analyze と evaluate を並列に実行します
-- `if score < 0.7`: 条件分岐。evaluate の結果スコアが低い場合のみ再分析を実行します
-- `@workflow.query def get_status()`: 実行中のワークフローに対してステータスを問い合わせる API を提供します
+- `@workflow.defn` + `@workflow.run`: Registers the class as a Temporal Workflow. Temporal persists the execution state of this code.
+- `workflow.execute_activity("invoke_agent", args=[...])`: Invokes an Agent as an Activity. On failure, Temporal schedules retries automatically.
+- `asyncio.gather(...)`: Expresses fan-out. Runs analyze and evaluate in parallel.
+- `if score < 0.7`: Conditional branch. Re-analysis runs only when the evaluation score is below threshold.
+- `@workflow.query def get_status()`: Provides a query API to inspect workflow status while it is running.
 
 **RetryPolicy:**
 
-各 Activity にリトライポリシーを設定しています。`maximum_attempts=3, backoff_coefficient=2.0` は「2秒 → 4秒 → 8秒」の指数バックオフで3回まで再試行することを意味します。
+Each Activity has an explicit retry policy. `maximum_attempts=3, backoff_coefficient=2.0` means up to 3 retries with exponential backoff: 2s → 4s → 8s.
 
-### activities.py — Activity定義
+### activities.py — Activity definitions
 
 ```python
 @activity.defn
@@ -63,53 +63,53 @@ async def invoke_agent(agent_name: str, input_data: dict) -> dict:
     return await _invoke_agent(agent_name, input_data)
 ```
 
-薄いラッパーです。Temporal の Activity として登録するために `@activity.defn` を付けています。実際の通信は `a2a_client.py` に委譲します。
+A thin wrapper. The `@activity.defn` decorator registers the function as a Temporal Activity. Actual communication is delegated to `a2a_client.py`.
 
-### a2a_client.py — A2A通信層
+### a2a_client.py — A2A communication layer
 
-Agent との通信を担当します。ローカルモードと AWS モードの 2つの実行パスがあります。
+Handles all communication with Agents. Two execution paths exist: local mode and AWS mode.
 
-**ローカルモード** (`AGENT_ENDPOINTS` 環境変数設定時):
+**Local mode** (when `AGENT_ENDPOINTS` env var is set):
 
-1. 環境変数から Agent URL を取得（例: `{"gather":"http://localhost:9001",...}`）
-2. a2a-sdk の `A2ACardResolver` → `ClientFactory` で Agent Card を解決
-3. `SendMessageRequest` で A2A プロトコルメッセージを送信
-4. レスポンスの task artifacts からテキストを抽出
+1. Reads Agent URLs from the environment variable (e.g. `{"gather":"http://localhost:9001",...}`)
+2. Resolves the Agent Card via a2a-sdk's `A2ACardResolver` → `ClientFactory`
+3. Sends an A2A protocol message via `SendMessageRequest`
+4. Extracts text from the task artifacts in the response
 
-**AWS モード** (デフォルト):
+**AWS mode** (default):
 
-1. **サービスディスカバリ**: SSM Parameter Store から Agent の ARN を取得
-2. **URL構築**: ARN からAgentCore Runtime の呼び出し URL を生成
+1. **Service discovery**: Fetches the Agent ARN from SSM Parameter Store
+2. **URL construction**: Builds the AgentCore Runtime invoke URL from the ARN
    - `https://bedrock-agentcore.{region}.amazonaws.com/runtimes/{URL_ENCODED_ARN}/invocations`
-3. **SigV4署名**: AWS認証情報でリクエストを署名 (`bedrock-agentcore` サービス)
-4. **JSON-RPC送信**: A2Aプロトコル（JSON-RPC 2.0）のペイロードを直接 POST
-5. **レスポンスパース**: artifacts または status message からテキストを抽出してJSONとして返却
+3. **SigV4 signing**: Signs the request with AWS credentials (service: `bedrock-agentcore`)
+4. **JSON-RPC POST**: Sends the A2A protocol payload (JSON-RPC 2.0) directly
+5. **Response parsing**: Extracts text from artifacts or status message and returns it as JSON
 
-AWS モードでは a2a-sdk の `A2ACardResolver` / `ClientFactory` を使わず、直接 JSON-RPC POST を送信します。AgentCore Runtime は単一の invoke エンドポイントしか持たず、`/.well-known/agent-card.json` への GET をサポートしないためです。
+In AWS mode, the a2a-sdk's `A2ACardResolver` / `ClientFactory` are not used. AgentCore Runtime exposes only a single invoke endpoint and does not support `GET /.well-known/agent-card.json`.
 
-**SigV4HTTPXAuth クラス:**
+**SigV4HTTPXAuth class:**
 
-httpxのカスタムAuth実装です。各リクエストに対してAWS SigV4署名を自動付与します。`bedrock-agentcore` サービスとして署名し、セッション ID ヘッダも付与します。
+A custom httpx Auth implementation. Automatically attaches AWS SigV4 signatures to each request, signing as the `bedrock-agentcore` service and including the session ID header.
 
-**キャッシュ:**
+**Caching:**
 
-`_arn_cache` で SSM呼び出し結果をプロセス内キャッシュしています。Worker は長時間稼働するため、同じ Agent を何度も呼び出す際のレイテンシを削減します。
+`_arn_cache` caches SSM call results in process memory. Since the Worker is long-lived and calls the same Agents repeatedly, this reduces per-invocation latency.
 
-### demo.py — デモCLI
+### demo.py — Demo CLI
 
-Temporal Cloud にワークフローを発行し、Query API でステータスをポーリングしてリアルタイム表示します。
+Submits a workflow to Temporal Cloud and polls the Query API to display live status in the terminal.
 
 ```bash
-python demo.py "AWS Bedrock AgentCoreの概要を調査してください"
+python demo.py "Investigate multi-agent design patterns for generative AI"
 ```
 
-- Workflow ID を自動生成して `start_workflow` を発行
-- 2秒間隔で `handle.query("get_status")` を呼び出し、ターミナルに進捗を描画
-- 完了後に `handle.result()` で最終結果を表示
+- Generates a Workflow ID and calls `start_workflow`
+- Calls `handle.query("get_status")` every 2 seconds and redraws the terminal progress
+- Displays the final result via `handle.result()` after completion
 
 ## Agents
 
-### 各Agent の構造 (例: gather/main.py)
+### Agent structure (example: gather/main.py)
 
 ```python
 _model = BedrockModel(
@@ -129,32 +129,32 @@ app.get("/ping")(ping)
 app.mount("/", a2a_server.to_fastapi_app())
 ```
 
-**設計ポイント:**
+**Design highlights:**
 
-- `@tool` デコレータ: Strands SDK で LLM に使わせるツールを定義。現在はスタブ実装で、実運用時は SerpAPI 等に差し替えます
-- `A2AServer`: Strands SDK の A2A サーバー。Agent を A2A プロトコル対応のエンドポイントとして公開します
-- `/ping`: AgentCore Runtime のヘルスチェック用エンドポイント（必須contract）
-- `PORT` 環境変数: ローカル実行時に各 Agent を別ポートで起動可能（デフォルト 9000）
-- `MODEL_ID` 環境変数: デプロイ先でモデルを切り替え可能
-- `Dockerfile` の `ARG AGENT_NAME`: 同一の Dockerfile で4つの Agent イメージをビルドするための build argument
+- `@tool` decorator: Defines tools for the LLM via the Strands SDK. Currently stub implementations — replace with SerpAPI or similar for production.
+- `A2AServer`: Strands SDK's A2A server. Exposes the Agent as an A2A-protocol-compatible endpoint.
+- `/ping`: Health check endpoint required by the AgentCore Runtime contract.
+- `PORT` env var: Allows each Agent to run on a different port for local development (default: 9000).
+- `MODEL_ID` env var: Makes the model configurable per deployment target.
+- `Dockerfile` `ARG AGENT_NAME`: A single Dockerfile builds all four Agent images using this build argument.
 
 ## CDK Infrastructure
 
 ### network_stack.py
 
-VPC を作成します。2 AZ、NAT Gateway 1台、Public/Private Subnet。Orchestrator（ECS）は Private Subnet に配置され、NAT Gateway 経由で外部通信します。
+Creates a VPC: 2 AZs, 1 NAT Gateway, public and private subnets. The Orchestrator (ECS) runs in the private subnet and communicates externally via the NAT Gateway.
 
 ### agents_stack.py
 
-- ECR Repository x4: 各 Agent のコンテナイメージ格納先
-- SSM Parameter x4: AgentCore Runtime ARN のサービスディスカバリ用（初期値はプレースホルダ）
+- ECR Repository x4: Container image storage for each Agent
+- SSM Parameter x4: Service discovery for AgentCore Runtime ARNs (initial values are placeholders)
 - IAM Role (AgentCore Execution Role):
-  - Bedrock モデル呼び出し（foundation-model + inference-profile）
-  - ECR イメージ取得（GetAuthorizationToken, BatchGetImage, GetDownloadUrlForLayer）
+  - Bedrock model invocation (`foundation-model` + `inference-profile`)
+  - ECR image pull (`GetAuthorizationToken`, `BatchGetImage`, `GetDownloadUrlForLayer`)
 
 ### orchestrator_stack.py
 
-- ECS Cluster + Fargate Service: Temporal Worker の実行環境
-- Task Definition: 256 CPU / 512 MB RAM, ARM64。環境変数で Temporal 接続先を注入、Secrets Manager から API Key を取得
-- Security Group: アウトバウンドのみ許可（Worker は poll 型のため受信ポート不要）
-- Capacity Provider: Fargate Spot を優先（`weight=1`）、最低1タスクは On-Demand（`base=1`）。Spot 中断時は Temporal が自動リスケジュールするため安全です
+- ECS Cluster + Fargate Service: Execution environment for the Temporal Worker
+- Task Definition: 256 CPU / 512 MB RAM, ARM64. Temporal connection details injected via environment variables; API key retrieved from Secrets Manager.
+- Security Group: Outbound-only (no inbound ports needed — Worker is poll-based)
+- Capacity Provider: Fargate Spot preferred (`weight=1`), minimum 1 On-Demand task (`base=1`). Spot interruptions are safe because Temporal automatically reschedules in-progress tasks.

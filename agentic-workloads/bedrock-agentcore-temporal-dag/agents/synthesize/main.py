@@ -10,15 +10,15 @@ import uvicorn
 
 @tool
 def merge_findings(sources: str) -> str:
-    """複数ソースの結果を統合します"""
-    # デモ用スタブ
+    """Merge results from multiple sources into a consolidated output."""
+    # Demo stub
     return json.dumps({"merged": "Consolidated findings from all sources", "source_count": 3})
 
 
 @tool
 def generate_summary(content: str, max_length: int) -> str:
-    """コンテンツを指定文字数以内に要約します"""
-    # デモ用スタブ
+    """Summarize the content within the specified character limit."""
+    # Demo stub
     return json.dumps({"summary": content[:max_length], "original_length": len(content)})
 
 
@@ -30,13 +30,13 @@ _model = BedrockModel(
 agent = Agent(
     model=_model,
     system_prompt=(
-        "あなたは統合・要約の専門家です。複数の分析結果と評価を統合し、"
-        "最終的なレポートを生成してください。"
-        "出力はJSON形式で、'summary'キーに統合結果を、'recommendations'キーに推奨事項を含めてください。"
+        "You are an expert synthesizer. Merge multiple analysis results and evaluations "
+        "into a final report. "
+        "Output JSON with a 'summary' key for the consolidated result and a 'recommendations' key for action items."
     ),
     tools=[merge_findings, generate_summary],
     name="Synthesize Agent",
-    description="複数の分析結果を統合し、最終レポートを生成するエージェント",
+    description="Agent that merges multiple analysis results into a final report",
 )
 
 _port = os.environ.get("PORT", "9000")

@@ -10,8 +10,8 @@ import uvicorn
 
 @tool
 def web_search(query: str) -> str:
-    """指定したクエリでWeb検索を実行し、結果を返します"""
-    # デモ用スタブ — 実際のプロジェクトではSerpAPI等に置き換え
+    """Run a web search for the given query and return results."""
+    # Demo stub — replace with SerpAPI or similar in production
     return json.dumps({
         "results": [
             {"title": f"Result for: {query}", "snippet": f"Sample search result about {query}"},
@@ -21,8 +21,8 @@ def web_search(query: str) -> str:
 
 @tool
 def extract_content(url: str) -> str:
-    """指定したURLからコンテンツを抽出します"""
-    # デモ用スタブ
+    """Extract content from the given URL."""
+    # Demo stub
     return json.dumps({"content": f"Extracted content from {url}", "length": 1500})
 
 
@@ -34,13 +34,13 @@ _model = BedrockModel(
 agent = Agent(
     model=_model,
     system_prompt=(
-        "あなたは情報収集の専門家です。与えられたクエリに対して、"
-        "Web検索やコンテンツ抽出を行い、構造化された情報を返してください。"
-        "出力はJSON形式で、'findings'キーにリスト形式で結果を含めてください。"
+        "You are an expert information gatherer. For the given query, "
+        "perform web searches and content extraction, then return structured information. "
+        "Output JSON with a 'findings' key containing a list of results."
     ),
     tools=[web_search, extract_content],
     name="Gather Agent",
-    description="情報を収集して構造化するエージェント",
+    description="Agent that collects and structures information",
 )
 
 _port = os.environ.get("PORT", "9000")

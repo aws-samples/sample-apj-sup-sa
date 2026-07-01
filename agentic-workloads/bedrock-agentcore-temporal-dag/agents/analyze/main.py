@@ -10,15 +10,15 @@ import uvicorn
 
 @tool
 def classify_topic(text: str) -> str:
-    """テキストのトピックを分類します"""
-    # デモ用スタブ
+    """Classify the topics in the given text."""
+    # Demo stub
     return json.dumps({"topics": ["technology", "architecture"], "confidence": 0.92})
 
 
 @tool
 def extract_key_points(text: str) -> str:
-    """テキストから要点を抽出します"""
-    # デモ用スタブ
+    """Extract key points from the given text."""
+    # Demo stub
     return json.dumps({"key_points": [f"Point extracted from: {text[:50]}..."]})
 
 
@@ -30,13 +30,13 @@ _model = BedrockModel(
 agent = Agent(
     model=_model,
     system_prompt=(
-        "あなたは分析の専門家です。与えられた情報を分析し、"
-        "トピック分類、要点抽出、パターン識別を行ってください。"
-        "出力はJSON形式で、'analysis'キーに結果を、'confidence'キーに確信度(0-1)を含めてください。"
+        "You are an expert analyst. Analyze the given information, "
+        "performing topic classification, key point extraction, and pattern identification. "
+        "Output JSON with an 'analysis' key for results and a 'confidence' key for score (0-1)."
     ),
     tools=[classify_topic, extract_key_points],
     name="Analyze Agent",
-    description="情報を分析し、パターンと要点を抽出するエージェント",
+    description="Agent that analyzes information and extracts patterns and key points",
 )
 
 _port = os.environ.get("PORT", "9000")

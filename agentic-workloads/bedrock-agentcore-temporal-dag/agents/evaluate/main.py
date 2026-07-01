@@ -10,15 +10,15 @@ import uvicorn
 
 @tool
 def score_quality(text: str, criteria: str) -> str:
-    """指定した基準でテキストの品質をスコアリングします"""
-    # デモ用スタブ
+    """Score the quality of the given text against the specified criteria."""
+    # Demo stub
     return json.dumps({"score": 0.75, "criteria": criteria, "rationale": "Meets most criteria"})
 
 
 @tool
 def detect_gaps(analysis: str) -> str:
-    """分析結果の不足点を検出します"""
-    # デモ用スタブ
+    """Detect gaps and missing elements in the analysis result."""
+    # Demo stub
     return json.dumps({"gaps": ["Missing recent data", "No competitor comparison"], "severity": "medium"})
 
 
@@ -30,13 +30,13 @@ _model = BedrockModel(
 agent = Agent(
     model=_model,
     system_prompt=(
-        "あなたは品質評価の専門家です。与えられた分析結果を評価し、"
-        "品質スコアと改善のためのフィードバックを提供してください。"
-        "出力はJSON形式で、'score'キーに0-1のスコアを、'feedback'キーに改善点を含めてください。"
+        "You are an expert quality evaluator. Evaluate the given analysis result "
+        "and provide a quality score along with actionable feedback for improvement. "
+        "Output JSON with a 'score' key (0-1) and a 'feedback' key listing improvements."
     ),
     tools=[score_quality, detect_gaps],
     name="Evaluate Agent",
-    description="分析結果の品質を評価し、フィードバックを提供するエージェント",
+    description="Agent that evaluates analysis quality and provides feedback",
 )
 
 _port = os.environ.get("PORT", "9000")

@@ -1,4 +1,4 @@
-"""DAF デモ CLI — Temporal Workflow を起動し進捗を表示する。"""
+"""DAF demo CLI — starts a Temporal Workflow and displays live progress."""
 
 import asyncio
 import os
@@ -33,10 +33,10 @@ def _render_status(status: dict) -> str:
 
 async def run(query: str):
     if not TEMPORAL_ADDRESS or not TEMPORAL_NAMESPACE:
-        print("ERROR: TEMPORAL_ADDRESS / TEMPORAL_NAMESPACE 環境変数を設定してください")
+        print("ERROR: set TEMPORAL_ADDRESS / TEMPORAL_NAMESPACE environment variables")
         sys.exit(1)
     if not TEMPORAL_API_KEY:
-        print("ERROR: TEMPORAL_API_KEY 環境変数を設定してください")
+        print("ERROR: set TEMPORAL_API_KEY environment variable")
         sys.exit(1)
 
     print(f"Connecting to Temporal Cloud ({TEMPORAL_NAMESPACE})...")
@@ -104,8 +104,8 @@ async def run(query: str):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python demo.py <調査クエリ>")
-        print("Example: python demo.py 'AWS Bedrock AgentCoreの概要を調査してください'")
+        print("Usage: python demo.py <query>")
+        print("Example: python demo.py 'Investigate multi-agent design patterns for generative AI'")
         sys.exit(1)
 
     query = " ".join(sys.argv[1:])

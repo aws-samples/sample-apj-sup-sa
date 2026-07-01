@@ -22,7 +22,7 @@ class ResearchPipelineWorkflow:
         )
         self._status["gather"] = "completed"
 
-        # Step 2: fan-out (analyze + evaluate 並列)
+        # Step 2: fan-out (analyze + evaluate in parallel)
         self._status["analyze"] = "running"
         self._status["evaluate"] = "running"
 
@@ -47,7 +47,7 @@ class ResearchPipelineWorkflow:
         self._status["analyze"] = "completed"
         self._status["evaluate"] = "completed"
 
-        # Step 3: 条件分岐 — スコアが低い場合のみ再分析
+        # Step 3: conditional branch — re-analyze only if score is below threshold
         score = evaluated.get("score", 1.0)
         if score < 0.7:
             self._status["re_analyze"] = "running"

@@ -9,8 +9,8 @@ from a2a.types import Message, Part, Role, SendMessageRequest, TaskState
 
 _region = os.environ.get("AWS_REGION", "us-east-1")
 
-# ローカルモード: AGENT_ENDPOINTS 環境変数で Agent URL を直接指定
-# 例: {"gather":"http://localhost:9001","analyze":"http://localhost:9002",...}
+# Local mode: set AGENT_ENDPOINTS env var to specify Agent URLs directly
+# e.g. {"gather":"http://localhost:9001","analyze":"http://localhost:9002",...}
 _local_endpoints: dict[str, str] = {}
 if os.environ.get("AGENT_ENDPOINTS"):
     _local_endpoints = json.loads(os.environ["AGENT_ENDPOINTS"])
@@ -19,7 +19,7 @@ _is_local = bool(_local_endpoints)
 
 
 class SigV4HTTPXAuth(httpx.Auth):
-    """AgentCore向けSigV4署名。リクエストごとにcredentialsを再取得しローテーションに対応する。"""
+    """SigV4 auth for AgentCore. Re-fetches credentials per request to handle rotation."""
 
     def __init__(self, credentials, service: str, region: str):
         self._credentials = credentials
@@ -94,14 +94,14 @@ def _create_httpx_client(signed: bool = False) -> httpx.AsyncClient:
 
 
 async def invoke_agent(agent_name: str, input_data: dict) -> dict:
-    """A2AプロトコルでAgentを呼び出す。
+    """Invoke an Agent via the A2A protocol.
 
-    ローカルモード (AGENT_ENDPOINTS設定時):
-      - SigV4署名なし、a2a-sdk ClientFactory経由
+    Local mode (when AGENT_ENDPOINTS is set):
+      - No SigV4 signing; uses a2a-sdk ClientFactory
 
-    AWSモード (デフォルト):
-      - SSM から ARN → invoke URL 構築
-      - SigV4署名付き JSON-RPC POST を直接送信
+    AWS mode (default):
+      - Resolves ARN from SSM, builds the invoke URL
+      - Sends a SigV4-signed JSON-RPC POST directly
     """
     if _is_local:
         return await _invoke_local(agent_name, input_data)
