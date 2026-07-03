@@ -46,11 +46,9 @@ describe('BedrockService', () => {
       const transcript = 'a'.repeat(MIN_TRANSCRIPT_LENGTH_FOR_SUMMARY + 1);
       const mockResponse = {
         mainTopics: ['Topic A'],
-        topicDiscussions: [{ topic: 'Topic A', discussions: ['Discussion 1'], decisions: [] }],
+        discussionTopics: [{ title: 'Topic A', context: ['Discussion 1'] }],
         keyTakeaways: ['Takeaway 1'],
-        confirmedActions: [{ task: 'Task 1', owner: 'Me', deadline: 'Today' }],
-        pendingActions: [],
-        followUps: [],
+        nextSteps: [{ task: 'Task 1', owner: 'Me', deadline: 'Today' }],
         openIssues: [],
       };
 

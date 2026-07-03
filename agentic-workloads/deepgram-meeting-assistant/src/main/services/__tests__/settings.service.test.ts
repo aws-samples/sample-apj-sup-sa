@@ -160,6 +160,7 @@ describe('SettingsService', () => {
         },
         transcribe: {
           languageCode: 'ko-KR',
+          translationTargetLanguage: 'en-US',
           partialResultsStability: 'medium',
           enablePartialResultsStabilization: true,
           showSpeakerLabel: true,
