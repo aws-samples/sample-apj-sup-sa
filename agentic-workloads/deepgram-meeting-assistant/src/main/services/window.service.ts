@@ -73,12 +73,15 @@ class WindowService {
   private configureContentSecurityPolicy(origins: DevServerOrigins | null): void {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = details.responseHeaders ?? {};
+      // 'unsafe-inline' is only needed for the Vite dev server, which injects
+      // inline <script>/<style> for HMR. In production (no dev origins) the
+      // renderer is served from bundled files, so we drop 'unsafe-inline'.
       const csp = [
         "default-src 'self'",
         origins
           ? `script-src 'self' ${origins.httpOrigin} 'unsafe-inline'`
           : "script-src 'self' file://",
-        "style-src 'self' 'unsafe-inline'",
+        origins ? "style-src 'self' 'unsafe-inline'" : "style-src 'self'",
         "font-src 'self'",
         "img-src 'self' data: blob:",
         origins

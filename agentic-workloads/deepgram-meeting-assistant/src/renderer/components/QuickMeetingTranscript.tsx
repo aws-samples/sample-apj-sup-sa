@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { CorrectedSentence, TranscriptionSegment } from '@shared/types';
 import type { MeetingPrepData } from '@shared/types/meeting-prep';
@@ -111,19 +112,23 @@ const getSpeakerColor = (label: string | null): string => {
   return SPEAKER_COLORS[hash];
 };
 
-const sanitizeStrongMarkup = (value: string): string => {
-  const openToken = '__STRONG_OPEN__';
-  const closeToken = '__STRONG_CLOSE__';
-  const normalized = value
-    .replace(/<strong>/gi, openToken)
-    .replace(/<\/strong>/gi, closeToken);
-  const escaped = normalized
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  return escaped
-    .replace(new RegExp(openToken, 'g'), '<strong>')
-    .replace(new RegExp(closeToken, 'g'), '</strong>');
+/**
+ * Renders text that may contain <strong>...</strong> emphasis markup as React
+ * nodes. Only <strong> is recognized; everything else is rendered as plain text
+ * by React, which escapes it automatically. This avoids dangerouslySetInnerHTML
+ * and any risk of injecting untrusted markup from translated content.
+ */
+const renderStrongMarkup = (value: string): React.ReactNode[] => {
+  const segments = value.split(/(<strong>.*?<\/strong>)/gis);
+  return segments
+    .filter((segment) => segment.length > 0)
+    .map((segment, index) => {
+      const match = /^<strong>(.*?)<\/strong>$/is.exec(segment);
+      if (match) {
+        return <strong key={index}>{match[1]}</strong>;
+      }
+      return <span key={index}>{segment}</span>;
+    });
 };
 
 function QuickMeetingTranscript({
@@ -306,10 +311,9 @@ function QuickMeetingTranscript({
               <div key={`${block.startTime}-${lineIndex}`} className="qm-script-line">
                 <p className={`qm-script-text${line.id === pendingLineId ? ' is-pending' : ''}`}>{line.text}</p>
                 {showTranslation && line.translatedText && (
-                  <p
-                    className="qm-script-translation"
-                    dangerouslySetInnerHTML={{ __html: sanitizeStrongMarkup(line.translatedText) }}
-                  />
+                  <p className="qm-script-translation">
+                    {renderStrongMarkup(line.translatedText)}
+                  </p>
                 )}
               </div>
             ))}
