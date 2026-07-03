@@ -165,7 +165,7 @@ class SettingsService {
 
     return {
       aws: {
-        accessKeyId: encryptedSettings.aws.accessKeyId ?? '',
+        accessKeyId: this.decryptValue(encryptedSettings.aws.accessKeyId ?? ''),
         secretAccessKey: this.decryptValue(encryptedSettings.aws.secretAccessKey ?? ''),
         region: encryptedSettings.aws.region ?? DEFAULT_SETTINGS.aws.region,
       },
@@ -188,7 +188,7 @@ class SettingsService {
       const data = validated.data;
       const encryptedSettings: AppSettings = {
         aws: {
-          accessKeyId: data.aws.accessKeyId,
+          accessKeyId: this.encryptValue(data.aws.accessKeyId),
           secretAccessKey: this.encryptValue(data.aws.secretAccessKey),
           region: data.aws.region,
         },

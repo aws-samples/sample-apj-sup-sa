@@ -3,7 +3,7 @@
  *
  * 미팅 종료 후 회의록 대화 agent와의 텍스트 채팅 상태를 관리한다.
  *  - send: 사용자 메시지 전송 → assistant 응답 + pendingActions 머지
- *  - resolve: pendingAction 승인/취소 → 부수효과 실행(회의록 수정/SFDC 로깅)
+ *  - resolve: pendingAction 승인/취소 → 부수효과 실행(회의록 수정/CRM 로깅)
  *  - 회의록 수정은 main이 SUMMARY_COMPLETE/CONVERSATION_LOG_COMPLETE를 재emit하므로
  *    상위(useSummary/useConversationLog)가 탭을 자동 갱신한다 — 이 훅은 채팅만 담당.
  *

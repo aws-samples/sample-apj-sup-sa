@@ -1,7 +1,7 @@
 /**
  * Post-Meeting Agent — 도구 분류
  *
- * agent는 aws-sentral-mcp의 모든 도구 + 회의록 수정 로컬 도구 2종을 사용할 수 있다.
+ * agent는 crm-mcp-server의 모든 도구 + 회의록 수정 로컬 도구 2종을 사용할 수 있다.
  * 도구는 두 부류로 나뉜다:
  *  - 읽기(read-only): search/get/fetch/list/check 등 조회 도구 → 컨펌 없이 자동 실행
  *    (agent가 조회 결과를 보고 이어서 추론하는 멀티스텝을 허용).
@@ -24,7 +24,7 @@ export type LocalAgentToolName =
 const LOCAL_AGENT_TOOL_NAMES: readonly string[] = Object.values(LOCAL_AGENT_TOOLS);
 
 /**
- * 읽기(조회) 도구로 간주하는 이름 접두사. aws-sentral-mcp의 도구 이름 규칙을 따른다
+ * 읽기(조회) 도구로 간주하는 이름 접두사. crm-mcp-server의 도구 이름 규칙을 따른다
  * (search_*, get_*, fetch_*, list_*, check_*). 이 도구들은 부수효과가 없으므로
  * 컨펌 없이 자동 실행한다.
  */
@@ -44,12 +44,12 @@ export function isReadOnlyTool(name: string): boolean {
  * 도구 실행 정책:
  *  - 'auto'        : 읽기 도구. 컨펌 없이 즉시 실행하고 결과로 추론을 이어간다.
  *  - 'meeting_edit': 회의록 수정 로컬 도구. 사용자 컨펌 후 DB 패치.
- *  - 'sfdc_log'    : 그 외 모든 MCP 도구(쓰기/생성). 사용자 컨펌 후 MCP 실행.
+ *  - 'crm_log'    : 그 외 모든 MCP 도구(쓰기/생성). 사용자 컨펌 후 MCP 실행.
  */
-export type ToolPolicy = 'auto' | 'meeting_edit' | 'sfdc_log';
+export type ToolPolicy = 'auto' | 'meeting_edit' | 'crm_log';
 
 export function toolPolicy(name: string): ToolPolicy {
   if (isLocalAgentTool(name)) return 'meeting_edit';
   if (isReadOnlyTool(name)) return 'auto';
-  return 'sfdc_log';
+  return 'crm_log';
 }

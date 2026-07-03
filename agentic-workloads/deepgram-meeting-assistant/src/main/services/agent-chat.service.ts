@@ -5,7 +5,7 @@
  * 메모리에 유지한다. 회의록(전사+요약)을 system 프롬프트로 주입해 KB로 삼고,
  * BedrockService.runAgentTurn(tool use, 자동 실행 없음)을 구동한다.
  *
- * 부수효과(회의록 수정 / SFDC 로깅)는 즉시 실행하지 않고 pendingAction으로 올려
+ * 부수효과(회의록 수정 / CRM 로깅)는 즉시 실행하지 않고 pendingAction으로 올려
  * 사용자 컨펌 후 resolveAction에서 실행한다(confirm-gate). LLM/MCP/DB 의존성은
  * 호출부에서 deps로 주입해 서비스가 자격증명·모델을 직접 들고 있지 않게 한다.
  */
@@ -23,7 +23,7 @@ const log = createLogger('agent-chat');
 
 const SYSTEM_GUIDELINES = `당신은 회의가 끝난 뒤 회의록을 함께 다듬고 후속 작업을 돕는 어시스턴트입니다.
 - 아래에 제공된 회의 전사와 현재 회의록(요약/대화 요약)을 지식 베이스로 사용하세요.
-- 회의록을 고치거나 Salesforce에 기록하는 등 "부수효과"가 필요한 작업은 반드시 제공된 도구를 호출해 "제안"하세요. 실제 반영은 사용자가 승인한 뒤에만 일어납니다.
+- 회의록을 고치거나 CRM에 기록하는 등 "부수효과"가 필요한 작업은 반드시 제공된 도구를 호출해 "제안"하세요. 실제 반영은 사용자가 승인한 뒤에만 일어납니다.
 - 도구를 호출하기 전에, 무엇을 어떻게 바꿀지 한국어로 간단히 설명하세요.
 - 전사에서 확실히 알 수 없는 내용은 추측하지 말고 사용자에게 물어보세요.
 - 답변은 한국어로 간결하게 하세요.
@@ -38,7 +38,7 @@ interface AgentSession {
 export interface AgentChatDeps {
   bedrockService: BedrockService;
   db: DatabaseService;
-  /** 이 턴에 노출할 도구(회의록 로컬 2종 + SFDC 화이트리스트 교집합). */
+  /** 이 턴에 노출할 도구(회의록 로컬 2종 + CRM 화이트리스트 교집합). */
   tools: AgentToolSpec[];
   /** MCP 도구 실행기(미연결이면 생략). */
   mcpCallTool?: (name: string, args: Record<string, unknown>) => Promise<{ content: unknown; isError: boolean }>;
@@ -143,7 +143,7 @@ class AgentChatService {
 
   /**
    * pendingAction을 승인/거절한다. 승인 시에만 실제 부수효과를 실행한다.
-   * 회의록 수정은 applyMeetingEdit(DB 패치 + 이벤트 재emit), SFDC 로깅은 mcpCallTool.
+   * 회의록 수정은 applyMeetingEdit(DB 패치 + 이벤트 재emit), CRM 로깅은 mcpCallTool.
    */
   async resolveAction(
     meetingId: string,
@@ -171,22 +171,22 @@ class AgentChatService {
       return { resultText: r.message, applied: r.ok };
     }
 
-    // sfdc_log — 방어 검증. 읽기 도구는 자동 실행 대상이므로 컨펌 경로로 오면 안 된다.
+    // crm_log — 방어 검증. 읽기 도구는 자동 실행 대상이므로 컨펌 경로로 오면 안 된다.
     if (isReadOnlyTool(action.name) || isLocalAgentTool(action.name)) {
       return { resultText: `잘못된 작업 분류입니다: ${action.name}`, applied: false };
     }
     if (!deps.mcpCallTool) {
-      return { resultText: 'SFDC(MCP)에 연결되어 있지 않아 실행할 수 없습니다.', applied: false };
+      return { resultText: 'CRM(MCP)에 연결되어 있지 않아 실행할 수 없습니다.', applied: false };
     }
     try {
       const result = await deps.mcpCallTool(action.name, action.args);
       if (result.isError) {
-        return { resultText: `SFDC 로깅 실패 (${action.name}): ${stringifyContent(result.content)}`, applied: false };
+        return { resultText: `CRM 로깅 실패 (${action.name}): ${stringifyContent(result.content)}`, applied: false };
       }
-      return { resultText: `SFDC에 기록했습니다 (${action.name}).`, applied: true };
+      return { resultText: `CRM에 기록했습니다 (${action.name}).`, applied: true };
     } catch (err) {
-      log.error({ err: String(err), meetingId, tool: action.name }, 'SFDC tool call failed');
-      return { resultText: `SFDC 로깅 중 오류: ${String(err)}`, applied: false };
+      log.error({ err: String(err), meetingId, tool: action.name }, 'CRM tool call failed');
+      return { resultText: `CRM 로깅 중 오류: ${String(err)}`, applied: false };
     }
   }
 

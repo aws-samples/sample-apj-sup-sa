@@ -166,7 +166,7 @@ describe('BedrockService', () => {
   describe('runAgentTurn', () => {
     const tools = [
       { name: 'update_meeting_summary', description: 'edit summary', inputSchema: { type: 'object' } },
-      { name: 'create_tech_activity', description: 'log SFDC', inputSchema: { type: 'object' } },
+      { name: 'create_tech_activity', description: 'log CRM', inputSchema: { type: 'object' } },
     ];
 
     it('returns assistant text only on end_turn (no tool use)', async () => {
@@ -263,7 +263,7 @@ describe('BedrockService', () => {
       expect(result.assistantText).toContain('ACME opp 2건');
     });
 
-    it('treats a non-read MCP tool (delete_*) as a side-effect pendingAction (sfdc_log)', async () => {
+    it('treats a non-read MCP tool (delete_*) as a side-effect pendingAction (crm_log)', async () => {
       mockClient.send.mockResolvedValueOnce({
         stopReason: 'tool_use',
         output: {
@@ -281,12 +281,12 @@ describe('BedrockService', () => {
         mcpCallTool: vi.fn(),
       });
 
-      // 쓰기 계열은 자동 실행하지 않고 컨펌 대기(sfdc_log)로 둔다.
+      // 쓰기 계열은 자동 실행하지 않고 컨펌 대기(crm_log)로 둔다.
       expect(result.pendingActions).toHaveLength(1);
-      expect(result.pendingActions[0].kind).toBe('sfdc_log');
+      expect(result.pendingActions[0].kind).toBe('crm_log');
     });
 
-    it('classifies a whitelisted SFDC tool as sfdc_log', async () => {
+    it('classifies a whitelisted CRM tool as crm_log', async () => {
       mockClient.send.mockResolvedValueOnce({
         stopReason: 'tool_use',
         output: {
@@ -300,13 +300,13 @@ describe('BedrockService', () => {
       });
 
       const result = await service.runAgentTurn({
-        messages: [{ role: 'user', content: [{ text: 'SFDC에 기록' }] }],
+        messages: [{ role: 'user', content: [{ text: 'CRM에 기록' }] }],
         system: 'sys',
         tools,
       });
 
       expect(result.pendingActions).toHaveLength(1);
-      expect(result.pendingActions[0].kind).toBe('sfdc_log');
+      expect(result.pendingActions[0].kind).toBe('crm_log');
     });
   });
 });

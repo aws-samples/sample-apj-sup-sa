@@ -24,7 +24,7 @@
     "assistant"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
     "@electron-forge/cli": "^7.10.2",

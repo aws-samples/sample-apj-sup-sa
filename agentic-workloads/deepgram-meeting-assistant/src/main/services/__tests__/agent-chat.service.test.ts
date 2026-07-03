@@ -63,7 +63,7 @@ describe('AgentChatService', () => {
   });
 
   it('sendMessage forwards to runAgentTurn and registers pendingActions', async () => {
-    const pending = [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: { x: 1 }, kind: 'sfdc_log' as const }];
+    const pending = [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: { x: 1 }, kind: 'crm_log' as const }];
     const deps = makeDeps();
     (deps.bedrockService.runAgentTurn as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       assistantText: '기록할게요',
@@ -71,18 +71,18 @@ describe('AgentChatService', () => {
       updatedMessages: [{ role: 'user', content: [{ text: 'hi' }] }],
     });
 
-    const result = await service.sendMessage('m1', 'SFDC에 기록해줘', deps);
+    const result = await service.sendMessage('m1', 'CRM에 기록해줘', deps);
     expect(result.assistantText).toBe('기록할게요');
     expect(result.pendingActions).toHaveLength(1);
     expect(deps.bedrockService.runAgentTurn).toHaveBeenCalledOnce();
   });
 
-  it('resolveAction(sfdc_log, approved) calls mcpCallTool', async () => {
+  it('resolveAction(crm_log, approved) calls mcpCallTool', async () => {
     const mcpCallTool = vi.fn(async () => ({ content: 'ok', isError: false }));
     const deps = makeDeps({ mcpCallTool });
     (deps.bedrockService.runAgentTurn as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       assistantText: '',
-      pendingActions: [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: { subject: 'Demo' }, kind: 'sfdc_log' }],
+      pendingActions: [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: { subject: 'Demo' }, kind: 'crm_log' }],
       updatedMessages: [],
     });
     await service.sendMessage('m1', 'x', deps);
@@ -97,7 +97,7 @@ describe('AgentChatService', () => {
     const deps = makeDeps({ mcpCallTool });
     (deps.bedrockService.runAgentTurn as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       assistantText: '',
-      pendingActions: [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: {}, kind: 'sfdc_log' }],
+      pendingActions: [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: {}, kind: 'crm_log' }],
       updatedMessages: [],
     });
     await service.sendMessage('m1', 'x', deps);
@@ -118,7 +118,7 @@ describe('AgentChatService', () => {
     const deps = makeDeps({ mcpCallTool });
     (deps.bedrockService.runAgentTurn as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       assistantText: '',
-      pendingActions: [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: {}, kind: 'sfdc_log' }],
+      pendingActions: [{ id: 'a1', toolUseId: 'tu1', name: 'create_tech_activity', args: {}, kind: 'crm_log' }],
       updatedMessages: [],
     });
     await service.sendMessage('m1', 'x', deps);

@@ -67,7 +67,7 @@ export class McpClientService {
 
       // StdioClientTransport 생성
       this.transport = new StdioClientTransport({
-        command: 'aws-sentral-mcp',
+        command: 'crm-mcp-server',
       });
 
       // 연결 시도

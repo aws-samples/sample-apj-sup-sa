@@ -1,12 +1,12 @@
 /**
  * Post-Meeting Agent IPC Handlers
  *
- * 회의록 대화 agent(텍스트 채팅 + 회의록 수정 + SFDC 로깅)의 IPC.
+ * 회의록 대화 agent(텍스트 채팅 + 회의록 수정 + CRM 로깅)의 IPC.
  *  - agent:chat-send     사용자 메시지 → agent 한 턴 → {assistantText, pendingActions}
  *  - agent:resolve-action 사용자 컨펌 → 부수효과 실행/취소 → {resultText, applied}
  *  - agent:reset          미팅 채팅 세션 정리
  *
- * agent에 노출하는 도구 = 회의록 로컬 도구 2종 + SFDC 로깅 화이트리스트 교집합.
+ * agent에 노출하는 도구 = 회의록 로컬 도구 2종 + CRM 로깅 화이트리스트 교집합.
  * read-only 도구는 노출하지 않으므로 "도구 호출 = 부수효과 = 컨펌 게이트"가 성립.
  */
 import { ipcMain } from 'electron';
@@ -58,7 +58,7 @@ function localTools(): AgentToolSpec[] {
   }));
 }
 
-/** MCP 연결 시 aws-sentral의 모든 도구를 AgentToolSpec로 노출(읽기/쓰기 무관).
+/** MCP 연결 시 CRM의 모든 도구를 AgentToolSpec로 노출(읽기/쓰기 무관).
  *  읽기는 자동 실행, 쓰기는 컨펌 — 분류는 toolPolicy가 런타임에 판단한다. */
 async function mcpTools(): Promise<{ tools: AgentToolSpec[]; connected: boolean }> {
   if (mcpClientService.getStatus() !== 'connected') {
@@ -146,7 +146,7 @@ export function registerAgentHandlers(
     const settings = await getSettings();
 
     try {
-      // resolveAction은 meeting_edit(DB)·sfdc_log(MCP)만 수행하므로 bedrock 호출은
+      // resolveAction은 meeting_edit(DB)·crm_log(MCP)만 수행하므로 bedrock 호출은
       // 없지만, deps 형태를 맞추기 위해 동일하게 구성한다.
       const bedrockService = meetingStreamingService.createBedrockService(
         credentials,

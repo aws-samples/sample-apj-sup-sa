@@ -38,7 +38,7 @@ export const IPC_CHANNELS = {
   CONVERSATION_LOG_GENERATE: 'conversation-log:generate',
   CONVERSATION_LOG_COMPLETE: 'conversation-log:complete',
 
-  // Post-Meeting Agent (회의록 대화 수정 + SFDC 로깅)
+  // Post-Meeting Agent (회의록 대화 수정 + CRM 로깅)
   AGENT_CHAT_SEND: 'agent:chat-send',
   AGENT_RESOLVE_ACTION: 'agent:resolve-action',
   AGENT_RESET: 'agent:reset',

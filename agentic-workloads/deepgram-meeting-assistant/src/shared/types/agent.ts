@@ -7,7 +7,7 @@
  */
 import type { JsonSchema } from './mcp';
 
-/** agent에 노출할 도구 1개의 스펙 (회의록 로컬 도구 또는 SFDC 로깅 MCP 도구). */
+/** agent에 노출할 도구 1개의 스펙 (회의록 로컬 도구 또는 CRM 로깅 MCP 도구). */
 export interface AgentToolSpec {
   name: string;
   description: string;
@@ -27,8 +27,8 @@ export interface AgentPendingAction {
   name: string;
   /** 도구 인자(JSON object). */
   args: Record<string, unknown>;
-  /** 회의록 수정인지 SFDC 로깅인지. */
-  kind: 'meeting_edit' | 'sfdc_log';
+  /** 회의록 수정인지 CRM 로깅인지. */
+  kind: 'meeting_edit' | 'crm_log';
 }
 
 /** renderer 채팅 UI에 표시되는 메시지 1개. */
@@ -43,7 +43,7 @@ export interface AgentChatResult {
   assistantText: string;
   /** 사용자 컨펌이 필요한 동작들(없으면 빈 배열). */
   pendingActions: AgentPendingAction[];
-  /** MCP(SFDC) 연결 여부 — 미연결이면 로깅 도구가 비활성. */
+  /** MCP(CRM) 연결 여부 — 미연결이면 로깅 도구가 비활성. */
   mcpConnected: boolean;
 }
 

@@ -4726,8 +4726,8 @@ select.readonly {
   gap: 8px;
 }
 
-/* SFDC 연결 상태 — 작은 pill + dot (헤더 우측 인라인) */
-.qm-agent-sfdc-badge {
+/* CRM 연결 상태 — 작은 pill + dot (헤더 우측 인라인) */
+.qm-agent-crm-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -4740,28 +4740,28 @@ select.readonly {
   white-space: nowrap;
 }
 
-.qm-agent-sfdc-dot {
+.qm-agent-crm-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.qm-agent-sfdc-badge--on {
+.qm-agent-crm-badge--on {
   background: #e6f7ee;
   color: #0a7a43;
   border-color: #b6e6cd;
 }
-.qm-agent-sfdc-badge--on .qm-agent-sfdc-dot {
+.qm-agent-crm-badge--on .qm-agent-crm-dot {
   background: #12b76a;
 }
 
-.qm-agent-sfdc-badge--off {
+.qm-agent-crm-badge--off {
   background: #f1f3f5;
   color: #868e96;
   border-color: #e3e6e9;
 }
-.qm-agent-sfdc-badge--off .qm-agent-sfdc-dot {
+.qm-agent-crm-badge--off .qm-agent-crm-dot {
   background: #adb5bd;
 }
 

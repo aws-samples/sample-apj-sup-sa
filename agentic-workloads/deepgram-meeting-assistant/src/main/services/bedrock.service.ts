@@ -72,7 +72,7 @@ export class BedrockService {
    *  - 읽기 도구('auto'): mcpCallTool로 **즉시 실행**하고 결과를 toolResult로 넣어
    *    모델을 재호출한다(멀티스텝 추론). 조회→판단→다음 행동을 한 번의 사용자
    *    메시지 안에서 이어간다. maxToolRounds로 라운드를 제한해 무한 루프를 막는다.
-   *  - 쓰기 도구('sfdc_log') / 회의록 수정('meeting_edit'): **실행하지 않고**
+   *  - 쓰기 도구('crm_log') / 회의록 수정('meeting_edit'): **실행하지 않고**
    *    AgentPendingAction으로 모은 뒤, "사용자 확인 대기 중" toolResult로 히스토리를
    *    닫고 루프를 종료한다(confirm-gate). 실제 실행은 resolveAction이 한다.
    *
@@ -181,7 +181,7 @@ export class BedrockService {
             toolUseId,
             name,
             args,
-            kind: policy === 'meeting_edit' ? 'meeting_edit' : 'sfdc_log',
+            kind: policy === 'meeting_edit' ? 'meeting_edit' : 'crm_log',
           });
           toolResultBlocks.push({
             toolResult: {
@@ -236,13 +236,6 @@ export class BedrockService {
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
     const resultText = responseBody.content?.[0]?.text ?? '';
     
-    console.log('[BEDROCK-DEBUG] Anthropic Response:', {
-      modelId: this.config.modelId,
-      responseLength: resultText.length,
-      first100: resultText.substring(0, 100),
-      last100: resultText.substring(Math.max(0, resultText.length - 100)),
-      rawText: resultText,
-    });
     
     return resultText;
   }
@@ -269,12 +262,6 @@ export class BedrockService {
       .filter((value): value is string => Boolean(value));
     const resultText = textBlocks.join('').trim();
     
-    // 🔍 DEBUG: Bedrock raw response
-    console.log('[BEDROCK-DEBUG] Converse Response:', {
-      modelId: this.config.modelId,
-      responseLength: resultText.length,
-      rawText: resultText,
-    });
     
     return resultText;
   }
@@ -1033,37 +1020,20 @@ ${transcript}
   private parseCorrectionResponse(text: string, fallback: string): string {
     const raw = text.trim();
     
-    // 🔍 DEBUG: Parse attempt
-    console.log('[BEDROCK-DEBUG] parseCorrectionResponse:', {
-      inputLength: raw.length,
-      startsWithBrace: raw.startsWith('{'),
-      endsWithBrace: raw.endsWith('}'),
-      preview: raw.substring(0, 200),
-    });
     
     const parsed = this.extractJson(raw);
     
-    console.log('[BEDROCK-DEBUG] extractJson result:', {
-      success: !!parsed,
-      hasCorrectedText: parsed && 'correctedText' in parsed,
-      correctedTextType: parsed && typeof parsed.correctedText,
-      keys: parsed ? Object.keys(parsed) : [],
-    });
     
     if (parsed && typeof parsed.correctedText === 'string') {
       const value = parsed.correctedText.trim();
-      console.log('[BEDROCK-DEBUG] Returning correctedText:', value.substring(0, 100));
       return value || '';
     }
     if (!raw) {
-      console.log('[BEDROCK-DEBUG] Empty raw, returning fallback');
       return fallback;
     }
     if (raw.startsWith('{') && raw.endsWith('}')) {
-      console.log('[BEDROCK-DEBUG] JSON-like but parse failed, returning fallback');
       return fallback;
     }
-    console.log('[BEDROCK-DEBUG] Returning raw text as-is');
     return raw;
   }
 
@@ -1176,12 +1146,8 @@ ${transcript}
   private extractJson(text: string): { [key: string]: unknown } | null {
     try {
       const result = JSON.parse(text);
-      console.log('[BEDROCK-DEBUG] extractJson: Direct parse succeeded');
       return result;
     } catch (directError) {
-      console.log('[BEDROCK-DEBUG] extractJson: Direct parse failed, trying balanced brace matching', {
-        error: directError instanceof Error ? directError.message : String(directError),
-      });
       
       return this.extractJsonWithBalancedBraces(text);
     }
@@ -1222,30 +1188,18 @@ ${transcript}
         braceCount--;
         if (braceCount === 0 && startIdx >= 0) {
           const candidate = text.slice(startIdx, i + 1);
-          console.log('[BEDROCK-DEBUG] Balanced brace match found:', {
-            startIdx,
-            endIdx: i,
-            length: candidate.length,
-            preview: candidate.substring(0, 200),
-          });
           
           try {
             const result = JSON.parse(candidate);
-            console.log('[BEDROCK-DEBUG] Balanced brace parse succeeded');
             return result;
           } catch (parseError) {
-            console.log('[BEDROCK-DEBUG] Balanced brace parse failed, trying auto-fix', {
-              error: parseError instanceof Error ? parseError.message : String(parseError),
-            });
             
             const fixed = this.tryFixCommonJsonErrors(candidate);
             if (fixed) {
               try {
                 const result = JSON.parse(fixed);
-                console.log('[BEDROCK-DEBUG] Auto-fix succeeded');
                 return result;
               } catch {
-                console.log('[BEDROCK-DEBUG] Auto-fix failed, continuing search');
               }
             }
             
@@ -1255,12 +1209,10 @@ ${transcript}
       }
     }
 
-    console.log('[BEDROCK-DEBUG] No valid JSON found with balanced brace matching');
     return null;
   }
 
   private tryFixCommonJsonErrors(json: string): string | null {
-    console.log('[BEDROCK-DEBUG] tryFixCommonJsonErrors input length:', json.length);
     
     let fixed = json;
     let changed = false;
@@ -1269,30 +1221,21 @@ ${transcript}
     fixed = fixed.replace(/"\s*\]\s*\}\s*\}/g, '"]}}');
     if (fixed !== original) {
       changed = true;
-      console.log('[BEDROCK-DEBUG] Fixed: Removed whitespace before ]}}');
     }
 
     const temp2 = fixed;
     fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
     if (fixed !== temp2) {
       changed = true;
-      console.log('[BEDROCK-DEBUG] Fixed: Removed trailing commas');
     }
 
     const temp3 = fixed;
     fixed = fixed.replace(/([}\]])(\s*)([{\[])/g, '$1,$2$3');
     if (fixed !== temp3) {
       changed = true;
-      console.log('[BEDROCK-DEBUG] Fixed: Added missing commas between elements');
     }
 
     if (changed) {
-      console.log('[BEDROCK-DEBUG] tryFixCommonJsonErrors result:', {
-        originalLength: json.length,
-        fixedLength: fixed.length,
-        last100Original: json.substring(Math.max(0, json.length - 100)),
-        last100Fixed: fixed.substring(Math.max(0, fixed.length - 100)),
-      });
       return fixed;
     }
 
