@@ -163,6 +163,7 @@ class BedrockRampTester:
         dry_run: bool = False,
         endpoint: str = "runtime",  # "runtime" or "mantle"
         api_key: str | None = None,
+        max_requests: int | None = None,
     ):
         self.model_id = model_id
         self.region = region
@@ -175,6 +176,8 @@ class BedrockRampTester:
         self.dry_run = dry_run
         self.endpoint = endpoint
         self.api_key = api_key
+        self.max_requests = max_requests
+        self._total_requests_all_phases = 0  # running total for budget cap
 
         if not dry_run:
             if endpoint == "mantle":
@@ -319,6 +322,14 @@ class BedrockRampTester:
         with ThreadPoolExecutor(max_workers=concurrency) as executor:
             futures = []
             for i in range(total_requests):
+                # Budget cap: abort if total requests across all phases exceeded
+                if self.max_requests and self._total_requests_all_phases >= self.max_requests:
+                    console.print(
+                        f"  [bold red]⛔ Budget cap reached ({self.max_requests:,} requests). "
+                        f"Stopping test.[/bold red]"
+                    )
+                    break
+
                 # Check if we've exceeded duration
                 elapsed = time.perf_counter() - start_time
                 if elapsed >= duration_seconds:
@@ -331,6 +342,7 @@ class BedrockRampTester:
                     time.sleep(target_time - now)
 
                 futures.append(executor.submit(self._invoke_model))
+                self._total_requests_all_phases += 1
 
             # Wait for all in-flight requests
             for f in as_completed(futures):
@@ -421,6 +433,7 @@ class BedrockRampTester:
             f"Hold time:   {self.hold_minutes} min\n"
             f"Reduce by:   {self.reduction_factor:.0%} on 503\n"
             f"Increase by: {self.increase_factor:.0%} on steady state\n"
+            f"Max requests:{f' {self.max_requests:,}' if self.max_requests else ' unlimited'}\n"
             f"Dry run:     {self.dry_run}",
             title="Configuration",
         ))
@@ -546,6 +559,40 @@ class BedrockRampTester:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _estimate_total_requests(
+    target_rpm: float, hold_minutes: float, reduction_factor: float, increase_factor: float
+) -> int:
+    """
+    Estimate the upper-bound total requests for a full ramp test.
+
+    Accounts for probe phases (finding steady state) + hold phases (ramp up).
+    This is conservative (actual will often be lower if steady state is found quickly).
+    """
+    # Probe phase: up to 5 reductions, each 60s
+    probe_requests = 0
+    rpm = target_rpm
+    for _ in range(5):
+        probe_requests += int(rpm)  # 60s at this RPM
+        rpm *= reduction_factor
+
+    # Ramp phase: from lowest steady state up to target, hold_minutes each
+    ramp_requests = 0
+    steady_rpm = target_rpm * (reduction_factor ** 2)  # assume 2 reductions
+    rpm = steady_rpm
+    while rpm <= target_rpm:
+        ramp_requests += int(rpm * hold_minutes)
+        rpm *= increase_factor
+        if rpm > target_rpm:
+            ramp_requests += int(target_rpm * hold_minutes)
+            break
+
+    return probe_requests + ramp_requests
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -582,6 +629,11 @@ def main():
                              "(or set BEDROCK_API_KEY / OPENAI_API_KEY env var)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show plan without making API calls")
+    parser.add_argument("--max-requests", type=int, default=None,
+                        help="Hard cap on total requests across all phases (budget safety). "
+                             "Aborts the test once this limit is reached.")
+    parser.add_argument("--yes", "-y", action="store_true",
+                        help="Skip the confirmation prompt (for CI/automation)")
     parser.add_argument("--output", default="results.json",
                         help="Output file for results (default: results.json)")
 
@@ -599,7 +651,40 @@ def main():
         dry_run=args.dry_run,
         endpoint=args.endpoint,
         api_key=args.api_key,
+        max_requests=args.max_requests,
     )
+
+    # Cost/confirmation gate (skip for dry runs and --yes)
+    if not args.dry_run and not args.yes:
+        # Estimate upper-bound requests: probe phase + ramp phases
+        est_requests = _estimate_total_requests(
+            args.target_rpm, args.hold_minutes, args.reduction_factor, args.increase_factor
+        )
+        if args.max_requests:
+            est_requests = min(est_requests, args.max_requests)
+
+        console.print(Panel(
+            f"[bold yellow]⚠️  Cost Warning[/bold yellow]\n\n"
+            f"This test will make real API calls to Amazon Bedrock.\n\n"
+            f"  Estimated max requests:  ~{est_requests:,}\n"
+            f"  Tokens per request:      ~{args.max_tokens} output + ~30 input\n"
+            f"  Estimated max tokens:    ~{est_requests * (args.max_tokens + 30):,}\n"
+            f"  Budget cap (--max-requests): {args.max_requests or 'unlimited'}\n\n"
+            f"Pricing varies by model. Check:\n"
+            f"  https://aws.amazon.com/bedrock/pricing/\n\n"
+            f"Use --dry-run to preview the plan without cost.\n"
+            f"Use --max-requests N to set a hard request cap.\n"
+            f"Use --yes to skip this prompt.",
+            title="Confirmation Required",
+            border_style="yellow",
+        ))
+        try:
+            answer = input("\nProceed? [y/N] ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            answer = ""
+        if answer not in ("y", "yes"):
+            console.print("[dim]Aborted.[/dim]")
+            sys.exit(0)
 
     result = tester.run()
 

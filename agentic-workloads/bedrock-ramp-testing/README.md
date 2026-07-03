@@ -5,6 +5,22 @@ ramp-up procedure from the
 [Scaling throughput best practices](https://docs.aws.amazon.com/bedrock/latest/userguide/scaling-throughput-best-practices.html)
 documentation.
 
+## ⚠️ Cost Warning
+
+**This tool makes real API calls to Amazon Bedrock that incur charges.**
+
+Before running:
+- Use `--dry-run` first to preview the plan without any API calls
+- Set `--max-requests N` to enforce a hard budget cap (the test aborts after N total requests)
+- A confirmation prompt shows estimated request/token counts before proceeding (bypass with `--yes`)
+- Check [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/) for your model's per-token cost
+
+Example: A ramp test to 2,000 RPM with 15-minute holds could generate ~50,000+ requests.
+At 130 tokens/request on a typical model, that's ~6.5M tokens. **Always start with
+`--dry-run` and set `--max-requests` to a budget you're comfortable with.**
+
+---
+
 ## Why ramp testing?
 
 Amazon Bedrock provisions generous default TPM (Tokens Per Minute) and RPM
@@ -91,6 +107,8 @@ python ramp_test.py --dry-run --target-rpm 2000
 | `--endpoint` | `runtime` | Bedrock endpoint: `runtime` or `mantle` |
 | `--api-key` | (env var) | Bedrock API key for mantle endpoint |
 | `--max-tokens` | `100` | Max tokens per request |
+| `--max-requests` | unlimited | Hard cap on total requests (budget safety) |
+| `--yes` / `-y` | `false` | Skip confirmation prompt (for CI) |
 | `--dry-run` | `false` | Show plan without calling Bedrock |
 | `--output` | `results.json` | Output file for results |
 
