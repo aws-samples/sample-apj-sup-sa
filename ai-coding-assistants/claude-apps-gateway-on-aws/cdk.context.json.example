@@ -21,5 +21,6 @@
   "databaseName": "claude_gateway",
   "desiredCount": 2,
   "maxAzs": 2,
-  "natGateways": 1
+  "natGateways": 1,
+  "createVpcEndpoints": true
 }

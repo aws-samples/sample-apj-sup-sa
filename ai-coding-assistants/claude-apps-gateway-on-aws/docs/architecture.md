@@ -22,6 +22,7 @@ flowchart TB
       subgraph App["Application subnets (private + egress)"]
         ALB["Internal ALB<br/>HTTPS :443"]
         ECS["ECS Fargate<br/>claude gateway :8080"]
+        VPCE["VPC endpoints<br/>Bedrock · SM · ECR · Logs · S3"]
       end
       subgraph Db["Database subnets (isolated)"]
         DB["Aurora PostgreSQL<br/>Serverless v2 :5432"]
@@ -38,8 +39,9 @@ flowchart TB
   ECS -->|"OIDC sign-in"| Cognito
   ECS -->|"env secrets"| Secrets
   ECS --> Logs
-  ECS -->|"egress"| NAT
-  ECS -->|"InvokeModel"| Bedrock
+  ECS -->|"OIDC egress"| NAT
+  ECS -->|"AWS services"| VPCE
+  VPCE -->|"InvokeModel"| Bedrock
 ```
 
 CloudFront and public DNS are intentionally **not** on the login path: the Claude
@@ -77,13 +79,21 @@ hop:
 | Tier | Subnet type | Holds | Ingress allowed from |
 |---|---|---|---|
 | Public | `PUBLIC` | NAT Gateway | — |
-| Application | `PRIVATE_WITH_EGRESS` | Internal ALB, Fargate tasks | ALB: 443 from `allowedClientCidrs`; Tasks: 8080 from ALB SG only |
+| Application | `PRIVATE_WITH_EGRESS` | Internal ALB, Fargate tasks, VPC endpoint ENIs | ALB: 443 from `allowedClientCidrs`; Tasks: 8080 from ALB SG only; Endpoints: 443 from task SG only |
 | Database | `PRIVATE_ISOLATED` | Aurora PostgreSQL Serverless v2 | 5432 from task SG only |
 
 ## Key resources
 
-- **VPC** — `maxAzs: 2`, `natGateways: 1` (egress for pulling the image, OIDC
-  discovery, and Bedrock calls).
+- **VPC** — `maxAzs: 2`, `natGateways: 1`. NAT carries only the Cognito OIDC
+  leg (no VPC endpoint exists for it); everything else uses the endpoints below.
+- **VPC endpoints** (`createVpcEndpoints: true`, default) — six interface
+  endpoints (Bedrock Runtime, Secrets Manager, ECR api + dkr, CloudWatch
+  Logs, CloudWatch Monitoring) with private DNS, plus an S3 gateway endpoint,
+  so Bedrock inference, secret reads, image pulls, and log delivery stay on
+  the AWS backbone. The S3 gateway is what actually serves ECR image layer
+  blobs — the ECR interface endpoints only handle auth and manifests. The
+  bedrock-runtime endpoint is regional: cross-region inference
+  (`bedrockRegion` ≠ stack region) still egresses via NAT.
 - **Aurora PostgreSQL Serverless v2 (16.13)** — single writer scaling 0.5–2 ACU,
   storage-encrypted, 7-day backups, deleted with the stack (`RemovalPolicy.DESTROY`).
 - **Cognito User Pool** — self sign-up disabled, email sign-in, deleted with the

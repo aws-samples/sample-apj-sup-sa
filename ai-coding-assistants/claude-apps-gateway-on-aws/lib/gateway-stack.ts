@@ -76,6 +76,49 @@ export class GatewayStack extends Stack {
       "ALB to gateway HTTP"
     );
 
+    // Interface + S3 gateway endpoints keep AWS-service traffic (Bedrock
+    // inference, secrets reads, image pulls, log delivery) on the AWS backbone
+    // instead of the NAT-to-internet path. The S3 gateway is required for ECR:
+    // the ecr.api/ecr.dkr endpoints serve auth and manifests, but layer blobs
+    // are fetched from S3. NAT stays for the Cognito OIDC leg, which has no
+    // VPC endpoint. Endpoints are regional: the bedrock-runtime endpoint only
+    // covers inference when bedrockRegion matches the stack region; cross-
+    // region Bedrock calls still egress via NAT. Opt out with
+    // createVpcEndpoints=false to trade the per-AZ-hour endpoint cost for NAT
+    // data charges.
+    if (config.createVpcEndpoints) {
+      const endpointSecurityGroup = new ec2.SecurityGroup(this, "VpcEndpointSecurityGroup", {
+        vpc,
+        description: "Allow only gateway tasks to reach VPC interface endpoints",
+        allowAllOutbound: true
+      });
+      endpointSecurityGroup.addIngressRule(
+        taskSecurityGroup,
+        ec2.Port.tcp(443),
+        "Gateway tasks to VPC endpoints"
+      );
+
+      const interfaceEndpoints: Array<[string, ec2.InterfaceVpcEndpointAwsService]> = [
+        ["BedrockRuntimeEndpoint", ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME],
+        ["SecretsManagerEndpoint", ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER],
+        ["EcrApiEndpoint", ec2.InterfaceVpcEndpointAwsService.ECR],
+        ["EcrDockerEndpoint", ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER],
+        ["CloudWatchLogsEndpoint", ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS],
+        ["CloudWatchMonitoringEndpoint", ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING]
+      ];
+      for (const [id, service] of interfaceEndpoints) {
+        vpc.addInterfaceEndpoint(id, {
+          service,
+          securityGroups: [endpointSecurityGroup],
+          privateDnsEnabled: true
+        });
+      }
+
+      vpc.addGatewayEndpoint("S3Endpoint", {
+        service: ec2.GatewayVpcEndpointAwsService.S3
+      });
+    }
+
     const databaseSecurityGroup = new ec2.SecurityGroup(this, "DatabaseSecurityGroup", {
       vpc,
       description: "Allow only gateway tasks to reach PostgreSQL",

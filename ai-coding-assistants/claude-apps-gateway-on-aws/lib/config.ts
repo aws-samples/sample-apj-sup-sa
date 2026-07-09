@@ -17,6 +17,7 @@ export interface GatewayConfig {
   readonly desiredCount: number;
   readonly maxAzs: number;
   readonly natGateways: number;
+  readonly createVpcEndpoints: boolean;
 }
 
 // Placeholder defaults — set your real deployment values in cdk.context.json
@@ -38,7 +39,10 @@ export const defaultGatewayConfig: GatewayConfig = {
   databaseName: "claude_gateway",
   desiredCount: 2,
   maxAzs: 2,
-  natGateways: 1
+  natGateways: 1,
+  // Interface endpoints cost ~$0.01/AZ/hour each; set false to opt out and
+  // send AWS-service traffic through the NAT gateway instead.
+  createVpcEndpoints: true
 };
 
 type ConfigKeys<V> = {
@@ -58,6 +62,17 @@ export function loadGatewayConfig(app: cdk.App): GatewayConfig {
     }
     if (typeof value === "string" && value.trim() !== "") {
       return Number(value);
+    }
+    return defaultGatewayConfig[key];
+  };
+
+  const readBoolean = (key: ConfigKeys<boolean>): boolean => {
+    const value = app.node.tryGetContext(key);
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value.trim().toLowerCase() === "true";
     }
     return defaultGatewayConfig[key];
   };
@@ -90,6 +105,7 @@ export function loadGatewayConfig(app: cdk.App): GatewayConfig {
     databaseName: readString("databaseName"),
     desiredCount: readNumber("desiredCount"),
     maxAzs: readNumber("maxAzs"),
-    natGateways: readNumber("natGateways")
+    natGateways: readNumber("natGateways"),
+    createVpcEndpoints: readBoolean("createVpcEndpoints")
   };
 }
