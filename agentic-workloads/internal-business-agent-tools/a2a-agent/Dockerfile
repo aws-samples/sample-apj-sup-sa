@@ -1,3 +1,4 @@
+# checkov:skip=bosco/non-ecr-docker-image: Public sample — ghcr.io/astral-sh/uv is the official uv image; internal ECR requirement does not apply to open-source samples.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app
