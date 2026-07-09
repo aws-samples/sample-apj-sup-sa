@@ -274,7 +274,10 @@ export class GatewayStack extends Stack {
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS
       },
-      idleTimeout: Duration.minutes(5)
+      // Long-running streaming responses go quiet between tokens; the 60s default
+      // (and anything short) drops them mid-stream. 3600s matches the upstream
+      // deployment guidance.
+      idleTimeout: Duration.seconds(3600)
     });
 
     const listener = loadBalancer.addListener("HttpsListener", {
