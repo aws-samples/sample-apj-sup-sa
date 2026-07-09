@@ -111,6 +111,16 @@ describe("GatewayStack", () => {
     });
   });
 
+  test("alarms on unhealthy target hosts", () => {
+    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      MetricName: "UnHealthyHostCount",
+      Namespace: "AWS/ApplicationELB",
+      ComparisonOperator: "GreaterThanOrEqualToThreshold",
+      Threshold: 1,
+      EvaluationPeriods: 3
+    });
+  });
+
   test("restricts ALB, ECS task, and database ingress ports", () => {
     template.hasResourceProperties("AWS::EC2::SecurityGroup", {
       GroupDescription: "Allow private-network HTTPS traffic to Claude Apps Gateway",

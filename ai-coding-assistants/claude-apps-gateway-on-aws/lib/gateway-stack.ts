@@ -3,6 +3,7 @@ import * as cdk from "aws-cdk-lib";
 import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as certificatemanager from "aws-cdk-lib/aws-certificatemanager";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
@@ -309,6 +310,18 @@ export class GatewayStack extends Stack {
         unhealthyThresholdCount: 3
       },
       deregistrationDelay: Duration.seconds(30)
+    });
+
+    new cloudwatch.Alarm(this, "UnhealthyHostAlarm", {
+      alarmDescription: "One or more gateway tasks are failing the ALB /healthz check",
+      metric: targetGroup.metrics.unhealthyHostCount({
+        period: Duration.minutes(1),
+        statistic: "max"
+      }),
+      threshold: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      evaluationPeriods: 3,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
     });
 
     // The private zone is scoped to the gateway FQDN itself (alias record at the
