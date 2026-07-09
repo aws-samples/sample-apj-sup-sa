@@ -1,0 +1,27 @@
+{
+  "name": "internal-business-agent-cdk",
+  "version": "0.1.0",
+  "bin": {
+    "cdk": "dist/bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "npm run build && cdk",
+    "deploy": "npm run build && cdk deploy --all",
+    "destroy": "npm run build && cdk destroy --all",
+    "synth": "npm run build && cdk synth",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@aws/agentcore-cdk": "^0.1.0-alpha.19",
+    "aws-cdk-lib": "^2.248.0",
+    "constructs": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "aws-cdk": "^2.248.0",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.6.0"
+  }
+}

@@ -1,0 +1,62 @@
+# --- Secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+**/secrets/
+
+# --- Python ---
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# --- Node.js ---
+node_modules/
+**/node_modules/
+.npm/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# --- CDK build artifacts ---
+cdk/cdk.out/
+cdk/cdk.out*/
+cdk/cdk.context.json
+*.cdk.staging
+cdk.out/
+
+# --- LibreChat OSS (本体は除外、設定例だけ librechat-config/ にコピー) ---
+librechat/
+
+# --- Workspace tmp / drafts (社内向けドラフト等) ---
+tmp/
+.claude/
+.amazonq/
+
+# --- agentcore CLI deployed state (per-account, do not commit) ---
+**/agentcore/.cli/
+**/agentcore/.env.local
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# --- Docker volumes ---
+data-node/
+meili_data*/
+
+# --- Misc ---
+*.tar.gz
+*.zip
+!cdk/seed/**/*.zip
