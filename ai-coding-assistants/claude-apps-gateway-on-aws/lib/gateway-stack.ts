@@ -248,7 +248,11 @@ export class GatewayStack extends Stack {
       },
       circuitBreaker: {
         rollback: true
-      }
+      },
+      // Boot runs Postgres migrations before /healthz answers; without a grace
+      // period a slow cold start fails ALB health checks mid-rolling-deploy and
+      // trips the circuit breaker into a spurious rollback.
+      healthCheckGracePeriod: Duration.seconds(120)
     });
     // The gateway runs Postgres migrations at boot, so tasks crash-loop (and trip
     // the circuit breaker) if they start before the Aurora writer is available.
@@ -293,7 +297,11 @@ export class GatewayStack extends Stack {
       targets: [service],
       healthCheck: {
         enabled: true,
-        path: "/readyz",
+        // Liveness, not readiness: /readyz checks Postgres, so a transient DB
+        // blip would drain every replica from rotation at once even though
+        // bearer tokens still validate locally. /healthz only asserts the
+        // process is alive; the container health check covers the same path.
+        path: "/healthz",
         healthyHttpCodes: "200",
         interval: Duration.seconds(30),
         timeout: Duration.seconds(5),

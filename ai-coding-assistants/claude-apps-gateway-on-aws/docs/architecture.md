@@ -55,7 +55,9 @@ starting the gateway login flow.
    policy) and forwards to the gateway tasks on port 8080. The ALB security group
    only allows 443 from `allowedClientCidrs`.
 3. The **ECS Fargate** gateway container runs the `claude gateway` server. The target
-   group health check hits `/readyz`; the container health check hits `/healthz`.
+   group and container health checks both hit `/healthz` (liveness) — `/readyz`
+   checks Postgres, and using it at the ALB would drain every replica during a
+   transient DB blip.
 4. Sign-in runs the **OIDC** authorization-code flow against the **Cognito User Pool**
    (hosted domain + confidential client). Only email domains in `allowedEmailDomains`
    are accepted.
