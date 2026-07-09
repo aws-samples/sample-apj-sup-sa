@@ -110,7 +110,10 @@ export class GatewayStack extends Stack {
         vpc.addInterfaceEndpoint(id, {
           service,
           securityGroups: [endpointSecurityGroup],
-          privateDnsEnabled: true
+          privateDnsEnabled: true,
+          // Suppress the default allow-from-VPC-CIDR ingress rule; only the
+          // task SG rule added above should reach the endpoints.
+          open: false
         });
       }
 
