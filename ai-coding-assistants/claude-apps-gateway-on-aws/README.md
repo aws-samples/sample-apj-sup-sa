@@ -126,7 +126,8 @@ Create it from the template and edit the key values:
 
 ```bash
 cp cdk.context.json.example cdk.context.json
-# edit at least: gatewayHost, hostedZoneName, awsAccount, allowedEmailDomains, cognitoDomainPrefix
+# edit at least: gatewayHost, hostedZoneName, awsAccount, allowedEmailDomains,
+#                cognitoDomainPrefix, availableModels
 ```
 
 | Context key | Meaning |
@@ -136,6 +137,7 @@ cp cdk.context.json.example cdk.context.json
 | `awsAccount` / `awsRegion` | Deployment target (needed for the hosted-zone lookup) |
 | `allowedClientCidrs` | CIDRs allowed to reach the internal ALB on 443 (VPN/corporate/devbox) |
 | `allowedEmailDomains` | Cognito ID-token email domains the gateway accepts |
+| `availableModels` | Model allowlist shown in the Claude Code model picker and enforced server-side (`managed.policies` + `enforceAvailableModels`). **List only the Claude models you have enabled access for in Bedrock** — models outside the allowlist can't be selected, and without one the picker offers every built-in model, including ones that fail with `AccessDenied` mid-conversation |
 | `cognitoDomainPrefix` | Cognito hosted-domain prefix (globally unique per region) |
 | `bedrockRegion` | Region for Bedrock inference |
 | `claudeVersion` | Pinned Claude Code version baked into the image |

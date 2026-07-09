@@ -206,6 +206,7 @@ export class GatewayStack extends Stack {
         BEDROCK_REGION: config.bedrockRegion,
         CLAUDE_GATEWAY_LOG_LEVEL: "info",
         CLAUDE_VERSION: config.claudeVersion,
+        GATEWAY_AVAILABLE_MODELS: config.availableModels.join(","),
         GATEWAY_DB_HOST: database.clusterEndpoint.hostname,
         GATEWAY_DB_NAME: config.databaseName,
         GATEWAY_DB_PORT: cdk.Token.asString(database.clusterEndpoint.port),

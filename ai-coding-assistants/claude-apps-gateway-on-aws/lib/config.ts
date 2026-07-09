@@ -7,6 +7,7 @@ export interface GatewayConfig {
   readonly hostedZoneName: string;
   readonly allowedClientCidrs: string[];
   readonly allowedEmailDomains: string[];
+  readonly availableModels: string[];
   readonly claudeVersion: string;
   readonly cognitoDomainPrefix: string;
   readonly bedrockRegion: string;
@@ -25,6 +26,10 @@ export const defaultGatewayConfig: GatewayConfig = {
   hostedZoneName: "corp.example.com",
   allowedClientCidrs: ["10.0.0.0/8"],
   allowedEmailDomains: ["corp.example.com"],
+  // Model allowlist rendered into managed.policies — keep in sync with the
+  // models you have actually enabled access for in Bedrock, or the picker
+  // offers models that fail with AccessDenied mid-conversation.
+  availableModels: ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5", "claude-fable-5"],
   claudeVersion: "2.1.195",
   cognitoDomainPrefix: "claude-gateway-example",
   bedrockRegion: "us-east-1",
@@ -76,6 +81,7 @@ export function loadGatewayConfig(app: cdk.App): GatewayConfig {
     hostedZoneName: readString("hostedZoneName"),
     allowedClientCidrs: readStringArray("allowedClientCidrs"),
     allowedEmailDomains: readStringArray("allowedEmailDomains"),
+    availableModels: readStringArray("availableModels"),
     claudeVersion: readString("claudeVersion"),
     cognitoDomainPrefix: readString("cognitoDomainPrefix"),
     bedrockRegion: readString("bedrockRegion"),

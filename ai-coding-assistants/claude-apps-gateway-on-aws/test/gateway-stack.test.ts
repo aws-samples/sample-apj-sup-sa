@@ -57,6 +57,10 @@ describe("GatewayStack", () => {
               Value: "us-east-1"
             }),
             Match.objectLike({
+              Name: "GATEWAY_AVAILABLE_MODELS",
+              Value: testConfig.availableModels.join(",")
+            }),
+            Match.objectLike({
               Name: "GATEWAY_PUBLIC_URL",
               Value: `https://${testConfig.gatewayHost}`
             })
