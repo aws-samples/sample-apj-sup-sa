@@ -53,11 +53,14 @@ starting the gateway login flow.
    private IPs.
 2. The **internal ALB** terminates TLS on port 443 (ACM certificate, `RECOMMENDED_TLS`
    policy) and forwards to the gateway tasks on port 8080. The ALB security group
-   only allows 443 from `allowedClientCidrs`.
+   only allows 443 from `allowedClientCidrs`. Idle timeout is 3600s so long-running
+   streaming responses aren't cut off mid-stream.
 3. The **ECS Fargate** gateway container runs the `claude gateway` server. The target
    group and container health checks both hit `/healthz` (liveness) — `/readyz`
    checks Postgres, and using it at the ALB would drain every replica during a
-   transient DB blip.
+   transient DB blip. A 120s health-check grace period covers the boot-time
+   Postgres migration so a slow cold start during a rolling deploy doesn't trip
+   the deployment circuit breaker.
 4. Sign-in runs the **OIDC** authorization-code flow against the **Cognito User Pool**
    (hosted domain + confidential client). Only email domains in `allowedEmailDomains`
    are accepted.

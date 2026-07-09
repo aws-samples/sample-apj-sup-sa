@@ -75,7 +75,7 @@ Full diagram, request path, network isolation, and the security-group matrix:
 | Resource | Purpose |
 |---|---|
 | VPC (2 AZs, 1 NAT) | Public / application / isolated-database subnet tiers |
-| Internal ALB (HTTPS 443) | TLS termination (ACM); 443 only from `allowedClientCidrs` |
+| Internal ALB (HTTPS 443) | TLS termination (ACM); 443 only from `allowedClientCidrs`; 3600s idle timeout for streaming; target group health check on `/healthz` |
 | ECS Fargate service | Runs `claude gateway`; task role limited to Bedrock `InvokeModel*` |
 | Aurora PostgreSQL Serverless v2 | Device flow, sessions, rate-limit state (isolated) |
 | Cognito User Pool + client | OIDC identity provider (email sign-in, confidential client) |
