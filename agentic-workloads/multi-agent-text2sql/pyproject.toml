@@ -1,0 +1,27 @@
+[project]
+name = "strands-agent-with-streamlit-sample"
+version = "0.1.0"
+description = "Strands Agent + Streamlit Integration"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.40.39",
+    "strands-agents[otel]>=1.15.0",
+    "streamlit>=1.50.0",
+    "awslabs.aws-dataprocessing-mcp-server",
+    "strands-agents-tools",
+    "python-dotenv>=1.0.0",
+    "opensearch-py>=2.4.0",
+    "requests-aws4auth>=1.2.0",
+    "aws-opentelemetry-distro>=0.10.0",
+    "valkey>=6.1.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
