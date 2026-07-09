@@ -1,19 +1,14 @@
-# checkov:skip=bosco/non-ecr-docker-image: Public sample — ghcr.io/astral-sh/uv is the official uv image; internal ECR requirement does not apply to open-source samples.
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-
-ARG UV_DEFAULT_INDEX
-ARG UV_INDEX
+FROM public.ecr.aws/docker/library/python:3.12-slim
 
 WORKDIR /app
 
-ENV UV_SYSTEM_PYTHON=1 \
-    UV_COMPILE_BYTECODE=1 \
+ENV UV_COMPILE_BYTECODE=1 \
     UV_NO_PROGRESS=1 \
     PYTHONUNBUFFERED=1 \
     DOCKER_CONTAINER=1 \
-    UV_DEFAULT_INDEX=${UV_DEFAULT_INDEX} \
-    UV_INDEX=${UV_INDEX} \
     PATH="/app/.venv/bin:$PATH"
+
+RUN pip install --no-cache-dir uv
 
 RUN useradd -m -u 1000 bedrock_agentcore
 
