@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Model weights (large; download with common/download_model.py)
+model_artifacts/
+.model_cache/
+
+# Local run artifacts
+*.log
+out.json
+err.txt
+.DS_Store
+
+# Stray audio at the repo root (the committed sample lives in samples/)
+/*.wav
+/*.aiff
+/*.mp3

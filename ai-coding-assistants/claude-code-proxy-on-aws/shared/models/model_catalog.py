@@ -23,6 +23,7 @@ class ModelCatalog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     canonical_name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     bedrock_model_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     bedrock_region: Mapped[str | None] = mapped_column(Text)
+    anthropic_model_id: Mapped[str | None] = mapped_column(Text)
     provider: Mapped[str] = mapped_column(Text, nullable=False)
     family: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'ACTIVE'"))

@@ -1,0 +1,83 @@
+workflow:
+  name: aws-osmo-gpu-smoke
+  resources:
+    default:
+      cpu: 2
+      gpu: 1
+      memory: 8Gi
+      storage: 20Gi
+      platform: g7e-rtx-pro-6000
+  tasks:
+    - name: cuda-smoke
+      resource: default
+      image: nvcr.io/nvidia/cuda:12.8.1-devel-ubuntu24.04
+      command: ["bash", "-lc"]
+      args:
+        - |
+          set -euo pipefail
+          nvidia-smi
+          nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+          cat >/tmp/cuda_burn.cu <<'CU'
+          #include <cuda_runtime.h>
+          #include <ctime>
+          #include <cstdio>
+          #include <cstdlib>
+
+          __global__ void burn(float *a, float *b, int n, int inner_iters) {
+            int idx = blockIdx.x * blockDim.x + threadIdx.x;
+            if (idx >= n) {
+              return;
+            }
+
+            float x = a[idx];
+            for (int i = 0; i < inner_iters; ++i) {
+              x = x * 1.000001f + 0.000001f;
+            }
+            b[idx] = x;
+          }
+
+          static void check(cudaError_t err, const char *op) {
+            if (err != cudaSuccess) {
+              std::fprintf(stderr, "%s failed: %s\n", op, cudaGetErrorString(err));
+              std::exit(1);
+            }
+          }
+
+          int main(int argc, char **argv) {
+            int seconds = argc > 1 ? std::atoi(argv[1]) : 120;
+            int n = 1 << 26;
+            float *a = nullptr;
+            float *b = nullptr;
+
+            check(cudaMalloc(&a, sizeof(float) * n), "cudaMalloc(a)");
+            check(cudaMalloc(&b, sizeof(float) * n), "cudaMalloc(b)");
+            check(cudaMemset(a, 1, sizeof(float) * n), "cudaMemset(a)");
+
+            int blocks = (n + 255) / 256;
+            std::time_t end = std::time(nullptr) + seconds;
+            int launches = 0;
+            while (std::time(nullptr) < end) {
+              burn<<<blocks, 256>>>(a, b, n, 1024);
+              check(cudaGetLastError(), "burn launch");
+              ++launches;
+              if (launches % 20 == 0) {
+                check(cudaDeviceSynchronize(), "cudaDeviceSynchronize");
+              }
+            }
+
+            check(cudaDeviceSynchronize(), "cudaDeviceSynchronize");
+            std::printf("cuda_burn_seconds=%d\n", seconds);
+            std::printf("cuda_burn_launches=%d\n", launches);
+            cudaFree(a);
+            cudaFree(b);
+            return 0;
+          }
+          CU
+
+          COMPUTE_CAP="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -n 1 | tr -d '.')"
+          nvcc -O3 -arch="sm_${COMPUTE_CAP}" /tmp/cuda_burn.cu -o /tmp/cuda_burn
+          /tmp/cuda_burn "{{ cuda_burn_seconds }}"
+          nvidia-smi --query-gpu=utilization.gpu,utilization.memory,memory.used,power.draw --format=csv,noheader
+default-values:
+  cuda_burn_seconds: 120

@@ -1,0 +1,27 @@
+# Voice worker (Python 3.13) — the human-facing top-level dependency spec (loose lower bounds).
+# The CONTAINER installs from requirements-lock.txt (exact pins from the gate-validated
+# .venv-pipecat) for reproducibility. Promoted from requirements-pipecat.txt after the SC-001
+# gate PASSED live on the Pipecat loop (T031; gate-decision.md).
+
+# Pipecat library (self-hosted; NOT Pipecat Cloud) with the extras we need:
+#   webrtc   -> SmallWebRTCTransport (aiortc-based, direct browser<->worker media)
+#   deepgram -> DeepgramSTTService + DeepgramTTSService (Aura)
+#   aws      -> AWSBedrockLLMService (Claude Haiku)
+#   silero   -> SileroVADAnalyzer (on-audio VAD; replaces the DTX watchdog; enables barge-in)
+# Pin to the 1.3.x line verified during research (Python >= 3.11; we run 3.13).
+pipecat-ai[webrtc,deepgram,aws,silero]>=1.3,<1.4
+
+# The seams we still own (Pipecat pulls aiortc/websockets transitively via [webrtc]/[deepgram]):
+boto3>=1.34            # Bedrock direct/AgentCore providers + S3 SSE-KMS recording
+asyncpg>=0.29          # incremental per-turn persistence
+PyJWT>=2.8             # /offer media-join token verification
+python-dotenv>=1.0     # config/env
+
+# websockets is also used DIRECTLY by harness/tts_deepgram.py (the harness's student-speech
+# synthesizer, retired from src/) — Pipecat's [deepgram] extra already provides it.
+
+# Dev / test (NOT installed in the container image).
+pytest>=8.0
+pytest-asyncio>=0.23
+ruff>=0.5
+black>=24.0

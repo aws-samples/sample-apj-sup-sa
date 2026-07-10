@@ -1,0 +1,232 @@
+workflow:
+  name: aws-lyra2-dmd-single
+  timeout:
+    exec_timeout: 8h
+    queue_timeout: 8h
+  resources:
+    default:
+      cpu: 13
+      gpu: 1
+      memory: 96Gi
+      storage: 512Gi
+      platform: g7e-rtx-pro-6000
+
+  tasks:
+  - name: lyra2-dmd-single
+    image: {{ image_name }}
+    command: ["bash", "-lc"]
+    args:
+    - bash /tmp/entry.sh
+    credentials:
+      huggingface_token:
+        HF_TOKEN: token
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        set -eo pipefail
+        START_TS="$(date -u +%s)"
+
+        unset PIP_CONSTRAINT
+        export PIP_CONSTRAINT=
+        export DEBIAN_FRONTEND=noninteractive
+        export HF_HOME=/tmp/hf-home
+        export HUGGING_FACE_HUB_TOKEN="${HF_TOKEN:-}"
+        export PYTHONUNBUFFERED=1
+
+        test -n "${HF_TOKEN:-}"
+        nvidia-smi
+        python --version
+
+        apt-get update >/dev/null
+        apt-get install -y --no-install-recommends \
+          build-essential bzip2 ca-certificates curl ffmpeg git \
+          libgl1 libglib2.0-0 >/dev/null
+
+        export MAMBA_ROOT_PREFIX=/tmp/micromamba
+        curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+          | tar -xj -C /tmp bin/micromamba
+        export PATH="/tmp/bin:${PATH}"
+        eval "$(micromamba shell hook -s bash)"
+        micromamba create -y -n lyra2 -c conda-forge \
+          python=3.10 pip cmake ninja libgl ffmpeg packaging eigen zlib
+        micromamba activate lyra2
+        micromamba install -y -c nvidia/label/cuda-12.8.0 -c conda-forge \
+          cuda=12.8.0 cuda-nvcc=12.8 cuda-toolkit=12.8 eigen zlib
+
+        export CUDA_HOME="${CONDA_PREFIX}"
+        export TORCH_CUDA_ARCH_LIST="12.0"
+        SITE="${CONDA_PREFIX}/lib/python3.10/site-packages"
+        export CPATH="${CUDA_HOME}/include:${SITE}/nvidia/cudnn/include:${SITE}/nvidia/nccl/include:${CPATH:-}"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${SITE}/torch/lib:${SITE}/nvidia/cuda_runtime/lib:${SITE}/nvidia/cudnn/lib:${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+        export CC=/usr/bin/gcc
+        export CXX=/usr/bin/g++
+
+        GIT_LFS_SKIP_SMUDGE=1 git clone --filter=blob:none --no-checkout "{{ lyra_repository }}" /tmp/lyra
+        cd /tmp/lyra
+        git fetch --depth 1 origin "{{ lyra_ref }}"
+        git checkout "{{ lyra_ref }}"
+        git submodule update --init --recursive --depth 1 Lyra-2/lyra_2/_src/inference/depth_anything_3 Lyra-2/lyra_2/_src/inference/vipe
+        cd /tmp/lyra/Lyra-2
+
+        python - <<'PY'
+        from pathlib import Path
+
+        path = Path("lyra_2/_src/networks/wan2pt1.py")
+        text = path.read_text()
+        text = text.replace(
+            "import torch.nn as nn\n",
+            "import torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.nn.attention import SDPBackend, sdpa_kernel\n",
+        )
+        old = '''class SelfAttnOp(DotProductAttention):
+            def forward(
+                self,
+                q_B_L_H_D,
+                k_B_L_H_D,
+                v_B_L_H_D,
+                video_size: Optional[VideoSize] = None,
+            ):
+                return super().forward(q_B_L_H_D, k_B_L_H_D, v_B_L_H_D)
+        '''
+        new = '''class SelfAttnOp(nn.Module):
+            def __init__(self, *args, **kwargs):
+                super().__init__()
+
+            def forward(
+                self,
+                q_B_L_H_D,
+                k_B_L_H_D,
+                v_B_L_H_D,
+                video_size: Optional[VideoSize] = None,
+            ):
+                q = q_B_L_H_D.transpose(1, 2).contiguous()
+                k = k_B_L_H_D.transpose(1, 2).contiguous()
+                v = v_B_L_H_D.transpose(1, 2).contiguous()
+                with sdpa_kernel(SDPBackend.FLASH_ATTENTION):
+                    x = F.scaled_dot_product_attention(q, k, v, dropout_p=0.0, is_causal=False)
+                return x.transpose(1, 2).contiguous()
+
+            def set_context_parallel_group(self, *args, **kwargs):
+                return None
+        '''
+        if old not in text:
+            raise SystemExit("SelfAttnOp patch target not found")
+        text = text.replace(old, new)
+        text = text.replace("self.attn_op_image = DotProductAttention(", "self.attn_op_image = SelfAttnOp(")
+        path.write_text(text)
+        PY
+
+        python -m pip install --upgrade pip
+        pip install torch==2.7.1 torchvision==0.22.1 --extra-index-url https://download.pytorch.org/whl/cu128
+        pip install pluggy trove-classifiers editables pathspec "gdown<5"
+        pip install --no-deps -r requirements.txt
+        pip install "git+{{ moge_repository }}@{{ moge_ref }}"
+        pip install --no-build-isolation "transformer_engine[pytorch]"
+        ln -sf "${SITE}/nvidia/cuda_runtime" "${SITE}/nvidia/cudart"
+        MAX_JOBS="{{ max_build_jobs }}" pip install --no-build-isolation --no-binary :all: flash-attn==2.6.3
+        USE_SYSTEM_EIGEN=1 pip install --no-build-isolation -e 'lyra_2/_src/inference/vipe'
+        MAX_JOBS="{{ max_build_jobs }}" pip install --no-build-isolation -e 'lyra_2/_src/inference/depth_anything_3[gs]'
+
+        PYTHONPATH=. python - <<'PY'
+        import torch
+        import flash_attn
+        import transformer_engine.pytorch
+        import vipe_ext
+        import depth_anything_3.api
+        import moge.model.v1
+        from lyra_2._src.networks.wan2pt1 import SelfAttnOp
+        print("torch", torch.__version__, "cuda", torch.cuda.is_available(), torch.cuda.get_device_name(0))
+        q = torch.randn(1, 16, 2, 64, device="cuda", dtype=torch.bfloat16)
+        op = SelfAttnOp(2, 64).cuda()
+        y = op(q, q, q)
+        assert y.shape == q.shape, y.shape
+        print("SelfAttnOp", SelfAttnOp.__mro__[1].__name__, "sdpa smoke OK")
+        print("all imports OK")
+        PY
+
+        huggingface-cli download "{{ lyra_model_id }}" \
+          --include "checkpoints/*" \
+          --local-dir .
+
+        export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+        export PYTHONPATH=.
+        OUT_DIR=/tmp/lyra-output/{{ sample_id }}/{{ mode }}
+        mkdir -p "${OUT_DIR}"
+
+        STAGE1_START="$(date -u +%s)"
+        DMD_FLAG=""
+        if [[ "{{ mode }}" == "dmd" ]]; then
+          DMD_FLAG="--use_dmd"
+        fi
+        # shellcheck disable=SC2086
+        python -m lyra_2._src.inference.lyra2_zoomgs_inference \
+          --input_image_path assets/samples \
+          --sample_id "{{ sample_id }}" \
+          --experiment lyra2 \
+          --checkpoint_dir checkpoints/model \
+          --prompt_dir assets/samples \
+          --output_path "${OUT_DIR}" \
+          --num_frames_zoom_in "{{ num_frames_zoom_in }}" \
+          --num_frames_zoom_out "{{ num_frames_zoom_out }}" \
+          ${DMD_FLAG}
+        STAGE1_ELAPSED_SEC=$(( $(date -u +%s) - STAGE1_START ))
+
+        STAGE1_VIDEO="$(find "${OUT_DIR}" -maxdepth 5 -name '*.mp4' | sort | head -1)"
+        if [[ -z "${STAGE1_VIDEO}" ]]; then
+          echo "No stage-1 MP4 produced under ${OUT_DIR}" >&2
+          exit 3
+        fi
+        STAGE2_START="$(date -u +%s)"
+        python -m lyra_2._src.inference.vipe_da3_gs_recon \
+          --input_video_path "${STAGE1_VIDEO}"
+        STAGE2_ELAPSED_SEC=$(( $(date -u +%s) - STAGE2_START ))
+
+        if [[ "{{ retain_ply }}" != "true" ]]; then
+          find "${OUT_DIR}" -type f -name "*.ply" -delete
+        fi
+        if [[ "{{ retain_intermediate_videos }}" != "true" ]]; then
+          find "${OUT_DIR}" -type f \( -name "zoom_in*.mp4" -o -name "zoom_out*.mp4" \) -delete
+        fi
+
+        mkdir -p "{{output}}/artifacts"
+        cp -a "${OUT_DIR}/." "{{output}}/artifacts/"
+        END_TS="$(date -u +%s)"
+        cat > "{{output}}/artifacts/run-manifest.json" <<JSON
+        {
+          "workflow": "aws-lyra2-dmd-single",
+          "repository": "{{ lyra_repository }}",
+          "ref": "{{ lyra_ref }}",
+          "model_id": "{{ lyra_model_id }}",
+          "image": "{{ image_name }}",
+          "sample_id": {{ sample_id }},
+          "mode": "{{ mode }}",
+          "num_frames_zoom_in": {{ num_frames_zoom_in }},
+          "num_frames_zoom_out": {{ num_frames_zoom_out }},
+          "stage1_runtime_seconds": ${STAGE1_ELAPSED_SEC},
+          "stage2_runtime_seconds": ${STAGE2_ELAPSED_SEC},
+          "runtime_seconds": $((END_TS - START_TS)),
+          "retain_ply": "{{ retain_ply }}",
+          "retain_intermediate_videos": "{{ retain_intermediate_videos }}"
+        }
+        JSON
+        find "{{output}}/artifacts" -maxdepth 6 -type f | sort | head -200
+        exit 0
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+        path: artifacts
+
+default-values:
+  image_name: "nvcr.io/nvidia/pytorch:25.03-py3"
+  lyra_repository: "https://github.com/nv-tlabs/lyra"
+  lyra_ref: "52e507988ebcccb9bd5e039f31d2b985adc310c7"
+  lyra_model_id: "nvidia/Lyra-2.0"
+  moge_repository: "https://github.com/microsoft/MoGe.git"
+  moge_ref: "07444410f1e33f402353b99d6ccd26bd31e469e8"
+  sample_id: 4
+  mode: dmd
+  num_frames_zoom_in: 81
+  num_frames_zoom_out: 241
+  max_build_jobs: 8
+  output_dataset: lyra2-dmd-single-artifacts
+  retain_ply: "false"
+  retain_intermediate_videos: "false"

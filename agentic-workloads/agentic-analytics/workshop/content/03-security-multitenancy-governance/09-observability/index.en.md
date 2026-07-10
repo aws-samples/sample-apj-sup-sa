@@ -26,7 +26,7 @@ strands-agents[otel]         # Makes Strands emit OpenTelemetry traces
 aws-opentelemetry-distro     # AWS Distro for OpenTelemetry — routes traces to CloudWatch
 ```
 
-Here's what happens behind the scenes when you run `agentcore deploy`:
+Here's what happens behind the scenes once your agent is deployed to the Runtime:
 
 ```
 Your Agent Code (Strands + BedrockAgentCoreApp)
@@ -51,19 +51,19 @@ GenAI Observability Dashboard
     (Sessions → Traces → Spans)
 ```
 
-::alert[**No code changes needed for Runtime tracing.** The two libraries in `requirements.txt` + AgentCore Runtime's auto-instrumentation handle everything. But Gateway and Memory resources need explicit log/trace delivery configuration — that you already enabled in step 2.]{type="info"}
+::alert[**No code changes needed for Runtime tracing.** The two libraries in `requirements.txt` + AgentCore Runtime's auto-instrumentation handle everything. Gateway and Memory resources need explicit log/trace delivery configuration — and that's already part of your stack's baseline (it came live with the first `make deploy` in Step 2).]{type="info"}
 
 ## Lab Procedures
 
-### Step 9.1: Observability is Configured
+### Step 9.1: Observability is Already Configured
 
-In Step 2, you ran `deploy_observability.py` to enable log delivery and tracing for the Gateway and Memory resources. CloudWatch Transaction Search was enabled by CloudFormation during stack deployment. 
+You didn't have to do anything extra for observability — the log/trace delivery resources for the Gateway and Memory are part of the top-up template's **baseline**, so they were created by your very first `make deploy` in Step 2. CloudWatch Transaction Search was enabled by the base CloudFormation stack during provisioning.
 
-Those steps configures:
+What's already configured:
 - **Log delivery** — Gateway and Memory APPLICATION_LOGS flow to CloudWatch Logs
 - **Tracing delivery** — Gateway and Memory spans flow to X-Ray → CloudWatch Transaction Search
 
-::alert[**What about Runtime?** Runtime tracing is automatic — AgentCore creates the log group and configures tracing when you deploy with `agentcore deploy`. You only need this script for Gateway and Memory.]{type="info"}
+::alert[**What about Runtime?** Runtime tracing is automatic — AgentCore creates the log group and configures tracing when the Runtime is deployed. The Gateway/Memory delivery resources in the template cover the rest.]{type="info"}
 
 ### Step 9.2: Generate Some Traces
 
@@ -127,11 +127,11 @@ aws logs describe-log-groups \
 
 Open the log group in the CloudWatch console. These logs show every policy decision (ALLOW/DENY), which target Lambda was called, and the latency of each tool invocation.
 
-::alert[Gateway logs require `deploy_observability.py` to be run first (done in Step 2.9).]
+::alert[Gateway logs depend on the log-delivery resources in the template baseline — they were created by your first `make deploy` in Step 2.]
 
 ## Verification
 
-- Observability was configured in Step 2
+- Observability came live with the Step-2 baseline `make deploy` (no extra step)
 - You can see your agent's sessions and traces in the GenAI dashboard
 - You can drill into a span and see model inputs/outputs and tool call details
 - The guardrail trace shows intervention (no tool calls for blocked queries)
@@ -146,12 +146,12 @@ Open the log group in the CloudWatch console. These logs show every policy decis
 - Verify Transaction Search is enabled: CloudWatch → Settings → X-Ray traces tab. If not enabled, the CloudFormation stack may have had an issue — you can enable it manually via the console.
 
 **No Gateway logs found**
-- If Gateway logs are missing, re-run `python3 infra/deploy_observability.py` from Step 2.9.
+- The Gateway log-delivery resources are in the template baseline; confirm your Step-2 `make deploy` reached `CREATE_COMPLETE`.
 - Gateway logging may take a few minutes to appear after invocations.
 
 **Traces appear but no spans (flat trace)**
 - Verify `strands-agents[otel]` and `aws-opentelemetry-distro` are in `requirements.txt`.
-- Redeploy with `agentcore deploy` to pick up the OTEL libraries.
+- Run `make build` to rebuild the agent image so it picks up the OTEL libraries, then retry.
 
 ## Summary
 

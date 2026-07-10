@@ -1,0 +1,21 @@
+node_modules/
+dist/
+out/
+.vite/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Code signing artifacts
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+*.mobileprovision
+
+.cursor
+.claude
+.kiro/

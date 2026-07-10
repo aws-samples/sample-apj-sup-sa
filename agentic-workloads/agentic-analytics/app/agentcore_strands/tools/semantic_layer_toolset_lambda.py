@@ -104,8 +104,13 @@ def _call_cube_api(path, method='GET', body=None):
     else:
         req = urllib.request.Request(url, headers=headers, method='GET')
 
+    # Cube runs on a private EC2 host reachable over http (or https); reject any
+    # other scheme so a malformed CUBE_API_URL can't read file:// or a custom
+    # scheme (closes the B310 risk while still allowing the http Cube endpoint).
+    if not url.lower().startswith(('http://', 'https://')):
+        raise ValueError(f"unexpected Cube URL scheme: {url[:40]}")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 - scheme constrained to http/https above
             return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8', errors='replace')

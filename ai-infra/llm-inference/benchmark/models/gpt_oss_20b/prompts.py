@@ -1,0 +1,47 @@
+"""Travel-booking JSON-extraction prompt + seed input used for gpt-oss-20b benchmarking.
+
+gpt-oss-20b emits an OpenAI-format reasoning trace via the
+``openai_gptoss`` reasoning parser. The reasoning is filtered out by the
+parser and does NOT appear in the served `choices[*].message.content`.
+"""
+from __future__ import annotations
+
+
+SYSTEM_PROMPT = (
+    "You are a structured-data extraction assistant. Given a travel booking "
+    "confirmation email, extract the booking details and return ONLY a valid "
+    "JSON object matching this schema: {\"booking_reference\": string, "
+    "\"provider\": string, \"travelers\": [string], \"segments\": "
+    "[{\"mode\": string, \"origin\": string, \"destination\": string, "
+    "\"depart\": string, \"arrive\": string, \"carrier\": string, "
+    "\"class\": string}], \"total_price\": {\"amount\": number, "
+    "\"currency\": string}, \"payment_method\": string, "
+    "\"cancellation_policy\": string}. Use ISO-8601 for datetimes. Use only "
+    "information present in the email. Do not invent fields."
+)
+"""System prompt the served endpoint will see at serve time."""
+
+
+SEED_INPUT = (
+    "Subject: Your Delta Air Lines Flight is Confirmed - PNR: XYZ789\n\n"
+    "From: no_reply@delta.com\n\n"
+    "Dear Ms. Emily Johnson,\n\n"
+    "We are pleased to confirm your round-trip ticket with Delta Air Lines.\n\n"
+    "Booking Reference: XYZ789\n"
+    "Traveler: Emily Johnson\n\n"
+    "Itinerary:\n"
+    "Outbound: New York (LGA) to Los Angeles (LAX) on 2025-04-10 at 08:15 AM, "
+    "Flight DL142, Economy Class\n"
+    "Return: Los Angeles (LAX) to New York (LGA) on 2025-04-17 at 05:30 PM, "
+    "Flight DL143, Economy Class\n\n"
+    "Fare Details:\nBase Fare: $380.00\nTaxes & Fees: $75.00\n"
+    "Total Price: $455.00\n\n"
+    "Payment Method: Visa ending in **** 4321\n\n"
+    "Cancellation/Change Policy:\n"
+    "Cancellations made at least 14 days before departure will incur a $50 fee. "
+    "Changes to flight times or dates are permitted with a $25 change fee plus "
+    "any fare difference."
+)
+
+
+__all__ = ["SYSTEM_PROMPT", "SEED_INPUT"]

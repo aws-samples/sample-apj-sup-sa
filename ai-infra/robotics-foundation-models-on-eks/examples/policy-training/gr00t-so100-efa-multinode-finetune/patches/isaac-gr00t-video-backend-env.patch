@@ -1,0 +1,15 @@
+diff --git a/gr00t/experiment/launch_finetune.py b/gr00t/experiment/launch_finetune.py
+index 1a92ccf..19d8a9e 100644
+--- a/gr00t/experiment/launch_finetune.py
++++ b/gr00t/experiment/launch_finetune.py
+@@ -94,5 +94,9 @@ if __name__ == "__main__":
+     config.data.shard_size = ft_config.shard_size
+     config.data.episode_sampling_rate = ft_config.episode_sampling_rate
+     config.data.num_shards_per_epoch = ft_config.num_shards_per_epoch
+-
++    video_backend = os.environ.get("GR00T_VIDEO_BACKEND")
++    if video_backend:
++        config.data.video_backend = video_backend
++        print(f"Using GR00T video backend: {video_backend}")
++
+     run(config)

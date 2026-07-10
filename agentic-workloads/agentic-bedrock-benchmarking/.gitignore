@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.index/
+*.pkl
+*.npz
+*.env
+.env.*
+infra/deploy-params.json
+.vscode/

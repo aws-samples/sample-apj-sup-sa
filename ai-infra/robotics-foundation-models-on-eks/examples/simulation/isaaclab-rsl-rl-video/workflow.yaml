@@ -1,0 +1,144 @@
+workflow:
+  name: aws-isaaclab-rsl-rl-video
+  timeout:
+    exec_timeout: 8h
+    queue_timeout: 1h
+  resources:
+    gpu_g7e:
+      cpu: 4
+      gpu: 1
+      memory: 48Gi
+      storage: 160Gi
+      platform: g7e-rtx-pro-6000
+
+  tasks:
+  - name: train-and-render
+    resource: gpu_g7e
+    image: {{ isaac_lab_image }}
+    command: ["bash", "-lc"]
+    args:
+    - bash /tmp/entry.sh
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        set -euo pipefail
+
+        export ACCEPT_EULA=Y
+        export PRIVACY_CONSENT=Y
+        export MPLBACKEND=Agg
+
+        ISAACLAB_ROOT="{{ isaaclab_root }}"
+        TASK_NAME="{{ task_name }}"
+        TRAIN_NUM_ENVS="{{ train_num_envs }}"
+        PLAY_NUM_ENVS="{{ play_num_envs }}"
+        MAX_ITERATIONS="{{ max_iterations }}"
+        VIDEO_LENGTH="{{ video_length }}"
+        ARTIFACT_DIR="{{output}}/artifacts"
+
+        nvidia-smi
+        if [ ! -x "${ISAACLAB_ROOT}/isaaclab.sh" ]; then
+          for candidate in /workspace/IsaacLab /workspace/isaaclab /workspace/isaac-lab; do
+            if [ -x "${candidate}/isaaclab.sh" ]; then
+              ISAACLAB_ROOT="${candidate}"
+              break
+            fi
+          done
+        fi
+        test -x "${ISAACLAB_ROOT}/isaaclab.sh"
+        cd "${ISAACLAB_ROOT}"
+
+        if ! command -v ffmpeg >/dev/null 2>&1; then
+          apt-get update
+          apt-get install -y --no-install-recommends ffmpeg
+        fi
+
+        ./isaaclab.sh -i rsl_rl
+        ./isaaclab.sh -p -m pip install --quiet tensorboard
+
+        mkdir -p "${ARTIFACT_DIR}/checkpoints" \
+          "${ARTIFACT_DIR}/tensorboard" \
+          "${ARTIFACT_DIR}/videos"
+
+        ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+          --task "${TASK_NAME}" \
+          --headless \
+          --num_envs "${TRAIN_NUM_ENVS}" \
+          --max_iterations "${MAX_ITERATIONS}"
+
+        RUN_DIR="$(find logs/rsl_rl -mindepth 2 -maxdepth 2 -type d -printf '%T@ %p\n' \
+          | sort -n | tail -1 | cut -d' ' -f2-)"
+        test -n "${RUN_DIR}"
+        RUN_PARENT="$(dirname "${RUN_DIR}")"
+        CHECKPOINT_ZERO="$(find "${RUN_DIR}" -type f -name 'model_0.pt' -printf '%T@ %p\n' \
+          | sort -n | tail -1 | cut -d' ' -f2-)"
+        test -n "${CHECKPOINT_ZERO}"
+        CHECKPOINT="$(find "${RUN_DIR}" -type f -name 'model_*.pt' -printf '%T@ %p\n' \
+          | sort -n | tail -1 | cut -d' ' -f2-)"
+        test -n "${CHECKPOINT}"
+
+        cp -v "${CHECKPOINT}" "${ARTIFACT_DIR}/checkpoints/"
+        find "${RUN_DIR}" -type f -name 'events.out.tfevents*' -exec cp -v {} "${ARTIFACT_DIR}/tensorboard/" \;
+
+        render_video() {
+          local checkpoint="$1"
+          local output_name="$2"
+          local rendered_video
+
+          rm -rf "${RUN_DIR}/videos/play"
+          ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+            --task "${TASK_NAME}" \
+            --headless \
+            --num_envs "${PLAY_NUM_ENVS}" \
+            --load_run "$(basename "${RUN_DIR}")" \
+            --checkpoint "${checkpoint}" \
+            --video \
+            --video_length "${VIDEO_LENGTH}"
+
+          rendered_video="$(
+            { find "${RUN_DIR}/videos/play" -type f -name '*.mp4' -printf '%T@ %p\n' 2>/dev/null || true; } \
+              | sort -n | tail -1 | cut -d' ' -f2-
+          )"
+          if [ -z "${rendered_video}" ]; then
+            rendered_video="$(
+              { find "${RUN_PARENT}" -type f -name '*.mp4' -printf '%T@ %p\n' 2>/dev/null || true; } \
+                | sort -n | tail -1 | cut -d' ' -f2-
+            )"
+          fi
+          test -n "${rendered_video}"
+          cp -v "${rendered_video}" "${ARTIFACT_DIR}/videos/${output_name}"
+        }
+
+        render_video "${CHECKPOINT_ZERO}" before-training.mp4
+        render_video "${CHECKPOINT}" after-training.mp4
+        VIDEO_COUNT=2
+
+        cat >"${ARTIFACT_DIR}/run-manifest.json" <<EOF
+        {
+          "task": "${TASK_NAME}",
+          "train_num_envs": ${TRAIN_NUM_ENVS},
+          "play_num_envs": ${PLAY_NUM_ENVS},
+          "max_iterations": ${MAX_ITERATIONS},
+          "video_length": ${VIDEO_LENGTH},
+          "run_dir": "${RUN_DIR}",
+          "run_parent": "${RUN_PARENT}",
+          "initial_checkpoint": "${CHECKPOINT_ZERO}",
+          "checkpoint": "${CHECKPOINT}",
+          "video_count": ${VIDEO_COUNT}
+        }
+        EOF
+
+        find "${ARTIFACT_DIR}" -maxdepth 3 -type f | sort
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+        path: artifacts
+
+default-values:
+  isaac_lab_image: nvcr.io/nvidia/isaac-lab:2.2.0
+  isaaclab_root: /workspace/IsaacLab
+  task_name: Isaac-Reach-Franka-v0
+  train_num_envs: 128
+  play_num_envs: 16
+  max_iterations: 200
+  video_length: 200
+  output_dataset: aws-isaaclab-rsl-rl-video-artifacts

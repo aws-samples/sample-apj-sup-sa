@@ -1,16 +1,19 @@
-boto3==1.42.21
+boto3==1.43.0
 fastapi
 uvicorn[standard]
-websockets==11.0.3
+websockets>=13.0
 python-multipart
 python-dotenv==1.0.0
-strands-agents[otel]==1.21.0
-strands-agents-tools==0.2.19
-mcp==1.25.0
+strands-agents[otel]==1.44.0
+strands-agents-tools==0.8.1
+mcp==1.28.0
 requests
-bedrock-agentcore==1.0.7
+bedrock-agentcore==1.14.1
 requests-aws4auth
 opensearch-py
 bedrock-agentcore-starter-toolkit==0.2.1
 aws-opentelemetry-distro
 psycopg2-binary
+# jsonschema-path==0.5.0 (via bedrock-agentcore-starter-toolkit) requires referencing<0.38.0;
+# jsonschema>=4.20 requires referencing>=0.28.4. Pin to avoid solver timeouts on PyPI.
+referencing>=0.28.4,<0.38.0

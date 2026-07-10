@@ -108,6 +108,21 @@ class Settings:
     virtual_key_ttl_ms: int = field(
         default_factory=lambda: _env_int("VIRTUAL_KEY_TTL_MS", 14_400_000)
     )
+    anthropic_api_key_secret_arn: str = field(
+        default_factory=lambda: _env("ANTHROPIC_API_KEY_SECRET_ARN", "")
+    )
+    anthropic_api_base_url: str = field(
+        default_factory=lambda: _env("ANTHROPIC_API_BASE_URL", "https://api.anthropic.com")
+    )
+    anthropic_api_version: str = field(
+        default_factory=lambda: _env("ANTHROPIC_API_VERSION", "2023-06-01")
+    )
+    anthropic_request_timeout_seconds: float = field(
+        default_factory=lambda: float(_env("ANTHROPIC_REQUEST_TIMEOUT_SECONDS", "60"))
+    )
+    bedrock_breaker_open_seconds: float = field(
+        default_factory=lambda: float(_env("BEDROCK_BREAKER_OPEN_SECONDS", "300"))
+    )
 
     def __post_init__(self) -> None:
         if not self.admin_origin_enforce and self.environment not in ("local", "test"):

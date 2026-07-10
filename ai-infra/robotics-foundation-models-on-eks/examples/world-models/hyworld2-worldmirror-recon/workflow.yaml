@@ -1,0 +1,188 @@
+workflow:
+  name: aws-hyworld2-worldmirror-recon
+  timeout:
+    exec_timeout: 4h
+    queue_timeout: 6h
+  resources:
+    default:
+      cpu: 8
+      gpu: 1
+      memory: 64Gi
+      storage: 256Gi
+      platform: g7e-rtx-pro-6000
+
+  tasks:
+  - name: hyworld2-worldmirror-recon
+    image: {{ image_name }}
+    command: ["bash", "-lc"]
+    args:
+    - bash /tmp/entry.sh
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        set -eo pipefail
+        START_TS="$(date -u +%s)"
+
+        unset PIP_CONSTRAINT
+        export PIP_CONSTRAINT=
+        export DEBIAN_FRONTEND=noninteractive
+        export HF_HOME=/tmp/hf-home
+        export PYTHONUNBUFFERED=1
+
+        nvidia-smi
+        python --version
+
+        apt-get update >/dev/null
+        apt-get install -y --no-install-recommends \
+          build-essential bzip2 ca-certificates curl ffmpeg git \
+          libgl1 libglib2.0-0 >/dev/null
+
+        export MAMBA_ROOT_PREFIX=/tmp/micromamba
+        curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+          | tar -xj -C /tmp bin/micromamba
+        export PATH="/tmp/bin:${PATH}"
+        eval "$(micromamba shell hook -s bash)"
+        micromamba create -y -n hyworld2 -c conda-forge \
+          python=3.10 pip cmake ninja ffmpeg libgl packaging eigen zlib
+        micromamba activate hyworld2
+        micromamba install -y -c nvidia/label/cuda-12.8.0 -c conda-forge \
+          cuda=12.8.0 cuda-nvcc=12.8 cuda-toolkit=12.8 eigen zlib
+
+        export CUDA_HOME="${CONDA_PREFIX}"
+        export PATH="${CUDA_HOME}/bin:${PATH}"
+        SITE="${CONDA_PREFIX}/lib/python3.10/site-packages"
+        export CPATH="${CUDA_HOME}/include:${SITE}/nvidia/cudnn/include:${SITE}/nvidia/nccl/include:${CPATH:-}"
+        export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${SITE}/torch/lib:${SITE}/nvidia/cuda_runtime/lib:${SITE}/nvidia/cudnn/lib:${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+        export CC=/usr/bin/gcc
+        export CXX=/usr/bin/g++
+
+        GIT_LFS_SKIP_SMUDGE=1 git clone --filter=blob:none --no-checkout "{{ hyworld2_repository }}" /tmp/HY-World-2.0
+        cd /tmp/HY-World-2.0
+        git fetch --depth 1 origin "{{ hyworld2_ref }}"
+        git checkout "{{ hyworld2_ref }}"
+
+        python -m pip install --upgrade pip setuptools wheel
+        pip install torch==2.7.1 torchvision==0.22.1 --extra-index-url https://download.pytorch.org/whl/cu128
+
+        cat > /tmp/hyworld2-requirements-runtime.txt <<'REQ'
+        moviepy==1.0.3
+        jaxtyping
+        typeguard
+        tqdm
+        omegaconf
+        plyfile
+        colorspacious
+        pydantic
+        opencv-python
+        scipy
+        requests
+        trimesh
+        matplotlib
+        pillow_heif
+        onnxruntime
+        einops
+        safetensors
+        numpy<2.0.0
+        open3d==0.18.0
+        pycolmap==3.10.0
+        huggingface_hub
+        REQ
+        pip install -r /tmp/hyworld2-requirements-runtime.txt
+        pip install --no-build-isolation --no-binary gsplat gsplat
+
+        python - <<'PY'
+        from pathlib import Path
+
+        path = Path("hyworld2/worldrecon/hyworldmirror/models/layers/attention.py")
+        text = path.read_text()
+        old = """try:
+            from flash_attn_interface import flash_attn_func as flash_attn_func_v3
+            _USE_FLASH_ATTN_V3 = True
+        except ImportError:
+            from flash_attn.flash_attn_interface import flash_attn_func as flash_attn_func_v2
+            _USE_FLASH_ATTN_V3 = False
+        """
+        new = """try:
+            from flash_attn_interface import flash_attn_func as flash_attn_func_v3
+            _USE_FLASH_ATTN = True
+            _USE_FLASH_ATTN_V3 = True
+        except ImportError:
+            try:
+                from flash_attn.flash_attn_interface import flash_attn_func as flash_attn_func_v2
+                _USE_FLASH_ATTN = True
+                _USE_FLASH_ATTN_V3 = False
+            except ImportError:
+                _USE_FLASH_ATTN = False
+                _USE_FLASH_ATTN_V3 = False
+        """
+        text = text.replace(old, new)
+        text = text.replace(
+            "if q.dtype==torch.bfloat16 or q.dtype==torch.float16:",
+            "if _USE_FLASH_ATTN and (q.dtype==torch.bfloat16 or q.dtype==torch.float16):",
+        )
+        path.write_text(text)
+        PY
+
+        python - <<'PY'
+        import torch
+        import gsplat
+        from hyworld2.worldrecon.pipeline import WorldMirrorPipeline
+        print("torch", torch.__version__, "cuda", torch.cuda.is_available(), torch.cuda.get_device_name(0))
+        print("gsplat", getattr(gsplat, "__version__", "unknown"))
+        print("WorldMirrorPipeline import OK", WorldMirrorPipeline.__name__)
+        PY
+
+        OUT_DIR=/tmp/hyworld2-output/{{ case_name }}
+        mkdir -p "${OUT_DIR}"
+        python -m hyworld2.worldrecon.pipeline \
+          --input_path "{{ input_path }}" \
+          --strict_output_path "${OUT_DIR}" \
+          --target_size "{{ target_size }}" \
+          --no_interactive
+
+        if [[ "{{ retain_gaussians }}" != "true" ]]; then
+          find "${OUT_DIR}" -type f -name "gaussians.ply" -delete
+        fi
+        if [[ "{{ retain_points }}" != "true" ]]; then
+          find "${OUT_DIR}" -type f -name "points.ply" -delete
+        fi
+
+        mkdir -p "{{output}}/artifacts"
+        cp -a "${OUT_DIR}/." "{{output}}/artifacts/"
+        END_TS="$(date -u +%s)"
+        cat > "{{output}}/artifacts/run-manifest.json" <<JSON
+        {
+          "workflow": "aws-hyworld2-worldmirror-recon",
+          "repository": "{{ hyworld2_repository }}",
+          "ref": "{{ hyworld2_ref }}",
+          "model_id": "{{ model_id }}",
+          "model_subfolder": "{{ model_subfolder }}",
+          "image": "{{ image_name }}",
+          "input_path": "{{ input_path }}",
+          "case_name": "{{ case_name }}",
+          "target_size": {{ target_size }},
+          "runtime_seconds": $((END_TS - START_TS)),
+          "runtime_patch": "flash-attn optional fallback for Blackwell/PyTorch SDPA path",
+          "retain_gaussians": "{{ retain_gaussians }}",
+          "retain_points": "{{ retain_points }}"
+        }
+        JSON
+        find "{{output}}/artifacts" -maxdepth 4 -type f | sort | head -200
+        exit 0
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+        path: artifacts
+
+default-values:
+  image_name: "nvcr.io/nvidia/pytorch:25.03-py3"
+  hyworld2_repository: "https://github.com/Tencent-Hunyuan/HY-World-2.0"
+  hyworld2_ref: "49c1ab648b251814e984cdfb6eb8707705375920"
+  model_id: "tencent/HY-World-2.0"
+  model_subfolder: "HY-WorldMirror-2.0"
+  input_path: "examples/worldrecon/realistic/Dining_Table"
+  case_name: "dining_table_4v_952"
+  target_size: 952
+  output_dataset: hyworld2-worldmirror-recon-artifacts
+  retain_gaussians: "true"
+  retain_points: "true"

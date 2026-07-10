@@ -1,0 +1,143 @@
+#!/bin/bash
+# =============================================================================
+# user_data_gpu.sh.j2 -- Cloud-init for NVIDIA GPU EC2 instances.
+#
+# Rendered with Jinja2 by vllm_ec2_bench.deployer.user_data.UserDataRenderer.
+# Runs as root on first boot, launches a vLLM OpenAI-compatible server on :8000.
+#
+# Required Jinja2 variables:
+#   log_tag                  -- free-form tag for log lines, e.g. model-exp_1
+#   model_id                 -- HF repo id, e.g. google/medgemma-27b-text-it
+#   served_model_name        -- vLLM --served-model-name
+#   hf_token                 -- (REMOVED) HF token now fetched from Secrets Manager
+#   hf_secret_name           -- Name of the Secrets Manager secret holding the HF token
+#   vllm_api_key             -- bearer token clients must present
+#   tensor_parallel_size     -- vLLM --tensor-parallel-size
+#   data_parallel_size       -- vLLM --data-parallel-size
+#   pipeline_parallel_size   -- vLLM --pipeline-parallel-size
+#   max_model_len            -- vLLM --max-model-len
+#   gpu_memory_utilization   -- 0..0.98
+#   enable_prefix_caching    -- bool
+#   dtype                    -- "bfloat16", "float16", ...
+#   vllm_image               -- Docker image reference
+#   container_name           -- Docker --name value
+#   ready_check_name         -- filename stem for the readiness helper
+# =============================================================================
+set -euxo pipefail
+exec > >(tee -a /var/log/{{ log_tag }}-bootstrap.log) 2>&1
+
+echo "[{{ log_tag }}] bootstrap start $(date -Iseconds)"
+
+export DEBIAN_FRONTEND=noninteractive
+
+# ---------------------------------------------------------------------------
+# 1. Docker + NVIDIA Container Toolkit
+# ---------------------------------------------------------------------------
+if ! command -v docker >/dev/null 2>&1; then
+  apt-get update -y && apt-get install -y docker.io
+  systemctl enable --now docker
+fi
+
+if ! command -v nvidia-ctk >/dev/null 2>&1; then
+  distribution=$(. /etc/os-release; echo "$ID$VERSION_ID")
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+    | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+    | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+    > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  apt-get update -y && apt-get install -y nvidia-container-toolkit
+  nvidia-ctk runtime configure --runtime=docker
+  systemctl restart docker
+fi
+
+# ---------------------------------------------------------------------------
+# 2. SSM agent (belt-and-suspenders; DLAMI ships it already)
+# ---------------------------------------------------------------------------
+if ! systemctl is-active --quiet amazon-ssm-agent \
+   && ! systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+  snap install amazon-ssm-agent --classic || true
+  systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+fi
+
+# ---------------------------------------------------------------------------
+# 3. HF cache + pull image
+# ---------------------------------------------------------------------------
+HF_HOME=/opt/hf-cache
+mkdir -p "$HF_HOME" && chmod 755 "$HF_HOME"
+docker pull {{ vllm_image }}
+docker rm -f {{ container_name }} || true
+
+PREFIX_CACHING_FLAG=""
+if [ "{{ 'true' if enable_prefix_caching else 'false' }}" = "true" ]; then
+  PREFIX_CACHING_FLAG="--enable-prefix-caching"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Fetch HF token from Secrets Manager (if configured)
+# ---------------------------------------------------------------------------
+# HF_TOKEN comes from AWS Secrets Manager so it never appears in this
+# user-data script (which is visible via DescribeInstanceAttribute).
+# The instance role grants secretsmanager:GetSecretValue on the
+# namespaced secret (see ResourceManager._ensure_instance_profile).
+HF_TOKEN=""
+{% if hf_secret_name %}
+HF_TOKEN="$(aws secretsmanager get-secret-value \
+  --secret-id '{{ hf_secret_name }}' \
+  --region '{{ region }}' \
+  --query SecretString --output text 2>/dev/null || true)"
+if [ -z "$HF_TOKEN" ]; then
+  echo "WARNING: failed to fetch HF_TOKEN from Secrets Manager secret '{{ hf_secret_name }}' — model pulls may fail if the repo is gated."
+fi
+{% endif %}
+
+# ---------------------------------------------------------------------------
+# 5. Launch vLLM
+# ---------------------------------------------------------------------------
+docker run -d \
+  --name {{ container_name }} \
+  --restart unless-stopped \
+  --gpus all \
+  --shm-size=16g \
+  -p 8000:8000 \
+{% if hf_secret_name %}
+  -e HF_TOKEN="$HF_TOKEN" \
+  -e HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" \
+{% endif %}
+  -e HF_HOME=/root/.cache/huggingface \
+{% for k, v in (extra_env_vars or {}).items() %}
+  -e {{ k }}='{{ v }}' \
+{% endfor %}
+  -v "$HF_HOME:/root/.cache/huggingface" \
+  {{ vllm_image }} \
+  --model '{{ model_id }}' \
+  --served-model-name '{{ served_model_name }}' \
+  --tensor-parallel-size {{ tensor_parallel_size }} \
+  --data-parallel-size {{ data_parallel_size }} \
+  --pipeline-parallel-size {{ pipeline_parallel_size }} \
+  --dtype {{ dtype }} \
+  --max-model-len {{ max_model_len }} \
+  --gpu-memory-utilization {{ gpu_memory_utilization }} \
+  --api-key '{{ vllm_api_key }}' \
+  --trust-remote-code \
+  $PREFIX_CACHING_FLAG \
+  {{ extra_serve_flags }}
+
+# ---------------------------------------------------------------------------
+# 6. Readiness marker (polls /v1/models until 200)
+# ---------------------------------------------------------------------------
+cat > /usr/local/bin/{{ ready_check_name }}.sh <<'EOF'
+#!/bin/bash
+for i in {1..3600}; do
+  if curl -fsS -H "Authorization: Bearer $1" http://127.0.0.1:8000/v1/models >/dev/null 2>&1; then
+    touch /run/{{ ready_check_name }}-ready
+    exit 0
+  fi
+  sleep 5
+done
+exit 1
+EOF
+chmod +x /usr/local/bin/{{ ready_check_name }}.sh
+nohup /usr/local/bin/{{ ready_check_name }}.sh '{{ vllm_api_key }}' \
+  >/var/log/{{ ready_check_name }}.log 2>&1 &
+
+echo "[{{ log_tag }}] bootstrap done $(date -Iseconds)"

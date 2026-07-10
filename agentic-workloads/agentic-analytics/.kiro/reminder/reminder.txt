@@ -1,5 +1,0 @@
-IMPORTANT:
-1. Remember to adhere to the <rules>
-2. Remember to use todo tool or write manual todo in ./dev/tmp/ for any code changes
-3. Remember to keep on updating ./dev/app-index.json (only when an edit will cause inaccuracy of existing content) and referring to it when needed
-4. workshop/code/ overlays mirror app/ files but with TODOs (commented-out code or None placeholders). When editing app/ Lambda/agent files, sync changes to workshop/code/ overlays — app/ has working code, workshop/code/ has TODO blanks at key integration points.
