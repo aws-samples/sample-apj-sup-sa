@@ -24,12 +24,56 @@ Router  →  RAG  →  Data Expert  →  SQL  →  Response
 | **SQL** | Generates and executes the query on Amazon Athena |
 | **Response** | Summarizes the result set into a natural-language answer |
 
-The UI (`app/`) and the agents (`agents/`) communicate through a shared, event-driven
-layer (`agents/events/`), so the frontend renders streaming text, tool calls, and
-chain-of-thought without the agent layer ever importing UI code.
+An optional **semantic cache** node (Valkey/ElastiCache vector search) can short-circuit
+repeated questions. It is disabled by default.
 
-An optional **semantic cache** node (Valkey/ElastiCache vector search) can be enabled
-to short-circuit repeated questions. It is disabled by default.
+### Layer separation
+
+The UI (`app/`) and the agents (`agents/`) never depend on each other directly. They
+communicate through shared, event-driven infrastructure in `agents/events/`, so the agent
+layer never imports UI code:
+
+```
+┌─────────────────┐    ┌────────────────────┐    ┌─────────────────┐
+│   Streamlit     │    │ MultiAgentText2SQL │    │  Strands Agents │
+│   Frontend      │◄──►│   (Coordinator)    │◄──►│   (Backend)     │
+│   (app/)        │    │                    │    │                 │
+└─────────────────┘    └────────────────────┘    └─────────────────┘
+         │                        │
+         ▼                        ▼
+┌─────────────────┐    ┌──────────────────┐
+│  Event Handlers │◄──►│  Event Registry  │
+│                 │    │   (Router)       │
+└─────────────────┘    └──────────────────┘
+```
+
+`MultiAgentText2SQL` (`agents/multi_agent/multi_agent_text2sql.py`) is the default
+coordinator, built by the `create_multi_agent` factory in `app.py`. A simpler single-agent
+`StrandsAgent` is available as the default factory in `app/config.py`.
+
+### Event handler system
+
+Handlers registered on the event registry run in priority order (lower runs earlier):
+
+| Handler | Role | Priority |
+|---------|------|----------|
+| `StreamlitUIHandler` (`app/events/handlers.py`) | UI updates and rendering | 10 |
+| `ReasoningHandler` | Reasoning process handling | 30 |
+| `LifecycleHandler` | Lifecycle event management | 50 |
+| `LoggingHandler` | Structured logging | 80 |
+| `DebugHandler` | Debug information collection | 95 |
+
+UI rendering is delegated to managers under `agents/events/ui/`:
+
+| Manager | Role |
+|---------|------|
+| `MessageUIManager` | Message streaming and final rendering |
+| `COTUIManager` | Chain-of-thought detection and filtering |
+| `ToolUIManager` | Tool execution status and result display |
+| `ReasoningUIManager` | Reasoning process status widgets |
+
+The Streamlit-facing rendering helpers (`UIManager`, `MessageRenderer`,
+`PlaceholderManager`, `ErrorHandler`) are consolidated in `app/ui.py`.
 
 ## Prerequisites
 
@@ -127,15 +171,38 @@ docker run -p 6379:6379 valkey/valkey
 
 ```
 multi-agent-text2sql/
-├── app.py                     # Streamlit entry point
-├── app/                       # UI layer (config, session, chat, event handlers)
+├── app.py                          # Streamlit entry point (builds AppConfig, runs the app)
+├── app/                            # Streamlit UI layer
+│   ├── main.py                     # StreamlitChatApp
+│   ├── config.py                   # AppConfig (models, agent factory, validation)
+│   ├── env_loader.py               # .env loading
+│   ├── session.py                  # SessionManager (Streamlit session state)
+│   ├── chat.py                     # ChatHandler (streaming loop)
+│   ├── ui.py                       # UIManager, MessageRenderer, PlaceholderManager, ErrorHandler
+│   ├── ui_manager.py               # legacy UIManager (superseded by ui.py)
+│   └── events/handlers.py          # StreamlitUIHandler
 ├── agents/
-│   ├── multi_agent/           # Router / RAG / Data Expert / SQL / Response + graph
-│   └── events/                # Shared event infrastructure (UI-agnostic)
-├── scripts/                   # setup_data, index_opensearch, evaluate, clear_cache
-├── bird-benchmark/            # Dataset download notes + table descriptions
-├── eval_prompts/ eval_samples/ tests/
-├── .kiro/                     # Spec-driven-development artifacts (specs & steering)
+│   ├── strands_agent.py            # Single-agent StrandsAgent (default factory)
+│   ├── my_custom_agent.py          # Earlier single-agent implementation
+│   ├── multi_agent/                # Multi-agent graph
+│   │   ├── multi_agent_text2sql.py # Coordinator: builds Router→RAG→DataExpert→SQL→Response
+│   │   ├── router_node.py  sql_agent.py  data_expert_agent.py
+│   │   ├── rag_agent.py  vector_search.py          # RAG (OpenSearch), optional
+│   │   ├── cache_node.py  semantic_cache.py        # semantic cache (Valkey), optional
+│   │   ├── response_node.py  graph_conditions.py  shared_context.py
+│   │   ├── base_agent.py  constants.py  event_adapter.py
+│   └── events/                     # Shared event infrastructure (UI-agnostic)
+│       ├── registry.py  lifecycle.py
+│       └── ui/                     # cot, messages, reasoning, tools, state, utils, placeholders
+├── scripts/
+│   ├── setup_data.py               # Upload BIRD parquet to S3 + create Glue crawler
+│   ├── index_opensearch.py         # Index schema descriptions into OpenSearch (RAG)
+│   ├── evaluate.py                 # BIRD benchmark evaluation
+│   └── clear_cache.py              # Clear the semantic cache
+├── bird-benchmark/                 # Dataset download notes + markdown table descriptions
+├── eval_prompts/  eval_samples/    # Evaluation prompts and sample question sets
+├── tests/                          # Unit / integration tests
+├── .kiro/                          # Spec-driven-development artifacts (specs & steering)
 ├── pyproject.toml  uv.lock  .python-version
 └── .env.example
 ```
