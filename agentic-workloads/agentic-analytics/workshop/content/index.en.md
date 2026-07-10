@@ -1,5 +1,5 @@
 ---
-title: "Self-Service Analytics with Agentic AI on AWS"
+title: "Agentic Analytics for Multi-tenant SaaS with AgentCore"
 weight: 0
 ---
 
@@ -53,11 +53,12 @@ Their staff and analysts need answers: *"Who are my top 3 customers this month"*
 | 9 | Observability | Trace agent behavior in CloudWatch |
 | 10 | Evaluation | Measure quality with LLM-as-a-Judge |
 
-### Advanced Data Access (Step 14)
+### Optional Labs (after the core path)
 
-| Step | What You Build | Why It Matters |
+| Lab | What You Build | Why It Matters |
 |------|---------------|---------------|
-| 14 | Semantic Layer with Cube Core | Structured ad-hoc analytics — more flexible than Prebaked SQL, more reliable than Custom SQL |
+| Semantic Layer (Cube Core) | A structured ad-hoc analytics layer | More flexible than Prebaked SQL, more reliable than Custom SQL |
+| Voice | A spoken interface to the same agent | Hands-free analytics over WebRTC, reusing your secured agent |
 
 ## Target Audience
 
@@ -68,11 +69,15 @@ Their staff and analysts need answers: *"Who are my top 3 customers this month"*
 
 ::alert[**For SaaS builders:** The pattern in this workshop — tenant isolation via RLS, role-based tool access via Cedar, shared infrastructure with per-session isolation — maps to the :link[SaaS Lens]{href="https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/saas-lens.html"} of the AWS Well-Architected Framework. You'll build a pool model where all tenants share the same agent, database, and Gateway — with isolation enforced at the data and policy layers.]{type="success"}
 
-## Prerequisites
+## Level & Prerequisites
 
-- Basic Python programming
-- Fundamental understanding of AWS services
-- No prior AI/ML experience required
+**Level: Intermediate (300).** You build the agent step by step, but the security material (Cedar policies, PostgreSQL row-level security, JWT claim propagation) is genuinely intermediate.
+
+- Comfortable with core AWS — IAM, the console, and reading CloudFormation
+- Able to read SQL and a JSON/IAM-style policy
+- A working mental model of multi-tenant data isolation (helpful for Step 7)
+- Basic Python (you'll complete a few short, guided `# TODO`s)
+- **No prior AI agent / LLM experience required** — agents, tool-calling, and RAG are explained as you go
 
 ## Supported Regions
 
@@ -80,10 +85,15 @@ This workshop runs in **us-east-1** (N. Virginia) and **us-west-2** (Oregon). Am
 
 ## Estimated Time
 
-- **Agent & Infrastructure (Steps 0-3):** ~0.5 hours
-- **Toolsets (Steps 4-7):** ~1 hours
-- **Security, Multitenancy, & Governance (Steps 7-10):** ~1.5 hour
-- **Total:** ~3 hours
+Most steps are gated on a CloudFormation deploy (the first one builds a container image and runs several minutes), so wall-clock time is dominated by ~7 sequential deploys plus reading and the security edits.
+
+- **Agent & Infrastructure (Steps 0–3):** ~1 hour (includes the first, longer deploy)
+- **Toolsets (Steps 4–6):** ~1 hour
+- **Security, Multitenancy & Governance (Steps 7–10):** ~1.5–2 hours (Step 7 is the most involved — budget extra)
+- **Core path total:** **~3.5–4.5 hours**
+- **Optional labs:** Semantic Layer (Cube) ~1–1.5 h · Voice ~1 h
+
+::alert[**Plan for a half-day.** If you have a fixed time box, prioritize Steps 0–8 (the build + the full security story); Steps 9–10 (observability & evaluation) and the optional labs can be done afterward.]{type="info"}
 
 ## Cost Information
 

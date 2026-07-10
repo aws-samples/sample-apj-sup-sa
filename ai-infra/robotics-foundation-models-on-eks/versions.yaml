@@ -1,0 +1,98 @@
+osmo:
+  release: "6.2.10"
+  chart_repository: "https://helm.ngc.nvidia.com/nvidia/osmo"
+  chart_version: "1.2.1"
+  image_registry: "nvcr.io/nvidia/osmo"
+  image_tag: "6.2"
+  compatibility_note: "https://github.com/NVIDIA/OSMO/pull/894"
+  cookbook_ref: "c2c30e55f84969fff55d51cd2044a03d40d6a1a5"
+  cosmos_transfer_ref: "0033b77a9e41e74f9d8d0b9cf80e0ecf94b3533b"
+  cosmos_predict_tokenizer_revision: "f176dc95b4a70f53ce01c4b302851595e7322b00"
+  internal_router_image: "public.ecr.aws/nginx/nginx-unprivileged:1.27-alpine"
+
+kai_scheduler:
+  kai_scheduler_chart: "oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler"
+  kai_scheduler_chart_version: "v0.13.0"
+  kai_scheduler_namespace: "kai-scheduler"
+  kai_scheduler_release_name: "kai-scheduler"
+  kai_scheduler_name: "kai-scheduler"
+
+karpenter:
+  karpenter_chart: "oci://public.ecr.aws/karpenter/karpenter"
+  karpenter_chart_version: "1.12.0"
+  karpenter_namespace: "kube-system"
+  karpenter_release_name: "karpenter"
+  karpenter_nodepool_name: "aws-osmo-g7e"
+  karpenter_ec2nodeclass_name: "aws-osmo-g7e"
+  karpenter_g6e_nodepool_name: "aws-osmo-g6e"
+  karpenter_g6e_ec2nodeclass_name: "aws-osmo-g6e"
+
+gpu_operator:
+  gpu_operator_chart_repository: "https://nvidia.github.io/gpu-operator"
+  gpu_operator_chart_version: "v26.3.1"
+  gpu_operator_namespace: "gpu-operator"
+  gpu_operator_release_name: "gpu-operator"
+
+efa_device_plugin:
+  efa_device_plugin_chart_repository: "https://aws.github.io/eks-charts"
+  efa_device_plugin_chart_version: "v0.5.26"
+  efa_device_plugin_image_tag: "v0.5.18"
+  efa_device_plugin_namespace: "kube-system"
+  efa_device_plugin_release_name: "aws-efa-k8s-device-plugin"
+
+ai_workflows:
+  gr00t_repository: "https://github.com/NVIDIA/Isaac-GR00T"
+  gr00t_ref: "ead52833afbbf4243f8cd5e7664f48a94de03b19"
+  gr00t_runtime_image: "nvcr.io/nvidia/pytorch:25.03-py3"
+  gr00t_efa_training_image: "public.ecr.aws/deep-learning-containers/pytorch-training:2.7.1-gpu-py312-cu128-ubuntu22.04-ec2-v1.37"
+  openpi_repository: "https://github.com/Physical-Intelligence/openpi"
+  openpi_ref: "650c5b0283a49c42784fb5055a0507da2c6d347d"
+  openpi_runtime_image: "nvcr.io/nvidia/pytorch:25.03-py3"
+  isaac_lab_image: "nvcr.io/nvidia/isaac-lab:2.2.0"
+  cosmos_reason2_nim_image: "nvcr.io/nim/nvidia/cosmos-reason2-2b:1.7.0"
+  cosmos_reason2_model: "nvidia/cosmos-reason2-2b"
+  hyworld2_repository: "https://github.com/Tencent-Hunyuan/HY-World-2.0"
+  hyworld2_ref: "49c1ab648b251814e984cdfb6eb8707705375920"
+  hyworld2_model_id: "tencent/HY-World-2.0"
+  hyworld2_model_subfolder: "HY-WorldMirror-2.0"
+  hyworld2_runtime_image: "nvcr.io/nvidia/pytorch:25.03-py3"
+  lyra_repository: "https://github.com/nv-tlabs/lyra"
+  lyra_ref: "52e507988ebcccb9bd5e039f31d2b985adc310c7"
+  lyra_model_id: "nvidia/Lyra-2.0"
+  lyra_runtime_image: "nvcr.io/nvidia/pytorch:25.03-py3"
+  moge_repository: "https://github.com/microsoft/MoGe.git"
+  moge_ref: "07444410f1e33f402353b99d6ccd26bd31e469e8"
+
+aws:
+  default_region: "ap-northeast-2"
+  eks_cluster_version: "1.35"
+  eks_al2023_nvidia_ami_release: "amazon-eks-node-al2023-x86_64-nvidia-1.35-v20260423"
+  g7e_smoke_instance_types: "g7e.2xlarge,g7e.4xlarge,g7e.8xlarge"
+  g7e_nut_pouring_instance_types: "g7e.2xlarge,g7e.4xlarge,g7e.8xlarge,g7e.12xlarge,g7e.24xlarge,g7e.48xlarge"
+  g6e_gr00t_instance_types: "g6e.8xlarge"
+
+terraform:
+  cli: ">= 1.5.0, < 2.0.0"
+  aws_provider: "~> 5.0"
+  random_provider: "~> 3.6"
+  modules:
+    vpc: "~> 5.21"
+    eks: "~> 20.37"
+    rds: "~> 6.10"
+
+tools:
+  aws_cli: ">= 2.15.0"
+  kubectl: ">= 1.35.0"
+  helm: ">= 3.12.0"
+  jq: ">= 1.6"
+  nccl_benchmark_image: "public.ecr.aws/hpc-cloud/nccl-tests:latest"
+  nccl_benchmark_nccl_version: "2.28.9-1+cuda13.0"
+  pytorch_training_image: "public.ecr.aws/deep-learning-containers/pytorch-training:2.9.0-gpu-py312-cu130-ubuntu22.04-ec2-v1.11"
+
+sample_references:
+  physical_ai_scaffolding_kit:
+    repository: "https://github.com/aws-samples/sample-physical-ai-scaffolding-kit"
+    ref: "8dd3a27eaf00adab7f437fcb8a1a8f9c715cb050"
+  embodied_ai_platform:
+    repository: "https://github.com/aws-samples/sample-embodied-ai-platform"
+    ref: "09c788feb6203ac40ddb44d892c01c4a278cedcb"

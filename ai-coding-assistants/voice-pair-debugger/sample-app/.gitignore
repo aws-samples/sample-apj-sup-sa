@@ -1,0 +1,11 @@
+# Terraform working directory and state
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Build artefacts produced by archive_file
+.build/
+
+# Crash logs
+crash.log
+crash.*.log

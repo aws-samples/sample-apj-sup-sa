@@ -102,6 +102,10 @@ class AdminModelService:
             )
         )
         await self._session.commit()
+        # commit expires server-side onupdate columns (updated_at uses
+        # onupdate=now()); refresh reloads them so model_validate does not
+        # trigger a lazy load outside the async context (MissingGreenlet).
+        await self._session.refresh(updated)
         return ModelResponse.model_validate(updated)
 
     async def list_mappings(self, page: int, page_size: int) -> dict[str, Any]:

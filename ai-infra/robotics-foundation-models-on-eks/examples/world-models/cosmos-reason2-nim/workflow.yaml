@@ -1,0 +1,223 @@
+workflow:
+  name: aws-cosmos-reason2-nim
+  timeout:
+    exec_timeout: 3h
+    queue_timeout: 6h
+  resources:
+    {% if not external_nim_server_url %}
+    nim-server:
+      cpu: {{ nim_cpu_count }}
+      gpu: {{ nim_gpu_count }}
+      memory: {{ nim_memory }}
+      storage: {{ nim_storage }}
+      platform: g7e-rtx-pro-6000
+    {% endif %}
+    nim-client:
+      cpu: 1
+      memory: 2Gi
+      storage: 8Gi
+
+  groups:
+  - name: cosmos-reason2-nim
+    tasks:
+    {% if not external_nim_server_url %}
+    - name: nim-server
+      image: {{ nim_image }}
+      resource: nim-server
+      credentials:
+        {{ ngc_api_key_credential.credential_name }}:
+          NGC_API_KEY: {{ ngc_api_key_credential.credential_key }}
+      environment:
+        NIM_SERVED_MODEL_NAME: "{{ model_name }}"
+      command: ["/opt/nvidia/nvidia_entrypoint.sh", "/opt/nim/start_server.sh"]
+    {% endif %}
+
+    - name: nim-client
+      image: ubuntu:24.04
+      resource: nim-client
+      lead: true
+      credentials:
+        {{ ngc_api_key_credential.credential_name }}:
+          NGC_API_KEY: {{ ngc_api_key_credential.credential_key }}
+      command: ["bash", "-lc"]
+      args:
+      - bash /tmp/entry.sh
+      files:
+      - path: /tmp/entry.sh
+        contents: |
+          set -euo pipefail
+          START_TS="$(date -u +%s)"
+
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update >/dev/null
+          apt-get install -y --no-install-recommends ca-certificates curl jq >/dev/null
+
+          {% if external_nim_server_url %}
+          NIM_URL="{{ external_nim_server_url }}"
+          WAIT_SECONDS=0
+          {% else %}
+          NIM_URL="http://{{host:nim-server}}:8000"
+          WAIT_SECONDS={{ wait_seconds }}
+          {% endif %}
+          MODEL_NAME="{{ model_name }}"
+          MEDIA_TYPE="{{ media_type }}"
+          MEDIA_URL="{{ media_url }}"
+          MAX_TOKENS={{ max_tokens }}
+          VIDEO_FPS={{ video_fps }}
+          NIM_URL="${NIM_URL%/}"
+
+          cat >/tmp/prompt.txt <<'PROMPT'
+          {{ prompt }}
+          PROMPT
+
+          if [[ "${NIM_URL}" == */v1 ]]; then
+            API_BASE="${NIM_URL}"
+          else
+            API_BASE="${NIM_URL}/v1"
+          fi
+
+          if [[ "${WAIT_SECONDS}" -gt 0 ]]; then
+            echo "Waiting for Cosmos Reason2 NIM readiness at ${API_BASE}/health/ready"
+            remaining="${WAIT_SECONDS}"
+            while true; do
+              http_status="$(curl -sS -o /dev/null -w "%{http_code}" --connect-timeout 2 "${API_BASE}/health/ready" || true)"
+              if [[ "${http_status}" == "200" ]]; then
+                break
+              fi
+              if [[ "${remaining}" -le 0 ]]; then
+                echo "Cosmos Reason2 NIM did not become ready after ${WAIT_SECONDS}s"
+                exit 1
+              fi
+              echo "Waiting for NIM readiness. ${remaining}s remaining..."
+              sleep 10
+              remaining=$((remaining - 10))
+            done
+          fi
+
+          if [[ "${MEDIA_TYPE}" == "video" ]]; then
+            REQUEST_BODY="$(jq -n \
+              --arg model "${MODEL_NAME}" \
+              --arg media_url "${MEDIA_URL}" \
+              --rawfile prompt /tmp/prompt.txt \
+              --argjson max_tokens "${MAX_TOKENS}" \
+              --argjson video_fps "${VIDEO_FPS}" \
+              '{
+                model: $model,
+                messages: [
+                  {role: "system", content: "You are a physical AI assistant that reasons about robot-relevant scenes."},
+                  {
+                    role: "user",
+                    content: [
+                      {type: "video_url", video_url: {url: $media_url}},
+                      {type: "text", text: $prompt}
+                    ]
+                  }
+                ],
+                temperature: 0.2,
+                top_p: 0.7,
+                max_tokens: $max_tokens,
+                stream: false,
+                media_io_kwargs: {video: {fps: $video_fps}}
+              }')"
+          elif [[ "${MEDIA_TYPE}" == "image" ]]; then
+            REQUEST_BODY="$(jq -n \
+              --arg model "${MODEL_NAME}" \
+              --arg media_url "${MEDIA_URL}" \
+              --rawfile prompt /tmp/prompt.txt \
+              --argjson max_tokens "${MAX_TOKENS}" \
+              '{
+                model: $model,
+                messages: [
+                  {role: "system", content: "You are a physical AI assistant that reasons about robot-relevant scenes."},
+                  {
+                    role: "user",
+                    content: [
+                      {type: "image_url", image_url: {url: $media_url}},
+                      {type: "text", text: $prompt}
+                    ]
+                  }
+                ],
+                temperature: 0.2,
+                top_p: 0.7,
+                max_tokens: $max_tokens,
+                stream: false
+              }')"
+          else
+            REQUEST_BODY="$(jq -n \
+              --arg model "${MODEL_NAME}" \
+              --rawfile prompt /tmp/prompt.txt \
+              --argjson max_tokens "${MAX_TOKENS}" \
+              '{
+                model: $model,
+                messages: [
+                  {role: "system", content: "You are a physical AI assistant that reasons about robot-relevant scenes."},
+                  {role: "user", content: $prompt}
+                ],
+                temperature: 0.2,
+                top_p: 0.7,
+                max_tokens: $max_tokens,
+                stream: false
+              }')"
+          fi
+
+          mkdir -p "{{output}}/artifacts"
+          echo "${REQUEST_BODY}" >"{{output}}/artifacts/request.json"
+
+          CURL_ARGS=(
+            -sS
+            --fail-with-body
+            -X POST
+            "${API_BASE}/chat/completions"
+            -H "Accept: application/json"
+            -H "Content-Type: application/json"
+            --data-binary @"{{output}}/artifacts/request.json"
+          )
+          if [[ -n "${NGC_API_KEY:-}" ]]; then
+            CURL_ARGS+=(-H "Authorization: Bearer ${NGC_API_KEY}")
+          fi
+
+          echo "Calling Cosmos Reason2 NIM at ${API_BASE}/chat/completions"
+          curl "${CURL_ARGS[@]}" >"{{output}}/artifacts/response.json"
+          jq -r '.choices[0].message.content // empty' "{{output}}/artifacts/response.json" \
+            | tee "{{output}}/artifacts/answer.txt"
+          test -s "{{output}}/artifacts/answer.txt"
+
+          END_TS="$(date -u +%s)"
+          cat >"{{output}}/artifacts/run-manifest.json" <<JSON
+          {
+            "workflow": "aws-cosmos-reason2-nim",
+            "nim_image": "{{ nim_image }}",
+            "model_name": "{{ model_name }}",
+            "external_nim_server_url": "{{ external_nim_server_url }}",
+            "media_type": "{{ media_type }}",
+            "media_url": "{{ media_url }}",
+            "max_tokens": {{ max_tokens }},
+            "video_fps": {{ video_fps }},
+            "runtime_seconds": $((END_TS - START_TS))
+          }
+          JSON
+          find "{{output}}/artifacts" -maxdepth 2 -type f | sort
+          exit 0
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+          path: artifacts
+
+default-values:
+  nim_gpu_count: 1
+  nim_cpu_count: 12
+  nim_memory: 96Gi
+  nim_storage: 256Gi
+  nim_image: nvcr.io/nim/nvidia/cosmos-reason2-2b:1.7.0
+  model_name: nvidia/cosmos-reason2-2b
+  ngc_api_key_credential:
+    credential_name: ngc-api-key
+    credential_key: key
+  output_dataset: cosmos-reason2-nim-artifacts
+  external_nim_server_url: ''
+  wait_seconds: 1800
+  media_type: video
+  media_url: https://assets.ngc.nvidia.com/products/api-catalog/cosmos-reason1-7b/car_curb.mp4
+  prompt: "Approve or reject this generated video for inclusion in a robotics dataset. Evaluate physical plausibility, object permanence, and obvious scene anomalies. Return a short rationale with 2-4 bullet points, then end with a final line in the form 'Decision: Approve' or 'Decision: Reject'."
+  max_tokens: 512
+  video_fps: 1.0

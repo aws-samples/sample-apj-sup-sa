@@ -1,0 +1,48 @@
+# AgentCore Runtime image for the Voice Analytics bot (WebRTC + KVS TURN mode).
+#
+# Unlike Dockerfile.fargate (Pipecat runner /start on :7860) and Dockerfile (Pipecat
+# Cloud, dailyco/pipecat-base), this runs the bot as its OWN Amazon Bedrock AgentCore
+# Runtime: BedrockAgentCoreApp serves /invocations + /ping on :8080 (the AgentCore
+# container contract). The browser POSTs SDP offers / ICE candidates to /invocations
+# (JWT-authorized); media relays via KVS managed TURN. VOICE_RUNTIME_MODE=agentcore
+# selects the @app.entrypoint path in bot.py.
+#
+# MUST be built for linux/arm64 (AgentCore Runtime requires Graviton/ARM64).
+#
+# Base image from ECR Public (NOT Docker Hub) — Docker Hub's anonymous pull rate
+# limit (429 toomanyrequests) breaks CodeBuild image builds.
+FROM public.ecr.aws/docker/library/python:3.12-slim
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1 \
+    VOICE_RUNTIME_MODE=agentcore
+
+# Native deps for the WebRTC stack (aiortc → av/opencv): libGL + glib. Without these
+# the `import` of the smallwebrtc transport fails at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# uv for fast, locked installs.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+# Install deps from the lockfile (no project install, no dev deps). Includes the
+# pipecat 'webrtc' extra (aiortc) + bedrock-agentcore.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --no-dev
+
+# Put the venv on PATH so `python` resolves to the installed deps.
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Application code. The SOP lives in the Strands runtime, not here.
+COPY bot.py analytics_processor.py auth.py ./
+
+EXPOSE 8080
+
+# app.run() serves the AgentCore /invocations + /ping endpoints on :8080.
+CMD ["python", "bot.py"]

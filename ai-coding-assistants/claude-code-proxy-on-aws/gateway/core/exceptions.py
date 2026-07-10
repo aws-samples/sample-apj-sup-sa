@@ -29,8 +29,11 @@ class GatewayError(Exception):
 
 
 from shared.exceptions import (  # noqa: E402,F401
+    AnthropicError,
+    AnthropicThrottlingError,
     AppError,
     AuthenticationError,
+    BedrockClientBugError,
     BedrockError,
     BedrockThrottlingError,
     BudgetExceededError,
@@ -113,7 +116,10 @@ async def handle_shared_error(request: Request, error: Exception) -> JSONRespons
     """Map shared exceptions to gateway errors with default status codes."""
 
     from shared.exceptions import (
+        AnthropicError,
+        AnthropicThrottlingError,
         AuthenticationError,
+        BedrockClientBugError,
         BedrockError,
         BedrockThrottlingError,
         BudgetExceededError,
@@ -193,6 +199,13 @@ async def handle_shared_error(request: Request, error: Exception) -> JSONRespons
             "permission_error",
             False,
         )
+    elif error_type is BedrockClientBugError:
+        code, status_code, anthropic_type, retryable = (
+            "bedrock_request_invalid",
+            400,
+            "invalid_request_error",
+            False,
+        )
     elif error_type is BedrockError:
         code, status_code, anthropic_type, retryable = (
             "bedrock_error",
@@ -203,6 +216,20 @@ async def handle_shared_error(request: Request, error: Exception) -> JSONRespons
     elif error_type is BedrockThrottlingError:
         code, status_code, anthropic_type, retryable = (
             "bedrock_throttling",
+            429,
+            "rate_limit_error",
+            True,
+        )
+    elif error_type is AnthropicError:
+        code, status_code, anthropic_type, retryable = (
+            "anthropic_error",
+            502,
+            "api_error",
+            True,
+        )
+    elif error_type is AnthropicThrottlingError:
+        code, status_code, anthropic_type, retryable = (
+            "anthropic_throttling",
             429,
             "rate_limit_error",
             True,

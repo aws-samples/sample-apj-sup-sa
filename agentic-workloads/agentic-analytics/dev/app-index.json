@@ -13,14 +13,11 @@
   ],
   "structure": {
     "app/": "Application code including agent, Lambda functions, and UI",
-    "app/agentcore_strands/": "Strands agent, Lambda tools, and deploy scripts",
+    "app/agentcore_strands/": "Strands agent and Lambda tools",
     "app/agentcore_strands/agent/": "Semantic layer agent (Cube)",
     "app/agentcore_strands/tools/": "Lambda toolset functions (prebaked SQL, custom SQL, API integration)",
-    "app/agentcore_strands/infra/": "Deploy scripts for Gateway, toolsets, and interceptor",
-    "app/agentcore_strands/policy/": "Cedar policy deployment and pre-token Lambda",
-    "app/agentcore_strands/guardrails/": "Bedrock Guardrail deployment",
-    "app/agentcore_strands/ui/": "Amplify hosting deployment",
-    "app/agentcore_strands/lambda_tests/": "Property-based tests for Lambda tools",
+    "app/agentcore_strands/infra/": "Gateway interceptor Lambda (interceptor_lambda.py) + Cube semantic-layer deploy scripts",
+    "app/agentcore_strands/ui/": "Amplify hosting deployment (optional workshop UI step)",
     "app/ui/": "React frontend application",
     "exercises/": "Learning exercises (basic_agent.py for Step 1)",
     "infrastructure/": "CloudFormation infrastructure and deployment",
@@ -30,14 +27,13 @@
     "dataset/": "Symlink to unicorn-rental-dataset - synthetic data, schema, docs, and validation",
     "workshop/": "Workshop Studio configuration and assets",
     "workshop/content/": "Workshop guide pages (Steps 0-10 + semantic layer)",
-    "workshop/code/": "Workshop code overlay with TODO blanks (agent, policy, guardrails, exercises)",
-    "dev/": "Development files including app-index.json and issues",
-    "dataset/": "Symlink to unicorn-rental-dataset - synthetic data, schema, docs, and validation"
+    "workshop/code/": "Workshop code overlay with TODO blanks (agent, exercises, top-up CFN, Makefile)",
+    "dev/": "Maintainer-only files (unshipped): app-index.json, the Strands Evals harness (dev/evaluation/), the project spec (dev/specs/), and maintainer skills (dev/skills/)"
   },
   "files": [
     {
       "path": "AGENTS.md",
-      "summary": "Agent context file (AGENTS.md standard) \u2014 architecture, deployment modes, commands, conventions, config, test users, security layers"
+      "summary": "Agent context file (AGENTS.md standard) — architecture, deployment modes, commands, conventions, config, test users, security layers"
     },
     {
       "path": "README.md",
@@ -60,16 +56,36 @@
       "summary": "CloudFormation stack for AgentCore Gateway deployment with custom resource Lambda. Supports workshop mode with CognitoUserPoolId/CognitoClientId params to use existing Cognito"
     },
     {
+      "path": "infrastructure/stacks/agentcore-topup-stack.yaml",
+      "summary": "Workshop AgentCore top-up stack (canonical, all-live answer key). Standalone version of agentcore-stack.yaml using Fn::ImportValue for base inputs; resources ordered so each toolset Lambda+target is one uncomment fence; EnforceRls condition for the Step 7.2 RLS switch; workshop-simplified wildcard GatewayRole; container build chain replaces the agentcore CLI. KEEP IN SYNC with agentcore-stack.yaml."
+    },
+    {
+      "path": "workshop/code/app/agentcore_strands/agentcore-topup-stack.yaml",
+      "summary": "Participant-facing copy of the AgentCore top-up, commented down to the Step-2 baseline. Each lab step uncomments one fenced section. Ships via the workshop/code overlay."
+    },
+    {
+      "path": "workshop/code/app/agentcore_strands/Makefile",
+      "summary": "Thin workshop wrapper: make deploy (cloudformation deploy of the top-up), make build (rebuild agent image + roll runtime via the replace-trap), make outputs/status, make voice-deploy. Reads coordinates from config.env."
+    },
+    {
+      "path": "workshop/code/app/agentcore_strands/voice-agentcore-stack.yaml",
+      "summary": "Participant copy of the voice stack (verbatim of infrastructure/stacks/voice-agentcore-stack.yaml) for the optional Voice lab; deployed via make voice-deploy."
+    },
+    {
+      "path": "workshop/content/05-voice/index.en.md",
+      "summary": "Optional workshop page (weight 78, after Cube): deploy a voice front-end for the same analytics agent via make voice-deploy + a config.js edit. Separate AgentCore Runtime (Pipecat, WebRTC+KVS TURN) reusing the Step-2 agent."
+    },
+    {
       "path": "infrastructure/stacks/observability-stack.yaml",
       "summary": "CloudFormation stack to enable CloudWatch Transaction Search via custom resource Lambda (logs:PutResourcePolicy + xray:UpdateTraceSegmentDestination + xray:UpdateIndexingRule)"
     },
     {
       "path": "infrastructure/custom-resource-lambdas/observability_setup/handler.py",
-      "summary": "Custom Resource Lambda to enable CloudWatch Transaction Search \u2014 one-time per-account setup required for AgentCore traces to be visible in GenAI Observability dashboard"
+      "summary": "Custom Resource Lambda to enable CloudWatch Transaction Search — one-time per-account setup required for AgentCore traces to be visible in GenAI Observability dashboard"
     },
     {
       "path": "infrastructure/stacks/cognito-stack.yaml",
-      "summary": "Standalone Cognito stack for workshop mode - User Pool with custom:role/account_id, Pre-Token Lambda V2, App Client, users from S3 CSV, SSM credentials storage, Identity Pool for demo mode"
+      "summary": "Standalone Cognito stack for workshop mode - User Pool with custom:role/account_id, Pre-Token Lambda V2 (inlined ZipFile), App Client, users from S3 CSV, SSM credentials storage, Identity Pool for demo mode"
     },
     {
       "path": "infrastructure/custom-resource-lambdas/database_init/handler.py",
@@ -82,10 +98,6 @@
     {
       "path": "infrastructure/custom-resource-lambdas/bedrock_kb_ingestion/handler.py",
       "summary": "Custom Resource Lambda to create Bedrock KB with Aurora pgvector and ingest business-context.md via IngestKnowledgeBaseDocuments API"
-    },
-    {
-      "path": "infrastructure/custom-resource-lambdas/agentcore_gateway/handler.py",
-      "summary": "Custom Resource Lambda to deploy DataFoundation Lambda and create AgentCore MCP Gateway"
     },
     {
       "path": "infrastructure/custom-resource-lambdas/amplify_hosting/handler.py",
@@ -101,7 +113,11 @@
     },
     {
       "path": "infrastructure/scripts/package_and_upload.sh",
-      "summary": "Script to package custom resource Lambdas and upload all deployment artifacts to S3"
+      "summary": "Script to package custom resource Lambdas and upload all deployment artifacts to S3 (demo mode)"
+    },
+    {
+      "path": "infrastructure/scripts/deploy_backend.sh",
+      "summary": "Demo-mode backend deploy: packages + uploads artifacts then deploys main-stack.yaml (nested CFN). --agent-only fast path re-zips the agent, rebuilds the image and rolls the AgentCore Runtime (re-sending authorizer/header/network config)."
     },
     {
       "path": "infrastructure/scripts/package_for_workshop.sh",
@@ -116,20 +132,12 @@
       "summary": "Main Strands agent with AgentCore Gateway, Cognito JWT auth, memory hooks (STM, max_results=20), native Bedrock guardrails, SOP from file/S3, current_datetime tool. Model: Claude Opus 4.6 Global CRIS. rls_context passed as parameter (no globals)."
     },
     {
-      "path": "app/agentcore_strands/guardrails/deploy_guardrail.py",
-      "summary": "Deployment script for Bedrock Guardrail with topic blocking, content filtering, PII protection. Saves guardrail ID to config.env"
-    },
-    {
-      "path": "app/agentcore_strands/deploy_amplify_hosting.py",
-      "summary": "Deployment script for React UI to Amplify Hosting - builds app, creates Amplify app/branch, deploys via presigned URL. Usable standalone or via Lambda"
+      "path": "app/agentcore_strands/ui/deploy_amplify_hosting.py",
+      "summary": "Deployment script for React UI to Amplify Hosting - builds app, creates Amplify app/branch, deploys via presigned URL. Usable standalone (optional workshop UI step) or via the amplify_hosting custom-resource Lambda in demo mode"
     },
     {
       "path": "app/agentcore_strands/requirements.txt",
       "summary": "Python dependencies for agent and Lambda functions"
-    },
-    {
-      "path": "app/agentcore_strands/lambda_tests/test_lambda_properties.py",
-      "summary": "Property-based tests using Hypothesis for Lambda tools - validates account_id data isolation, response format consistency, and enum value constraints"
     },
     {
       "path": "app/ui/src/components/ChatPanel.js",
@@ -152,39 +160,31 @@
       "summary": "CloudFormation template for AWS Glue Data Catalog - database, IAM role, crawler, dedicated S3 bucket for JDBC driver (copied from artifacts via inline Lambda), and connection configuration for Aurora PostgreSQL"
     },
     {
-      "path": "infrastructure/scripts/deploy_all.sh",
-      "summary": "Master deployment script with 6 phases: Aurora stack, database init, Glue stack, table registration, embeddings generation, and AgentCore gateway deployment"
+      "path": "app/agentcore_strands/infra/interceptor_lambda.py",
+      "summary": "Gateway interceptor Lambda for JWT header propagation (RLS). Bundled into the live gateway_interceptor.zip by both demo (package_and_upload.sh) and workshop (package_for_workshop.sh) packagers."
     },
     {
-      "path": "infrastructure/scripts/init_database.py",
-      "summary": "Database initialization script using RDS Data API - loads schema.sql, CSV data with type casting, and creates views from CloudFormation outputs"
+      "path": "app/agentcore_strands/infra/deploy_semantic_layer_stack.py",
+      "summary": "Cube semantic-layer lab (documented script exception): deploys the parallel semantic AgentCore Runtime (agent/unicorn_rental_semantic_agent.py)."
     },
     {
-      "path": "infrastructure/scripts/register_glue_tables.py",
-      "summary": "Manual Glue table registration script with 9 table definitions matching schema.sql, creates tables in Glue Data Catalog"
+      "path": "app/agentcore_strands/infra/deploy_cube_models.py",
+      "summary": "Cube semantic-layer lab (documented script exception): generates/deploys Cube data models."
     },
     {
-      "path": "infrastructure/scripts/generate_embeddings.py",
-      "summary": "Vector embeddings generator using Amazon Bedrock Titan Embeddings v2, stores in Aurora PostgreSQL with pgvector for semantic search"
+      "path": "app/agentcore_strands/infra/deploy_semantic_layer_toolset.py",
+      "summary": "Cube semantic-layer lab (documented script exception): deploys the semantic-layer toolset target to the Gateway."
     },
     {
-      "path": "infrastructure/config/deploy-config.yaml",
-      "summary": "Deployment configuration with region, stack prefix, and customizable settings for deploy_all.sh"
-    },
-    {
-      "path": "infrastructure/config/glue-catalog-metadata.json",
-      "summary": "Exported Glue catalog metadata with table and column descriptions for embedding generation"
-    },
-    {
-      "path": ".kiro/specs/agentic-analytics/requirements.md",
+      "path": "dev/specs/agentic-analytics/requirements.md",
       "summary": "13 requirements with acceptance criteria covering natural language processing, multi-tenant isolation, core data access, analytics tools, write operations, and infrastructure automation"
     },
     {
-      "path": ".kiro/specs/agentic-analytics/design.md",
+      "path": "dev/specs/agentic-analytics/design.md",
       "summary": "Architecture design document with implementation status, component diagram, data flow, and infrastructure gap analysis"
     },
     {
-      "path": ".kiro/specs/agentic-analytics/tasks.md",
+      "path": "dev/specs/agentic-analytics/tasks.md",
       "summary": "12 task groups implementation plan for CloudFormation, Glue integration, embeddings, and test coverage"
     },
     {
@@ -204,10 +204,6 @@
       "summary": "Dataset documentation with overview, schema structure, views, data files, and license (CC0-1.0)"
     },
     {
-      "path": "dev/merge-consolidation.md",
-      "summary": "Merge guide for infra to main branch with parallel development analysis, file-by-file consolidation strategy, and code snippets for manual merge"
-    },
-    {
       "path": "workshop/contentspec.yaml",
       "summary": "Workshop Studio contentspec - deploys main-stack.yaml with magic variables for ArtifactsBucket/ArtifactsPrefix, workshop mode, 2 deployable regions"
     },
@@ -224,8 +220,24 @@
       "summary": "Strands Evals experiment with 108 test cases covering all workshop scenarios, SOP behavior, guardrails, RLS, and RBAC"
     },
     {
+      "path": "dev/evaluation/run_evaluation.py",
+      "summary": "Maintainer-only (unshipped): runs the Strands Evals experiment against the deployed AgentCore Runtime via agentcore invoke, per-persona Cognito auth, LLM-as-judge scoring. Step-10 reference implementation."
+    },
+    {
+      "path": "dev/evaluation/build_experiment.py",
+      "summary": "Maintainer-only (unshipped): expands ground_truth.json into the ~108-case Strands Evals experiment.json."
+    },
+    {
+      "path": "dev/evaluation/generate_ground_truth.py",
+      "summary": "Maintainer-only (unshipped): queries a local PostgreSQL with explicit account_id filters to produce ground_truth.json."
+    },
+    {
+      "path": "dev/README.md",
+      "summary": "Explains that dev/ is maintainer-only and excluded from both deploy paths; documents dev/evaluation/, dev/specs/, and dev/skills/."
+    },
+    {
       "path": "app/agentcore_strands/tools/prebaked_sql_toolset_lambda.py",
-      "summary": "Lambda with 27+ prebaked analytics tools backed by database Views. rls_context passed as parameter through handler(args, rls_context) \u2192 get_db_connection(rls_context). Includes semantic_search_tool via Bedrock KB."
+      "summary": "Lambda with 27+ prebaked analytics tools backed by database Views. rls_context passed as parameter through handler(args, rls_context) → get_db_connection(rls_context). Includes semantic_search_tool via Bedrock KB."
     },
     {
       "path": "app/agentcore_strands/tools/api_integration_toolset_lambda.py",
@@ -236,34 +248,6 @@
       "summary": "Lambda for custom SQL with full Glue schema (all tables, prefix stripped) + Bedrock KB RAG + human approval. rls_context passed as parameter."
     },
     {
-      "path": "app/agentcore_strands/infra/deploy_gateway.py",
-      "summary": "Deploy MCP Gateway with Cognito OAuth (no targets)"
-    },
-    {
-      "path": "app/agentcore_strands/infra/deploy_data_toolset.py",
-      "summary": "Deploy PrebakedSQL target (27 analytics tools) to existing Gateway. Idempotent (delete-before-create with polling). No account_id in tool schemas."
-    },
-    {
-      "path": "app/agentcore_strands/infra/deploy_api_toolset.py",
-      "summary": "Deploy APIInteg target (booking + future API tools) to existing Gateway. Idempotent. Grants both postgres and app_user secret access."
-    },
-    {
-      "path": "app/agentcore_strands/infra/deploy_sql_toolset.py",
-      "summary": "Deploy CustomSQL target (text-to-sql tools) to existing Gateway. Idempotent. Attaches AWSLambdaVPCAccessExecutionRole."
-    },
-    {
-      "path": "app/agentcore_strands/infra/deploy_observability.py",
-      "summary": "Configure CloudWatch vended log delivery (APPLICATION_LOGS) and tracing delivery (TRACES \u2192 X-Ray) for Gateway and Memory resources"
-    },
-    {
-      "path": "app/agentcore_strands/infra/interceptor_lambda.py",
-      "summary": "Gateway interceptor Lambda for JWT header propagation (RLS)"
-    },
-    {
-      "path": "app/agentcore_strands/policy/pre_token_lambda.py",
-      "summary": "Cognito V2 pre-token Lambda adding custom:role to access tokens"
-    },
-    {
       "path": "LICENSE",
       "summary": "MIT-0 license for code (dataset/ has separate CC0 license)"
     },
@@ -272,28 +256,12 @@
       "summary": "CC0 1.0 Universal license for synthetic dataset"
     },
     {
-      "path": "AGENTS.md",
-      "summary": "Agent context file (AGENTS.md standard) \u2014 architecture, deployment modes, commands, conventions, config, test users, security layers"
-    },
-    {
-      "path": ".kiro/skills/workshop-deployment/SKILL.md",
+      "path": "dev/skills/workshop-deployment/SKILL.md",
       "summary": "Agent Skill: step-by-step procedure to package code, sync S3 assets, and push content to Workshop Studio"
     },
     {
-      "path": ".kiro/skills/overlay-management/SKILL.md",
+      "path": "dev/skills/overlay-management/SKILL.md",
       "summary": "Agent Skill: rules for managing workshop code overlays (TODO files that override app/ in packaged ZIP)"
-    },
-    {
-      "path": ".kiro/specs/known-issues.md",
-      "summary": "Open bugs (memory replay, custom SQL follow-ups) and resolved issues (booking failure, interceptor wipe, Glue schema, deploy idempotency)"
-    },
-    {
-      "path": "dev/issues/memory-replay-re-executes-tools.md",
-      "summary": "Issue: memory saves text-only (no toolUse blocks), causing LLM to re-call tools on follow-up questions. Planned fix: Option B (save full content blocks as JSON)."
-    },
-    {
-      "path": "dev/issues/booking-sop-nondeterminism.md",
-      "summary": "Issue (resolved): booking failed 44% due to overly prescriptive SOP + prefixed tool name mismatch. Fixed by simplifying SOP to goal-oriented."
     }
   ]
 }

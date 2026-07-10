@@ -1,0 +1,38 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+.agentcore_identity_cognito_m2m.json
+.agentcore_identity_m2m.env
+*.pem
+*.key
+
+# Internal infrastructure (do not publish)
+customer-tools-openapi-with-server.json
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# Node / build output
+node_modules/
+dist/
+build/
+
+# Lambda vendored dependencies (regenerated on build)
+**/lambda-voice-token/package/
+**/lambda-voice-token/function.zip
+
+# AgentCore CLI-generated runtime config (contains account ID, region, ARNs)
+**/.bedrock_agentcore.yaml
+
+# IDE / editor
+.vscode/
+.idea/
+.kiro/
+
+# OS files
+.DS_Store

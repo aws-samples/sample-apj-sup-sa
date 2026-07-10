@@ -19,6 +19,7 @@ Steps:
 """
 
 import boto3
+from botocore.exceptions import ClientError
 import json
 import logging
 import os
@@ -34,6 +35,11 @@ PROJECT_ROOT = ROOT_DIR.parent.parent
 load_dotenv(ROOT_DIR / 'config.env')
 
 REGION = os.getenv('AWS_REGION', 'us-east-1')
+ENV_NAME = os.getenv('ENV_NAME', 'agentic-analytics')
+# The base/top-up stack already deploys this interceptor Lambda; it forwards the
+# caller's Authorization (JWT) header to Gateway targets so the semantic-layer
+# Lambda can read custom:account_id and scope every Cube query to the tenant.
+INTERCEPTOR_LAMBDA_NAME = f"{ENV_NAME}-gateway-interceptor"
 GATEWAY_NAME = f"SemanticLayerGateway-{int(time.time())}"
 LAMBDA_NAME = "semantic-layer-toolset-lambda"
 SEMANTIC_CONFIG_FILE = ROOT_DIR / 'semantic_config.env'
@@ -47,7 +53,12 @@ try:
     )
 except ImportError:
     print("Installing bedrock-agentcore-starter-toolkit...")
-    os.system(f"{sys.executable} -m pip install bedrock-agentcore-starter-toolkit -q")
+    # Use subprocess with an argument list (no shell) so there is no command
+    # injection surface — the args are fixed literals, not an interpolated string.
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install",
+        "bedrock-agentcore-starter-toolkit", "-q",
+    ])
     from bedrock_agentcore_starter_toolkit.operations.gateway.client import (
         GatewayClient, create_gateway_execution_role
     )
@@ -227,11 +238,35 @@ def create_gateway():
     )
     print(f"[OK] Execution role: {role_arn}")
 
+    # Resolve the gateway interceptor Lambda (deployed by the base/top-up stack).
+    # Without an interceptor the Gateway does NOT forward the Authorization header
+    # to the Lambda target, so the semantic Lambda can't read custom:account_id and
+    # every tenant would see global data. Multi-tenancy on the Cube path is enforced
+    # by the Lambda injecting an account_id filter into each Cube query (Cube itself
+    # connects to Aurora as the table owner and bypasses Postgres RLS — see the
+    # semantic-layer toolset Lambda), so propagating the JWT here is what makes
+    # tenant isolation work. Mirrors the main analytics Gateway's interceptor.
+    interceptor_configs = []
+    try:
+        lam = boto3.client('lambda', region_name=REGION)
+        interceptor_arn = lam.get_function(
+            FunctionName=INTERCEPTOR_LAMBDA_NAME
+        )['Configuration']['FunctionArn']
+        interceptor_configs = [{
+            'interceptor': {'lambda': {'arn': interceptor_arn}},
+            'interceptionPoints': ['REQUEST'],
+            'inputConfiguration': {'passRequestHeaders': True},
+        }]
+        print(f"[OK] Interceptor: {interceptor_arn} (propagates Authorization → target)")
+    except Exception as e:
+        print(f"⚠️  Could not resolve interceptor Lambda '{INTERCEPTOR_LAMBDA_NAME}': {e}")
+        print("    The semantic agent would NOT enforce tenant isolation without it.")
+
     # Create gateway
     print("Creating Gateway...")
     agentcore = boto3.client('bedrock-agentcore-control', region_name=REGION)
 
-    gateway = agentcore.create_gateway(
+    create_kwargs = dict(
         name=GATEWAY_NAME,
         roleArn=role_arn,
         protocolType='MCP',
@@ -239,6 +274,9 @@ def create_gateway():
         authorizerConfiguration=authorizer_config,
         description='AgentCore Gateway for Semantic Layer Agent (parallel stack)',
     )
+    if interceptor_configs:
+        create_kwargs['interceptorConfigurations'] = interceptor_configs
+    gateway = agentcore.create_gateway(**create_kwargs)
     gateway_id = gateway['gatewayId']
     gateway_url = gateway['gatewayUrl']
     print(f"[OK] Created Gateway: {gateway_id}")
@@ -308,7 +346,11 @@ def register_target(gateway_id):
     except Exception as e:
         print(f"Note: {e}")
 
-    response = agentcore.create_gateway_target(
+    # The Gateway execution role was just created; its trust policy can take a few
+    # seconds to propagate. Until it does, CreateGatewayTarget fails with a
+    # ValidationException ("Gateway service is not authorized to perform AssumeRole
+    # on Gateway role"). Retry with backoff instead of making the participant re-run.
+    create_target_kwargs = dict(
         gatewayIdentifier=gateway_id,
         name="SemanticLayer",
         targetConfiguration={
@@ -323,6 +365,22 @@ def register_target(gateway_id):
             {'credentialProviderType': 'GATEWAY_IAM_ROLE'}
         ]
     )
+    response = None
+    for attempt in range(1, 13):  # ~12 * 5s = up to 60s for IAM to propagate
+        try:
+            response = agentcore.create_gateway_target(**create_target_kwargs)
+            break
+        except ClientError as e:
+            code = e.response.get('Error', {}).get('Code', '')
+            msg = e.response.get('Error', {}).get('Message', str(e))
+            if code == 'ValidationException' and 'AssumeRole' in msg and attempt < 12:
+                print(f"  Gateway role trust not propagated yet — retrying ({attempt}/12)...")
+                time.sleep(5)
+                continue
+            raise
+    if response is None:
+        print("❌ Target registration failed after retries (Gateway role AssumeRole trust).")
+        sys.exit(1)
 
     target_id = response['targetId']
     print(f"[OK] Created SemanticLayer target: {target_id}")
@@ -351,12 +409,49 @@ def deploy_runtime(gateway_url):
     # We temporarily set GATEWAY_URL in config.env, deploy, then restore.
     # A cleaner approach: set it as an env override via agentcore CLI.
 
-    # Clean up any previous agentcore config (may have stale container settings)
+    # The runtime build uses `uv` (the agentcore CLI resolves deps + builds the
+    # image context with it). If it's missing, `agentcore configure` silently
+    # produces an incomplete build config and the failure only surfaces minutes
+    # later as a cryptic CodeBuild "no Dockerfile" error. Fail fast with the fix.
+    import shutil as _shutil
+    if _shutil.which("uv") is None:
+        print("❌ `uv` is not installed, but the runtime build needs it.")
+        print("   Install it, then re-run this script:")
+        print("     curl -LsSf https://astral.sh/uv/install.sh | sh")
+        print('     export PATH="$HOME/.local/bin:$PATH"')
+        sys.exit(1)
+
+    # Clean up any previous agentcore config (may have stale container settings).
+    # Two places hold state: the per-agent dir AND the CLI's global
+    # .bedrock_agentcore.yaml. A failed/partial earlier run can leave the agent
+    # registered there as deployment_type=container, which blocks a retry with
+    # "Cannot change deployment type from 'container' to 'direct_code_deploy'".
+    # Remove BOTH so a re-run is always clean.
+    import shutil
     agentcore_config_dir = ROOT_DIR / '.bedrock_agentcore' / RUNTIME_AGENT_NAME
     if agentcore_config_dir.exists():
-        import shutil
         shutil.rmtree(agentcore_config_dir)
         print(f"[OK] Cleaned up old config: {agentcore_config_dir}")
+
+    agentcore_yaml = ROOT_DIR / '.bedrock_agentcore.yaml'
+    if agentcore_yaml.exists():
+        try:
+            import yaml as _yaml
+            state = _yaml.safe_load(agentcore_yaml.read_text()) or {}
+            agents = state.get('agents', {})
+            if RUNTIME_AGENT_NAME in agents:
+                agents.pop(RUNTIME_AGENT_NAME, None)
+                if state.get('default_agent') == RUNTIME_AGENT_NAME:
+                    state['default_agent'] = next(iter(agents), None)
+                if agents:
+                    agentcore_yaml.write_text(_yaml.safe_dump(state, sort_keys=False))
+                else:
+                    agentcore_yaml.unlink()
+                print(f"[OK] Removed stale '{RUNTIME_AGENT_NAME}' entry from .bedrock_agentcore.yaml")
+        except Exception as e:
+            # If we can't parse it, removing the file is safe — configure regenerates it.
+            print(f"Note: resetting .bedrock_agentcore.yaml ({type(e).__name__}: {e})")
+            agentcore_yaml.unlink()
 
     # Configure the runtime
     print("Configuring AgentCore Runtime...")
@@ -430,7 +525,11 @@ def deploy_runtime(gateway_url):
 
     # Try to extract runtime ARN from deploy stdout first.
     # The agentcore CLI output contains box-drawing characters (│, ╭, ╰, etc.)
-    # so we use a strict regex that only matches ARN-valid characters.
+    # and wraps long lines INSIDE the box border — so an ARN printed in a box can
+    # be split across visual lines, leaving the regex with only the pre-wrap
+    # fragment (e.g. ".../runtime/unicorn_rental_sema"). Accept the stdout match
+    # only if it ends with the full "<RUNTIME_AGENT_NAME>-<suffix>" id; otherwise
+    # fall through to the authoritative API lookup in _get_runtime_arn().
     import re
     runtime_arn = None
     if result.stdout:
@@ -438,38 +537,115 @@ def deploy_runtime(gateway_url):
             print(f"   {line}")
             match = re.search(r'(arn:aws:bedrock-agentcore:[a-zA-Z0-9\-]+:\d+:runtime/[a-zA-Z0-9_\-]+)', line)
             if match:
-                runtime_arn = match.group(1)
+                candidate = match.group(1)
+                # Guard against box-wrapped truncation: the runtime id must be
+                # the agent name PLUS the AgentCore-assigned "-XXXXXXXXXX" suffix.
+                rid = candidate.rsplit('/', 1)[-1]
+                if re.match(rf'^{re.escape(RUNTIME_AGENT_NAME)}-[A-Za-z0-9]+$', rid):
+                    runtime_arn = candidate
 
-    # Fallback: get ARN via agentcore list
+    # Fallback (also used when stdout only had a truncated/wrapped ARN): the
+    # authoritative source is the control-plane list, never the box-drawn stdout.
     if not runtime_arn:
         runtime_arn = _get_runtime_arn()
 
     if runtime_arn:
         save_semantic_config(SEMANTIC_RUNTIME_ARN=runtime_arn)
         print(f"[OK] Runtime ARN: {runtime_arn}")
+        # `agentcore configure/deploy` creates the runtime with the DEFAULT
+        # (IAM/SigV4) inbound auth — it has no flag for a JWT authorizer. The UI
+        # calls the runtime with a Cognito Bearer token, so without this the
+        # invoke fails 403 "Authorization method mismatch". Attach the same
+        # CustomJWTAuthorizer the analytics runtime uses, and allowlist the
+        # Authorization header so the agent receives the JWT for RBAC/RLS.
+        _attach_jwt_authorizer(runtime_arn.rsplit('/', 1)[-1])
     else:
         print("⚠️  Could not determine runtime ARN — UI may not connect to agent")
 
     return runtime_arn
 
 
-def _get_runtime_arn():
-    """Get the runtime ARN for the semantic agent from agentcore list."""
+def _attach_jwt_authorizer(runtime_id):
+    """Switch the voice/semantic runtime from default IAM auth to CustomJWT.
+
+    update-agent-runtime REPLACES the whole config, so we re-send the runtime's
+    existing artifact/network/protocol/role unchanged and add the authorizer +
+    request-header allowlist (the same replace-trap the analytics `make build`
+    handles). Idempotent and safe to re-run.
+    """
+    pool_id = os.getenv('COGNITO_USER_POOL_ID')
+    client_id = os.getenv('COGNITO_USER_LOGIN_CLIENT_ID')
+    if not pool_id or not client_id:
+        print("⚠️  COGNITO_USER_POOL_ID / COGNITO_USER_LOGIN_CLIENT_ID missing — "
+              "skipping JWT authorizer attach (UI invoke would 403)")
+        return
+    discovery_url = (
+        f"https://cognito-idp.{REGION}.amazonaws.com/{pool_id}"
+        f"/.well-known/openid-configuration"
+    )
     try:
-        result = subprocess.run(
-            ["agentcore", "list", "--output", "json"],
-            cwd=str(ROOT_DIR),
-            capture_output=True, text=True, timeout=30
+        agentcore = boto3.client('bedrock-agentcore-control', region_name=REGION)
+        rt = agentcore.get_agent_runtime(agentRuntimeId=runtime_id)
+        if rt.get('authorizerConfiguration', {}).get('customJWTAuthorizer'):
+            print("[OK] JWT authorizer already attached to runtime")
+            return
+        print(f"[voice/semantic] attaching CustomJWTAuthorizer to runtime {runtime_id}")
+        agentcore.update_agent_runtime(
+            agentRuntimeId=runtime_id,
+            roleArn=rt['roleArn'],
+            networkConfiguration=rt['networkConfiguration'],
+            protocolConfiguration=rt.get('protocolConfiguration', {'serverProtocol': 'HTTP'}),
+            agentRuntimeArtifact=rt['agentRuntimeArtifact'],
+            authorizerConfiguration={
+                'customJWTAuthorizer': {
+                    'discoveryUrl': discovery_url,
+                    'allowedClients': [client_id],
+                }
+            },
+            requestHeaderConfiguration={'requestHeaderAllowlist': ['Authorization']},
         )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            for agent in data.get('agents', []):
-                if agent.get('name') == RUNTIME_AGENT_NAME:
-                    return agent.get('arn', '')
-            # Fallback: return the first agent ARN if name doesn't match
-            agents = data.get('agents', [])
-            if agents:
-                return agents[-1].get('arn', '')
+        print("[OK] JWT authorizer + Authorization header allowlist attached")
+    except Exception as e:
+        print(f"⚠️  Could not attach JWT authorizer ({e}) — the UI invoke may 403; "
+              f"re-run this step or attach via update-agent-runtime")
+
+
+def _get_runtime_arn():
+    """Get the runtime ARN for the semantic agent from the AgentCore control plane.
+
+    Uses the boto3 control-plane API (list_agent_runtimes) rather than the
+    `agentcore` CLI: the CLI has no stable `list` subcommand across toolkit
+    versions (newer builds raise "No such command 'list'"), which silently
+    returned None and left the UI with an empty REACT_APP_AGENT_RUNTIME_ARN.
+    The control-plane list is authoritative and version-independent.
+    """
+    try:
+        agentcore = boto3.client('bedrock-agentcore-control', region_name=REGION)
+        runtimes = []
+        paginator = None
+        try:
+            paginator = agentcore.get_paginator('list_agent_runtimes')
+        except Exception:
+            paginator = None
+        if paginator is not None:
+            for page in paginator.paginate():
+                runtimes.extend(page.get('agentRuntimes', []))
+        else:
+            resp = agentcore.list_agent_runtimes()
+            runtimes.extend(resp.get('agentRuntimes', []))
+            token = resp.get('nextToken')
+            while token:
+                resp = agentcore.list_agent_runtimes(nextToken=token)
+                runtimes.extend(resp.get('agentRuntimes', []))
+                token = resp.get('nextToken')
+        # Prefer the exact-name match; fall back to any runtime whose name
+        # starts with the agent name (it carries the AgentCore "-XXXX" suffix).
+        for rt in runtimes:
+            if rt.get('agentRuntimeName') == RUNTIME_AGENT_NAME:
+                return rt.get('agentRuntimeArn', '') or None
+        for rt in runtimes:
+            if str(rt.get('agentRuntimeName', '')).startswith(RUNTIME_AGENT_NAME):
+                return rt.get('agentRuntimeArn', '') or None
     except Exception as e:
         print(f"Note: Could not retrieve runtime ARN: {e}")
     return None

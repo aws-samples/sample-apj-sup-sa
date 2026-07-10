@@ -14,9 +14,11 @@ weight: 5
 
 Each business manages their own fleet of unicorns, customers, bookings, and transactions on the platform. Their staff handle day-to-day operations (bookings, customer service) and their analysts need data insights (revenue trends, customer segmentation, unicorn utilization). But there's a problem:
 
-::alert[The analysts has no bandwidth to serve every query from executives, partners, staffs, and end customers with manually written SQL. The staffs need faster way to check unicorn availability and create booking to serve customers timely. And the executives need quick and constant business health check. Everyone wants answers *now*.]{type="warning"}
+::alert[The analysts have no bandwidth to serve every query from executives, partners, staff, and end customers with hand-written SQL. The staff need a faster way to check unicorn availability and create bookings to serve customers on time. And the executives want quick, constant business health checks. Everyone wants answers *now*.]{type="warning"}
 
 ## What You'll Build
+
+::alert[**Source code:** This workshop is built from a public reference implementation. Browse the full agent, infrastructure, and UI code at :link[aws-samples/sample-apj-sup-sa]{href="https://github.com/aws-samples/sample-apj-sup-sa/tree/main/agentic-workloads/agentic-analytics" external=true} — useful for reference during the labs and for adapting the patterns to your own use case afterward.]{type="info"}
 
 An AI-powered analytics assistant that understands natural language and translates it into the right database query. Here's what a typical interaction looks like:
 
@@ -32,7 +34,7 @@ An AI-powered analytics assistant that understands natural language and translat
 
 But self-service analytics for a multi-tenant SaaS platform isn't just about answering questions. You also need:
 
-- **Role-based access** — analysts can read data, only staffs or admins can create bookings
+- **Role-based access** — analysts can read data; only staff or admins can create bookings
 - **Tenant isolation** — Mythical Unicorns can't see Mythic Unicorns' data
 - **Content safety** — the agent shouldn't answer questions about medical or legal advice
 - **Custom queries** — when the prebaked SQL tools aren't enough, generate SQL with human approval
@@ -141,8 +143,10 @@ Step 8: Guardrails (topic + PII + schema protection)
 Step 9: Observability (traces, spans, logs)
   ↓ add quality measurement
 Step 10: Evaluation (on-demand + continuous)
-  ↓ try semantic layer
-Step 14: (Optional) Using Cube Core as semantic layer
+
+Optional labs (after the core path):
+  • Semantic Layer — Cube Core (a more structured ad-hoc pattern)
+  • Voice — talk to your data
 ```
 
 Ready? Let's set up your environment → [Step 0: Getting Started](../01-agent-and-infrastructure/00-getting-started/)

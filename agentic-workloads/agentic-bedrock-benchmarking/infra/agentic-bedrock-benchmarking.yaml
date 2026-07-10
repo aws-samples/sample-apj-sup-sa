@@ -1,0 +1,620 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Bedrock Model Benchmarking — public-facing Bedrock model evaluation app.
+  Deploys: ECR repo, IAM roles, DynamoDB quota table, Cognito user pool,
+  ECS Fargate + ALB, AWS Budgets cap with Lambda kill-switch, and WAF web ACL.
+
+Mappings:
+  CloudFrontPrefixList:
+    us-east-1:      { PrefixListId: pl-3b927c52 }
+    us-east-2:      { PrefixListId: pl-b6a144df }
+    us-west-1:      { PrefixListId: pl-4ea04527 }
+    us-west-2:      { PrefixListId: pl-82a045eb }
+    af-south-1:     { PrefixListId: pl-e3aa449a }
+    ap-east-1:      { PrefixListId: pl-44a54e2d }
+    ap-south-1:     { PrefixListId: pl-9aa247f3 }
+    ap-south-2:     { PrefixListId: pl-6fa54806 }
+    ap-northeast-1: { PrefixListId: pl-58a04531 }
+    ap-northeast-2: { PrefixListId: pl-22a6434b }
+    ap-northeast-3: { PrefixListId: pl-31a34458 }
+    ap-southeast-1: { PrefixListId: pl-31a34458 }
+    ap-southeast-2: { PrefixListId: pl-b8a742d1 }
+    ap-southeast-3: { PrefixListId: pl-03cd2364 }
+    ca-central-1:   { PrefixListId: pl-38a64351 }
+    eu-central-1:   { PrefixListId: pl-a3a144ca }
+    eu-central-2:   { PrefixListId: pl-07ac2a60 }
+    eu-west-1:      { PrefixListId: pl-4fa04526 }
+    eu-west-2:      { PrefixListId: pl-93a247fa }
+    eu-west-3:      { PrefixListId: pl-75b1541c }
+    eu-south-1:     { PrefixListId: pl-1bbc5972 }
+    eu-south-2:     { PrefixListId: pl-0118c85e }
+    eu-north-1:     { PrefixListId: pl-fab65393 }
+    me-south-1:     { PrefixListId: pl-17b55f7e }
+    me-central-1:   { PrefixListId: pl-06bdc37f }
+    sa-east-1:      { PrefixListId: pl-5da64334 }
+    il-central-1:   { PrefixListId: pl-01d70568e8e863e53 }
+
+Parameters:
+  AppName:
+    Type: String
+    Default: agentic-bedrock-benchmarking
+  Region:
+    Type: String
+    Default: ap-south-1
+  ImageTag:
+    Type: String
+    Default: latest
+  AdminEmail:
+    Type: String
+    Description: Email address for the initial admin user and budget alerts
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 200
+  AlertEmail:
+    Type: String
+    Description: Email address to receive budget warning notifications
+  DailyInvocationLimit:
+    Type: Number
+    Default: 50
+  WafRateLimit:
+    Type: Number
+    Default: 2000
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the ALB and ECS tasks
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Public subnets for the ALB and ECS tasks (minimum 2 AZs)
+
+Resources:
+
+  # ----------------------------------------------------------------
+  # IAM — ECS task execution role (pull ECR image, write logs)
+  # ----------------------------------------------------------------
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-task-execution
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # IAM — runtime role for the app container (Bedrock, DynamoDB, Cognito)
+  Bedrock Model BenchmarkingRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-runtime
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:Converse
+                  - bedrock:ConverseStream
+                  - bedrock:ListFoundationModels
+                  - bedrock:ListInferenceProfiles
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt QuotaTable.Arn
+              - Effect: Allow
+                Action:
+                  - cognito-idp:InitiateAuth
+                  - cognito-idp:RespondToAuthChallenge
+                  - cognito-idp:RevokeToken
+                Resource: !GetAtt UserPool.Arn
+              - Effect: Allow
+                Action:
+                  - pricing:GetProducts
+                Resource: '*'
+
+  # ----------------------------------------------------------------
+  # DynamoDB — per-user daily quota with TTL auto-purge
+  # ----------------------------------------------------------------
+  QuotaTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AppName}-quota
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_sub
+          AttributeType: S
+        - AttributeName: day
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_sub
+          KeyType: HASH
+        - AttributeName: day
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ----------------------------------------------------------------
+  # Cognito — invitation-only user pool
+  # ----------------------------------------------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AppName}-users
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${AppName}-app
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 12
+      IdTokenValidity: 12
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      PreventUserExistenceErrors: ENABLED
+
+  AdminUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref AdminEmail
+      UserAttributes:
+        - Name: email
+          Value: !Ref AdminEmail
+        - Name: email_verified
+          Value: 'true'
+      DesiredDeliveryMediums:
+        - EMAIL
+
+  # ----------------------------------------------------------------
+  # CloudWatch log group
+  # ----------------------------------------------------------------
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}
+      RetentionInDays: 14
+
+  # ----------------------------------------------------------------
+  # Security groups
+  # ----------------------------------------------------------------
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB allow HTTP from CloudFront only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !FindInMap [CloudFrontPrefixList, !Ref Region, PrefixListId]
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS tasks allow Streamlit port from ALB only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8501
+          ToPort: 8501
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  # ----------------------------------------------------------------
+  # ALB + target group + listener
+  # ----------------------------------------------------------------
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${AppName}-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${AppName}-tg
+      Protocol: HTTP
+      Port: 8501
+      TargetType: ip
+      VpcId: !Ref VpcId
+      HealthCheckPath: /_stcore/health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        # Required for Streamlit WebSocket — sticky sessions keep the
+        # browser connected to the same Fargate task.
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '86400'
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  # ----------------------------------------------------------------
+  # ECS Fargate cluster + task + service
+  # ----------------------------------------------------------------
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AppName
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AppName
+      Cpu: '1024'
+      Memory: '2048'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt Bedrock Model BenchmarkingRuntimeRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${AppName}:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8501
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: DEPLOY_MODE
+              Value: production
+            - Name: MAX_TOKENS_CAP
+              Value: '2048'
+            - Name: RUNS_PER_MODEL_CAP
+              Value: '3'
+            - Name: DAILY_INVOCATION_LIMIT
+              Value: !Sub '${DailyInvocationLimit}'
+            - Name: QUOTA_TABLE_NAME
+              Value: !Ref QuotaTable
+            - Name: COGNITO_USER_POOL_ID
+              Value: !Ref UserPool
+            - Name: COGNITO_CLIENT_ID
+              Value: !Ref UserPoolClient
+            - Name: COGNITO_REGION
+              Value: !Ref Region
+
+  FargateService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbListener
+    Properties:
+      ServiceName: !Ref AppName
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups:
+            - !Ref TaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 8501
+          TargetGroupArn: !Ref TargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+
+  # ----------------------------------------------------------------
+  # WAF — attached to the ALB
+  # ----------------------------------------------------------------
+  WebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub ${AppName}-waf
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub ${AppName}-waf
+      Rules:
+        - Name: rate-limit-per-ip
+          Priority: 1
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref WafRateLimit
+              AggregateKeyType: IP
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: rate-limit
+        - Name: aws-managed-common-rules
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: managed-common
+
+  WebAclAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Ref Alb
+      WebACLArn: !GetAtt WebAcl.Arn
+
+  # ----------------------------------------------------------------
+  # Budget kill-switch — sets ECS desired count to 0 when breached
+  # ----------------------------------------------------------------
+  # Warning topic — email only (80%, 120% forecasted)
+  BudgetAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AppName}-budget-warn
+
+  BudgetAlertSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+      TopicArn: !Ref BudgetAlertTopic
+
+  BudgetAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref BudgetAlertTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: SNS:Publish
+            Resource: !Ref BudgetAlertTopic
+
+  # Kill-switch topic — triggers Lambda to stop ECS (100% actual only)
+  BudgetSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AppName}-budget-kill
+
+  BudgetSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+      TopicArn: !Ref BudgetSnsTopic
+
+  KillSwitchLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-killswitch
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: stop-ecs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                Resource: !Sub arn:aws:ecs:${Region}:${AWS::AccountId}:service/${AppName}/${AppName}
+
+  KillSwitchLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${AppName}-killswitch
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt KillSwitchLambdaRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          CLUSTER: !Ref AppName
+          SERVICE: !Ref AppName
+      Code:
+        ZipFile: |
+          import os, boto3
+
+          def handler(event, context):
+              client = boto3.client("ecs")
+              try:
+                  client.update_service(
+                      cluster=os.environ["CLUSTER"],
+                      service=os.environ["SERVICE"],
+                      desiredCount=0,
+                  )
+                  return {"status": "stopped"}
+              except Exception as e:
+                  return {"status": "error", "error": str(e)}
+
+  KillSwitchSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt KillSwitchLambda.Arn
+      TopicArn: !Ref BudgetSnsTopic
+
+  KillSwitchInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref KillSwitchLambda
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BudgetSnsTopic
+
+  # ----------------------------------------------------------------
+  # AWS Budgets
+  # ----------------------------------------------------------------
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub ${AppName}-monthly-v2
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetAlertTopic
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetSnsTopic
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 120
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BudgetAlertTopic
+
+  BudgetKillTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref BudgetSnsTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: SNS:Publish
+            Resource: !Ref BudgetSnsTopic
+
+  # ----------------------------------------------------------------
+  # CloudFront — public HTTPS entry point, locks ALB to CF-only traffic
+  # ----------------------------------------------------------------
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${AppName} public endpoint
+        Origins:
+          - Id: alb
+            DomainName: !GetAtt Alb.DNSName
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: alb
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: false
+          ForwardedValues:
+            QueryString: true
+            Headers:
+              - Origin
+              - Authorization
+              - Referer
+            Cookies:
+              Forward: all
+          DefaultTTL: 0
+          MinTTL: 0
+          MaxTTL: 0
+
+Outputs:
+  EcrRepoUri:
+    Description: Push your image here.
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${AppName}
+  AppUrl:
+    Description: Public HTTPS URL via CloudFront.
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  QuotaTable:
+    Value: !Ref QuotaTable
+  RuntimeRoleArn:
+    Value: !GetAtt Bedrock Model BenchmarkingRuntimeRole.Arn
+  WebAclArn:
+    Value: !GetAtt WebAcl.Arn

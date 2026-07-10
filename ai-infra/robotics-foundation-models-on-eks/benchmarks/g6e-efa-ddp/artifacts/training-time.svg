@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360">
+<style>text{font-family:Arial,sans-serif;fill:#222}.title{font-size:18px;font-weight:700}.axis{font-size:12px}.label{font-size:13px}.value{font-size:12px;font-weight:700}</style>
+<rect width="100%" height="100%" fill="#fff"/>
+<text class="title" x="80" y="24">2-node G6e DDP average step time</text>
+<line x1="80" y1="290" x2="700" y2="290" stroke="#444"/>
+<line x1="80" y1="40" x2="80" y2="290" stroke="#444"/>
+<line x1="76" y1="290.0" x2="700" y2="290.0" stroke="#ddd"/>
+<text class="axis" x="12" y="294.0">0.00s</text>
+<line x1="76" y1="227.5" x2="700" y2="227.5" stroke="#ddd"/>
+<text class="axis" x="12" y="231.5">0.01s</text>
+<line x1="76" y1="165.0" x2="700" y2="165.0" stroke="#ddd"/>
+<text class="axis" x="12" y="169.0">0.02s</text>
+<line x1="76" y1="102.5" x2="700" y2="102.5" stroke="#ddd"/>
+<text class="axis" x="12" y="106.5">0.03s</text>
+<line x1="76" y1="40.0" x2="700" y2="40.0" stroke="#ddd"/>
+<text class="axis" x="12" y="44.0">0.04s</text>
+<rect x="170" y="151.6" width="80" height="138.4" fill="#1f77b4"/>
+<text class="value" x="170" y="143.6">0.022s</text>
+<text class="label" x="182" y="314">efa</text>
+<rect x="340" y="56.8" width="80" height="233.2" fill="#d62728"/>
+<text class="value" x="340" y="48.8">0.037s</text>
+<text class="label" x="352" y="314">socket</text>
+<text class="axis" x="80" y="340">Param payload: 64 MiB/rank, steps: 3, verified on OSMO workflows aws-g6e-efa-ddp-verified-1 and aws-g6e-ddp-socket-verified-1</text>
+</svg>

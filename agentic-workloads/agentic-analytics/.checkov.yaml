@@ -1,0 +1,85 @@
+# Checkov configuration for the agentic-analytics workshop + demo.
+#
+# WHAT THIS SCAN IS FOR
+#   Catch genuinely-dangerous IaC misconfigurations (hardcoded secrets, public
+#   exposure we didn't intend, IAM we didn't intend) in the CloudFormation that a
+#   participant or the demo deploys. The educational security material itself —
+#   per-user JWT propagation, Postgres Row-Level Security, Bedrock Guardrails — is
+#   APPLICATION code (app/agentcore_strands, app/voice, the toolset Lambdas) and is
+#   covered by Bandit + unit tests, not by these CFN checks.
+#
+# CONTEXT THAT JUSTIFIES THE SKIPS BELOW
+#   Every account this deploys into is EPHEMERAL and SINGLE-TENANT: a Workshop
+#   Studio lease (auto-reclaimed) or the throwaway demo account. There is no
+#   multi-tenant blast radius, no long-lived data, and the participant IS the
+#   account admin. Production-grade operational hardening (KMS-on-everything, DLQs,
+#   per-function VPC + reserved concurrency, ECR immutability/scan, S3
+#   versioning/access-logging, CloudFront WAF/access-logging) adds cost, slows the
+#   teardown, and obscures the teaching narrative for ZERO security benefit in a
+#   12-hour throwaway account. Each item explains itself.
+
+framework:
+  - cloudformation
+  - secrets
+  - dockerfile
+
+# Scan the canonical sources only; workshop/assets/templates/*.yaml is a generated,
+# git-untracked copy of infrastructure/stacks/ (built by package_for_workshop.sh),
+# so scanning both just double-counts. The vendored Lambda build/ dirs are
+# third-party deps.
+skip-path:
+  - workshop/assets
+  - .venv
+  - node_modules
+  - build
+  - infrastructure/voice-proxy/build
+  - infrastructure/voice-pcc-cr/build
+
+skip-check:
+  # ── Operational hardening that is inappropriate for an ephemeral, single-tenant
+  #    workshop/demo account (no data to lose, no tenant to isolate, torn down in
+  #    hours). Enabling these adds cost + teardown friction with no real benefit. ──
+  - CKV_AWS_115   # Lambda reserved concurrency — not meaningful for a demo
+  - CKV_AWS_116   # Lambda DLQ — custom resources are one-shot; failures surface in CFN
+  - CKV_AWS_117   # Lambda-in-VPC — most CR Lambdas need public AWS APIs, not VPC
+  - CKV_AWS_173   # Lambda env-var KMS CMK — no secrets in env; default encryption suffices
+  - CKV_AWS_158   # CloudWatch Log Group KMS — default encryption suffices for a demo
+  - CKV_AWS_149   # Secrets Manager KMS CMK — AWS-managed key is fine for a throwaway secret
+  - CKV_AWS_136   # ECR KMS — AWS-managed encryption suffices for a transient image repo
+  - CKV_AWS_51    # ECR immutable tags — the build pushes :latest by design (workshop)
+  - CKV_AWS_163   # ECR scan-on-push — transient repo, image rebuilt every deploy
+  - CKV_AWS_21    # S3 versioning — asset/build buckets, nothing to retain versions of
+  - CKV_AWS_18    # S3 access logging — no audit requirement in an ephemeral account
+  - CKV_AWS_118   # RDS enhanced monitoring — not needed for a demo Aurora cluster
+  - CKV_AWS_162   # RDS IAM auth — the app uses Secrets Manager creds by design (the
+                  #                RLS lesson hinges on the postgres vs app_user secret)
+  - CKV_AWS_195   # Glue security configuration — demo crawler over public sample data
+  - CKV_AWS_86    # CloudFront access logging — no audit requirement
+  - CKV_AWS_68    # CloudFront WAF — adds cost; Code Editor is token-gated already
+  - CKV_AWS_95    # API Gateway access logging — demo signaling proxy
+
+  # ── IAM breadth is intentional: the Code Editor role is the PARTICIPANT'S admin
+  #    role (they run the whole CFN/AgentCore/Bedrock deploy from that EC2), and the
+  #    service roles use the broad-but-scoped grants AWS examples use. In a
+  #    single-tenant throwaway account the participant already owns everything. The
+  #    one genuinely tightened path (Gateway→Lambda) is handled in-template. ──
+  - CKV_AWS_107   # IAM credentials-exposure — participant admin role, ephemeral acct
+  - CKV_AWS_108   # IAM data-exfiltration — same
+  - CKV_AWS_109   # IAM permissions-management — same
+  - CKV_AWS_110   # IAM privilege-escalation — same
+  - CKV_AWS_111   # IAM write-without-constraint — broad service roles by design
+  - CKV_AWS_364   # Lambda permission SourceArn — single-account demo invokers
+
+  # ── Deliberate, documented-in-template demo design decisions ──
+  - CKV_AWS_366   # Cognito unauth identity pool — REQUIRED so the demo SPA can read
+                  #   the public SSM demo-users list before login (commented in template)
+  - CKV_AWS_260   # SG port 80 from 0.0.0.0/0 — CloudFront origin requires it; the
+                  #   Code Editor is password-gated (justified inline in the template)
+  - CKV_AWS_88    # EC2 public IP — the Cube instance needs egress for `npm`/Docker
+                  #   pulls in accounts without a NAT gateway (documented in template)
+  - CKV_AWS_23    # SG rule descriptions — cosmetic
+
+  # ── Dockerfile checks for the AgentCore/voice build images ──
+  - CKV_DOCKER_2  # HEALTHCHECK — AgentCore Runtime health is via the /ping contract
+  - CKV_DOCKER_3  # non-root USER — AgentCore manages the container user
+  - CKV_DOCKER_7  # pinned base tag — python:3.12-slim is acceptable for a workshop

@@ -1,0 +1,410 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  InterviewCoach G1 gate-enablement stack. Provisions ONLY the cloud resources the local
+  measurement harness needs to produce a live SC-001 number: a Bedrock Agent (+ alias) for
+  the AgentCore reply path, an RDS Postgres instance for the 3-table latency slice, a
+  CloudWatch log group + response_gap dashboard, and a Secrets Manager secret for the
+  Deepgram key. This is NOT the full Fargate/NLB production stack (that is task T048 and is
+  premature until the STT/TTS/transport seams are wired).
+
+  MANUAL PREREQUISITE (CloudFormation cannot do this): enable Claude model access in the
+  Bedrock console (Model access) in this region BEFORE deploying, or the agent + harness
+  invocations will fail with AccessDenied.
+
+# ---------------------------------------------------------------------------------------
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: interviewcoach-g1
+    Description: Tag applied to all resources for cost tracking.
+
+  FoundationModel:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-20250514-v1:0
+    Description: >-
+      Bedrock model or inference-profile ID the agent uses. Newer Claude (Sonnet 4.x) models
+      require a cross-region INFERENCE PROFILE id (the "us." prefix), not the bare on-demand
+      model id. Keep this aligned with BEDROCK_MODEL_ID in voice-worker/.env conceptually
+      (the harness compares this agent against the direct-Bedrock model).
+
+  AgentInstruction:
+    Type: String
+    Default: >-
+      You are a friendly, professional job interviewer conducting a practice interview. Ask
+      one clear, generic interview question or give a brief acknowledgement, then a follow-up
+      question. Keep replies short and natural for speech. Be encouraging and
+      confidence-building. Do not reference any resume or specific job; ask generic questions.
+    Description: >-
+      The agent system instruction. Mirrors SYSTEM_PROMPT in
+      voice-worker/src/reply/interface.py. No PII / no personalization (Constitution III).
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the RDS instance (the default VPC is fine for a POC).
+
+  VpcCidr:
+    Type: String
+    Default: 172.31.0.0/16
+    Description: >-
+      CIDR of the VPC above. Used (a) to scope the DB security group to in-VPC sources only and
+      (b) as a sanity bound for the private subnet CIDRs. The default 172.31.0.0/16 is the
+      default-VPC range; pass your VPC's CIDR if different.
+
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: 172.31.240.0/24
+    Description: >-
+      CIDR for the first PRIVATE DB subnet this stack creates inside the VPC. Must not overlap any
+      existing subnet (the default VPC uses low /20 ranges, so the high 172.31.240.0/24 is safe).
+
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: 172.31.241.0/24
+    Description: >-
+      CIDR for the second PRIVATE DB subnet (a different AZ). Must not overlap any existing subnet.
+
+  DBEngineVersion:
+    Type: String
+    Default: "16.9"
+    Description: Postgres major.minor version. Adjust if not offered in your region.
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    Description: Smallest sensible class for a POC measurement DB.
+
+  DBName:
+    Type: String
+    Default: interviewcoach
+    Description: Initial database name.
+
+  DBMasterUsername:
+    Type: String
+    Default: icadmin
+    Description: Master username. The password is generated and stored in Secrets Manager.
+
+  DeepgramApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >-
+      Optional. If provided, stored in Secrets Manager for the eventual deployed worker. The
+      LOCAL harness reads DEEPGRAM_API_KEY from voice-worker/.env, not from here.
+
+# ---------------------------------------------------------------------------------------
+Resources:
+
+  # --- Bedrock Agent (the AgentCore reply path) -----------------------------------------
+  AgentExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Execution role assumed by the Bedrock agent to invoke the foundation model.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: invoke-foundation-model
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                # Broad for POC: covers on-demand model ARNs (all regions, for cross-region
+                # inference profiles) and inference-profile ARNs in this account/region.
+                Resource:
+                  - arn:aws:bedrock:*::foundation-model/*
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  InterviewAgent:
+    Type: AWS::Bedrock::Agent
+    # CKV_AWS_373 (Bedrock Agent CMK) suppressed: a customer-managed key is not warranted for a
+    # generic practice-interview agent that handles no PII and no personalization (Constitution III).
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_373
+            comment: Generic no-PII demo agent; CMK encryption not warranted for sample code.
+    Properties:
+      AgentName: !Sub ${AWS::StackName}-interview-coach
+      Description: Generic G1 practice-interview coach (no personalization).
+      FoundationModel: !Ref FoundationModel
+      Instruction: !Ref AgentInstruction
+      AgentResourceRoleArn: !GetAtt AgentExecutionRole.Arn
+      AutoPrepare: true
+      IdleSessionTTLInSeconds: 600
+      Tags:
+        project: !Ref ProjectTag
+
+  InterviewAgentAlias:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt InterviewAgent.AgentId
+      AgentAliasName: live
+      Description: Stable alias the worker invokes (maps to AGENTCORE_AGENT_ALIAS_ID).
+      Tags:
+        project: !Ref ProjectTag
+
+  # --- Private DB networking (RDS is NOT internet-reachable) -----------------------------
+  # The default VPC ships only PUBLIC subnets (each has a route to the IGW). Rather than place
+  # the DB there, this stack creates two PRIVATE subnets (no IGW route) in the same VPC and a
+  # private route table with NO 0.0.0.0/0 route. RDS needs no internet egress, so no NAT gateway
+  # is required — in-VPC clients (the Fargate tasks, via the deploy-stack SG-to-SG rule) reach it
+  # over private addressing only. This replaces the prior public-subnet + PubliclyAccessible
+  # design that exposed Postgres to the internet (AWS best-practice: DBs belong in private subnets).
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-db-private-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-db-private-2
+
+  # Private route table with only the implicit local route — NO IGW / NO NAT default route, so
+  # nothing in these subnets can reach (or be reached from) the internet.
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-db-private-rt
+
+  PrivateSubnet1RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # --- RDS Postgres (3-table latency slice) ---------------------------------------------
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub ${AWS::StackName} G1 latency DB (private subnets)
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName} Postgres access (in-VPC only; no public ingress)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # In-VPC sources only. The deploy stack adds an SG-to-SG rule for the Fargate task SG via a
+        # standalone AWS::EC2::SecurityGroupIngress; this CIDR rule covers any in-VPC client (e.g. a
+        # bastion or an in-VPC migration task). The DB has no public IP, so this is never internet-open.
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref VpcCidr
+          Description: Postgres from in-VPC sources only
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  LatencyDB:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Engine: postgres
+      EngineVersion: !Ref DBEngineVersion
+      DBInstanceClass: !Ref DBInstanceClass
+      DBInstanceIdentifier: !Sub ${AWS::StackName}-latency
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBMasterUsername
+      # RDS generates the master password and stores it in Secrets Manager (no plaintext here).
+      # Auto-ROTATION IS DISABLED for this demo (post-create step — see infra/g1/README.md;
+      # the rotation schedule lives on the RDS-owned `rds!db-*` secret, which this resource can't
+      # address). The secret remains the durable home for the password; it just doesn't rotate.
+      # Defense-in-depth: the services are ALSO rotation-proof in code — DB_SECRET_ARN + a
+      # passwordless DSN make asyncpg fetch the live password from Secrets Manager per connection
+      # (config._database_url + db_secret.make_password_provider) — so even if rotation is ever
+      # re-enabled, a rotation stays transparent (no task restart). The two are independent: this
+      # comment is why we don't NEED rotation handling, the code is the belt to that suspenders.
+      ManageMasterUserPassword: true
+      AllocatedStorage: "20"
+      StorageType: gp3
+      # RDS_STORAGE_ENCRYPTED / CKV_AWS_16: at-rest encryption with the default RDS key (no cost).
+      # WARNING — StorageEncrypted is an IMMUTABLE property. This is correct ONLY on a FRESH deploy
+      # (set before the first create). Applying it to an ALREADY-DEPLOYED unencrypted LatencyDB forces
+      # a REPLACEMENT, and with DeletionPolicy: Delete that DESTROYS the POC DB's data (sessions,
+      # question bank, guidance). Do NOT `cloudformation deploy` this change onto an existing stack
+      # without a data-preserving migration (snapshot -> encrypted-copy -> restore).
+      StorageEncrypted: true
+      AutoMinorVersionUpgrade: true          # RDS_AUTOMATIC_MINOR_VERSION_UPGRADE_ENABLED (in-place, no replace)
+      EnableIAMDatabaseAuthentication: true  # CKV_AWS_161 (in-place; coexists with the Secrets-Manager password)
+      # Private DB: no public IP, reachable only from inside the VPC (the Fargate tasks via the
+      # deploy-stack SG-to-SG rule). The laptop harness no longer connects over a public endpoint —
+      # run schema migrations as an in-VPC ECS one-off task (see CLAUDE.md / README.md) or via a
+      # bastion / SSM port-forward. NOTE: PubliclyAccessible + the DB subnet group are IMMUTABLE, so
+      # applying this onto a previously-PUBLIC live instance REPLACES it (data is reset). That is an
+      # ACCEPTED outcome for this demo — DeletionPolicy: Delete and no backups by design; re-run the
+      # in-VPC migration after the new instance comes up. Single-AZ is a demo/cost trade-off.
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 0
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Secrets (forward-looking; for the deployed worker) -------------------------------
+  DeepgramSecret:
+    Type: AWS::SecretsManager::Secret
+    # SECRETSMANAGER_USING_CMK / CKV_AWS_149 suppressed: Secrets Manager encrypts with the
+    # AWS-managed aws/secretsmanager key by default; a dedicated CMK is unnecessary for a sample.
+    # Rotation is intentionally not configured (the harness sets the key once).
+    Metadata:
+      guard:
+        SuppressedRules:
+          - SECRETSMANAGER_USING_CMK
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Default aws/secretsmanager key suffices for a sample; CMK adds cost.
+    Properties:
+      Name: !Sub ${AWS::StackName}/deepgram
+      Description: Deepgram API key for the deployed voice worker (local harness uses .env).
+      SecretString: !Sub '{"DEEPGRAM_API_KEY":"${DeepgramApiKey}"}'
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Observability --------------------------------------------------------------------
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    # CLOUDWATCH_LOG_GROUP_ENCRYPTED suppressed: CloudWatch Logs are encrypted at rest with an
+    # AWS-managed key by default; a customer-managed KMS key is unnecessary for sample logs.
+    Metadata:
+      guard:
+        SuppressedRules:
+          - CLOUDWATCH_LOG_GROUP_ENCRYPTED
+    Properties:
+      LogGroupName: !Sub /interviewcoach/g1/${AWS::StackName}/voice-worker
+      RetentionInDays: 14
+
+  ResponseGapDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${AWS::StackName}-response-gap
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "response_gap_ms p50 / p95 (SC-001 gate)",
+                "region": "${AWS::Region}",
+                "view": "timeSeries", "stacked": false,
+                "metrics": [
+                  [ "InterviewCoach/G1", "response_gap_ms", "reply_provider", "agentcore", { "stat": "p50", "label": "agentcore p50" } ],
+                  [ "...", { "stat": "p95", "label": "agentcore p95" } ],
+                  [ "InterviewCoach/G1", "response_gap_ms", "reply_provider", "bedrock_direct", { "stat": "p50", "label": "bedrock_direct p50" } ],
+                  [ "...", { "stat": "p95", "label": "bedrock_direct p95" } ]
+                ],
+                "yAxis": { "left": { "min": 0, "label": "ms" } },
+                "annotations": { "horizontal": [
+                  { "label": "p50 PASS < 1000", "value": 1000 },
+                  { "label": "hard gate p50 <= 1200", "value": 1200 },
+                  { "label": "p95 PASS < 1500", "value": 1500 }
+                ] }
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "response_gap breakdown p50 (agentcore)",
+                "region": "${AWS::Region}",
+                "view": "timeSeries", "stacked": true,
+                "metrics": [
+                  [ "InterviewCoach/G1", "stt_finalization_ms", "reply_provider", "agentcore", { "stat": "p50" } ],
+                  [ "InterviewCoach/G1", "reply_ttft_ms", "reply_provider", "agentcore", { "stat": "p50" } ],
+                  [ "InterviewCoach/G1", "tts_first_audio_ms", "reply_provider", "agentcore", { "stat": "p50" } ],
+                  [ "InterviewCoach/G1", "orchestration_ms", "reply_provider", "agentcore", { "stat": "p50" } ]
+                ],
+                "yAxis": { "left": { "min": 0, "label": "ms" } }
+              }
+            }
+          ]
+        }
+
+# ---------------------------------------------------------------------------------------
+Outputs:
+  AgentId:
+    Description: Set this as AGENTCORE_AGENT_ID in voice-worker/.env
+    Value: !GetAtt InterviewAgent.AgentId
+
+  AgentAliasId:
+    Description: Set this as AGENTCORE_AGENT_ALIAS_ID in voice-worker/.env
+    Value: !GetAtt InterviewAgentAlias.AgentAliasId
+
+  DBEndpoint:
+    Description: RDS endpoint host (use in DATABASE_URL)
+    Value: !GetAtt LatencyDB.Endpoint.Address
+
+  DBPort:
+    Description: RDS port
+    Value: !GetAtt LatencyDB.Endpoint.Port
+
+  DBMasterSecretArn:
+    Description: >-
+      Secrets Manager ARN holding the generated DB password. Build DATABASE_URL as
+      postgres://<user>:<password>@<DBEndpoint>:<DBPort>/<DBName>
+    Value: !GetAtt LatencyDB.MasterUserSecret.SecretArn
+
+  DeepgramSecretArn:
+    Description: Secrets Manager ARN for the Deepgram key (deployed worker only).
+    Value: !Ref DeepgramSecret
+
+  CloudWatchNamespace:
+    Description: Matches CW_METRIC_NAMESPACE in voice-worker/.env
+    Value: InterviewCoach/G1
+
+  DashboardName:
+    Description: CloudWatch dashboard for the live response_gap view
+    Value: !Sub ${AWS::StackName}-response-gap

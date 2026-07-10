@@ -1,0 +1,47 @@
+# CodeBuild buildspec — build + push the G1 worker and backend images to ECR.
+#
+# Why this exists: local Docker on the dev machine was unusable (host disk full -> corrupted
+# Docker Desktop VM). CodeBuild builds linux/amd64 in the cloud and pushes straight to the ECR
+# repos created by infra/g1/deploy.yaml, bypassing local Docker entirely.
+#
+# Required environment variables (set on the CodeBuild project by build-images.sh):
+#   ECR_REGISTRY   <ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com
+#   WORKER_REPO    <registry>/interviewcoach-g1/voice-worker
+#   BACKEND_REPO   <registry>/interviewcoach-g1/backend
+#   REPORT_REPO    <registry>/interviewcoach-g1/report-worker (F003)
+#   IMAGE_TAG      e.g. c1
+#   AWS_REGION     us-west-2 (provided by CodeBuild)
+# PYTHON_IMAGE points the Dockerfiles' base at AWS's ECR Public mirror of the Docker Hub official
+# python image. Docker Hub's anonymous pull rate limit (HTTP 429) intermittently fails the build on
+# CodeBuild's shared egress IPs; the ECR Public mirror is byte-identical and not rate-limited.
+version: 0.2
+
+env:
+  variables:
+    PYTHON_IMAGE: "public.ecr.aws/docker/library/python:3.13-slim"
+    # F007 (T033): the Pipecat image was promoted to the canonical voice-worker Dockerfile after the
+    # SC-001 gate PASSED live (lead-clause p50 290ms vs native 1504ms; gate-decision.md). The G1
+    # hand-rolled-loop Dockerfile is retired; rollback = redeploy the retained pre-007 ECR image tag.
+    WORKER_DOCKERFILE: "Dockerfile"
+
+phases:
+  pre_build:
+    commands:
+      - echo "ECR (private) login for push"
+      - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+      - echo "ECR Public login for base-image pull (avoids Docker Hub 429)"
+      - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+  build:
+    commands:
+      - echo "Build + push voice-worker (Dockerfile=$WORKER_DOCKERFILE)"
+      - docker build --platform linux/amd64 --build-arg PYTHON_IMAGE="$PYTHON_IMAGE" -f "voice-worker/${WORKER_DOCKERFILE}" -t "${WORKER_REPO}:${IMAGE_TAG}" voice-worker/
+      - docker push "${WORKER_REPO}:${IMAGE_TAG}"
+      - echo "Build + push backend"
+      - docker build --platform linux/amd64 --build-arg PYTHON_IMAGE="$PYTHON_IMAGE" -t "${BACKEND_REPO}:${IMAGE_TAG}" backend/
+      - docker push "${BACKEND_REPO}:${IMAGE_TAG}"
+      - echo "Build + push report-worker (F003)"
+      - docker build --platform linux/amd64 --build-arg PYTHON_IMAGE="$PYTHON_IMAGE" -t "${REPORT_REPO}:${IMAGE_TAG}" report-worker/
+      - docker push "${REPORT_REPO}:${IMAGE_TAG}"
+  post_build:
+    commands:
+      - echo "Pushed ${WORKER_REPO}:${IMAGE_TAG}, ${BACKEND_REPO}:${IMAGE_TAG}, ${REPORT_REPO}:${IMAGE_TAG}"

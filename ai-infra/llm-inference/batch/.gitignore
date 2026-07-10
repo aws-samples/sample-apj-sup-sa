@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+# NOTE: generated notebooks ARE checked in (they're the user-facing entry point)
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Secrets / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.hf_token
+
+# Local test outputs
+.coverage
+htmlcov/
+coverage.xml
+
+# Dev scratch (ephemeral local files; not checked in)
+.scratch/
+
+# Build artifacts
+dist/
+build/
+
+# Downloaded batch-job outputs (per-submission dirs, ~22 MiB per shard)
+outputs/

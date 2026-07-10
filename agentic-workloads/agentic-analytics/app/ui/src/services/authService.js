@@ -2,12 +2,20 @@
 // OAuth Authorization Code flow for user login via Cognito Hosted UI
 // Tokens carry custom:role and custom:account_id for Gateway RBAC
 
+// Runtime config (window.__APP_CONFIG__) is injected by the Amplify deployer
+// Lambda in demo mode. Falls back to build-time env vars for local dev.
+const RC = (typeof window !== 'undefined' && window.__APP_CONFIG__) || {};
+
 const COGNITO_CONFIG = {
-  userClientId: process.env.REACT_APP_COGNITO_USER_CLIENT_ID || '',
-  domain: process.env.REACT_APP_COGNITO_DOMAIN || '',
-  scope: process.env.REACT_APP_COGNITO_SCOPE || 'openid profile email',
-  redirectUri: process.env.REACT_APP_REDIRECT_URI || window.location.origin + window.location.pathname,
-  region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
+  userClientId: RC.COGNITO_USER_CLIENT_ID || process.env.REACT_APP_COGNITO_USER_CLIENT_ID || '',
+  domain: RC.COGNITO_DOMAIN || process.env.REACT_APP_COGNITO_DOMAIN || '',
+  scope: RC.COGNITO_SCOPE || process.env.REACT_APP_COGNITO_SCOPE || 'openid profile email',
+  // Prefer runtime config, then the ACTUAL serving origin, and only then a
+  // build-time env var. window.location must outrank REACT_APP_REDIRECT_URI so a
+  // stray .env.local (which CRA also bakes into production builds) can never force
+  // a localhost redirect onto the deployed site → Cognito redirect_mismatch.
+  redirectUri: RC.REDIRECT_URI || window.location.origin + window.location.pathname || process.env.REACT_APP_REDIRECT_URI,
+  region: RC.AWS_REGION || process.env.REACT_APP_AWS_REGION || 'us-east-1',
 };
 
 const TOKEN_KEYS = {

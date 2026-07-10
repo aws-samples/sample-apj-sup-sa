@@ -1,0 +1,110 @@
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: 1h
+    queue_timeout: 2h
+  resources:
+    nccl_rank:
+      cpu: {{ cpu_count }}
+      gpu: 1
+      memory: {{ memory }}
+      storage: {{ storage }}
+      platform: {{ platform }}
+
+  groups:
+  - name: nccl
+    ignoreNonleadStatus: false
+    tasks:
+    - name: master
+      lead: true
+      resource: nccl_rank
+      image: {{ image_name }}
+      environment:
+        NCCL_DEBUG: INFO
+        NCCL_DEBUG_SUBSYS: INIT,NET
+        {% if mode == "efa" %}
+        FI_PROVIDER: efa
+        FI_EFA_USE_DEVICE_RDMA: "1"
+        {% else %}
+        NCCL_NET: Socket
+        NCCL_SOCKET_IFNAME: eth0
+        {% endif %}
+      command: ["/bin/bash", "-lc"]
+      args:
+      - |
+        set -euo pipefail
+        mkdir -p "{{output}}/results"
+        python -m torch.distributed.run \
+          --nnodes=2 \
+          --nproc_per_node=1 \
+          --node_rank=0 \
+          --master_addr={{host:master}} \
+          --master_port={{ master_port }} \
+          /tmp/all_reduce.py \
+          --mode {{ mode }} \
+          --min-mib {{ min_mib }} \
+          --max-mib {{ max_mib }} \
+          --factor {{ factor }} \
+          --warmup-steps {{ warmup_steps }} \
+          --steps {{ steps }} \
+          --output-json "{{output}}/results/result.json" \
+          --output-csv "{{output}}/results/bandwidth.csv" 2>&1 | tee /tmp/nccl-master.log
+        cp /tmp/nccl-master.log "{{output}}/results/master.log"
+        test -s "{{output}}/results/result.json"
+      files:
+      - path: /tmp/all_reduce.py
+        localpath: all_reduce.py
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+          path: results
+
+    - name: worker
+      resource: nccl_rank
+      image: {{ image_name }}
+      environment:
+        NCCL_DEBUG: INFO
+        NCCL_DEBUG_SUBSYS: INIT,NET
+        {% if mode == "efa" %}
+        FI_PROVIDER: efa
+        FI_EFA_USE_DEVICE_RDMA: "1"
+        {% else %}
+        NCCL_NET: Socket
+        NCCL_SOCKET_IFNAME: eth0
+        {% endif %}
+      command: ["/bin/bash", "-lc"]
+      args:
+      - |
+        set -euo pipefail
+        python -m torch.distributed.run \
+          --nnodes=2 \
+          --nproc_per_node=1 \
+          --node_rank=1 \
+          --master_addr={{host:master}} \
+          --master_port={{ master_port }} \
+          /tmp/all_reduce.py \
+          --mode {{ mode }} \
+          --min-mib {{ min_mib }} \
+          --max-mib {{ max_mib }} \
+          --factor {{ factor }} \
+          --warmup-steps {{ warmup_steps }} \
+          --steps {{ steps }}
+      files:
+      - path: /tmp/all_reduce.py
+        localpath: all_reduce.py
+
+default-values:
+  workflow_name: aws-g6e-efa-nccl
+  mode: efa
+  platform: g6e-l40s-efa
+  image_name: public.ecr.aws/deep-learning-containers/pytorch-training:2.9.0-gpu-py312-cu130-ubuntu22.04-ec2-v1.11
+  output_dataset: aws-g6e-efa-nccl-results
+  cpu_count: 4
+  memory: 16Gi
+  storage: 30Gi
+  master_port: 29501
+  min_mib: 8
+  max_mib: 64
+  factor: 2
+  warmup_steps: 2
+  steps: 10

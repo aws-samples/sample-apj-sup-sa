@@ -48,6 +48,7 @@ def build_gateway_task_definition(
     amp_workspace_id: str,
     log_group: logs.ILogGroup,
     origin_secret: secretsmanager.ISecret | None = None,
+    anthropic_api_key_secret_arn: str | None = None,
 ) -> ecs.FargateTaskDefinition:
     """Create the shared gateway task definition and containers."""
 
@@ -106,6 +107,11 @@ def build_gateway_task_definition(
             "IDENTITY_STORE_ID": context.identity_store_id,
             "IDENTITY_STORE_REGION": context.identity_store_region,
             "AWS_REGION": context.region,
+            **(
+                {"ANTHROPIC_API_KEY_SECRET_ARN": anthropic_api_key_secret_arn}
+                if anthropic_api_key_secret_arn
+                else {}
+            ),
         },
         secrets={
             "DB_USERNAME": ecs.Secret.from_secrets_manager(db_secret, field="username"),
