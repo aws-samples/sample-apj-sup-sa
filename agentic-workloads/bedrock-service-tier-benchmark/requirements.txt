@@ -1,0 +1,7 @@
+# Single source of dependency truth is pyproject.toml ([project.dependencies]).
+# This file installs the package (and thus those pinned dependencies) so that
+# `pip install -r requirements.txt` works for users who expect it.
+#
+#   pip install -e .            # this project (editable)
+#   pip install -e ".[dev]"     # plus lint/type/test/security tooling
+-e .

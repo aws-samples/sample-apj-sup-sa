@@ -1,0 +1,66 @@
+{
+  "$comment": "Rules for input validation (/validate + pre-payment gate in /generate) AND for schema publication via /openapi.json. The 'global' block is base; per-platform blocks list extra input fields Samurai should collect for a high-quality listing.",
+
+  "global": {
+    "required_input_fields": ["description", "platform"],
+    "optional_input_fields": ["product_name", "features", "price", "currency", "category"],
+    "allowed_platforms": ["Amazon", "Shopify", "Etsy", "Lazada", "Generic"],
+    "min_description_chars": 20,
+    "max_description_chars": 5000,
+    "min_features_if_provided": 3,
+    "forbidden_phrases": [
+      "best in class",
+      "#1",
+      "number one",
+      "guaranteed",
+      "world's best",
+      "100% guaranteed",
+      "clinically proven",
+      "doctor recommended",
+      "miracle"
+    ]
+  },
+
+  "Amazon": {
+    "required_extra": ["product_name"],
+    "optional_extra": ["brand", "target_keywords"],
+    "guidance": "Amazon titles are under 200 chars. Five benefit-driven bullet points. Avoid promotional language in titles.",
+    "title_max_chars": 200,
+    "bullets_required": 5,
+    "bullets_max_chars_each": 500,
+    "forbidden_substrings_in_title": ["!", "FREE", "BUY NOW", "★", "☆"],
+    "require_title_not_all_caps": true
+  },
+
+  "Etsy": {
+    "required_extra": ["product_name"],
+    "optional_extra": ["tags", "materials", "is_handmade"],
+    "guidance": "Etsy buyers respond to story. Up to 13 tags, 20 chars each. Titles under 140 chars.",
+    "title_max_chars": 140,
+    "tags_max_count": 13,
+    "tag_max_chars": 20
+  },
+
+  "Shopify": {
+    "required_extra": ["product_name"],
+    "optional_extra": ["seo_keywords", "variants"],
+    "guidance": "Shopify titles up to 255 chars. SEO description under 160 chars.",
+    "title_max_chars": 255,
+    "seo_description_max_chars": 160
+  },
+
+  "Lazada": {
+    "required_extra": ["product_name"],
+    "optional_extra": ["target_region"],
+    "guidance": "Lazada listings may use emoji. Titles up to 255 chars. Localize for SEA buyers.",
+    "title_max_chars": 255,
+    "bullets_allow_emoji": true
+  },
+
+  "Generic": {
+    "required_extra": [],
+    "optional_extra": [],
+    "guidance": "Platform-agnostic marketplace listing.",
+    "title_max_chars": 200
+  }
+}

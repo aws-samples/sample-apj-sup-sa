@@ -1,0 +1,58 @@
+search_products — example queries the agent can make
+(synthetic Aisle catalogue + semantic search. All verified live.)
+
+1. Plain find / multi-word
+- "Do you have Tim Tams?" -> {"query":"tim tam"}
+- "I'm looking for full cream milk" -> {"query":"full cream milk"}
+- "Find me dairy milk chocolate" -> {"query":"dairy milk chocolate"}
+  (Words are matched independently against product name + brand, so order and extra words don't break it.)
+
+2. Dietary needs (dietary_tags = must have ALL)
+- "What gluten-free pasta do you have?" -> {"query":"pasta","dietary_tags":["gluten_free"]}
+- "Halal bread options?" -> {"query":"bread","dietary_tags":["halal"]}
+
+3. Allergen avoidance (exclude_allergens = must have NONE)
+- "Bread, but I'm allergic to milk" -> {"query":"bread","exclude_allergens":["milk"]}
+- "Biscuits with no nuts or sesame" -> {"query":"biscuits","exclude_allergens":["peanut","sesame"]}
+
+4. Price (effective price — respects specials)
+- "Cheese under $5" -> {"query":"cheese","max_price_cents":500,"sort":"price_asc"}
+- "What's the cheapest milk?" -> {"query":"milk","sort":"price_asc"}
+- "Pasta sauce between $2 and $4" -> {"query":"pasta sauce","min_price_cents":200,"max_price_cents":400}
+
+5. Specials / savings
+- "What chocolate is on special?" -> {"query":"chocolate","on_special_only":true}
+- "Best deals on Coke right now" -> {"query":"cola","on_special_only":true,"sort":"savings_desc"}
+
+6. Quality tier (value | standard | premium)
+- "Cheapest home-brand rice" -> {"query":"rice","quality_tier":"value","sort":"price_asc"}
+- "Cheapest olive oil" -> {"query":"olive oil","quality_tier":"value","sort":"price_asc"}
+
+7. Category narrowing + stock
+- "Yoghurt in the dairy section" -> {"query":"yoghurt","category":"dairy"}
+- "In-stock pasta" -> {"query":"pasta","in_stock_only":true}
+
+8. Combined (the payoff — one call answers a rich question)
+- "Cheapest gluten-free pasta under $5 with no milk"
+  -> {"query":"pasta","dietary_tags":["gluten_free"],"exclude_allergens":["milk"],"max_price_cents":500,"sort":"price_asc"}
+- "Chocolate that's on special, biggest saving first"
+  -> {"query":"chocolate","on_special_only":true,"sort":"savings_desc"}
+
+9. NEW — Vague / conceptual queries (semantic search — just pass the words)
+The tool now embeds the query and matches by MEANING, so requests whose words
+don't appear in any product name still work. mode=auto (default) tries keywords
+first and falls back to semantic automatically — the agent does NOT need to
+expand concepts itself. Semantic results compose with all the filters above.
+- "Something fizzy to drink" -> {"query":"something fizzy to drink"}
+    (returns sparkling waters, sodas, energy drinks)
+- "Taco night" -> {"query":"taco night"}
+    (returns tortillas, taco kits, salsa, seasoning)
+- "Healthy breakfast" -> {"query":"healthy breakfast"}
+    (returns mueslis, protein cereals)
+- Force it / combine with a filter:
+    {"query":"taco night","dietary_tags":["vegetarian"],"mode":"semantic"}
+The response includes "search_mode" (lexical | semantic) so you can see which path answered.
+
+Note: for plain keyword searches, query matches product name/brand, not category
+— say the product ("cola"), not the category ("drinks"). For vague phrasing,
+semantic search handles it automatically.

@@ -31,38 +31,37 @@ There's also a data protection concern: the agent could inadvertently process or
 
 ## Lab Procedures
 
-### Step 8.1: Configure the Guardrail Topics
+### Step 8.1: Add the Guardrail and wire it to the Runtime (TODO 8.1)
 
-Open :code[guardrails/deploy_guardrail.py]{showCopyAction=true} and find `TODO 8.1`. You'll see one commented-out denied topic that defines what the guardrail blocks. Read the topic name, definition, and examples:
+Open :code[/workshop/agentic-analytics/app/agentcore_strands/agentcore-topup-stack.yaml]{showCopyAction=true}. **Step 8 has two small edits**, both clearly marked:
 
-- **DangerousAdvice** — blocks medical, legal, financial advice — requires licensed expertise
+1. **Uncomment the `Step 8` fence** — the `Guardrail` resource (a `AWS::Bedrock::Guardrail` with the denied topic, content filters, and PII filters already written). The denied topic is **DangerousAdvice** — it blocks medical, legal, and financial advice that requires licensed expertise.
+2. **Flip the two Runtime env lines** — find `GUARDRAIL_ID` and `GUARDRAIL_VERSION` in the `AgentRuntime` `EnvironmentVariables` (they ship as empty strings) and point them at the guardrail you just uncommented.
+
+::alert[**Tip — uncomment the block at once.** For edit #1, don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the `Step 8` fence, then **Shift+click** the last line inside it to select the whole `Guardrail` block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off in one go. Select only the lines **between** the two `UNCOMMENT` markers. (Edit #2 is just a two-line value change — do that by hand.)]{type="info"}
 
 ::::expand{header="💡 Need help with TODO 8.1? Click to see the solution"}
-Uncomment the topic block (the dictionary inside `topicsConfig`). The topic has a `name`, `definition` (what to block), `examples` (training examples for the model), and `type: DENY`.
+- Uncomment the `# ===== UNCOMMENT FROM HERE (Step 8: Bedrock Guardrail) =====` fence (the whole `Guardrail:` resource).
+- In `AgentRuntime` → `EnvironmentVariables`, change:
+  :::code{language=yaml showCopyAction=true}
+  GUARDRAIL_ID: !Ref Guardrail
+  GUARDRAIL_VERSION: 'DRAFT'
+  :::
+  (replacing the `GUARDRAIL_ID: ''` / `GUARDRAIL_VERSION: ''` placeholders). The `!Ref Guardrail` only resolves once the resource is uncommented — that's why both edits happen together.
 ::::
 
-After uncommenting, deploy the guardrail:
+Then deploy:
 
 ```bash
-python3 guardrails/deploy_guardrail.py
+cd /workshop/agentic-analytics/app/agentcore_strands
+make deploy
 ```
 
-Expected output:
+This creates the guardrail **and** sets `GUARDRAIL_ID` / `GUARDRAIL_VERSION` on the Runtime in one update. The agent reads those env vars and applies the guardrail to every model call (you'll see how in Step 8.2).
 
-```
-Deploying Bedrock Guardrail
-========================================
-Creating Bedrock Guardrail...
-[OK] Created guardrail: xxxxxxxxxxxx (version DRAFT)
-[OK] Saved to /workshop/agentic-analytics/app/agentcore_strands/config.env
+::alert[**No `make build` needed.** Wiring the guardrail is an environment-variable change on the Runtime resource — pure CloudFormation. `make deploy` rolls the Runtime to pick up the new env vars; you only need `make build` when the agent's Python code changes.]{type="info"}
 
-[OK] Guardrail ready: xxxxxxxxxxxx DRAFT
-   Next: redeploy agent with `agentcore deploy`
-```
-
-The guardrail ID is saved to `config.env` so the agent can reference it.
-
-::alert[**Guardrail version:** In this workshop we use DRAFT version of the guardrail. In production one can consider using a pinned numbered version for consistency and controlled versioning.]{type="info"}
+::alert[**Guardrail version:** In this workshop we use the DRAFT version of the guardrail. In production, consider a pinned numbered version for consistency and controlled versioning.]{type="info"}
 
 
 ### Step 8.2: Examine the Agent's Guardrail Integration
@@ -86,49 +85,51 @@ if GUARDRAIL_ID:
 bedrock_model = BedrockModel(**bedrock_model_kwargs)
 ```
 
-This is **native Bedrock model integration** — the guardrail is applied at the model layer, not as a separate hook. When `GUARDRAIL_ID` is set (by `deploy_guardrail.py` saving to `config.env`), every Bedrock API call automatically evaluates the guardrail. Key parameters:
+This is **native Bedrock model integration** — the guardrail is applied at the model layer, not as a separate hook. When `GUARDRAIL_ID` is set (by the Runtime's `EnvironmentVariables` you flipped in Step 8.1 — `GUARDRAIL_ID: !Ref Guardrail`), every Bedrock API call automatically evaluates the guardrail. Key parameters:
 
 - `guardrail_redact_input=True` — blocked inputs are replaced with the safe message instead of being sent to the model
 - `guardrail_latest_message=True` — only the latest user message is evaluated (not the full conversation history)
 
 ::alert[**No code changes needed.** The guardrail integration is already wired in — deploying the guardrail and redeploying the agent is all it takes. This is the advantage of native model-level integration over custom hooks.]{type="info"}
 
-### Step 8.3: Redeploy and Test
+### Step 8.3: Test
 
-The agent code already has native Bedrock guardrail integration — when `GUARDRAIL_ID` is set in `config.env`, the `BedrockModel` automatically applies guardrails to every request. No agent code changes needed.
+You already deployed in Step 8.1 — the `make deploy` there created the guardrail and set `GUARDRAIL_ID` on the Runtime, which the `BedrockModel` reads automatically. No agent code changes, no rebuild. Just confirm the stack settled:
 
 ```bash
-agentcore deploy
+make status   # expect UPDATE_COMPLETE
 ```
 
 ::alert[**Start fresh:** It is best to clear the chatbot conversation from the previous step by clicking the small bin icon next to the chat input field or by refreshing the application demo browser tab.]{type="info"}
 
-Now try these questions in the demo UI:
+Now try these two questions in the demo UI, back to back, so you see the contrast:
 
 **Test 1: Normal queries still work**
-- "Who is my top customer?" → Works normally — guardrails don't interfere with legitimate analytics
+- Ask: "Who is my top customer?" → **Works normally** — a formatted answer comes back. Guardrails don't interfere with legitimate analytics.
 
-**Test 2: Dangerous advice blocking**
-- "Is it a good time to invest in gold?" → Blocked by DangerousAdvice topic filter (financial investment advice requires licensed expertise)
+**Test 2: Dangerous advice is blocked**
+- Ask: "Is it a good time to invest in gold?" → **Blocked.** Instead of an answer you get the safe redirect (e.g. *"I can only help with unicorn rental analytics questions. Please ask about bookings, revenue, customers, or unicorn management."*).
+
+::alert[**What you should see — and why.** The financial-advice question never reaches your data or tools; the Bedrock Guardrail's **DangerousAdvice** topic filter intercepts it at the model layer and returns the safe message. That's content safety as a *deterministic* control alongside your Cedar (tool) and RLS (data) layers — the same query that a prompt instruction might be argued past is simply stopped here.]{type="success"}
 
 ## Verification
 
-- `deploy_guardrail.py` creates the guardrail and saves the ID to `config.env`
+- After uncommenting Step 8 and `make deploy`, the guardrail exists (AWS Console: **Amazon Bedrock → Guardrails**)
 -  Off-topic questions are blocked with a safe response
 -  Normal analytics questions still work
--  The guardrail appears in the AWS Console: **Amazon Bedrock → Guardrails**
+-  `make outputs` / the Runtime's env shows a non-empty `GUARDRAIL_ID`
 
 ## Troubleshooting
 
 **Guardrail doesn't seem to block anything**
-- Verify `GUARDRAIL_ID` is in your `config.env` file (written by `deploy_guardrail.py`). If you're running locally, `cp config.env .env` again.
-- Redeploy with `agentcore deploy`.
+- Verify you flipped **both** `GUARDRAIL_ID: !Ref Guardrail` and `GUARDRAIL_VERSION: 'DRAFT'` on the Runtime (not just uncommented the resource), then `make deploy`.
+- Confirm `make status` shows `UPDATE_COMPLETE` and the Runtime rolled to a new version.
 
 **Agent blocks legitimate analytics questions**
-- The topic filter may be too aggressive. Check the guardrail configuration in the Bedrock console and adjust the denied topics.
+- The topic filter may be too aggressive. Check the guardrail configuration in the Bedrock console and adjust the denied topics in the template's `Guardrail` resource, then `make deploy`.
 
-**`deploy_guardrail.py` fails with "topic definition too long"**
-- Bedrock has a character limit for topic definitions. The script uses a shortened definition — if you've modified it, keep it concise.
+**`make deploy` fails with "topic definition too long"**
+- Bedrock has a character limit for topic definitions. The template uses a shortened definition — if you've edited it, keep it concise.
 
 ## Summary
 

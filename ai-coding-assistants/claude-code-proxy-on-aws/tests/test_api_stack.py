@@ -1,27 +1,24 @@
-"""Snapshot test for ApiStack."""
+"""Behavioural tests for the API/ALB ingress wiring on the service stack.
+
+The ALB, API Gateway, and ECS service all live on the ServiceStack in the
+current two-stack layout (FoundationStack + ServiceStack), so these assertions
+target ``stack_bundle.service``.
+"""
 
 from aws_cdk.assertions import Match, Template
 
-from tests.conftest import assert_matches_snapshot
-
-
-def test_api_stack_snapshot(stack_bundle) -> None:
-    template = Template.from_stack(stack_bundle.api)
-    assert_matches_snapshot("api_stack", template)
-
 
 def test_api_stack_uses_runtime_health_check_path(stack_bundle) -> None:
-    template = Template.from_stack(stack_bundle.api)
+    template = Template.from_stack(stack_bundle.service)
     template.resource_count_is("AWS::ECS::Service", 1)
-    alb_template = Template.from_stack(stack_bundle.alb)
-    alb_template.has_resource_properties(
+    template.has_resource_properties(
         "AWS::ElasticLoadBalancingV2::TargetGroup",
         {"HealthCheckPath": "/v1/healthz"},
     )
 
 
 def test_api_stack_exposes_admin_proxy_via_api_gateway(stack_bundle) -> None:
-    template = Template.from_stack(stack_bundle.api)
+    template = Template.from_stack(stack_bundle.service)
     template.has_resource_properties(
         "AWS::ApiGateway::Method",
         {
@@ -35,7 +32,12 @@ def test_api_stack_exposes_admin_proxy_via_api_gateway(stack_bundle) -> None:
                     "RequestParameters": Match.object_like(
                         {
                             "integration.request.path.proxy": "method.request.path.proxy",
-                            "integration.request.header.x-admin-origin": "'apigw'",
+                            # Origin verification now uses the API Gateway stage
+                            # variable backed by the rotating origin secret,
+                            # not a static literal.
+                            "integration.request.header.x-admin-origin": (
+                                "stageVariables.originSecret"
+                            ),
                             "integration.request.header.x-admin-principal": (
                                 "context.identity.userArn"
                             ),
@@ -49,7 +51,7 @@ def test_api_stack_exposes_admin_proxy_via_api_gateway(stack_bundle) -> None:
 
 
 def test_api_stack_forwards_admin_paths_on_http_listener(stack_bundle) -> None:
-    template = Template.from_stack(stack_bundle.alb)
+    template = Template.from_stack(stack_bundle.service)
     template.has_resource_properties(
         "AWS::ElasticLoadBalancingV2::ListenerRule",
         {
@@ -66,4 +68,3 @@ def test_api_stack_forwards_admin_paths_on_http_listener(stack_bundle) -> None:
             ),
         },
     )
-

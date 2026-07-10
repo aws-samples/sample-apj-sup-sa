@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Sample-data journal (transient resume state)
+sample-data/*/.journal*
+
+# Notebook outputs
+**/notebooks/_runs/
+
+# Local
+.DS_Store
+.kiro/
+.claude/

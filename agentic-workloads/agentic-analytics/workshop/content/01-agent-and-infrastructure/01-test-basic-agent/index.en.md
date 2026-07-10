@@ -38,13 +38,12 @@ Open :code[exercises/basic_agent.py]{showCopyAction=true} in the Code Editor. Th
 
 ### Step 1.2: Configure the Bedrock Model (TODO 1.2)
 
-The agent needs a foundation model. Find `TODO 1.2` in `exercises/basic_agent.py` — replace `None` with a :link[BedrockModel]{href="https://strandsagents.com/latest/user-guide/concepts/model-providers/amazon-bedrock/" external=true} using the model ID and region already shown in the hint. `temperature=0.3` keeps responses factual (lower = less creative).
+The agent needs a foundation model. Find `TODO 1.2` in `exercises/basic_agent.py` — replace `None` with a :link[BedrockModel]{href="https://strandsagents.com/latest/user-guide/concepts/model-providers/amazon-bedrock/" external=true} using the model ID and region already shown in the hint.
 
 ::::expand{header="💡 Need help with TODO 1.2? Click to see the solution"}
 :::code{language=python showCopyAction=true}
 bedrock_model = BedrockModel(
-    model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
-    temperature=0.3,
+    model_id="global.anthropic.claude-sonnet-4-6",
     streaming=True
 )
 :::
@@ -80,9 +79,10 @@ agent = Agent(
 
 ### Step 1.5: Run the Agent
 
-Save your changes in basic_agent.py. Back to the terminal, run the below commands.
+Save your changes in basic_agent.py. Back to the terminal, run the below commands. (If you opened a fresh terminal, activate the virtual environment first — it lives at `/workshop/.venv`.)
 
 ```bash
+source /workshop/.venv/bin/activate
 cd /workshop/agentic-analytics
 python3 exercises/basic_agent.py
 ```
@@ -120,6 +120,9 @@ You didn't write any if/else routing. The LLM chose the right tool based on the 
 - The data comes from Aurora PostgreSQL — you can verify by checking the database directly
 
 ## Troubleshooting
+
+**`ModuleNotFoundError: No module named 'boto3'` (or `strands`, `psycopg2`)**
+- You're running with the system Python instead of the workshop virtual environment. Activate it first: `source /workshop/.venv/bin/activate`, then re-run.
 
 **`botocore.exceptions.NoCredentialsError: Unable to locate credentials`**
 - The EC2 instance role should provide credentials automatically. Verify with:

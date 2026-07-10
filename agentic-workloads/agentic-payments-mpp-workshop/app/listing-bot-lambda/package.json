@@ -1,0 +1,15 @@
+{
+  "name": "listing-bot-lambda",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MPP-gated listing-bot Lambda. Participants wire Stripe + Bedrock Converse during the workshop.",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "mppx": "^0.6.7",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  }
+}

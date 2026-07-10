@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  WORKSHOP STARTER VERSION — participant-deployed stack for Samurai
+  AgentCore Runtime + Memory.
+
+  Complete TODO 5 below, then run `participant-deploy.sh` from the repo root.
+
+Parameters:
+  ContainerImageUri:
+    Type: String
+  BedrockModelId:
+    Type: String
+    Default: global.anthropic.claude-sonnet-4-6
+  ListingBotApiUrl:
+    Type: String
+  BuyerStripeSecretArn:
+    Type: String
+  MppLogsTableName:
+    Type: String
+  MppLogsTableArn:
+    Type: String
+
+Resources:
+
+  RuntimeExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: bedrock-agentcore.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: samurai-runtime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ecr:BatchGetImage, ecr:GetDownloadUrlForLayer]
+                Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents, logs:DescribeLogGroups, logs:DescribeLogStreams]
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource:
+                  - !Sub arn:aws:bedrock:*::foundation-model/*
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+              # AWS Marketplace perms — Bedrock requires these on first use of
+              # any Anthropic/Meta/etc model so it can auto-subscribe the
+              # account via Marketplace. Without them, InvokeModel returns 502
+              # with "IAM user or service role is not authorized to perform
+              # the required AWS Marketplace actions" even when model access
+              # is "enabled" in the Bedrock console.
+              - Effect: Allow
+                Action:
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                  - aws-marketplace:Unsubscribe
+                Resource: "*"
+              - Effect: Allow
+                Action: [bedrock-agentcore:*Memory*, bedrock-agentcore:ListMemoryRecords]
+                Resource: "*"
+              # ═════════════════════════════════════════════════════════════
+              # TODO 5.4 — Grant the Memory data-plane Event APIs.
+              # *Memory* (above) covers Create/Get/Update/DeleteMemory and
+              # RetrieveMemoryRecords — but NOT CreateEvent / ListEvents.
+              # IAM action wildcards are literal substring matches; "Event"
+              # has no "Memory" in it. Add the explicit grant below.
+              # ═════════════════════════════════════════════════════════════
+              # - Effect: Allow
+              #   Action:
+              #     - bedrock-agentcore:CreateEvent
+              #     - bedrock-agentcore:ListEvents
+              #     - bedrock-agentcore:GetEvent
+              #   Resource: !GetAtt Memory.MemoryArn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref BuyerStripeSecretArn
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:Query]
+                Resource: !Ref MppLogsTableArn
+              - Effect: Allow
+                Action: xray:PutTraceSegments
+                Resource: "*"
+
+  # AgentCore Memory — native CFN resource. Both `Name` and the Runtime's
+  # `AgentRuntimeName` must match `[a-zA-Z][a-zA-Z0-9_]{0,47}` (no hyphens),
+  # so we derive each name from the stack name and sanitise hyphens to
+  # underscores with Split/Join.
+  Memory:
+    Type: AWS::BedrockAgentCore::Memory
+    Properties:
+      Name: !Join
+        - '_'
+        - !Split
+          - '-'
+          - !Sub ${AWS::StackName}-samurai-memory
+      # EventExpiryDuration is in DAYS (min 3). 30 days is plenty for a
+      # workshop — events created in this lab won't disappear mid-session.
+      EventExpiryDuration: 30
+
+  Runtime:
+    Type: AWS::BedrockAgentCore::Runtime
+    DependsOn: Memory
+    Properties:
+      AgentRuntimeName: !Join
+        - '_'
+        - !Split
+          - '-'
+          - !Sub ${AWS::StackName}-samurai
+      RoleArn: !GetAtt RuntimeExecutionRole.Arn
+      AgentRuntimeArtifact:
+        ContainerConfiguration:
+          ContainerUri: !Ref ContainerImageUri
+      NetworkConfiguration:
+        NetworkMode: PUBLIC
+      ProtocolConfiguration: HTTP
+      EnvironmentVariables:
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_REGION: !Ref AWS::Region
+        LISTING_BOT_API_URL: !Ref ListingBotApiUrl
+        BUYER_STRIPE_SECRET_ARN: !Ref BuyerStripeSecretArn
+        MPP_LOGS_TABLE: !Ref MppLogsTableName
+        # ═══════════════════════════════════════════════════════════════════
+        # TODO 5.3 — add MEMORY_ID here so the container can attach AgentCore
+        # Memory to each session. Use !GetAtt Memory.MemoryId.
+        # ═══════════════════════════════════════════════════════════════════
+        # MEMORY_ID: !GetAtt Memory.MemoryId
+
+  # ── Observability: CloudWatch Logs delivery ────────────────────────────
+  # AgentCore Runtime emits "vended logs" through CloudWatch's standard
+  # log-delivery pipeline (DeliverySource → DeliveryDestination → Delivery).
+  # The Runtime resource itself does NOT take a LoggingConfiguration block;
+  # log routing is configured externally via the three native Logs resources
+  # below. Tracing requires CloudWatch Transaction Search to be enabled at
+  # the account level (out of scope for this stack).
+
+  RuntimeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/bedrock-agentcore/runtimes/${AWS::StackName}-samurai
+      RetentionInDays: 7
+
+  RuntimeLogDeliverySource:
+    Type: AWS::Logs::DeliverySource
+    DependsOn: Runtime
+    Properties:
+      Name: !Sub ${AWS::StackName}-samurai-logs
+      ResourceArn: !GetAtt Runtime.AgentRuntimeArn
+      LogType: APPLICATION_LOGS
+
+  RuntimeLogDeliveryDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: !Sub ${AWS::StackName}-samurai-logs-cwl
+      DestinationResourceArn: !GetAtt RuntimeLogGroup.Arn
+      OutputFormat: json
+
+  RuntimeLogDelivery:
+    Type: AWS::Logs::Delivery
+    Properties:
+      DeliverySourceName: !Ref RuntimeLogDeliverySource
+      DeliveryDestinationArn: !GetAtt RuntimeLogDeliveryDestination.Arn
+
+Outputs:
+  AgentRuntimeArn:
+    Value: !GetAtt Runtime.AgentRuntimeArn
+  AgentRuntimeId:
+    Value: !GetAtt Runtime.AgentRuntimeId
+  MemoryId:
+    Value: !GetAtt Memory.MemoryId
+  MemoryArn:
+    Description: ARN of the AgentCore Memory resource (used in IAM Resource scoping)
+    Value: !GetAtt Memory.MemoryArn
+  RuntimeLogGroupName:
+    Description: CloudWatch Log group receiving Samurai AgentCore Runtime application logs
+    Value: !Ref RuntimeLogGroup

@@ -1,0 +1,25 @@
+# Keep the build context minimal and never bake secrets/artifacts into the image.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — NEVER copy into the image (env is injected at runtime via ECS task definition).
+.env
+.env.*
+!.env.example
+
+# Local-only: tests, harness, measurement artifacts, logs, docs.
+tests/
+harness/
+runs/
+*.log
+*.md
+pyproject.toml
+
+# The container installs from requirements-lock.txt; the loose spec is not needed at build.
+# (requirements.txt kept out of the image to avoid confusion about which set is installed.)
+requirements.txt

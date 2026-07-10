@@ -119,7 +119,7 @@ Two services start in order:
 │  ├─ Waits for PostgreSQL connection (up to 60s)         │
 │  ├─ Runs local-bootstrap.py (seed data insertion)       │
 │  │   ├─ User: local-user                               │
-│  │   ├─ Models: claude-opus-4-6 / sonnet-4-6 / haiku-4-5│
+│  │   ├─ Models: claude-opus-4-8 / sonnet-4-6 / haiku-4-5│
 │  │   ├─ Alias mappings: per-model patterns + * → sonnet │
 │  │   │   fallback                                       │
 │  │   ├─ Default prompt caching: 5m                      │
@@ -209,7 +209,7 @@ curl -s http://localhost:8000/v1/models \
 | Auth | SigV4 → IAM → SSO user lookup | local helper → `/v1/auth/token` (`local-user` principal) |
 | KMS | AWS KMS encrypt/decrypt | Local reversible fallback only when `ENVIRONMENT=local` + `KMS_KEY_ID=local-dev-placeholder` |
 | DB Migration | Alembic (ECS init container) | Alembic `upgrade head` followed by `Base.metadata.create_all` in bootstrap |
-| Model Routing | Per-model alias mapping | `claude-opus-4-6*`, `claude-sonnet-4-6*`, `claude-haiku-4-5*`, `*` → Sonnet 4.6 fallback |
+| Model Routing | Per-model alias mapping | `claude-opus-4-8*`, `claude-sonnet-4-6*`, `claude-haiku-4-5*`, `*` → Sonnet 4.6 fallback |
 | Observability | ADOT sidecar → Amazon Managed Prometheus | Disabled by default, optionally start local OTel/Prometheus/Grafana via override compose |
 | AWS Credentials | ECS Task IAM Role | Host `~/.aws` mounted read-only, then copied to container writable home |
 
@@ -253,6 +253,27 @@ aws sso login --profile ${AWS_PROFILE}
 
 The deployment script interactively guides you through region selection, Identity Store configuration, ACM certificate, and CDK bootstrap. After deployment, the API Gateway ID and ALB DNS are output to `cdk-outputs.json`. Use those values to fill in the Step 0 environment variables.
 
+### 1.1. Populate Anthropic API Key (For 1P Fallback)
+
+The Anthropic API key used for Bedrock-to-1P fallback is stored in AWS Secrets Manager. CDK creates an empty placeholder; populate it with your real key after deployment.
+
+```bash
+ANTHROPIC_API_KEY_SECRET_ARN=$(jq -r '.[] | .AnthropicApiKeySecretArn // empty' cdk-outputs.json | head -n1)
+
+aws secretsmanager put-secret-value \
+  --secret-id "$ANTHROPIC_API_KEY_SECRET_ARN" \
+  --secret-string '{"api_key":"sk-ant-..."}' \
+  --region "$AWS_REGION"
+```
+
+The gateway accepts either a JSON envelope (`{"api_key":"..."}`) or a raw key string. The value is read on first fallback request and cached in memory; the running ECS task does not need a restart for the key to take effect.
+
+To enable fallback for a model, set `anthropic_model_id` when registering the model in Step 3 below (e.g. `"anthropic_model_id": "claude-sonnet-4-6"`). Models without `anthropic_model_id` skip fallback even when Bedrock fails.
+
+Fallback covers both non-streaming and streaming requests. An in-memory circuit breaker, keyed per (Bedrock region, model), trips on Bedrock provider/throttle failures and routes subsequent requests for that same region+model straight to 1P until it half-opens (default `BEDROCK_BREAKER_OPEN_SECONDS=300`) and a probe succeeds, after which traffic returns to Bedrock automatically. Keying by model as well as region keeps one model's outage or throttle (for example hitting its TPM/RPM quota) from diverting unrelated models in the same region. For streaming, fallback only applies while the stream has not started yet (the `ConverseStream` call fails before the first chunk, or the breaker is already open); once SSE bytes have been sent to the client, a mid-stream Bedrock disconnect cannot fall over to 1P and must be retried by the client. Request-shape, auth, and policy rejections (`ValidationException`, `AccessDeniedException`, ...) do not trigger fallback because the same payload would fail at 1P too.
+
+Usage and budget tracking covers Bedrock spend only. When a request is served by 1P fallback, its cost and token usage are recorded on the Anthropic console, not in this gateway, so they are not metered and do not decrement any user/team/model budget. As a result, while a breaker is open, requests served by 1P are not subject to the gateway's budget hard limits — 1P spend is governed by the Anthropic account, not by this gateway.
+
 ### 2. Sync Identity Center Users
 
 Synchronize IAM Identity Center users to the gateway DB.
@@ -274,20 +295,22 @@ curl -s -X POST "$API_URL/v1/admin/models" "${SIGV4_OPTS[@]}" \
   -d '{
     "canonical_name": "claude-sonnet-4-6",
     "bedrock_model_id": "global.anthropic.claude-sonnet-4-6",
+    "anthropic_model_id": "claude-sonnet-4-6",
     "bedrock_region": "ap-northeast-2",
     "provider": "anthropic",
     "family": "claude-sonnet-4-6",
     "supports_prompt_cache": true
   }' | python3 -m json.tool
 
-# Claude Opus 4.6
+# Claude Opus 4.8
 curl -s -X POST "$API_URL/v1/admin/models" "${SIGV4_OPTS[@]}" \
   -d '{
-    "canonical_name": "claude-opus-4-6",
-    "bedrock_model_id": "global.anthropic.claude-opus-4-6-v1",
+    "canonical_name": "claude-opus-4-8",
+    "bedrock_model_id": "global.anthropic.claude-opus-4-8",
+    "anthropic_model_id": "claude-opus-4-8",
     "bedrock_region": "ap-northeast-2",
     "provider": "anthropic",
-    "family": "claude-opus-4-6",
+    "family": "claude-opus-4-8",
     "supports_prompt_cache": true
   }' | python3 -m json.tool
 
@@ -296,6 +319,7 @@ curl -s -X POST "$API_URL/v1/admin/models" "${SIGV4_OPTS[@]}" \
   -d '{
     "canonical_name": "claude-haiku-4-5",
     "bedrock_model_id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "anthropic_model_id": "claude-haiku-4-5",
     "bedrock_region": "ap-northeast-2",
     "provider": "anthropic",
     "family": "claude-haiku-4-5"
@@ -325,7 +349,7 @@ curl -s -X POST "$API_URL/v1/admin/model-pricing" "${SIGV4_OPTS[@]}" \
     \"effective_from\": \"2025-01-01T00:00:00Z\"
   }" | python3 -m json.tool
 
-# Claude Opus 4.6 pricing
+# Claude Opus 4.8 pricing
 curl -s -X POST "$API_URL/v1/admin/model-pricing" "${SIGV4_OPTS[@]}" \
   -d "{
     \"model_id\": \"$OPUS_ID\",
@@ -359,9 +383,9 @@ Map the model name patterns requested by Claude Code to the registered models.
 curl -s -X POST "$API_URL/v1/admin/model-mappings" "${SIGV4_OPTS[@]}" \
   -d "{\"selected_model_pattern\": \"claude-sonnet-4-6*\", \"target_model_id\": \"$SONNET_ID\", \"priority\": 30, \"is_fallback\": false}" | python3 -m json.tool
 
-# claude-opus-4-6* → Opus 4.6
+# claude-opus-4-8* → Opus 4.8
 curl -s -X POST "$API_URL/v1/admin/model-mappings" "${SIGV4_OPTS[@]}" \
-  -d "{\"selected_model_pattern\": \"claude-opus-4-6*\", \"target_model_id\": \"$OPUS_ID\", \"priority\": 20, \"is_fallback\": false}" | python3 -m json.tool
+  -d "{\"selected_model_pattern\": \"claude-opus-4-8*\", \"target_model_id\": \"$OPUS_ID\", \"priority\": 20, \"is_fallback\": false}" | python3 -m json.tool
 
 # claude-haiku-4-5* → Haiku 4.5
 curl -s -X POST "$API_URL/v1/admin/model-mappings" "${SIGV4_OPTS[@]}" \
@@ -397,6 +421,26 @@ Configure Claude Code settings by referring to `scripts/settings.json`.
   - `AWS_REGION`: AWS region set in Step 0
 
 On first run, the helper automatically issues a virtual API key via SigV4 authentication.
+
+> **Required IAM permission (do not skip):** The SigV4 call to `POST /v1/auth/token` is protected by API Gateway IAM authorization, so the caller's IAM principal (the SSO permission set used by `AWS_PROFILE`) **must** be granted `execute-api:Invoke` on the token route. Without it the helper fails with `not authorized to perform: execute-api:Invoke`. Add an inline policy to the user's permission set:
+>
+> ```json
+> {
+>   "Version": "2012-10-17",
+>   "Statement": [
+>     {
+>       "Sid": "InvokeTokenApi",
+>       "Effect": "Allow",
+>       "Action": "execute-api:Invoke",
+>       "Resource": "arn:aws:execute-api:<AWS_REGION>:<ACCOUNT_ID>:<API_GW_ID>/prod/POST/v1/auth/token"
+>     }
+>   ]
+> }
+> ```
+>
+> After editing the permission set, re-provision it to the account and re-run `aws sso login` so the new permission takes effect. Admins calling the Step 2–5 Admin APIs (`/v1/admin/*`) likewise need `execute-api:Invoke` on those routes (or admin credentials that already allow it).
+>
+> **On redeploy:** `<API_GW_ID>` changes when the service stack is recreated (for example after `destroy`). Update this policy's `Resource` (and `API_GW_ID` in Step 0 / helper env) with the new ID, otherwise token issuance breaks with a stale-ARN denial.
 
 #### Virtual Key TTL
 
@@ -439,6 +483,7 @@ Once configuration is complete, run Claude Code to verify the gateway is working
 | [docs/API_SPEC.md](./docs/API_SPEC.md) | API specification |
 | [docs/DATA_MODEL.md](./docs/DATA_MODEL.md) | Data model |
 | [docs/RUNTIME_TRANSLATION.md](./docs/RUNTIME_TRANSLATION.md) | Anthropic ↔ Bedrock translation rules |
+| [docs/BEDROCK_FALLBACK.md](./docs/BEDROCK_FALLBACK.md) | Bedrock → Anthropic 1P fallback mechanism |
 
 ## License
 

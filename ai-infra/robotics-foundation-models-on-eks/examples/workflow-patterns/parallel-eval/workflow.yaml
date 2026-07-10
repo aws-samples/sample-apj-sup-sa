@@ -1,0 +1,100 @@
+workflow:
+  name: aws-parallel-eval
+  timeout:
+    exec_timeout: 2h
+    queue_timeout: 30m
+  resources:
+    default:
+      cpu: 1
+      memory: 2Gi
+      storage: 2Gi
+
+  groups:
+  - name: eval-shards
+    tasks:
+    - name: eval-shard-0
+      lead: true
+      image: public.ecr.aws/docker/library/python:3.12-slim
+      command: ["sh", "-ec"]
+      args:
+      - |
+        mkdir -p {{output}}/metrics
+        cat > {{output}}/metrics/shard-0.json <<'JSON'
+        {"shard": 0, "episodes": 32, "success_rate": 0.91, "mean_reward": 148.2}
+        JSON
+
+    - name: eval-shard-1
+      image: public.ecr.aws/docker/library/python:3.12-slim
+      command: ["sh", "-ec"]
+      args:
+      - |
+        mkdir -p {{output}}/metrics
+        cat > {{output}}/metrics/shard-1.json <<'JSON'
+        {"shard": 1, "episodes": 32, "success_rate": 0.88, "mean_reward": 143.7}
+        JSON
+
+    - name: eval-shard-2
+      image: public.ecr.aws/docker/library/python:3.12-slim
+      command: ["sh", "-ec"]
+      args:
+      - |
+        mkdir -p {{output}}/metrics
+        cat > {{output}}/metrics/shard-2.json <<'JSON'
+        {"shard": 2, "episodes": 32, "success_rate": 0.93, "mean_reward": 151.4}
+        JSON
+
+    - name: eval-shard-3
+      image: public.ecr.aws/docker/library/python:3.12-slim
+      command: ["sh", "-ec"]
+      args:
+      - |
+        mkdir -p {{output}}/metrics
+        cat > {{output}}/metrics/shard-3.json <<'JSON'
+        {"shard": 3, "episodes": 32, "success_rate": 0.90, "mean_reward": 147.8}
+        JSON
+
+  - name: aggregate
+    tasks:
+    - name: aggregate-metrics
+      lead: true
+      image: public.ecr.aws/docker/library/python:3.12-slim
+      command: ["sh", "-ec"]
+      args:
+      - |
+        mkdir -p {{output}}/summary
+        python3 - <<'PY'
+        import json
+        from pathlib import Path
+
+        input_paths = [
+            Path("{{input:0}}/metrics/shard-0.json"),
+            Path("{{input:1}}/metrics/shard-1.json"),
+            Path("{{input:2}}/metrics/shard-2.json"),
+            Path("{{input:3}}/metrics/shard-3.json"),
+        ]
+        rows = [json.loads(path.read_text()) for path in input_paths]
+        episodes = sum(row["episodes"] for row in rows)
+        weighted_success = sum(row["episodes"] * row["success_rate"] for row in rows) / episodes
+        weighted_reward = sum(row["episodes"] * row["mean_reward"] for row in rows) / episodes
+        summary = {
+            "episodes": episodes,
+            "success_rate": round(weighted_success, 4),
+            "mean_reward": round(weighted_reward, 4),
+            "shards": len(rows),
+        }
+        out = Path("{{output}}/summary/metrics.json")
+        out.write_text(json.dumps(summary, indent=2) + "\n")
+        print(out.read_text())
+        PY
+      inputs:
+      - task: eval-shard-0
+      - task: eval-shard-1
+      - task: eval-shard-2
+      - task: eval-shard-3
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+          path: summary
+
+default-values:
+  output_dataset: aws-parallel-eval-summary

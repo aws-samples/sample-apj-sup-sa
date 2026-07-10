@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360">
+<style>text{font-family:Arial,sans-serif;fill:#222}.title{font-size:18px;font-weight:700}.axis{font-size:12px}.label{font-size:13px}.value{font-size:12px;font-weight:700}</style>
+<rect width="100%" height="100%" fill="#fff"/>
+<text class="title" x="80" y="24">2-node G6e EFA NCCL all_reduce bus bandwidth</text>
+<line x1="80" y1="290" x2="700" y2="290" stroke="#444"/>
+<line x1="80" y1="40" x2="80" y2="290" stroke="#444"/>
+<line x1="76" y1="290.0" x2="700" y2="290.0" stroke="#ddd"/>
+<text class="axis" x="18" y="294.0">0.0 GiB/s</text>
+<line x1="76" y1="227.5" x2="700" y2="227.5" stroke="#ddd"/>
+<text class="axis" x="18" y="231.5">1.5 GiB/s</text>
+<line x1="76" y1="165.0" x2="700" y2="165.0" stroke="#ddd"/>
+<text class="axis" x="18" y="169.0">3.0 GiB/s</text>
+<line x1="76" y1="102.5" x2="700" y2="102.5" stroke="#ddd"/>
+<text class="axis" x="18" y="106.5">4.5 GiB/s</text>
+<line x1="76" y1="40.0" x2="700" y2="40.0" stroke="#ddd"/>
+<text class="axis" x="18" y="44.0">6.0 GiB/s</text>
+<rect x="130" y="45.6" width="80" height="244.4" fill="#1f77b4"/>
+<text class="value" x="130" y="37.6">5.865</text>
+<text class="label" x="152" y="314">8 MiB</text>
+<rect x="270" y="48.0" width="80" height="242.0" fill="#1f77b4"/>
+<text class="value" x="270" y="40.0">5.807</text>
+<text class="label" x="288" y="314">16 MiB</text>
+<rect x="410" y="47.7" width="80" height="242.3" fill="#1f77b4"/>
+<text class="value" x="410" y="39.7">5.816</text>
+<text class="label" x="428" y="314">32 MiB</text>
+<rect x="550" y="47.4" width="80" height="242.6" fill="#1f77b4"/>
+<text class="value" x="550" y="39.4">5.822</text>
+<text class="label" x="568" y="314">64 MiB</text>
+<text class="axis" x="80" y="340">Warmup: 2, measured steps: 10, verified on OSMO workflow aws-g6e-efa-nccl-verified-1</text>
+</svg>

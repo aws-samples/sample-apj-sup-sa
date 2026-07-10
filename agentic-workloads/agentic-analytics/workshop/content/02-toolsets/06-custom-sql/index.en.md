@@ -13,7 +13,7 @@ By the end of this step, you will:
 
 ## The Problem
 
-Your agent has 20+ prebaked tools, but tenants always ask questions that don't map to any existing tool: "What's the average booking duration by unicorn breed?" Building a tool for every possible question isn't scalable.
+Your agent has 29 prebaked tools, but tenants always ask questions that don't map to any existing tool: "What's the average booking duration by unicorn breed?" Building a tool for every possible question isn't scalable.
 
 ## The Solution: Custom SQL with RAG
 
@@ -57,8 +57,8 @@ You'll see:
 
 1. In the Knowledge Base console, click `agentic-analytics-kb` breadcrumbs menu on top to navigate up
 2. Click **Test knowledge base** (right panel)
-3. Select a model, preferably `Claude Opus 4.6` under `Anthropic` category, and click `Apply`
-3. Try these queries:
+3. Select any available **Claude** model under the `Anthropic` category (a Sonnet or Opus model is ideal), and click `Apply`
+4. Try these queries:
    - "How to calculate booking duration?" — should return the section about `end_datetime - start_datetime`
    - "What is the relationship between bookings and unicorns?" — should return JOIN patterns
    - "How is revenue calculated?" — should return the revenue formula
@@ -83,25 +83,28 @@ Open :code[unicorn_rental_analytics.sop.md]{showCopyAction=true} and review:
 
 ::alert[**The SOP creates a layered defense against SQL hallucination:** (1) Prebaked tools handle known queries — minimum hallucination risk. (2) For unknown queries, Glue schema + RAG context ground the SQL generation. (3) Human approval catches any remaining errors. (4) Lambda-level validation blocks dangerous patterns. Each layer reduces risk independently.]{type="info"}
 
-### Step 6.5: Deploy the Custom SQL Toolset
+### Step 6.5: Uncomment the Custom SQL toolset and deploy
+
+Open :code[/workshop/agentic-analytics/app/agentcore_strands/agentcore-topup-stack.yaml]{showCopyAction=true} and find the **Step 6** fence:
+
+```
+# ===== UNCOMMENT FROM HERE (Step 6: Custom SQL toolset ...) =====
+...
+# ===== UNCOMMENT TO HERE (Step 6) =====
+```
+
+Uncomment everything between the markers (this brings up `CustomSqlLambda`, its role + permission, and the `CustomSqlTarget` with its three tools: `text_to_sql_tool`, `get_schema_context_tool`, `execute_sql_tool`). The Lambda already imports the Glue database name and the Bedrock Knowledge Base id from the base stack's exports — no values to wire by hand.
+
+::alert[**Tip — uncomment the whole block at once.** Don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the fence, then **Shift+click** the last line inside it to select the whole block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Select only the lines **between** the two `UNCOMMENT` markers — not the marker lines themselves.]{type="info"}
+
+Then deploy:
 
 ```bash
 cd /workshop/agentic-analytics/app/agentcore_strands
-python3 infra/deploy_sql_toolset.py
+make deploy
 ```
 
-Expected output:
-
-```
-Registering to Gateway...
-Note: 'targets'
-[OK] Created target: XXXXXXXXXX
-
-==================================================
-[OK] Deployment complete!
-   Lambda: arn:aws:lambda:us-east-1:xxxxxxxxxxxx:function:custom-sql-toolset-lambda
-   Gateway Target: XXXXXXXXXX
-```
+When it finishes, the Gateway has a third target, `CustomSQL`.
 
 ### Step 6.6: Test Custom SQL Queries
 
@@ -112,11 +115,11 @@ If you're not logged in to the chat UI, log in as:
 | Username | `orion.moonshadow@example-mythicalunicorns.com` |
 | Password | `Unicorn123!` |
 
-::alert[**Use the right user:** In case you intend to run the below queries after deploying the AgentCore Policy and RLS in step 7, you MUST use users with "analyst" or "rental_admin" or "saas_admin" type to be able to use the custom SQL. The user above (Orion Moonshadow) is an analyst. If you run this step before deploying the components in step 7, the user does not matter.]{type="info"}
+::alert[**Use the right user:** In case you intend to run the below queries after deploying the AgentCore Policy and RLS in step 7, you MUST use users with "analyst" or "rental_admin" or "saas_admin" type to be able to use the custom SQL. The user above (Orion Moonshadow) is an analyst role. If you run this step before deploying the components in step 7, the user does not matter.]{type="info"}
 
 ::alert[**Start fresh:** It is best to clear the chatbot conversation from the previous step by clicking the small bin icon next to the chat input field or by refreshing the application demo browser tab.]{type="info"}
 
-Try these ad-hoc analytics questions — none are covered by the 27 prebaked tools, so the agent will use `CustomSQL___text_to_sql_tool` and show an **approval card** for each:
+Try these ad-hoc analytics questions — none are covered by the 29 prebaked tools, so the agent will use `CustomSQL___text_to_sql_tool` and show an **approval card** for each:
 
 **Query 1: Booking duration by breed**
 - Ask: "What's the average booking duration by unicorn breed?"
@@ -156,7 +159,7 @@ The `execute_sql_tool` enforces:
 
 - `business-context.md` contains schema descriptions, business rules, and sample SQL
 - Semantic search in the KB console returns relevant chunks
-- `deploy_sql_toolset.py` creates the CustomSQL target with 3 tools
+- After uncommenting Step 6 and `make deploy`, the Gateway has a `CustomSQL` target with 3 tools
 - Ad-hoc questions show the approval card with a business-level query plan
 - Approved queries return formatted results with insights
 - Multiple query types work: JOINs, aggregations, time patterns, conditional grouping

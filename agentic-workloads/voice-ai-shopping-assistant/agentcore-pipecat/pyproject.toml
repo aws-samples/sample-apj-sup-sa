@@ -1,0 +1,25 @@
+[project]
+name = "agentcore-pipecat-aisle"
+version = "0.1.0"
+description = "Aisle voice grocery shopping assistant (cascaded) deployable to Amazon Bedrock AgentCore Runtime via Daily"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp",
+    "aioboto3",
+    "boto3",
+    "bedrock-agentcore",
+    "python-dotenv",
+    "loguru",
+    "pipecat-ai[aws,daily,deepgram,silero,tavus,runner]>=0.0.103",
+]
+
+[dependency-groups]
+dev = [
+    "bedrock-agentcore-starter-toolkit",
+    "ruff>=0.12.11,<1",
+]
+
+[tool.ruff]
+line-length = 100
+[tool.ruff.lint]
+select = ["I"]

@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bedrock-bench"
+dynamic = ["version"]   # single-sourced from bedrock_bench.__version__
+description = "Benchmark AWS Bedrock service tiers (default vs flex vs priority): TTFT and total-latency percentiles across models and transports."
+readme = "README.md"
+requires-python = ">=3.10"
+# License is inherited from the parent (aws-samples) repository's LICENSE file;
+# this sample ships as a subfolder, so it does not declare its own.
+authors = [{ name = "Amazon Web Services" }]
+keywords = ["aws", "bedrock", "llm", "benchmark", "latency", "ttft", "flex", "priority"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Benchmark",
+]
+dependencies = [
+    "llmeter[openai]>=0.1.11,<0.2",
+    "aws-bedrock-token-generator>=1.1.0,<2",
+    # boto3 >= 1.40.0 is REQUIRED: the InvokeModel `serviceTier` parameter (flex/
+    # priority) was added to botocore in 1.40.0; earlier releases reject it with a
+    # ParamValidationError, silently breaking the flex/priority benchmark.
+    "boto3>=1.40.0,<2",
+    "openai>=1.35.1,<3",
+    "numpy>=1.24,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4,<10",       # >=9.0.3 fixes CVE-2025-71176 (local /tmp DoS); 8.x usable too
+    "pytest-asyncio>=0.23,<2",
+    "ruff>=0.6,<1",
+    "mypy>=1.10,<2",
+    "pip-audit>=2.7,<3",
+    "bandit>=1.7,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/aws-samples"
+
+[project.scripts]
+bedrock-bench = "bedrock_bench.__main__:main"
+bedrock-bench-discover = "bedrock_bench.discovery:main"
+
+[tool.hatch.version]
+path = "bedrock_bench/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bedrock_bench"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"bedrock_bench/models.json" = "bedrock_bench/models.json"
+"bedrock_bench/py.typed" = "bedrock_bench/py.typed"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# These modules emit CSS / HTML / Markdown template strings that are data, not
+# logic; wrapping the literals would corrupt output or hurt readability.
+"bedrock_bench/html_report.py" = ["E501"]
+"bedrock_bench/report.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true        # llmeter / aws_bedrock_token_generator ship no stubs
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.bandit]
+# Scan the package only; `assert` in tests (B101) is idiomatic pytest, not a finding.
+exclude_dirs = ["tests", ".venv"]

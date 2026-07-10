@@ -1,0 +1,27 @@
+# Pipecat Cloud deployment config for the Voice Analytics bot.
+#
+# Deploy with:
+#   pipecat cloud deploy --secrets voice-analytics-secrets
+# (image/credentials are pushed by the CLI; see scripts/deploy_voice_cloud.sh)
+#
+# The bot reads all runtime config from the secret set (AWS creds + AgentCore
+# env + Deepgram). The presenter SOP is fetched from S3 at runtime.
+
+agent_name = "voice-analytics-agent"
+secret_set = "voice-analytics-secrets"
+
+# agent-1x is the standard CPU profile; the bot is I/O-bound (it proxies to
+# AgentCore), so it does not need a larger profile.
+agent_profile = "agent-1x"
+
+[scaling]
+	# min_agents = 0: scale to zero when idle to STOP billing. The first session
+	# after idle pays a ~10s cold start; acceptable post-hackathon. Set to 1 to
+	# keep one instance warm (no cold start) at the cost of always-on billing.
+	min_agents = 0
+	max_agents = 5
+
+[krisp_viva]
+	# Acoustic echo / noise cancellation on the inbound audio. This also helps
+	# the barge-in/echo issue seen on laptop speakers (bot hearing its own TTS).
+	audio_filter = "tel"

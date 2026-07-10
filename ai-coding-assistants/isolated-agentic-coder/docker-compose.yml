@@ -1,0 +1,43 @@
+# buildingo.py sandbox.
+#
+# A single long-running container the orchestrator `exec`s into. The orchestrator
+# brings this up before each run with `docker compose up -d --build`.
+
+services:
+  sandbox:
+    container_name: buildingo-sandbox
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Not privileged. Agents get only the capabilities they need for package
+    # installation and builds. The container is the security boundary.
+    security_opt: []
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+      - NET_RAW
+    # The container is NOT read-only because agents need `sudo apt-get install`
+    # to set up language toolchains at runtime. Security relies on: cap_drop,
+    # no-new-privileges, non-root user, pids/mem/cpu limits, and the container
+    # boundary itself.
+    tmpfs:
+      - /tmp:size=2g
+    pids_limit: 1024
+    mem_limit: 4g
+    cpus: 4
+    command: sleep infinity
+    tty: true
+    stdin_open: true
+    working_dir: /work/sandbox
+    volumes:
+      # Spec is read-only.
+      - ./spec:/work/spec:ro
+      # Sandbox is the build surface. Persists on the host.
+      - ./sandbox:/work/sandbox
+    environment:
+      - DEBIAN_FRONTEND=noninteractive

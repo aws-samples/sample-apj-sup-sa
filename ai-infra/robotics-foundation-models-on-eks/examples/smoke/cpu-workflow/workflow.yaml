@@ -1,0 +1,17 @@
+workflow:
+  name: aws-osmo-smoke
+  resources:
+    default:
+      cpu: 1
+      memory: 2Gi
+      storage: 1Gi
+  tasks:
+    - name: hello
+      resource: default
+      image: public.ecr.aws/docker/library/ubuntu:24.04
+      command: ["bash", "-lc"]
+      args:
+        - |
+          set -euo pipefail
+          echo "hello from AWS OSMO smoke workflow"
+          uname -a

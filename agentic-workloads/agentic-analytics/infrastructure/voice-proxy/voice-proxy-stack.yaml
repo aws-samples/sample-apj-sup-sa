@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Voice Analytics — JWT-gated Pipecat Cloud start proxy. An API Gateway HTTP API
+  fronts a Lambda; a Cognito JWT authorizer validates the caller's access token
+  AT THE EDGE (so the Lambda is NOT world-accessible — no public Function URL).
+  The Lambda then calls the Pipecat Cloud start API server-side (keeping the PCC
+  key out of the browser) and returns the Daily room + token to the client.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID (from the CognitoStack output)
+  CognitoAppClientId:
+    Type: String
+    Description: Cognito app client ID the SPA logs in with
+  PccAgentName:
+    Type: String
+    Default: voice-analytics-agent
+  AllowedOrigin:
+    Type: String
+    Description: CORS allow-origin (the Amplify site URL), or * for any
+    Default: '*'
+
+Resources:
+  # The PCC private key is NOT passed as a CFN parameter (it would then live in the
+  # stack/command). Instead this stack creates the secret with a PLACEHOLDER, and
+  # the post-deploy script (scripts/deploy_voice_pcc.sh) fills the real value. The
+  # Lambda reads it per-invocation, so it works the moment the script fills it —
+  # no redeploy needed.
+  PccApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-voice-pcc-key'
+      Description: Pipecat Cloud public API key for the start proxy (filled post-deploy)
+      SecretString: REPLACE_ME
+  # Lambda — NO Function URL. Only invocable via the API Gateway below, which is
+  # itself gated by the Cognito JWT authorizer. The handler ALSO re-validates the
+  # JWT (defense in depth) and reads it to forward as the AgentCore gateway_token.
+  StartProxyFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${EnvironmentName}-voice-start-proxy'
+      Runtime: python3.12
+      Handler: index.handler
+      CodeUri: ./build/
+      Timeout: 25
+      MemorySize: 256
+      Environment:
+        Variables:
+          PCC_AGENT_NAME: !Ref PccAgentName
+          PCC_API_KEY_SECRET_ARN: !Ref PccApiKeySecret
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_APP_CLIENT_ID: !Ref CognitoAppClientId
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref PccApiKeySecret
+      Events:
+        StartRoute:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref VoiceHttpApi
+            Path: /start
+            Method: POST
+            # Inherits the API's default Cognito JWT authorizer (below).
+
+  # HTTP API with a Cognito JWT authorizer as the DEFAULT for all routes.
+  # API Gateway validates the token's signature, issuer, and audience at the edge
+  # and rejects unauthenticated calls with 401 before the Lambda is ever invoked.
+  VoiceHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: !Sub '${EnvironmentName}-voice-start-api'
+      # CORS handled here at the API layer (OPTIONS preflight is auto-handled and
+      # is NOT subject to the authorizer).
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods:
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - authorization
+          - content-type
+        MaxAge: 600
+      Auth:
+        DefaultAuthorizer: CognitoJwt
+        Authorizers:
+          CognitoJwt:
+            # Cognito ACCESS tokens carry no 'aud' claim; API Gateway then
+            # validates 'client_id' against this audience list. (Confirmed in the
+            # API Gateway HTTP API JWT authorizer docs.)
+            IdentitySource: '$request.header.Authorization'
+            JwtConfiguration:
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPoolId}'
+              audience:
+                - !Ref CognitoAppClientId
+
+Outputs:
+  VoiceStartUrl:
+    Description: API endpoint — set this as VOICE_START_URL (config.js) / REACT_APP_VOICE_START_URL. Note the /start path.
+    Value: !Sub 'https://${VoiceHttpApi}.execute-api.${AWS::Region}.amazonaws.com/start'
+  PccApiKeySecretArn:
+    Description: Secrets Manager secret holding the PCC key — the post-deploy script fills its value.
+    Value: !Ref PccApiKeySecret

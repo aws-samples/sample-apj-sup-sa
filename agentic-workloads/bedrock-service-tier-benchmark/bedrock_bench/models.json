@@ -1,0 +1,726 @@
+[
+  {
+    "key": "amazon.nova-pro",
+    "family": "Amazon Nova",
+    "display_name": "Amazon Nova Pro",
+    "invoke_id": "amazon.nova-pro-v1:0",
+    "invoke_region": "us-east-1",
+    "mantle_id": null,
+    "mantle_region": null,
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [],
+    "payload_style": "nova"
+  },
+  {
+    "key": "deepseek.v3",
+    "family": "DeepSeek",
+    "display_name": "DeepSeek V3",
+    "invoke_id": "deepseek.v3-v1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": null,
+    "mantle_region": null,
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [],
+    "payload_style": "openai"
+  },
+  {
+    "key": "deepseek.v3.1",
+    "family": "DeepSeek",
+    "display_name": "DeepSeek V3.1",
+    "invoke_id": null,
+    "invoke_region": null,
+    "mantle_id": "deepseek.v3.1",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "deepseek.v3.2",
+    "family": "DeepSeek",
+    "display_name": "DeepSeek V3.2",
+    "invoke_id": "deepseek.v3.2",
+    "invoke_region": "us-west-2",
+    "mantle_id": "deepseek.v3.2",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "zai.glm-4.6",
+    "family": "GLM (Z.AI)",
+    "display_name": "Z.AI GLM 4.6",
+    "invoke_id": null,
+    "invoke_region": null,
+    "mantle_id": "zai.glm-4.6",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "zai.glm-4.7",
+    "family": "GLM (Z.AI)",
+    "display_name": "Z.AI GLM 4.7",
+    "invoke_id": "zai.glm-4.7",
+    "invoke_region": "us-west-2",
+    "mantle_id": "zai.glm-4.7",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "zai.glm-4.7-flash",
+    "family": "GLM (Z.AI)",
+    "display_name": "Z.AI GLM 4.7 Flash",
+    "invoke_id": "zai.glm-4.7-flash",
+    "invoke_region": "us-west-2",
+    "mantle_id": "zai.glm-4.7-flash",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "zai.glm-5",
+    "family": "GLM (Z.AI)",
+    "display_name": "Z.AI GLM 5",
+    "invoke_id": "zai.glm-5",
+    "invoke_region": "us-west-2",
+    "mantle_id": "zai.glm-5",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "google.gemma-3-12b",
+    "family": "Google Gemma",
+    "display_name": "Google Gemma 3 12B",
+    "invoke_id": "google.gemma-3-12b-it",
+    "invoke_region": "us-west-2",
+    "mantle_id": "google.gemma-3-12b-it",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "google.gemma-3-27b",
+    "family": "Google Gemma",
+    "display_name": "Google Gemma 3 27B",
+    "invoke_id": "google.gemma-3-27b-it",
+    "invoke_region": "us-west-2",
+    "mantle_id": "google.gemma-3-27b-it",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "google.gemma-3-4b",
+    "family": "Google Gemma",
+    "display_name": "Google Gemma 3 4B",
+    "invoke_id": "google.gemma-3-4b-it",
+    "invoke_region": "us-west-2",
+    "mantle_id": "google.gemma-3-4b-it",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "moonshotai.kimi-k2-thinking",
+    "family": "Kimi (Moonshot)",
+    "display_name": "Kimi K2 Thinking",
+    "invoke_id": "moonshot.kimi-k2-thinking",
+    "invoke_region": "us-west-2",
+    "mantle_id": "moonshotai.kimi-k2-thinking",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "moonshotai.kimi-k2.5",
+    "family": "Kimi (Moonshot)",
+    "display_name": "Kimi K2.5",
+    "invoke_id": "moonshotai.kimi-k2.5",
+    "invoke_region": "us-west-2",
+    "mantle_id": "moonshotai.kimi-k2.5",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "minimax.minimax-m2",
+    "family": "MiniMax",
+    "display_name": "MiniMax M2",
+    "invoke_id": "minimax.minimax-m2",
+    "invoke_region": "us-west-2",
+    "mantle_id": "minimax.minimax-m2",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "minimax.minimax-m2.1",
+    "family": "MiniMax",
+    "display_name": "MiniMax M2.1",
+    "invoke_id": "minimax.minimax-m2.1",
+    "invoke_region": "us-west-2",
+    "mantle_id": "minimax.minimax-m2.1",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "minimax.minimax-m2.5",
+    "family": "MiniMax",
+    "display_name": "MiniMax M2.5",
+    "invoke_id": "minimax.minimax-m2.5",
+    "invoke_region": "us-west-2",
+    "mantle_id": "minimax.minimax-m2.5",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "mistral.devstral-2-123b",
+    "family": "Mistral",
+    "display_name": "Mistral Devstral 2 123B",
+    "invoke_id": "mistral.devstral-2-123b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "mistral.devstral-2-123b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "mistral.magistral-small-2509",
+    "family": "Mistral",
+    "display_name": "Mistral Magistral Small 2509",
+    "invoke_id": "mistral.magistral-small-2509",
+    "invoke_region": "us-west-2",
+    "mantle_id": "mistral.magistral-small-2509",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "mistral.ministral-3-14b",
+    "family": "Mistral",
+    "display_name": "Mistral Ministral 3 14B",
+    "invoke_id": "mistral.ministral-3-14b-instruct",
+    "invoke_region": "us-west-2",
+    "mantle_id": "mistral.ministral-3-14b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "mistral.ministral-3-3b",
+    "family": "Mistral",
+    "display_name": "Mistral Ministral 3 3B",
+    "invoke_id": "mistral.ministral-3-3b-instruct",
+    "invoke_region": "us-west-2",
+    "mantle_id": "mistral.ministral-3-3b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "mistral.ministral-3-8b",
+    "family": "Mistral",
+    "display_name": "Mistral Ministral 3 8B",
+    "invoke_id": "mistral.ministral-3-8b-instruct",
+    "invoke_region": "us-west-2",
+    "mantle_id": "mistral.ministral-3-8b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "mistral.mistral-large-3-675b",
+    "family": "Mistral",
+    "display_name": "Mistral Large 3 675B",
+    "invoke_id": "mistral.mistral-large-3-675b-instruct",
+    "invoke_region": "us-west-2",
+    "mantle_id": "mistral.mistral-large-3-675b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "nvidia.nemotron-nano-12b",
+    "family": "NVIDIA Nemotron",
+    "display_name": "NVIDIA Nemotron Nano 12B",
+    "invoke_id": "nvidia.nemotron-nano-12b-v2",
+    "invoke_region": "us-west-2",
+    "mantle_id": "nvidia.nemotron-nano-12b-v2",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "nvidia.nemotron-nano-3-30b",
+    "family": "NVIDIA Nemotron",
+    "display_name": "NVIDIA Nemotron Nano 3 30B",
+    "invoke_id": "nvidia.nemotron-nano-3-30b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "nvidia.nemotron-nano-3-30b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "nvidia.nemotron-nano-9b",
+    "family": "NVIDIA Nemotron",
+    "display_name": "NVIDIA Nemotron Nano 9B",
+    "invoke_id": "nvidia.nemotron-nano-9b-v2",
+    "invoke_region": "us-west-2",
+    "mantle_id": "nvidia.nemotron-nano-9b-v2",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "nvidia.nemotron-super-3-120b",
+    "family": "NVIDIA Nemotron",
+    "display_name": "NVIDIA Nemotron Super 3 120B",
+    "invoke_id": "nvidia.nemotron-super-3-120b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "nvidia.nemotron-super-3-120b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "openai.gpt-oss-120b",
+    "family": "OpenAI GPT-OSS",
+    "display_name": "OpenAI GPT OSS 120B",
+    "invoke_id": "openai.gpt-oss-120b-1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": "openai.gpt-oss-120b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "openai.gpt-oss-20b",
+    "family": "OpenAI GPT-OSS",
+    "display_name": "OpenAI GPT OSS 20B",
+    "invoke_id": "openai.gpt-oss-20b-1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": "openai.gpt-oss-20b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "openai.gpt-oss-safeguard-120b",
+    "family": "OpenAI GPT-OSS",
+    "display_name": "OpenAI GPT OSS Safeguard 120B",
+    "invoke_id": "openai.gpt-oss-safeguard-120b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "openai.gpt-oss-safeguard-120b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "openai.gpt-oss-safeguard-20b",
+    "family": "OpenAI GPT-OSS",
+    "display_name": "OpenAI GPT OSS Safeguard 20B",
+    "invoke_id": "openai.gpt-oss-safeguard-20b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "openai.gpt-oss-safeguard-20b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-235b-a22b-2507",
+    "family": "Qwen",
+    "display_name": "Qwen3 235B A22B 2507",
+    "invoke_id": "qwen.qwen3-235b-a22b-2507-v1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": "qwen.qwen3-235b-a22b-2507",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-32b",
+    "family": "Qwen",
+    "display_name": "Qwen3 32B",
+    "invoke_id": "qwen.qwen3-32b-v1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": "qwen.qwen3-32b",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-coder-30b-a3b",
+    "family": "Qwen",
+    "display_name": "Qwen3 Coder 30B A3B",
+    "invoke_id": "qwen.qwen3-coder-30b-a3b-v1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": "qwen.qwen3-coder-30b-a3b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-coder-480b-a35b",
+    "family": "Qwen",
+    "display_name": "Qwen3 Coder 480B A35B",
+    "invoke_id": "qwen.qwen3-coder-480b-a35b-v1:0",
+    "invoke_region": "us-west-2",
+    "mantle_id": "qwen.qwen3-coder-480b-a35b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-coder-next",
+    "family": "Qwen",
+    "display_name": "Qwen3 Coder Next",
+    "invoke_id": "qwen.qwen3-coder-next",
+    "invoke_region": "us-east-1",
+    "mantle_id": "qwen.qwen3-coder-next",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-next-80b-a3b",
+    "family": "Qwen",
+    "display_name": "Qwen3 Next 80B A3B",
+    "invoke_id": "qwen.qwen3-next-80b-a3b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "qwen.qwen3-next-80b-a3b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  },
+  {
+    "key": "qwen.qwen3-vl-235b-a22b",
+    "family": "Qwen",
+    "display_name": "Qwen3 VL 235B A22B",
+    "invoke_id": "qwen.qwen3-vl-235b-a22b",
+    "invoke_region": "us-west-2",
+    "mantle_id": "qwen.qwen3-vl-235b-a22b-instruct",
+    "mantle_region": "us-west-2",
+    "invoke_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "mantle_tiers": [
+      "default",
+      "flex",
+      "priority"
+    ],
+    "payload_style": "openai"
+  }
+]

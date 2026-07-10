@@ -1,0 +1,27 @@
+aws_region = "ap-northeast-2"
+
+# Populate these from the core deployment or live cluster:
+#
+#   terraform -chdir=infra/core output -raw cluster_name
+#   terraform -chdir=infra/core output -raw cluster_oidc_issuer_url
+#   terraform -chdir=infra/core output -raw cluster_oidc_provider_arn
+#   terraform -chdir=infra/core output -raw vpc_id
+#
+cluster_name              = "example-osmo-eks"
+cluster_oidc_issuer_url   = "https://oidc.eks.ap-northeast-2.amazonaws.com/id/EXAMPLE"
+cluster_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.ap-northeast-2.amazonaws.com/id/EXAMPLE"
+vpc_id                    = "vpc-0123456789abcdef0"
+
+# Required. Use a dedicated admin UI hostname, not an apex domain.
+domain_name    = "osmo.example.com"
+hosted_zone_id = "Z0123456789ABCDEFG"
+
+# Required. Keep this to trusted administrator networks only.
+allowed_cidrs = [
+  "203.0.113.0/24"
+]
+
+tags = {
+  Project     = "aws-osmo"
+  Environment = "dev-repro"
+}
