@@ -7,6 +7,7 @@ import logging
 
 from gateway.domains.policy.context import PolicyContext
 from gateway.domains.policy.engine import HandlerType
+from gateway.domains.runtime.circuit_breaker import CircuitBreaker
 from gateway.domains.runtime.types import (
     MessageRequest,
     MessageResponse,
@@ -15,7 +16,9 @@ from gateway.domains.runtime.types import (
 )
 from gateway.domains.usage.metrics import MetricsService
 from shared.exceptions import (
+    AnthropicError,
     AppError,
+    BedrockClientBugError,
     BedrockError,
     BedrockThrottlingError,
     BudgetExceededError,
@@ -42,6 +45,8 @@ class GatewayService:
         model_catalog_repo,
         metrics: MetricsService | None = None,
         log_full_payloads: bool = False,
+        anthropic_client=None,
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:  # type: ignore[no-untyped-def]
         self._policy_chain = policy_chain
         self._request_converter = request_converter
@@ -53,6 +58,8 @@ class GatewayService:
         self._model_catalog_repo = model_catalog_repo
         self._metrics = metrics
         self._log_full_payloads = log_full_payloads
+        self._anthropic_client = anthropic_client
+        self._circuit_breaker = circuit_breaker
 
     def _log_bedrock_error(self, context: PolicyContext, error: AppError) -> None:
         level = logging.WARNING if isinstance(error, BedrockThrottlingError) else logging.ERROR
@@ -104,6 +111,119 @@ class GatewayService:
             self._serialize_payload(payload),
         )
 
+    def _can_fallback_to_anthropic(self, context: PolicyContext) -> bool:
+        if self._anthropic_client is None:
+            return False
+        resolved = context.resolved_model
+        anthropic_id = getattr(resolved, "anthropic_model_id", None) if resolved else None
+        return bool(anthropic_id)
+
+    @staticmethod
+    def _breaker_key(context: PolicyContext) -> str | None:
+        """Build the circuit-breaker key as (region, model).
+
+        Keying by model as well as region keeps one model's outage or throttle
+        from diverting unrelated models in the same region to 1P. Returns None
+        when the resolved model has no region, in which case the breaker is
+        skipped for the request.
+        """
+        resolved = context.resolved_model
+        if resolved is None:
+            return None
+        region = getattr(resolved, "bedrock_region", None)
+        if region is None:
+            return None
+        return f"{region}|{resolved.bedrock_model_id}"
+
+    @staticmethod
+    def _anthropic_fallback_payload(request: MessageRequest) -> dict:
+        """Build the 1P payload, lifting inline system-role messages.
+
+        Claude Code may inject system-role entries inside `messages`. The 1P
+        Messages API (like Bedrock Converse) rejects system roles inside
+        `messages` and only accepts a top-level `system`, so they are moved
+        there to keep the fallback payload shape consistent with the Bedrock
+        path. Order is preserved.
+        """
+        payload = request.model_dump(exclude_none=True)
+        messages = payload.get("messages", [])
+        conversation = [m for m in messages if m.get("role") != "system"]
+        inline_system = [m for m in messages if m.get("role") == "system"]
+        if not inline_system:
+            return payload
+        system_blocks: list[dict] = []
+        existing = payload.get("system")
+        if isinstance(existing, str):
+            system_blocks.append({"type": "text", "text": existing})
+        elif isinstance(existing, list):
+            system_blocks.extend(existing)
+        for message in inline_system:
+            content = message.get("content")
+            if isinstance(content, str):
+                system_blocks.append({"type": "text", "text": content})
+            elif isinstance(content, list):
+                system_blocks.extend(content)
+        payload["system"] = system_blocks
+        payload["messages"] = conversation
+        return payload
+
+    async def _call_anthropic_fallback(
+        self,
+        request: MessageRequest,
+        context: PolicyContext,
+        request_id: str,
+        reason: str,
+    ) -> MessageResponse:
+        logger.warning(
+            "falling back to anthropic 1p request_id=%s reason=%s",
+            request_id,
+            reason,
+        )
+        anthropic_response = await self._anthropic_client.messages(
+            self._anthropic_fallback_payload(request),
+            context.resolved_model.anthropic_model_id,
+        )
+        self._log_bedrock_response_payload(request_id, anthropic_response)
+        # 1P fallback usage is intentionally NOT recorded: cost and token usage
+        # land on the Anthropic console, and this gateway only tracks Bedrock
+        # spend. Skipping record_success also means budget is not decremented for
+        # requests served by 1P during a Bedrock outage.
+        return MessageResponse.model_validate(anthropic_response)
+
+    async def _stream_anthropic_fallback(
+        self,
+        request: MessageRequest,
+        context: PolicyContext,
+        request_id: str,
+        reason: str,
+    ):
+        """Yield 1P SSE bytes unchanged.
+
+        1P emits Anthropic-native SSE, so the bytes pass through to the client
+        untouched. 1P fallback usage is intentionally NOT recorded (cost lands on
+        the Anthropic console; this gateway only tracks Bedrock spend), so no
+        usage is parsed off the stream and budget is not decremented.
+        """
+        logger.warning(
+            "falling back to anthropic 1p stream request_id=%s reason=%s",
+            request_id,
+            reason,
+        )
+        chunks = await self._anthropic_client.messages_stream(
+            self._anthropic_fallback_payload(request),
+            context.resolved_model.anthropic_model_id,
+        )
+
+        async def _generator():
+            try:
+                async for chunk in chunks:
+                    yield chunk
+            finally:
+                if self._metrics:
+                    self._metrics.emit_active_request_end(context)
+
+        return _generator()
+
     @staticmethod
     def _inject_bedrock_request_metadata(
         request: dict[str, object], context: PolicyContext
@@ -131,6 +251,25 @@ class GatewayService:
         try:
             await self._policy_chain.evaluate(context)
             await self._session.commit()
+            resolved = context.resolved_model
+            region = getattr(resolved, "bedrock_region", None) if resolved else None
+            breaker_key = self._breaker_key(context)
+            breaker_open = (
+                self._circuit_breaker is not None
+                and breaker_key is not None
+                and not self._circuit_breaker.allow_bedrock(breaker_key)
+            )
+            if breaker_open and self._can_fallback_to_anthropic(context):
+                logger.info(
+                    "bedrock circuit breaker open, skipping bedrock "
+                    "request_id=%s region=%s",
+                    request_id,
+                    region,
+                )
+                return await self._call_anthropic_fallback(
+                    request, context, request_id, "circuit_open"
+                )
+
             bedrock_request = self._request_converter.convert_request(
                 request,
                 context.resolved_model,
@@ -139,7 +278,23 @@ class GatewayService:
             )
             bedrock_request = self._inject_bedrock_request_metadata(bedrock_request, context)
             self._log_bedrock_request_payload(request_id, bedrock_request)
-            response = await self._bedrock_client.converse(bedrock_request, context.resolved_model)
+            try:
+                response = await self._bedrock_client.converse(
+                    bedrock_request, context.resolved_model
+                )
+            except (BedrockError, BedrockThrottlingError) as bedrock_error:
+                if self._circuit_breaker is not None and breaker_key is not None:
+                    self._circuit_breaker.record_failure(breaker_key)
+                if not self._can_fallback_to_anthropic(context):
+                    raise
+                self._log_bedrock_error(context, bedrock_error)
+                if isinstance(bedrock_error, BedrockThrottlingError) and self._metrics:
+                    self._metrics.emit_throttle(context)
+                return await self._call_anthropic_fallback(
+                    request, context, request_id, type(bedrock_error).__name__
+                )
+            if self._circuit_breaker is not None and breaker_key is not None:
+                self._circuit_breaker.record_success(breaker_key)
             self._log_bedrock_response_payload(request_id, response)
             message = self._response_converter.convert_response(
                 response,
@@ -153,8 +308,14 @@ class GatewayService:
                 self._log_bedrock_error(context, error)
                 if self._metrics:
                     self._metrics.emit_throttle(context)
-            elif isinstance(error, BedrockError):
+            elif isinstance(error, (BedrockError, BedrockClientBugError)):
                 self._log_bedrock_error(context, error)
+            elif isinstance(error, AnthropicError):
+                logger.error(
+                    "anthropic 1p fallback failed request_id=%s error=%s",
+                    request_id,
+                    str(error),
+                )
             if self._metrics and isinstance(
                 error,
                 (BudgetExceededError, ModelNotAllowedError, UserInactiveError, TeamInactiveError),
@@ -184,6 +345,25 @@ class GatewayService:
         try:
             await self._policy_chain.evaluate(context)
             await self._session.commit()
+            resolved = context.resolved_model
+            region = getattr(resolved, "bedrock_region", None) if resolved else None
+            breaker_key = self._breaker_key(context)
+            breaker_open = (
+                self._circuit_breaker is not None
+                and breaker_key is not None
+                and not self._circuit_breaker.allow_bedrock(breaker_key)
+            )
+            if breaker_open and self._can_fallback_to_anthropic(context):
+                logger.info(
+                    "bedrock circuit breaker open, skipping bedrock stream "
+                    "request_id=%s region=%s",
+                    request_id,
+                    region,
+                )
+                return await self._stream_anthropic_fallback(
+                    request, context, request_id, "circuit_open"
+                )
+
             bedrock_request = self._request_converter.convert_request(
                 request,
                 context.resolved_model,
@@ -192,10 +372,24 @@ class GatewayService:
             )
             bedrock_request = self._inject_bedrock_request_metadata(bedrock_request, context)
             self._log_bedrock_request_payload(request_id, bedrock_request)
-            bedrock_stream = await self._bedrock_client.converse_stream(
-                bedrock_request,
-                context.resolved_model,
-            )
+            try:
+                bedrock_stream = await self._bedrock_client.converse_stream(
+                    bedrock_request,
+                    context.resolved_model,
+                )
+            except (BedrockError, BedrockThrottlingError) as bedrock_error:
+                if self._circuit_breaker is not None and breaker_key is not None:
+                    self._circuit_breaker.record_failure(breaker_key)
+                if not self._can_fallback_to_anthropic(context):
+                    raise
+                self._log_bedrock_error(context, bedrock_error)
+                if isinstance(bedrock_error, BedrockThrottlingError) and self._metrics:
+                    self._metrics.emit_throttle(context)
+                return await self._stream_anthropic_fallback(
+                    request, context, request_id, type(bedrock_error).__name__
+                )
+            if self._circuit_breaker is not None and breaker_key is not None:
+                self._circuit_breaker.record_success(breaker_key)
             return self._stream_processor.stream_response(
                 bedrock_stream,
                 context,
@@ -210,8 +404,14 @@ class GatewayService:
                 self._log_bedrock_error(context, error)
                 if self._metrics:
                     self._metrics.emit_throttle(context)
-            elif isinstance(error, BedrockError):
+            elif isinstance(error, (BedrockError, BedrockClientBugError)):
                 self._log_bedrock_error(context, error)
+            elif isinstance(error, AnthropicError):
+                logger.error(
+                    "anthropic 1p stream fallback failed request_id=%s error=%s",
+                    request_id,
+                    str(error),
+                )
             if self._metrics and isinstance(
                 error,
                 (BudgetExceededError, ModelNotAllowedError, UserInactiveError, TeamInactiveError),

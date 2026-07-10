@@ -107,7 +107,11 @@ def create_kb_role(kb_name, aurora_secret_arn, kb_docs_bucket=None):
     if kb_docs_bucket:
         statements.append({
             "Effect": "Allow",
-            "Action": ["s3:GetObject", "s3:ListBucket"],
+            # GetBucketLocation is REQUIRED: without it Bedrock's ingestion S3 client
+            # can't resolve the bucket region, falls back to the global endpoint, and
+            # gets 301 PermanentRedirect ("must be addressed using the specified endpoint")
+            # on every ingestion in us-east-1.
+            "Action": ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"],
             "Resource": [
                 f"arn:aws:s3:::{kb_docs_bucket}",
                 f"arn:aws:s3:::{kb_docs_bucket}/*"
@@ -140,19 +144,50 @@ def create_kb_role(kb_name, aurora_secret_arn, kb_docs_bucket=None):
         PolicyDocument=json.dumps(policy)
     )
     print(f"[OK] Updated IAM role policy with current secret ARN")
-    time.sleep(15)  # Wait for policy propagation
+    # Initial wait for policy propagation; create_knowledge_base also retries on the
+    # rds:DescribeDBClusters propagation race, so this is a best-effort head start.
+    time.sleep(20)
     return role_arn
+
+
+def _find_kb_by_name(name):
+    """Paginate all KBs and return the id of the one matching `name` (or None)."""
+    _next = None
+    while True:
+        kwargs = {'maxResults': 100}
+        if _next:
+            kwargs['nextToken'] = _next
+        resp = bedrock_agent.list_knowledge_bases(**kwargs)
+        for kb in resp.get('knowledgeBaseSummaries', []):
+            if kb['name'] == name:
+                return kb['knowledgeBaseId']
+        _next = resp.get('nextToken')
+        if not _next:
+            return None
 
 
 def create_knowledge_base(kb_name, role_arn, aurora_cluster_arn, aurora_secret_arn, database_name):
     """Create Bedrock Knowledge Base with Aurora pgvector."""
     print(f"Creating Knowledge Base: {kb_name}")
     
-    # Check if KB already exists (including alternate names)
+    # Check if KB already exists (including alternate names).
+    # IMPORTANT: paginate — list_knowledge_bases() returns only the first page
+    # (~10 KBs). In a shared/sandbox account with many KBs, a single page can miss
+    # our leftover KB, and we'd then try to create it again -> ConflictException.
     try:
-        response = bedrock_agent.list_knowledge_bases()
-        kb_map = {kb['name']: kb for kb in response.get('knowledgeBaseSummaries', [])}
-        
+        kb_map = {}
+        _next = None
+        while True:
+            kwargs = {'maxResults': 100}
+            if _next:
+                kwargs['nextToken'] = _next
+            response = bedrock_agent.list_knowledge_bases(**kwargs)
+            for kb in response.get('knowledgeBaseSummaries', []):
+                kb_map[kb['name']] = kb
+            _next = response.get('nextToken')
+            if not _next:
+                break
+
         # Check primary name first, then alternate
         for name in [kb_name, f"{kb_name}-v2"]:
             if name in kb_map:
@@ -189,7 +224,7 @@ def create_knowledge_base(kb_name, role_arn, aurora_cluster_arn, aurora_secret_a
     except Exception as e:
         print(f"Error checking KBs: {e}")
     
-    response = bedrock_agent.create_knowledge_base(
+    kb_kwargs = dict(
         name=kb_name,
         description='Agentic Analytics business context knowledge base',
         roleArn=role_arn,
@@ -215,7 +250,42 @@ def create_knowledge_base(kb_name, role_arn, aurora_cluster_arn, aurora_secret_a
             }
         }
     )
-    
+
+    # Bedrock validates the RDS storage config by assuming the KB role and calling
+    # rds:DescribeDBClusters. On a FRESH account the role + its inline policy were
+    # just created, so IAM may not have propagated yet — CreateKnowledgeBase then
+    # fails with a ValidationException wrapping a 403 "not authorized to perform:
+    # rds:DescribeDBClusters". The permission IS granted (see create_kb_role); it's
+    # purely an eventual-consistency race. Retry with backoff until IAM catches up.
+    response = None
+    for attempt in range(1, 13):  # up to ~12 tries / ~5 min
+        try:
+            response = bedrock_agent.create_knowledge_base(**kb_kwargs)
+            break
+        except bedrock_agent.exceptions.ConflictException:
+            # A KB with this name already exists (leftover from a prior rolled-back
+            # attempt that the paginated pre-check somehow still missed, or a
+            # concurrent create). Reuse it instead of failing the whole deploy.
+            print(f"[conflict] KB '{kb_kwargs['name']}' already exists — looking it up to reuse")
+            existing = _find_kb_by_name(kb_kwargs['name'])
+            if existing:
+                kb_id = existing
+                print(f"[OK] Reusing existing KB: {kb_id}")
+                wait_for_kb_active(kb_id)
+                return kb_id
+            print("[conflict] could not resolve existing KB id; retrying after 15s")
+            time.sleep(15)
+        except bedrock_agent.exceptions.ValidationException as e:
+            msg = str(e)
+            transient = ('rds:DescribeDBClusters' in msg or 'not authorized' in msg
+                         or 'storage configuration provided is invalid' in msg)
+            if not transient:
+                raise
+            print(f"[retry {attempt}] KB role perms not propagated yet ({msg[:140]}); sleeping 25s")
+            time.sleep(25)
+    if response is None:
+        raise RuntimeError("create_knowledge_base failed after retries (propagation race or unresolved name conflict)")
+
     kb_id = response['knowledgeBase']['knowledgeBaseId']
     print(f"[OK] Created Knowledge Base: {kb_id}")
     
@@ -315,18 +385,59 @@ def wait_for_data_source(kb_id, ds_id, timeout=120):
 
 
 def start_ingestion(kb_id, ds_id):
-    """Start ingestion job for S3 data source."""
+    """Start ingestion job for S3 data source.
+
+    Wraps the start + wait in an OUTER retry: a freshly-created S3 docs bucket can
+    return 301 PermanentRedirect to Bedrock's data-source reader for a minute or two
+    until the bucket's regional endpoint fully propagates, which surfaces as a FAILED
+    ingestion job (not a start_ingestion_job exception). Retrying the whole job clears it.
+    """
+    for outer in range(6):  # up to ~6 tries; bucket endpoint propagates within ~1-2 min
+        result = _run_one_ingestion(kb_id, ds_id)
+        if result == 'COMPLETE':
+            return True
+        # result is the failure-reason string; retry only the transient S3-endpoint race
+        if ('must be addressed using the specified endpoint' in result
+                or 'PermanentRedirect' in result or 'Status Code: 301' in result) and outer < 5:
+            print(f"  Ingestion hit S3 endpoint-propagation race (try {outer + 1}/6): {result[:160]} — retrying in 20s")
+            time.sleep(20)
+            continue
+        raise Exception(f"Ingestion failed: {result}")
+    raise Exception("Ingestion did not complete after retries")
+
+
+def _run_one_ingestion(kb_id, ds_id):
+    """Start one ingestion job and wait for it. Returns 'COMPLETE' or the failure-reason string."""
     print(f"Starting ingestion job...")
-    
-    response = bedrock_agent.start_ingestion_job(
-        knowledgeBaseId=kb_id,
-        dataSourceId=ds_id
-    )
-    
+
+    # The Aurora RDS Data API (HttpEndpoint) can take a short while to become
+    # usable after the cluster reports 'available'. StartIngestionJob then fails
+    # with ValidationException ("HttpEndpoint is not enabled for resource ...").
+    # Retry with backoff so this transient race doesn't fail the whole deploy.
+    response = None
+    for attempt in range(12):  # ~12 * 15s = 3 min
+        try:
+            response = bedrock_agent.start_ingestion_job(
+                knowledgeBaseId=kb_id,
+                dataSourceId=ds_id
+            )
+            break
+        except Exception as e:
+            msg = str(e)
+            transient = ('HttpEndpoint' in msg or 'is not enabled' in msg
+                         or 'ValidationException' in msg or 'storage configuration' in msg)
+            if transient and attempt < 11:
+                print(f"  Ingestion not ready (attempt {attempt + 1}/12): {msg[:160]} — retrying in 15s")
+                time.sleep(15)
+                continue
+            raise
+    if response is None:
+        raise RuntimeError("start_ingestion_job did not succeed after retries")
+
     job_id = response['ingestionJob']['ingestionJobId']
     status = response['ingestionJob']['status']
     print(f"  Ingestion job started: {job_id} ({status})")
-    
+
     # Wait for completion
     for _ in range(60):
         time.sleep(10)
@@ -338,15 +449,15 @@ def start_ingestion(kb_id, ds_id):
         status = check['ingestionJob']['status']
         stats = check['ingestionJob'].get('statistics', {})
         print(f"  Status: {status} | Scanned: {stats.get('numberOfDocumentsScanned', 0)} | Indexed: {stats.get('numberOfNewDocumentsIndexed', 0)} | Failed: {stats.get('numberOfDocumentsFailed', 0)}")
-        
+
         if status == 'COMPLETE':
             print(f"[OK] Ingestion complete")
-            return response
+            return 'COMPLETE'
         elif status == 'FAILED':
             reason = check['ingestionJob'].get('failureReasons', ['Unknown'])
-            raise Exception(f"Ingestion failed: {reason}")
-    
-    raise Exception("Ingestion timed out")
+            return str(reason)
+
+    return 'Ingestion timed out'
 
 
 def load_content_from_s3(bucket, key):
@@ -370,13 +481,17 @@ def send_cfn_response(event, context, status, data=None, reason=None):
         'Data': data or {}
     }
     
+    # CFN always supplies an https presigned-S3 ResponseURL; verify the scheme
+    # before opening it (closes the B310 file://-scheme risk).
+    if not event['ResponseURL'].lower().startswith('https://'):
+        raise ValueError('ResponseURL must be https')
     req = urllib.request.Request(
         event['ResponseURL'],
         data=json.dumps(response_body).encode('utf-8'),
         headers={'Content-Type': 'application/json'},
         method='PUT'
     )
-    urllib.request.urlopen(req)
+    urllib.request.urlopen(req)  # nosec B310 - https scheme verified above
 
 
 def delete_knowledge_base(kb_name):

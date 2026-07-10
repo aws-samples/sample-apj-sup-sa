@@ -31,7 +31,9 @@ Your AWS account comes with a pre-configured VS Code editor running on EC2, acce
 2. Click the URL — it opens VS Code in your browser
 3. The password token is embedded in the URL, so you should be logged in automatically
 
-::alert[If the URL doesn't work or you see a password prompt, go to the CloudFormation console, find the `agentic-analytics` stack, and check the **Outputs** tab for the `CodeEditorUrl`.]{type="info"}
+::alert[If the URL doesn't work or you see a password prompt, go to the CloudFormation console, find the **`main-stack`** stack, and check the **Outputs** tab for the `CodeEditorUrl`.]{type="info"}
+
+::alert[**Two stacks, two names — worth knowing now.** The event pre-deployed the **base** infrastructure as a stack named **`main-stack`** (Aurora, Cognito, Glue, the Knowledge Base, this Code Editor — its outputs and nested stacks all start with `main-stack-…`). In Step 2 you'll deploy a **second** stack you build yourself, named **`agentic-analytics-agentcore`** (the Gateway, Runtime, toolsets, policies, guardrail). When a command references a stack name, that's which is which.]{type="info"}
 
 ## Explore the Environment
 
@@ -66,44 +68,41 @@ COGNITO_DOMAIN=agentic-analytics-xxxxxxxxxxxx.auth.us-east-1.amazoncognito.com
 
 ## Set Up the Python Environment
 
-The Python virtual environment is pre-installed on the EC2 instance. Activate it and install the `uv` package manager (needed by AgentCore for build process without Docker):
+The Python virtual environment is pre-installed on the EC2 instance at `/workshop/.venv`. Activate it:
 
 ```bash
-cd /workshop/agentic-analytics
+cd /workshop
 source .venv/bin/activate
 export AWS_DEFAULT_REGION=us-east-1
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
 ```
 
-::alert[The :code[export AWS_DEFAULT_REGION=us-east-1]{showCopyAction=true} is needed because the AgentCore CLI defaults to `us-west-2`. The `uv` install enables AgentCore's direct code deploy mode — without it, deployment falls back to a container build.]{type="warning"}
+::alert[Keep this terminal's virtual environment activated for the Step 1 exercise. `make` in Step 2 onward does **not** need the venv (it only uses the AWS CLI), but the local `basic_agent.py` exercise does.]{type="info"}
+
+::alert[`AWS_DEFAULT_REGION` is set so the AWS CLI (used by `make`) targets the right region. You do **not** need the `agentcore` CLI in this workshop — the agent's container image is built and deployed by CloudFormation (you'll see this in Step 2).]{type="info"}
 
 ## Explore the Codebase
 
-Click the files icons on top left in the Code Editor UI to view the directory. Here are the key files you'll work with throughout the workshop:
+The same code is also on GitHub at :link[aws-samples/sample-apj-sup-sa]{href="https://github.com/aws-samples/sample-apj-sup-sa/tree/main/agentic-workloads/agentic-analytics" external=true} (the `agentic-workloads/agentic-analytics` directory) — handy if you want to browse, search, or copy files outside the Code Editor, or clone the project to keep after the event.
+
+Click the files icon on the top left in the Code Editor UI to view the directory. Here are the key files you'll work with throughout the workshop:
 
 ```
 app/agentcore_strands/
-├── unicorn_rental_agent.py             # Main agent (TODOs throughout)
-├── unicorn_rental_analytics.sop.md     # Agent behavior instructions
-├── tools/                             # Lambda functions — you'll edit for RLS
-│   ├── prebaked_sql_toolset_lambda.py  # 20+ prebaked analytics tools
+├── agentcore-topup-stack.yaml         # ⭐ The ONE CloudFormation template you edit each step
+├── Makefile                           # make deploy / make build / make outputs
+├── unicorn_rental_agent.py            # Main agent (code TODOs in Step 2)
+├── unicorn_rental_analytics.sop.md    # Agent behavior instructions (the SOP)
+├── tools/                             # Lambda function source for the toolsets
+│   ├── prebaked_sql_toolset_lambda.py  # 29 prebaked analytics tools
 │   ├── api_integration_toolset_lambda.py # API integrations (booking, etc.)
 │   └── custom_sql_toolset_lambda.py    # Custom SQL queries
-├── infra/                             # Deploy scripts — run as-is
-│   ├── deploy_gateway.py              # Creates MCP Gateway
-│   ├── deploy_data_toolset.py         # Deploys 27 analytics tools│   ├── deploy_api_toolset.py          # API integration tools
-│   ├── deploy_sql_toolset.py
-│   └── deploy_interceptor.py
-├── policy/                            # Access control
-│   └── deploy_policy.py
-├── guardrails/                        # Content safety
-│   └── deploy_guardrail.py
-├── config.env                         # Environment configuration
+├── config.env                         # Base infrastructure coordinates (read by make + the Step-1 exercise)
 └── requirements.txt
 ```
 
-Open `unicorn_rental_agent.py` in the editor. You'll notice several `# TODO` comments — these are the integration points you'll complete in each step.
+The workflow for the rest of the workshop is always the same: **edit `agentcore-topup-stack.yaml`** (uncomment one marked section, or flip one value) → **`make deploy`**. Open the template now and read its banner comment — it explains exactly how the uncomment fences work.
+
+Open `unicorn_rental_agent.py` too. You'll notice several `# TODO` comments — you'll complete those in Step 2, then the agent is built and deployed for you by CloudFormation.
 
 ## Verification
 
@@ -114,7 +113,7 @@ Open `unicorn_rental_agent.py` in the editor. You'll notice several `# TODO` com
 ## Troubleshooting
 
 **No venv available**
-- Run `python3 -m venv .venv` before `source .venv/bin/activate`
+- The venv lives at `/workshop/.venv`. Activate it with `cd /workshop && source .venv/bin/activate`. If it's genuinely missing, recreate it: `python3 -m venv /workshop/.venv && source /workshop/.venv/bin/activate && pip install -r /workshop/agentic-analytics/app/agentcore_strands/requirements.txt`.
 
 **Code Editor URL returns 403 or blank page**
 - The CloudFront distribution may still be deploying. Wait 2-3 minutes and refresh.

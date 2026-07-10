@@ -1,0 +1,14 @@
+# Normalize line endings.
+* text=auto eol=lf
+
+# --- GitHub Linguist hints (so the repo classifies as a Python project) ---
+
+# Generated model registry — data, not hand-written source.
+bedrock_bench/models.json linguist-generated=true
+
+# Example report artifacts — documentation, not source to be analyzed.
+docs/sample-report/** linguist-documentation=true
+docs/sample-report/*.html linguist-generated=true
+
+# Vendored/data-like JSON should not count toward language stats.
+*.json linguist-detectable=false

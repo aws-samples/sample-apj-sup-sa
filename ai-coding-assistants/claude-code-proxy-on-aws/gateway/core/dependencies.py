@@ -273,6 +273,30 @@ def get_bedrock_client(settings: Settings = Depends(get_settings)):
     return _get_bedrock_client(settings)
 
 
+@lru_cache(maxsize=4)
+def _get_anthropic_client(settings: Settings):
+    from gateway.domains.runtime.anthropic_client import AnthropicClient
+
+    if not settings.anthropic_api_key_secret_arn:
+        return None
+    return AnthropicClient(settings)
+
+
+def get_anthropic_client(settings: Settings = Depends(get_settings)):
+    return _get_anthropic_client(settings)
+
+
+@lru_cache(maxsize=4)
+def _get_circuit_breaker(open_seconds: float):
+    from gateway.domains.runtime.circuit_breaker import CircuitBreaker
+
+    return CircuitBreaker(open_seconds=open_seconds)
+
+
+def get_circuit_breaker(settings: Settings = Depends(get_settings)):
+    return _get_circuit_breaker(settings.bedrock_breaker_open_seconds)
+
+
 def get_usage_service(
     pricing_repo: ModelPricingRepository = Depends(get_model_pricing_repository),
     budget_repo: BudgetPolicyRepository = Depends(get_budget_policy_repository),
@@ -292,6 +316,8 @@ def get_gateway_service(
     session: AsyncSession = Depends(get_db_session),
     metrics=Depends(get_metrics_service),  # type: ignore[assignment]
     bedrock_client=Depends(get_bedrock_client),  # type: ignore[assignment]
+    anthropic_client=Depends(get_anthropic_client),  # type: ignore[assignment]
+    circuit_breaker=Depends(get_circuit_breaker),  # type: ignore[assignment]
     settings: Settings = Depends(get_settings),
 ):
     from gateway.domains.runtime.converter import (
@@ -320,6 +346,8 @@ def get_gateway_service(
         model_catalog_repo,
         metrics,
         log_full_payloads=settings.runtime_log_full_payloads,
+        anthropic_client=anthropic_client,
+        circuit_breaker=circuit_breaker,
     )
 
 

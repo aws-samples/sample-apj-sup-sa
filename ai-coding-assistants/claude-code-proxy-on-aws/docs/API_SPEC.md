@@ -281,9 +281,9 @@ Runtime policy payload:
 - `GET /v1/admin/models`
   - Query: `page`, `page_size`
 - `POST /v1/admin/models`
-  - Body: `canonical_name`, `bedrock_model_id`, optional `bedrock_region`, `provider`, optional capability fields
+  - Body: `canonical_name`, `bedrock_model_id`, optional `bedrock_region`, optional `anthropic_model_id`, `provider`, optional capability fields
 - `PATCH /v1/admin/models/{model_id}`
-  - Body: any subset of model fields, including optional `bedrock_region`
+  - Body: any subset of model fields, including optional `bedrock_region` and `anthropic_model_id`
 - `DELETE /v1/admin/models/{model_id}`
 - `GET /v1/admin/model-mappings`
   - Query: `page`, `page_size`

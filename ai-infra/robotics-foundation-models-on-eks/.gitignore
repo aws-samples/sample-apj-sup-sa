@@ -1,0 +1,26 @@
+.DS_Store
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+!infra/core/terraform.tfvars.example
+!infra/fsx/terraform.tfvars.example
+!infra/ingress/terraform.tfvars.example
+!infra/observability/terraform.tfvars.example
+
+# Local generated files
+.osmo/
+.nvidia
+ngc-api-key*
+*.log
+tmp/

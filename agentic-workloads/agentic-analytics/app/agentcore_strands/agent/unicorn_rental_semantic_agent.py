@@ -142,18 +142,43 @@ class MemoryHookProvider(HookProvider):
                 for payload_item in ev.get('payload', []):
                     conv = payload_item.get('conversational', {})
                     role = conv.get('role', '').lower()
-                    content = conv.get('content', {}).get('text', '')
-                    if content and role in ('user', 'assistant'):
-                        event.agent.messages.append({"role": role, "content": [{"text": content}]})
+                    text = conv.get('content', {}).get('text', '')
+                    if not text or role not in ('user', 'assistant'):
+                        continue
+                    # Replay as PLAIN TEXT only — never reconstruct toolUse/toolResult
+                    # blocks. A truncated list_events window or reversed ordering can
+                    # orphan a tool block, which makes Bedrock Converse reject the entire
+                    # message list and the agent goes silent after a few turns. Plain
+                    # text is always Converse-valid. Flatten older JSON-encoded events.
+                    if text.lstrip().startswith("["):
+                        try:
+                            blocks = json.loads(text)
+                            if isinstance(blocks, list):
+                                text = " ".join(
+                                    b.get("text", "") for b in blocks
+                                    if isinstance(b, dict) and b.get("text")
+                                ).strip()
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    if text:
+                        event.agent.messages.append({"role": role, "content": [{"text": text}]})
         except Exception as e:
             print(f"[MEMORY] Failed to load history: {e}")
 
     def on_message_added(self, event: MessageAddedEvent):
-        """Save each new message to memory."""
+        """Save each new message to memory as plain text.
+
+        We deliberately persist ONLY the text parts, not toolUse/toolResult blocks.
+        Persisting tool blocks (and replaying them) can orphan a tool pair when the
+        load window truncates, which makes Bedrock Converse reject the whole message
+        list — the agent then goes silent mid-conversation. The tradeoff is that the
+        agent may re-run a tool on a follow-up turn; for analytics that re-query is
+        usually correct anyway, and it is strictly better than a mute bot.
+        """
         try:
             msg = event.message
             role = msg.get("role", "")
-            text_parts = [c.get("text", "") for c in msg.get("content", []) if "text" in c]
+            text_parts = [c.get("text", "") for c in msg.get("content", []) if c.get("text")]
             text = " ".join(text_parts).strip()
             if not text or role not in ("user", "assistant"):
                 return
@@ -201,20 +226,37 @@ print("[OK] AgenticAnalytics Semantic Layer Agent ready for requests")
 async def agent_invocation(payload, context):
     """Handler for agent invocation with streaming support"""
     user_message = payload.get("prompt", "No prompt found in input, please provide a prompt")
-    # Gateway token passed from UI (fetched from Cognito)
-    gateway_token = payload.get("gateway_token")
+    # JWT-native inbound auth: the runtime's CustomJWTAuthorizer has already validated
+    # the caller's Cognito access token (signature/issuer/client_id) before we run, and
+    # passes it through via the request-header allowlist. We read it from
+    # context.request_headers['Authorization'] — this is THE user identity, used for
+    # AgentCore RBAC/RLS (forwarded to the MCP Gateway). The UI sends a Bearer header,
+    # NOT a payload gateway_token — read the header to match the analytics agent.
+    def _bearer_from_headers(ctx):
+        headers = getattr(ctx, "request_headers", None) or {} if ctx else {}
+        # Header name casing can vary; match case-insensitively.
+        auth = headers.get("Authorization") or headers.get("authorization")
+        if auth and auth.startswith("Bearer "):
+            return auth[len("Bearer "):].strip()
+        return auth.strip() if auth else None
+
+    gateway_token = _bearer_from_headers(context)
 
     print("AgentCore Context:\n-------\n", context)
-    print(f"Gateway token provided: {'Yes' if gateway_token else 'No'}")
+    print(f"Inbound JWT present: {'Yes' if gateway_token else 'No'}")
     print("Processing Query:\n*******\n", user_message)
 
     enhanced_prompt = user_message
 
     try:
         if not gateway_token:
-            raise ValueError("No gateway_token provided — user must be authenticated via UI")
+            # Should be unreachable: the runtime's JWT authorizer rejects unauthenticated
+            # calls before we run. This guards against a misconfigured request-header
+            # allowlist (token validated but not passed through).
+            raise ValueError("No Authorization header on the request — check the runtime's "
+                             "RequestHeaderConfiguration allowlist includes 'Authorization'")
         access_token = gateway_token
-        print(f"[OK] Using gateway token from UI")
+        print(f"[OK] Using validated inbound JWT for gateway auth")
 
         # Extract actor_id from JWT for memory isolation
         import base64 as _b64

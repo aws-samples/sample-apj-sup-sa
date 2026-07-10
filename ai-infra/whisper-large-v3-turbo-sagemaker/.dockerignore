@@ -1,0 +1,25 @@
+# Build context is the repo root. Keep only what the images COPY:
+#   model_artifacts/snapshot/, huggingface/inference.py, vllm/proxy.py, vllm/launch.py
+# Exclude everything heavy or irrelevant.
+
+.venv/
+**/__pycache__/
+*.pyc
+
+*.log
+out.json
+err.txt
+
+# Generated artifact dirs (images bake model_artifacts/snapshot only)
+.model_cache/
+model_artifacts/artifact*/
+
+# Not needed inside images
+docs/
+samples/
+*.wav
+*.aiff
+*.mp3
+
+.git/
+.gitignore

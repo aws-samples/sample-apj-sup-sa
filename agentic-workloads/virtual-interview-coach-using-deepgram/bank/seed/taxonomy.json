@@ -1,0 +1,157 @@
+{
+  "_note": "Generation taxonomy for the offline bank (T035 / FR-205, research.md R2). This is the INPUT to bank/generate.py — it describes WHICH archetypes to bulk-generate, not the questions themselves (those are written by Bedrock at generation time). Two-axis taxonomy: 1 General competency family + 6 Domain/Industry families (>= 5 required), each spanning competency x question_type x difficulty. generate.py expands every family into (family x competency-entry x difficulty) generation slots, so re-running with a higher --limit widens coverage deterministically. Competency/question_type/category/difficulty values are the closed enums from data-model.md / research.md R5 and MUST satisfy the question_archetype CHECK constraints.",
+  "families": [
+    {
+      "key": "general",
+      "category": "general",
+      "label": "General competencies (cross-role behavioral / situational)",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "domain_context": "competencies every role shares regardless of industry; ground in the candidate's general experience and the target role's expectations, never in domain-specific technical knowledge",
+      "themes": [
+        "a tight or shifting deadline",
+        "a disagreement or conflict with a colleague",
+        "ambiguous or incomplete direction",
+        "a setback, mistake, or failure you owned",
+        "influencing someone without formal authority",
+        "juggling competing priorities"
+      ],
+      "competencies": [
+        { "competency": "motivation_fit", "question_type": "warmup" },
+        { "competency": "teamwork", "question_type": "behavioral" },
+        { "competency": "problem_solving", "question_type": "behavioral" },
+        { "competency": "communication", "question_type": "behavioral" },
+        { "competency": "leadership", "question_type": "behavioral" },
+        { "competency": "adaptability", "question_type": "situational" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    },
+    {
+      "key": "software_engineering",
+      "category": "domain",
+      "label": "Software Engineering",
+      "industry": "technology",
+      "role_family": "software_engineering",
+      "seniority": "entry",
+      "domain_context": "debugging production issues, system and API design, build-vs-buy and speed-vs-maintainability trade-offs, testing and code review, incident response, reasoning about failure modes",
+      "themes": [
+        "debugging a hard production issue",
+        "a design or architecture trade-off",
+        "testing, code review, or code quality",
+        "a build-vs-buy or speed-vs-maintainability decision",
+        "an incident or outage you helped resolve",
+        "working with legacy code or technical debt"
+      ],
+      "competencies": [
+        { "competency": "role_specific", "question_type": "technical" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    },
+    {
+      "key": "data_analytics",
+      "category": "domain",
+      "label": "Data & Analytics",
+      "industry": "technology",
+      "role_family": "data_analytics",
+      "seniority": "entry",
+      "domain_context": "data quality and validation, turning analysis into decisions, communicating uncertainty to non-analysts, handling ambiguous or contradictory data, basic statistics and reporting",
+      "themes": [
+        "catching or handling a data-quality problem",
+        "turning an analysis into a business decision",
+        "communicating uncertainty to a non-analyst",
+        "ambiguous or contradictory data",
+        "building a metric, dashboard, or report someone relied on",
+        "a result that surprised stakeholders"
+      ],
+      "competencies": [
+        { "competency": "role_specific", "question_type": "technical" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    },
+    {
+      "key": "product_management",
+      "category": "domain",
+      "label": "Product Management",
+      "industry": "technology",
+      "role_family": "product_management",
+      "seniority": "entry",
+      "domain_context": "prioritisation under constraints, defining success metrics, balancing user needs against engineering cost, saying no to stakeholders, discovery and validation of a feature",
+      "themes": [
+        "prioritising under hard constraints",
+        "defining or defending a success metric",
+        "saying no to a stakeholder",
+        "discovery or validation of a feature",
+        "balancing user needs against engineering cost",
+        "a launch or bet that did not go as planned"
+      ],
+      "competencies": [
+        { "competency": "role_specific", "question_type": "situational" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    },
+    {
+      "key": "sales",
+      "category": "domain",
+      "label": "Sales & Business Development",
+      "industry": "business",
+      "role_family": "sales",
+      "seniority": "entry",
+      "domain_context": "qualifying a prospect, handling objections, recovering a stalled deal, balancing short-term targets against long-term client trust, communicating value rather than features",
+      "themes": [
+        "qualifying or disqualifying a prospect",
+        "handling a tough objection",
+        "recovering a stalled or lost deal",
+        "short-term target versus long-term client trust",
+        "communicating value rather than features",
+        "missing or fighting to hit a number"
+      ],
+      "competencies": [
+        { "competency": "role_specific", "question_type": "situational" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    },
+    {
+      "key": "nursing",
+      "category": "domain",
+      "label": "Nursing & Healthcare",
+      "industry": "healthcare",
+      "role_family": "nursing",
+      "seniority": "entry",
+      "domain_context": "patient prioritisation and triage, communicating with distressed patients and families, escalating a safety concern, working under protocol while exercising judgement, handling a deteriorating patient",
+      "themes": [
+        "prioritising or triaging competing patients",
+        "communicating with a distressed patient or family",
+        "escalating a safety concern",
+        "exercising judgement within or against protocol",
+        "responding to a deteriorating patient",
+        "a mistake or near-miss you helped catch"
+      ],
+      "competencies": [
+        { "competency": "role_specific", "question_type": "situational" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    },
+    {
+      "key": "finance",
+      "category": "domain",
+      "label": "Finance & Accounting",
+      "industry": "finance",
+      "role_family": "finance",
+      "seniority": "entry",
+      "domain_context": "explaining a variance, ensuring accuracy under deadline pressure, flagging a control or compliance concern, translating numbers into a business recommendation, handling incomplete financial data",
+      "themes": [
+        "explaining or investigating a variance",
+        "ensuring accuracy under deadline pressure",
+        "flagging a control or compliance concern",
+        "translating numbers into a business recommendation",
+        "working with incomplete or messy financial data",
+        "pushing back on a number or assumption"
+      ],
+      "competencies": [
+        { "competency": "role_specific", "question_type": "technical" }
+      ],
+      "difficulties": ["easy", "moderate", "difficult"]
+    }
+  ]
+}

@@ -1,0 +1,212 @@
+workflow:
+  name: aws-gr00t-finetune
+  timeout:
+    exec_timeout: 12h
+    queue_timeout: 6h
+  resources:
+    default:
+      cpu: 16
+      gpu: 1
+      memory: 96Gi
+      storage: 256Gi
+      platform: g7e-rtx-pro-6000
+
+  tasks:
+  - name: gr00t-finetune
+    image: {{ image_name }}
+    command: ["bash", "-lc"]
+    args:
+    - bash /tmp/entry.sh
+    credentials:
+      huggingface_token:
+        HF_TOKEN: token
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+        set -euo pipefail
+        START_TS="$(date -u +%s)"
+
+        unset PIP_CONSTRAINT
+        export PIP_CONSTRAINT=
+        export DEBIAN_FRONTEND=noninteractive
+        export HF_HOME=/tmp/hf-home
+        export HUGGING_FACE_HUB_TOKEN="${HF_TOKEN:-}"
+        export PYTHONUNBUFFERED=1
+        export UV_LINK_MODE=copy
+        export UV_PROJECT_ENVIRONMENT=/tmp/gr00t-venv
+        export WANDB_DISABLED=true
+
+        test -n "${HF_TOKEN:-}"
+        nvidia-smi
+        python --version
+
+        GPU_METRICS_DIR=/tmp/gpu-metrics
+        GPU_METRICS_CSV="${GPU_METRICS_DIR}/nvidia-smi.csv"
+        mkdir -p "${GPU_METRICS_DIR}"
+        (
+          set +e
+          while true; do
+            nvidia-smi \
+              --query-gpu=timestamp,index,name,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu \
+              --format=csv,noheader,nounits >>"${GPU_METRICS_CSV}" 2>/dev/null || true
+            sleep "{{ gpu_metrics_interval_seconds }}"
+          done
+        ) &
+        GPU_METRICS_PID="$!"
+        stop_gpu_metrics() {
+          if [[ -n "${GPU_METRICS_PID:-}" ]]; then
+            kill "${GPU_METRICS_PID}" >/dev/null 2>&1 || true
+            wait "${GPU_METRICS_PID}" >/dev/null 2>&1 || true
+            GPU_METRICS_PID=""
+          fi
+        }
+        trap 'stop_gpu_metrics' EXIT
+
+        apt-get update >/dev/null
+        apt-get install -y --no-install-recommends \
+          ca-certificates curl ffmpeg git git-lfs libgl1 libglib2.0-0 >/dev/null
+        git lfs install --skip-repo >/dev/null
+        curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null
+        export PATH="${HOME}/.local/bin:${PATH}"
+
+        GIT_LFS_SKIP_SMUDGE=1 git clone --filter=blob:none --no-checkout "{{ gr00t_repository }}" /tmp/Isaac-GR00T
+        cd /tmp/Isaac-GR00T
+        git fetch --depth 1 origin "{{ gr00t_ref }}"
+        git checkout "{{ gr00t_ref }}"
+        git lfs pull --include "{{ dataset_path }}/**" --exclude ""
+        uv sync --frozen --no-dev
+
+        OUTPUT_DIR=/tmp/gr00t-output
+        uv run python gr00t/experiment/launch_finetune.py \
+          --base-model-path "{{ base_model_path }}" \
+          --dataset-path "{{ dataset_path }}" \
+          --embodiment-tag "{{ embodiment_tag }}" \
+          --modality-config-path "{{ modality_config_path }}" \
+          --num-gpus 1 \
+          --global-batch-size "{{ global_batch_size }}" \
+          --max-steps "{{ max_steps }}" \
+          --save-steps "{{ save_steps }}" \
+          --save-total-limit "{{ save_total_limit }}" \
+          --output-dir "${OUTPUT_DIR}" \
+          --dataloader-num-workers "{{ dataloader_num_workers }}" \
+          --learning-rate "{{ learning_rate }}" \
+          --no-use-wandb
+
+        if [[ "{{ retain_model_weights }}" != "true" ]]; then
+          find "${OUTPUT_DIR}" -type f \( \
+            -name "*.safetensors" -o \
+            -name "optimizer.pt" -o \
+            -name "scheduler.pt" -o \
+            -name "rng_state.pth" \
+          \) -delete
+        fi
+
+        stop_gpu_metrics
+        python /tmp/gpu_metrics_summary.py "${GPU_METRICS_CSV}" "${GPU_METRICS_DIR}" || true
+
+        mkdir -p "{{output}}/artifacts"
+        cp -a "${OUTPUT_DIR}/." "{{output}}/artifacts/"
+        cp -a "${GPU_METRICS_DIR}" "{{output}}/artifacts/gpu-metrics"
+        END_TS="$(date -u +%s)"
+        cat > "{{output}}/artifacts/run-manifest.json" <<JSON
+        {
+          "workflow": "aws-gr00t-finetune",
+          "repository": "{{ gr00t_repository }}",
+          "ref": "{{ gr00t_ref }}",
+          "image": "{{ image_name }}",
+          "dataset_path": "{{ dataset_path }}",
+          "base_model_path": "{{ base_model_path }}",
+          "embodiment_tag": "{{ embodiment_tag }}",
+          "modality_config_path": "{{ modality_config_path }}",
+          "max_steps": {{ max_steps }},
+          "global_batch_size": {{ global_batch_size }},
+          "gpu_metrics_interval_seconds": {{ gpu_metrics_interval_seconds }},
+          "runtime_seconds": $((END_TS - START_TS)),
+          "retain_model_weights": "{{ retain_model_weights }}"
+        }
+        JSON
+        find "{{output}}/artifacts" -maxdepth 4 -type f | sort | head -200
+        exit 0
+    - path: /tmp/gpu_metrics_summary.py
+      contents: |
+        import csv
+        import json
+        import math
+        import statistics
+        import sys
+        from pathlib import Path
+
+        csv_path = Path(sys.argv[1])
+        out_dir = Path(sys.argv[2])
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        fields = [
+            "timestamp",
+            "index",
+            "name",
+            "gpu_util_percent",
+            "memory_util_percent",
+            "memory_used_mib",
+            "memory_total_mib",
+            "power_draw_w",
+            "temperature_c",
+        ]
+
+        rows = []
+        if csv_path.exists():
+            with csv_path.open(newline="") as f:
+                for row in csv.reader(f):
+                    if len(row) != len(fields):
+                        continue
+                    item = {key: value.strip() for key, value in zip(fields, row)}
+                    for key in fields[3:]:
+                        try:
+                            item[key] = float(item[key])
+                        except ValueError:
+                            item[key] = math.nan
+                    rows.append(item)
+
+        def values(key):
+            return [float(row[key]) for row in rows if not math.isnan(float(row[key]))]
+
+        summary = {
+            "sample_count": len(rows),
+            "gpu_name": rows[0]["name"] if rows else None,
+            "gpu_util_percent_avg": statistics.fmean(values("gpu_util_percent")) if values("gpu_util_percent") else None,
+            "gpu_util_percent_max": max(values("gpu_util_percent")) if values("gpu_util_percent") else None,
+            "memory_used_mib_avg": statistics.fmean(values("memory_used_mib")) if values("memory_used_mib") else None,
+            "memory_used_mib_max": max(values("memory_used_mib")) if values("memory_used_mib") else None,
+            "power_draw_w_avg": statistics.fmean(values("power_draw_w")) if values("power_draw_w") else None,
+            "power_draw_w_max": max(values("power_draw_w")) if values("power_draw_w") else None,
+        }
+        (out_dir / "gpu-metrics-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+        path: artifacts
+
+default-values:
+  image_name: "nvcr.io/nvidia/pytorch:25.03-py3"
+  gr00t_repository: "https://github.com/NVIDIA/Isaac-GR00T"
+  gr00t_ref: "ead52833afbbf4243f8cd5e7664f48a94de03b19"
+  dataset_path: demo_data/cube_to_bowl_5
+  output_dataset: gr00t-finetune-artifacts
+  max_steps: 2
+  save_steps: 2
+  save_total_limit: 1
+  global_batch_size: 1
+  learning_rate: 1e-4
+  base_model_path: nvidia/GR00T-N1.6-3B
+  modality_config_path: examples/SO100/so100_config.py
+  embodiment_tag: NEW_EMBODIMENT
+  tune_llm: "false"
+  tune_visual: "false"
+  tune_projector: "true"
+  tune_diffusion_model: "true"
+  lora_rank: 0
+  lora_alpha: 16
+  lora_dropout: 0.1
+  lora_full_model: "false"
+  dataloader_num_workers: 0
+  retain_model_weights: "false"
+  gpu_metrics_interval_seconds: 10

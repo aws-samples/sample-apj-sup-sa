@@ -1,0 +1,151 @@
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: 12h
+    queue_timeout: 6h
+  resources:
+    gr00t_rank:
+      cpu: {{ cpu_count }}
+      gpu: 1
+      memory: {{ memory }}
+      storage: {{ storage }}
+      platform: {{ platform }}
+
+  groups:
+  - name: gr00t
+    ignoreNonleadStatus: false
+    tasks:
+    - name: master
+      lead: true
+      resource: gr00t_rank
+      image: {{ image_name }}
+      command: ["/bin/bash", "/workspace/entry.sh"]
+      credentials:
+        huggingface_token:
+          HF_TOKEN: token
+      environment:
+        NODE_RANK: "0"
+        WORLD_SIZE: "{{ world_size }}"
+        GPUS_PER_NODE: "{{ gpus_per_node }}"
+        MASTER_ADDR: "{{host:master}}"
+        MASTER_PORT: "{{ master_port }}"
+        RUN_NAME: "{{ run_name }}"
+        IMAGE_NAME: "{{ image_name }}"
+        GR00T_REPOSITORY: "{{ gr00t_repository }}"
+        GR00T_REF: "{{ gr00t_ref }}"
+        BASE_MODEL_PATH: "{{ base_model_path }}"
+        DATASET_PATH: "{{ dataset_path }}"
+        MODALITY_CONFIG_PATH: "{{ modality_config_path }}"
+        EMBODIMENT_TAG: "{{ embodiment_tag }}"
+        MAX_STEPS: "{{ max_steps }}"
+        SAVE_STEPS: "{{ save_steps }}"
+        SAVE_TOTAL_LIMIT: "{{ save_total_limit }}"
+        GLOBAL_BATCH_SIZE: "{{ global_batch_size }}"
+        DATALOADER_NUM_WORKERS: "{{ dataloader_num_workers }}"
+        LEARNING_RATE: "{{ learning_rate }}"
+        SHARD_SIZE: "{{ shard_size }}"
+        EPISODE_SAMPLING_RATE: "{{ episode_sampling_rate }}"
+        NUM_SHARDS_PER_EPOCH: "{{ num_shards_per_epoch }}"
+        GPU_METRICS_INTERVAL_SECONDS: "{{ gpu_metrics_interval_seconds }}"
+        NODE_SELECTOR_KEY: "karpenter.sh/nodepool"
+        NODE_SELECTOR_VALUE: "aws-osmo-g6e"
+        OUTPUT_DIR: "{{output}}/artifacts"
+        HOLD_FOR_ARTIFACT_COPY: "false"
+        RETAIN_MODEL_WEIGHTS: "{{ retain_model_weights }}"
+        FI_PROVIDER: efa
+        FI_EFA_USE_DEVICE_RDMA: "1"
+        NCCL_DEBUG: INFO
+        NCCL_DEBUG_SUBSYS: INIT,NET
+      files:
+      - path: /workspace/entry.sh
+        localpath: entry.sh
+      - path: /workspace/isaac-gr00t-video-backend-env.patch
+        localpath: patches/isaac-gr00t-video-backend-env.patch
+      - path: /workspace/isaac-gr00t-video-indices-pyav-fallback.patch
+        localpath: patches/isaac-gr00t-video-indices-pyav-fallback.patch
+      - path: /workspace/isaac-gr00t-phase-timing.patch
+        localpath: patches/isaac-gr00t-phase-timing.patch
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+          path: artifacts
+
+    - name: worker
+      resource: gr00t_rank
+      image: {{ image_name }}
+      command: ["/bin/bash", "/workspace/entry.sh"]
+      credentials:
+        huggingface_token:
+          HF_TOKEN: token
+      environment:
+        NODE_RANK: "1"
+        WORLD_SIZE: "{{ world_size }}"
+        GPUS_PER_NODE: "{{ gpus_per_node }}"
+        MASTER_ADDR: "{{host:master}}"
+        MASTER_PORT: "{{ master_port }}"
+        RUN_NAME: "{{ run_name }}"
+        IMAGE_NAME: "{{ image_name }}"
+        GR00T_REPOSITORY: "{{ gr00t_repository }}"
+        GR00T_REF: "{{ gr00t_ref }}"
+        BASE_MODEL_PATH: "{{ base_model_path }}"
+        DATASET_PATH: "{{ dataset_path }}"
+        MODALITY_CONFIG_PATH: "{{ modality_config_path }}"
+        EMBODIMENT_TAG: "{{ embodiment_tag }}"
+        MAX_STEPS: "{{ max_steps }}"
+        SAVE_STEPS: "{{ save_steps }}"
+        SAVE_TOTAL_LIMIT: "{{ save_total_limit }}"
+        GLOBAL_BATCH_SIZE: "{{ global_batch_size }}"
+        DATALOADER_NUM_WORKERS: "{{ dataloader_num_workers }}"
+        LEARNING_RATE: "{{ learning_rate }}"
+        SHARD_SIZE: "{{ shard_size }}"
+        EPISODE_SAMPLING_RATE: "{{ episode_sampling_rate }}"
+        NUM_SHARDS_PER_EPOCH: "{{ num_shards_per_epoch }}"
+        GPU_METRICS_INTERVAL_SECONDS: "{{ gpu_metrics_interval_seconds }}"
+        NODE_SELECTOR_KEY: "karpenter.sh/nodepool"
+        NODE_SELECTOR_VALUE: "aws-osmo-g6e"
+        OUTPUT_DIR: "{{output}}/artifacts"
+        HOLD_FOR_ARTIFACT_COPY: "false"
+        RETAIN_MODEL_WEIGHTS: "{{ retain_model_weights }}"
+        FI_PROVIDER: efa
+        FI_EFA_USE_DEVICE_RDMA: "1"
+        NCCL_DEBUG: INFO
+        NCCL_DEBUG_SUBSYS: INIT,NET
+      files:
+      - path: /workspace/entry.sh
+        localpath: entry.sh
+      - path: /workspace/isaac-gr00t-video-backend-env.patch
+        localpath: patches/isaac-gr00t-video-backend-env.patch
+      - path: /workspace/isaac-gr00t-video-indices-pyav-fallback.patch
+        localpath: patches/isaac-gr00t-video-indices-pyav-fallback.patch
+      - path: /workspace/isaac-gr00t-phase-timing.patch
+        localpath: patches/isaac-gr00t-phase-timing.patch
+
+default-values:
+  workflow_name: aws-gr00t-efa-multinode-finetune
+  platform: g6e-l40s-efa
+  image_name: public.ecr.aws/deep-learning-containers/pytorch-training:2.7.1-gpu-py312-cu128-ubuntu22.04-ec2-v1.37
+  output_dataset: gr00t-efa-multinode-finetune-artifacts
+  cpu_count: 8
+  memory: 64Gi
+  storage: 256Gi
+  world_size: 2
+  gpus_per_node: 1
+  master_port: 29500
+  run_name: gr00t-osmo-efa-multinode
+  gr00t_repository: https://github.com/NVIDIA/Isaac-GR00T
+  gr00t_ref: ead52833afbbf4243f8cd5e7664f48a94de03b19
+  base_model_path: nvidia/GR00T-N1.6-3B
+  dataset_path: demo_data/cube_to_bowl_5
+  modality_config_path: examples/SO100/so100_config.py
+  embodiment_tag: NEW_EMBODIMENT
+  max_steps: 2
+  save_steps: 2
+  save_total_limit: 1
+  global_batch_size: 2
+  dataloader_num_workers: 0
+  learning_rate: 1e-4
+  shard_size: 1024
+  episode_sampling_rate: 0.1
+  num_shards_per_epoch: 100000
+  gpu_metrics_interval_seconds: 10
+  retain_model_weights: "false"

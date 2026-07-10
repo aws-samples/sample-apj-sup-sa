@@ -1,0 +1,229 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 6: Fine-tune GROOT-N1.5 VLA model on prepared dataset
+# Usage: osmo workflow submit 06_groot_finetune.yaml --pool default
+
+workflow:
+  groups:
+  - name: training
+    tasks:
+    - args:
+      - /tmp/entry.sh
+      command:
+      - bash
+      files:
+      - contents: |-
+          set -ex
+          export TORCH_CUDA_ARCH_LIST="12.0"
+
+          nvidia-smi
+          START_TS="$(date -u +%s)"
+          GPU_METRICS_DIR=/tmp/nut-pouring-gpu-metrics
+          GPU_METRICS_CSV="${GPU_METRICS_DIR}/nvidia-smi.csv"
+          mkdir -p "${GPU_METRICS_DIR}"
+          (
+            set +e
+            while true; do
+              nvidia-smi --query-gpu=timestamp,index,name,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu --format=csv,noheader,nounits >>"${GPU_METRICS_CSV}" 2>/dev/null || true
+              sleep "10"
+            done
+          ) &
+          GPU_METRICS_PID="$!"
+          stop_gpu_metrics() {
+            if [ -n "${GPU_METRICS_PID:-}" ]; then
+              kill "${GPU_METRICS_PID}" >/dev/null 2>&1 || true
+              wait "${GPU_METRICS_PID}" >/dev/null 2>&1 || true
+              GPU_METRICS_PID=""
+            fi
+          }
+          trap stop_gpu_metrics EXIT
+
+          # Install Dependencies
+          export DEBIAN_FRONTEND=noninteractive
+          export TZ=America/Los_Angeles
+          apt update && \
+              apt install -y tzdata && \
+              ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime && \
+              apt install -y netcat dnsutils && \
+              apt-get update && \
+              apt-get install -y libgl1-mesa-glx git libvulkan-dev \
+              zip unzip wget curl git git-lfs build-essential cmake \
+              vim less sudo htop ca-certificates man tmux ffmpeg tensorrt \
+              libglib2.0-0 libsm6 libxext6 libxrender-dev
+
+          git clone https://github.com/NVIDIA/Isaac-GR00T.git && \
+            cd Isaac-GR00T && \
+            git checkout 796ca8d87360913c47e9f75e17c11d63f7805048
+
+          GPU_COMPUTE_CAPS="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null || true)"
+          if echo "${GPU_COMPUTE_CAPS}" | awk '($1 + 0) >= 12.0 { found = 1 } END { exit found ? 0 : 1 }'; then
+            echo "Patching Eagle attention fallback for Blackwell (${GPU_COMPUTE_CAPS})"
+            export GR00T_DISABLE_FLASH_ATTN=1
+            export GR00T_EAGLE_ATTN_IMPLEMENTATION=sdpa
+            python - <<'PY_EAGLE_ATTENTION_PATCH'
+          import json
+          from pathlib import Path
+
+          attention_impl = "sdpa"
+
+          config_path = Path("gr00t/model/backbone/eagle2_hg_model/config.json")
+          config = json.loads(config_path.read_text())
+          config["_attn_implementation"] = attention_impl
+          for key in ("vision_config", "text_config"):
+              if isinstance(config.get(key), dict):
+                  config[key]["_attn_implementation"] = attention_impl
+                  config[key]["_attn_implementation_autoset"] = False
+          config_path.write_text(json.dumps(config, indent=2) + "\n")
+
+          backbone_path = Path("gr00t/model/backbone/eagle_backbone.py")
+          backbone = backbone_path.read_text()
+          old = "config = AutoConfig.from_pretrained(DEFAULT_EAGLE_PATH, trust_remote_code=True)\n        self.eagle_model = AutoModel.from_config(config, trust_remote_code=True)"
+          new = "config = AutoConfig.from_pretrained(DEFAULT_EAGLE_PATH, trust_remote_code=True)\n        attention_impl = os.environ.get(\"GR00T_EAGLE_ATTN_IMPLEMENTATION\", \"sdpa\")\n        config._attn_implementation = attention_impl\n        if hasattr(config, \"vision_config\"):\n            config.vision_config._attn_implementation = attention_impl\n        if hasattr(config, \"text_config\"):\n            config.text_config._attn_implementation = attention_impl\n        self.eagle_model = AutoModel.from_config(config, trust_remote_code=True)"
+          if old not in backbone:
+              raise SystemExit("Could not patch eagle_backbone attention config")
+          backbone_path.write_text(backbone.replace(old, new))
+
+          modeling_path = Path("gr00t/model/backbone/eagle2_hg_model/modeling_eagle2_5_vl.py")
+          modeling = modeling_path.read_text()
+          modeling = modeling.replace(
+              "config.vision_config._attn_implementation = \"flash_attention_2\"",
+              "config.vision_config._attn_implementation = \"sdpa\"",
+          )
+          old = """assert (\n                    config.text_config._attn_implementation == \"flash_attention_2\"\n                ), f\"Qwen2 must use flash_attention_2 but got {config.text_config._attn_implementation}\"\n                self.language_model = Qwen2ForCausalLM(config.text_config)"""
+          new = """config.text_config._attn_implementation = \"sdpa\"\n                self.language_model = Qwen2ForCausalLM(config.text_config)"""
+          if old not in modeling:
+              raise SystemExit("Could not patch Qwen2 attention assertion")
+          modeling_path.write_text(modeling.replace(old, new))
+
+          radio_path = Path("gr00t/model/backbone/eagle2_hg_model/radio_model.py")
+          radio = radio_path.read_text()
+          if "import os\n" not in radio:
+              radio = radio.replace("import copy\n", "import copy\nimport os\n")
+          old = "replace_vit_attn_with_flash_attn()\n####"
+          new = "if os.environ.get(\"GR00T_DISABLE_FLASH_ATTN\", \"0\") != \"1\":\n    replace_vit_attn_with_flash_attn()\n####"
+          if old not in radio:
+              raise SystemExit("Could not patch RADIO flash attention hook")
+          radio_path.write_text(radio.replace(old, new))
+          PY_EAGLE_ATTENTION_PATCH
+          fi
+
+          pip install --upgrade setuptools && \
+            pip install gpustat wandb==0.19.0 tensorboard && \
+            pip install -e .[base] && \
+            pip install jupyterlab==4.0.10
+
+          pip uninstall -y transformer-engine && \
+            pip install flash_attn==2.7.1.post4 -U --force-reinstall && \
+            pip uninstall -y opencv-python opencv-python-headless || true && \
+            rm -rf /usr/local/lib/python3.10/dist-packages/cv2 || true && \
+            pip install opencv-python==4.8.0.74 && \
+            GPU_COMPUTE_CAPS="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null || true)"
+            if echo "${GPU_COMPUTE_CAPS}" | awk '($1 + 0) >= 12.0 { found = 1 } END { exit found ? 0 : 1 }'; then
+              echo "Detected Blackwell-class GPU (${GPU_COMPUTE_CAPS}); installing PyTorch CUDA 12.8 wheels for sm_120 support"
+              pip install --force-reinstall --index-url https://download.pytorch.org/whl/cu128 torch torchvision torchaudio
+              pip install --force-reinstall numpy==1.26.4
+              pip install --force-reinstall --no-build-isolation --no-cache-dir --no-deps flash_attn==2.8.3
+            else
+              pip install --force-reinstall torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 numpy==1.26.4
+            fi
+            python -c 'import torch; print("torch", torch.__version__); print("torch_cuda", torch.version.cuda); print("torch_arch_list", torch.cuda.get_arch_list() if torch.cuda.is_available() else [])'
+
+          pip install -e . --no-deps && \
+            pip install accelerate>=0.26.0
+
+          # Install torchcodec (if needed)
+          pip install torchcodec || true
+
+          # Set output directory
+          export OUTPUT_DIR={{output}}
+          mkdir -p $OUTPUT_DIR
+
+          echo "Running GR00T finetuning with single GPU..."
+          DATASET_PATH=$(find {{input:0}} -type d -path "*/nut_pouring_task/lerobot" | sort | head -n 1)
+          if [ -z "${DATASET_PATH}" ]; then
+            echo "Could not find nut_pouring_task/lerobot under {{input:0}}" >&2
+            find {{input:0}} -maxdepth 5 -type d | sort >&2
+            exit 1
+          fi
+          echo "Using LeRobot dataset path: ${DATASET_PATH}"
+
+          # Run training
+          set +e
+          python scripts/gr00t_finetune.py \
+              --dataset-path "${DATASET_PATH}" \
+              --output-dir $OUTPUT_DIR \
+              --data-config fourier_gr1_arms_only \
+              --batch-size 32 \
+              --max-steps 10000 \
+              --num-gpus 1 \
+              --save-steps 1000 \
+              --base-model-path nvidia/GR00T-N1.5-3B \
+              --no-tune-llm \
+              --tune-visual \
+              --tune-projector \
+              --tune-diffusion-model \
+              --no-resume \
+              --dataloader-num-workers 12 \
+              --report-to tensorboard \
+              --embodiment-tag gr1
+              TRAIN_EXIT=$?
+              set -e
+              stop_gpu_metrics
+              END_TS="$(date -u +%s)"
+              mkdir -p "${OUTPUT_DIR}/gpu-metrics"
+              cp "${GPU_METRICS_CSV}" "${OUTPUT_DIR}/gpu-metrics/nvidia-smi.csv" 2>/dev/null || true
+              cat > "${OUTPUT_DIR}/run-manifest.json" <<JSON
+          {
+            "workflow": "groot_finetune_nut_pouring",
+            "output_dataset": "{{ output_dataset }}",
+            "input_dataset": "{{ input_dataset }}",
+            "base_model_path": "nvidia/GR00T-N1.5-3B",
+            "max_steps": 10000,
+            "save_steps": 1000,
+            "gpu_metrics_interval_seconds": 10,
+            "retain_checkpoints": true,
+            "runtime_seconds": $((END_TS - START_TS)),
+            "train_exit": ${TRAIN_EXIT}
+          }
+          JSON
+              find "${OUTPUT_DIR}" -maxdepth 5 -type f | sort | head -200
+              exit "${TRAIN_EXIT}"
+        path: /tmp/entry.sh
+      image: pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
+      inputs:
+      - dataset:
+          name: {{ input_dataset }}
+      lead: true
+      name: master
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+  name: groot_finetune_nut_pouring
+  resources:
+    default:
+      platform: g7e-rtx-pro-6000
+      cpu: 64
+      gpu: 1
+      memory: 512Gi
+      storage: 200Gi
+  timeout:
+    exec_timeout: 7d
+    queue_timeout: 2d
+
+default-values:
+  input_dataset: PhysAI-LeRobotDataset
+  output_dataset: PhysAI-GR00T-Finetuned

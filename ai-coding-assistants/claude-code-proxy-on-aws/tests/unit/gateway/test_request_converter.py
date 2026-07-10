@@ -852,6 +852,50 @@ def test_convert_request_upgrades_legacy_thinking_to_adaptive_for_46_models() ->
     assert converted["additionalModelRequestFields"] == {"thinking": {"type": "adaptive"}}
 
 
+def test_convert_request_keeps_adaptive_thinking_for_opus_48() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-opus-4-8",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": "hello"}],
+        thinking={"type": "adaptive"},
+    )
+
+    converted = converter.convert_request(
+        request,
+        _resolved_model(
+            "global.anthropic.claude-opus-4-8",
+            family="claude-opus",
+            canonical_name="claude-opus-4-8",
+        ),
+        "none",
+    )
+
+    assert converted["additionalModelRequestFields"] == {"thinking": {"type": "adaptive"}}
+
+
+def test_convert_request_upgrades_legacy_thinking_to_adaptive_for_opus_48() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-opus-4-8",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": "hello"}],
+        thinking={"type": "enabled", "budget_tokens": 2048},
+    )
+
+    converted = converter.convert_request(
+        request,
+        _resolved_model(
+            "global.anthropic.claude-opus-4-8",
+            family="claude-opus",
+            canonical_name="claude-opus-4-8",
+        ),
+        "none",
+    )
+
+    assert converted["additionalModelRequestFields"] == {"thinking": {"type": "adaptive"}}
+
+
 def test_convert_request_normalizes_camel_case_budget_tokens() -> None:
     converter = AnthropicToBedrockConverter()
     request = MessageRequest(
@@ -1142,3 +1186,185 @@ def test_convert_request_caps_cache_points_at_four_across_request() -> None:
             cache_points += 1
 
     assert cache_points == 4
+
+
+def test_convert_request_lifts_trailing_system_message_to_system_field() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-opus-4-8",
+        max_tokens=16,
+        messages=[
+            {"role": "user", "content": "hello"},
+            {"role": "system", "content": "The following skills are available"},
+        ],
+    )
+
+    converted = converter.convert_request(
+        request,
+        _resolved_model("global.anthropic.claude-opus-4-8"),
+        "none",
+    )
+
+    # System message must not remain in the conversation; the turn must end as user.
+    roles = [m["role"] for m in converted["messages"]]
+    assert roles == ["user"]
+    assert converted["system"] == [{"text": "The following skills are available"}]
+
+
+def test_convert_request_merges_inline_system_with_top_level_system() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-opus-4-8",
+        max_tokens=16,
+        system="base system prompt",
+        messages=[
+            {"role": "user", "content": "hi"},
+            {"role": "system", "content": "extra mid-conversation guidance"},
+        ],
+    )
+
+    converted = converter.convert_request(
+        request,
+        _resolved_model("global.anthropic.claude-opus-4-8"),
+        "none",
+    )
+
+    assert [m["role"] for m in converted["messages"]] == ["user"]
+    assert converted["system"] == [
+        {"text": "base system prompt"},
+        {"text": "extra mid-conversation guidance"},
+    ]
+
+
+def _image_block(media_type: str = "image/png", data: str = "aGVsbG8=") -> dict:
+    return {
+        "type": "image",
+        "source": {"type": "base64", "media_type": media_type, "data": data},
+    }
+
+
+def test_convert_request_converts_tool_result_image_to_bedrock_format() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": [_image_block()],
+                    }
+                ],
+            }
+        ],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    image = converted["messages"][0]["content"][0]["toolResult"]["content"][0]["image"]
+    assert image == {"format": "png", "source": {"bytes": b"hello"}}
+
+
+def test_convert_request_converts_user_image_to_bedrock_format() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[{"role": "user", "content": [_image_block("image/jpeg")]}],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    image = converted["messages"][0]["content"][0]["image"]
+    assert image == {"format": "jpeg", "source": {"bytes": b"hello"}}
+
+
+def test_convert_request_rejects_url_image_source() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "url", "url": "https://example.com/a.png"},
+                    }
+                ],
+            }
+        ],
+    )
+
+    with pytest.raises(ValidationError):
+        converter.convert_request(request, _resolved_model("bedrock-model"), "none")
+
+
+def test_convert_request_converts_document_to_bedrock_format() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "title": "Q3 Report: final/v2*",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": "aGVsbG8=",
+                        },
+                    }
+                ],
+            }
+        ],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    document = converted["messages"][0]["content"][0]["document"]
+    assert document == {
+        "format": "pdf",
+        "name": "Q3 Report final v2",
+        "source": {"bytes": b"hello"},
+    }
+
+
+def test_convert_request_marks_tool_result_with_is_error_as_error_status() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": "command failed",
+                        "is_error": True,
+                    }
+                ],
+            }
+        ],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    assert converted["messages"][0]["content"][0]["toolResult"]["status"] == "error"

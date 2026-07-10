@@ -126,6 +126,7 @@ class ComputeConstruct(Construct):
             )
         )
         data.db_secret.grant_read(self.gateway_task_role)
+        data.anthropic_api_key_secret.grant_read(self.gateway_task_role)
         data.virtual_key_kms_key.grant_encrypt_decrypt(self.gateway_task_role)
 
         # --- Origin secret for API Gateway origin verification ---

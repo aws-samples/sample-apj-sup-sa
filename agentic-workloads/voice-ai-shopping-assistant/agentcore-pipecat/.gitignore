@@ -1,0 +1,16 @@
+# Secrets and generated config — never commit
+agent/.env
+lambda/start.env
+lambda/start.env.bak
+vpc-config.env
+vpc-config.env.deleted.*
+.bedrock_agentcore.yaml
+.bedrock_agentcore.yaml.backup
+.bedrock_agentcore.yaml.tmp
+.bedrock_agentcore/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+uv.lock

@@ -1,0 +1,175 @@
+{
+  "_meta": {
+    "schema": 2,
+    "regions": [
+      "us-west-2",
+      "us-east-2",
+      "us-east-1"
+    ],
+    "hardware_refreshed_at": "2026-05-05T08:48:28+00:00",
+    "prices_refreshed_at": "2026-05-16T00:45:55+00:00"
+  },
+  "hardware": {
+    "g5.12xlarge": {
+      "instance_type": "g5.12xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA A10G",
+      "accelerator_architecture": "Ampere",
+      "num_accelerators": 4,
+      "vram_gib_per_accelerator": 22.352,
+      "vcpu": 48,
+      "ram_gib": 192
+    },
+    "g6.12xlarge": {
+      "instance_type": "g6.12xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA L4",
+      "accelerator_architecture": "Ada Lovelace",
+      "num_accelerators": 4,
+      "vram_gib_per_accelerator": 22.352,
+      "vcpu": 48,
+      "ram_gib": 192
+    },
+    "g6e.12xlarge": {
+      "instance_type": "g6e.12xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA L40S",
+      "accelerator_architecture": "Ada Lovelace",
+      "num_accelerators": 4,
+      "vram_gib_per_accelerator": 44.703,
+      "vcpu": 48,
+      "ram_gib": 384
+    },
+    "g7e.12xlarge": {
+      "instance_type": "g7e.12xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA RTX PRO Server 6000",
+      "accelerator_architecture": "Blackwell",
+      "num_accelerators": 2,
+      "vram_gib_per_accelerator": 96.0,
+      "vcpu": 48,
+      "ram_gib": 512
+    },
+    "g7e.2xlarge": {
+      "instance_type": "g7e.2xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA RTX PRO Server 6000",
+      "accelerator_architecture": "Blackwell",
+      "num_accelerators": 1,
+      "vram_gib_per_accelerator": 96.0,
+      "vcpu": 8,
+      "ram_gib": 64
+    },
+    "inf2.24xlarge": {
+      "instance_type": "inf2.24xlarge",
+      "family": "neuron",
+      "accelerator_model": "AWS Inferentia2",
+      "accelerator_architecture": "Neuron 2nd gen",
+      "num_accelerators": 6,
+      "vram_gib_per_accelerator": 32.0,
+      "vcpu": 96,
+      "ram_gib": 384
+    },
+    "p4d.24xlarge": {
+      "instance_type": "p4d.24xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA A100",
+      "accelerator_architecture": "Ampere",
+      "num_accelerators": 8,
+      "vram_gib_per_accelerator": 40.0,
+      "vcpu": 96,
+      "ram_gib": 1152
+    },
+    "p4de.24xlarge": {
+      "instance_type": "p4de.24xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA A100",
+      "accelerator_architecture": "Ampere",
+      "num_accelerators": 8,
+      "vram_gib_per_accelerator": 80.0,
+      "vcpu": 96,
+      "ram_gib": 1152
+    },
+    "p5.48xlarge": {
+      "instance_type": "p5.48xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA H100",
+      "accelerator_architecture": "Hopper",
+      "num_accelerators": 8,
+      "vram_gib_per_accelerator": 80.0,
+      "vcpu": 192,
+      "ram_gib": 2048
+    },
+    "p5e.48xlarge": {
+      "instance_type": "p5e.48xlarge",
+      "family": "gpu",
+      "accelerator_model": "NVIDIA H200",
+      "accelerator_architecture": "Hopper (H200)",
+      "num_accelerators": 8,
+      "vram_gib_per_accelerator": 141.0,
+      "vcpu": 192,
+      "ram_gib": 2048
+    },
+    "trn1.32xlarge": {
+      "instance_type": "trn1.32xlarge",
+      "family": "neuron",
+      "accelerator_model": "AWS Trainium",
+      "accelerator_architecture": "Neuron 1st gen",
+      "num_accelerators": 16,
+      "vram_gib_per_accelerator": 32.0,
+      "vcpu": 128,
+      "ram_gib": 512
+    }
+  },
+  "prices": {
+    "g5.12xlarge": {
+      "us-east-1": 5.672,
+      "us-east-2": 5.672,
+      "us-west-2": 5.672
+    },
+    "g6.12xlarge": {
+      "us-east-1": 4.6016,
+      "us-east-2": 4.6016,
+      "us-west-2": 4.6016
+    },
+    "g6e.12xlarge": {
+      "us-east-1": 10.49264,
+      "us-east-2": 10.49264,
+      "us-west-2": 10.49264
+    },
+    "g7e.12xlarge": {
+      "us-east-1": 8.28608,
+      "us-east-2": 8.28608,
+      "us-west-2": 8.28608
+    },
+    "g7e.2xlarge": {
+      "us-east-1": 3.36312,
+      "us-east-2": 3.36312,
+      "us-west-2": 3.36312
+    },
+    "inf2.24xlarge": {
+      "us-east-1": 6.49063,
+      "us-east-2": 6.49063,
+      "us-west-2": 6.49063
+    },
+    "p4d.24xlarge": {
+      "us-east-1": 21.957642,
+      "us-east-2": 21.95764,
+      "us-west-2": 21.95764
+    },
+    "p4de.24xlarge": {
+      "us-east-1": 27.44705,
+      "us-west-2": 27.44705
+    },
+    "p5.48xlarge": {
+      "us-east-1": 55.04,
+      "us-east-2": 55.04,
+      "us-west-2": 55.04
+    },
+    "trn1.32xlarge": {
+      "us-east-1": 21.5,
+      "us-east-2": 21.5,
+      "us-west-2": 21.5
+    }
+  }
+}

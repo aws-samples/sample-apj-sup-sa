@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: Restaurant Voicebot Platform - Customer Tools
+  description: >
+    Customer-facing subset of the Restaurant Voicebot Platform API.
+    This schema exposes only the operations tagged `customer-tool` as required
+    by R16.3 (Gateway Tool Exposure): OTP request/verify, menu retrieval, cart,
+    order placement, order detail, delivery status, current order, and customer
+    profile endpoints.
+  version: 1.0.0
+
+tags:
+  - name: customer-tool
+    description: Endpoints exposed to the Voice Agent via AgentCore Gateway
+
+paths:
+  /otp/request:
+    post:
+      tags: [customer-tool]
+      operationId: requestOtp
+      summary: Request a one-time password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number]
+              properties:
+                phone_number:
+                  type: string
+                  example: "+14155552671"
+      responses:
+        "200":
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  expires_in:
+                    type: integer
+                    description: TTL in seconds
+
+  /otp/verify:
+    post:
+      tags: [customer-tool]
+      operationId: verifyOtp
+      summary: Verify a one-time password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number, otp]
+              properties:
+                phone_number:
+                  type: string
+                otp:
+                  type: string
+      responses:
+        "200":
+          description: OTP verified, session token returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: bearer
+
+  /menu:
+    get:
+      tags: [customer-tool]
+      operationId: getMenu
+      summary: Retrieve the full menu
+      responses:
+        "200":
+          description: Menu listing
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenuItem"
+
+  /menu/{item_id}:
+    get:
+      tags: [customer-tool]
+      operationId: getMenuItem
+      summary: Retrieve a single menu item
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Menu item details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuItem"
+        "404":
+          description: Item not found
+
+  /cart:
+    get:
+      tags: [customer-tool]
+      operationId: getCart
+      summary: Get current cart contents
+      responses:
+        "200":
+          description: Current cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+    post:
+      tags: [customer-tool]
+      operationId: addToCart
+      summary: Add an item to the cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_id, quantity]
+              properties:
+                item_id:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Item added to cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+    put:
+      tags: [customer-tool]
+      operationId: updateCart
+      summary: Update cart item quantity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_id, quantity]
+              properties:
+                item_id:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 0
+      responses:
+        "200":
+          description: Cart updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+    delete:
+      tags: [customer-tool]
+      operationId: clearCart
+      summary: Clear the cart
+      responses:
+        "204":
+          description: Cart cleared
+
+  /orders:
+    post:
+      tags: [customer-tool]
+      operationId: placeOrder
+      summary: Place an order from the current cart
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                delivery_address:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/current:
+    get:
+      tags: [customer-tool]
+      operationId: getCurrentOrder
+      summary: Get the current active order
+      responses:
+        "200":
+          description: Current active order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: No active order
+
+  /orders/{order_id}:
+    get:
+      tags: [customer-tool]
+      operationId: getOrderDetail
+      summary: Get order details by ID
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Order not found
+
+  /orders/{order_id}/delivery-status:
+    get:
+      tags: [customer-tool]
+      operationId: getDeliveryStatus
+      summary: Get delivery status for an order
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [preparing, dispatched, in_transit, delivered]
+                  eta_minutes:
+                    type: integer
+                    nullable: true
+
+  /profile:
+    get:
+      tags: [customer-tool]
+      operationId: getProfile
+      summary: Get customer profile
+      responses:
+        "200":
+          description: Customer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerProfile"
+    put:
+      tags: [customer-tool]
+      operationId: updateProfile
+      summary: Update customer profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerProfile"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerProfile"
+
+components:
+  schemas:
+    MenuItem:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        category:
+          type: string
+        available:
+          type: boolean
+
+    CartItem:
+      type: object
+      properties:
+        item_id:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: number
+          format: float
+        subtotal:
+          type: number
+          format: float
+
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        total:
+          type: number
+          format: float
+
+    Order:
+      type: object
+      properties:
+        order_id:
+          type: string
+        status:
+          type: string
+          enum: [placed, confirmed, preparing, dispatched, in_transit, delivered, cancelled]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        total:
+          type: number
+          format: float
+        delivery_address:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CustomerProfile:
+      type: object
+      properties:
+        phone_number:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        default_address:
+          type: string

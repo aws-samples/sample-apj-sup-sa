@@ -33,42 +33,61 @@ LAMBDA_NAME = "semantic-layer-toolset-lambda"
 SECURITY_GROUP_ID = os.getenv("SECURITY_GROUP_ID")
 SUBNET_IDS = os.getenv("SUBNET_IDS", "").split(",")
 
-# Cube API secret — must match CUBEJS_API_SECRET in the Cube Docker container
-CUBE_API_SECRET = "cubejs-workshop-secret-2024"
-
-
-def get_cube_private_ip():
-    """Resolve the Cube EC2 private IP from the main-stack CloudFormation outputs."""
+def _get_cfn_output(key):
+    """Read a CloudFormation output by key from main-stack, falling back to the
+    nested CubeStack. Returns the value or None."""
     cfn = boto3.client('cloudformation', region_name=REGION)
-
     try:
         resp = cfn.describe_stacks(StackName='main-stack')
         outputs = {o['OutputKey']: o['OutputValue'] for o in resp['Stacks'][0].get('Outputs', [])}
-        if 'CubePrivateIp' in outputs:
-            return outputs['CubePrivateIp']
+        if key in outputs:
+            return outputs[key]
     except Exception as e:
         print(f"Note: Could not read main-stack outputs: {e}")
-
-    # Fallback: find the nested CubeStack and read its outputs directly
     try:
         resources = cfn.list_stack_resources(StackName='main-stack')
         for r in resources['StackResourceSummaries']:
             if 'Cube' in r.get('LogicalResourceId', ''):
-                nested_stack_id = r['PhysicalResourceId']
-                nested = cfn.describe_stacks(StackName=nested_stack_id)
-                nested_outputs = {
-                    o['OutputKey']: o['OutputValue']
-                    for o in nested['Stacks'][0].get('Outputs', [])
-                }
-                if 'CubePrivateIp' in nested_outputs:
-                    return nested_outputs['CubePrivateIp']
+                nested = cfn.describe_stacks(StackName=r['PhysicalResourceId'])
+                nested_outputs = {o['OutputKey']: o['OutputValue']
+                                  for o in nested['Stacks'][0].get('Outputs', [])}
+                if key in nested_outputs:
+                    return nested_outputs[key]
     except Exception as e:
         print(f"Note: Could not read nested CubeStack outputs: {e}")
+    return None
 
+
+def get_cube_private_ip():
+    """Resolve the Cube EC2 private IP from CloudFormation outputs."""
+    ip = _get_cfn_output('CubePrivateIp')
+    if ip:
+        return ip
     raise Exception(
         "Could not resolve Cube private IP from CloudFormation. "
         "Ensure the CubeStack has been deployed (check main-stack status)."
     )
+
+
+def get_cube_api_secret():
+    """Resolve the shared Cube API secret. Prefer the per-deploy Secrets Manager
+    secret (CubeApiSecretArn output); fall back to an env override; last resort the
+    legacy workshop default (kept only so old stacks without the secret still work)."""
+    env_override = os.getenv("CUBE_API_SECRET")
+    if env_override:
+        return env_override
+    secret_arn = _get_cfn_output('CubeApiSecretArn')
+    if secret_arn:
+        try:
+            sm = boto3.client('secretsmanager', region_name=REGION)
+            return sm.get_secret_value(SecretId=secret_arn)['SecretString']
+        except Exception as e:
+            print(f"Warning: could not read Cube API secret from {secret_arn}: {e}")
+    print("Warning: falling back to legacy default Cube API secret.")
+    return "cubejs-workshop-secret-2024"  # nosec B105 - legacy fallback for pre-secret stacks
+
+
+CUBE_API_SECRET = get_cube_api_secret()
 
 
 def create_lambda_zip():

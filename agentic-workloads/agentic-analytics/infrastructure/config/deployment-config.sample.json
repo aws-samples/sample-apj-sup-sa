@@ -1,0 +1,24 @@
+{
+  "stack_name": "agentic-analytics-aurora",
+  "region": "us-east-1",
+  "aurora": {
+    "cluster_endpoint": "agentic-analytics-cluster.cluster-xxxxxxxxxxxx.us-east-1.rds.amazonaws.com",
+    "cluster_arn": "arn:aws:rds:us-east-1:000000000000:cluster:agentic-analytics-cluster",
+    "resource_arn": "arn:aws:rds:us-east-1:000000000000:cluster:agentic-analytics-cluster",
+    "secret_arn": "arn:aws:secretsmanager:us-east-1:000000000000:secret:agentic-analytics/aurora/credentials-xxxxxx",
+    "database_name": "timely_unicorn"
+  },
+  "vpc": {
+    "vpc_id": "vpc-xxxxxxxxxxxxxxxxx",
+    "private_subnets": [
+      "subnet-xxxxxxxxxxxxxxxxx",
+      "subnet-xxxxxxxxxxxxxxxxx"
+    ],
+    "public_subnets": [
+      "subnet-xxxxxxxxxxxxxxxxx",
+      "subnet-xxxxxxxxxxxxxxxxx"
+    ],
+    "lambda_security_group": "sg-xxxxxxxxxxxxxxxxx",
+    "aurora_security_group": "sg-xxxxxxxxxxxxxxxxx"
+  }
+}

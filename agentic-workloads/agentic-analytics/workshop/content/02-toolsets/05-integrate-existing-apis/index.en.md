@@ -28,63 +28,62 @@ The booking tool is a **separate Lambda and target** (`APIInteg`) from the analy
 
 ## Lab Procedures
 
-### Step 5.1: Deploy the API Integration Toolset
+### Step 5.1: Uncomment the API Integration toolset and deploy
+
+Open :code[/workshop/agentic-analytics/app/agentcore_strands/agentcore-topup-stack.yaml]{showCopyAction=true} and find the **Step 5** fence:
+
+```
+# ===== UNCOMMENT FROM HERE (Step 5: API integration toolset ...) =====
+...
+# ===== UNCOMMENT TO HERE (Step 5) =====
+```
+
+Uncomment everything between the markers (this brings up `ApiIntegLambda`, its role + permission, and the `ApiIntegTarget`).
+
+::alert[**Tip — uncomment the whole block at once.** Don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the fence, then **Shift+click** the last line inside it to select the whole block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Select only the lines **between** the two `UNCOMMENT` markers — not the marker lines themselves.]{type="info"}
+
+Then deploy:
 
 ```bash
 cd /workshop/agentic-analytics/app/agentcore_strands
-python3 infra/deploy_api_toolset.py
+make deploy
 ```
 
-Expected output:
-
-```
-Registering new target to Gateway...
-[OK] Created gateway target: XXXXXXXXXX
-
-============================================================
-[OK] Deployment complete!
-   Lambda: arn:aws:lambda:us-east-1:xxxxxxxxxxxx:function:api-integration-toolset-lambda
-   Gateway Target: XXXXXXXXXX
-```
-
-This creates:
+This adds:
 - **Lambda function** with booking validation, cost calculation, and reference generation
 - **Gateway target** (`APIInteg`) registered on your existing Gateway
 
 ::alert[**Pattern for your SaaS:** The `APIInteg` target is your integration point for existing business APIs. Here we start with booking creation, but the same Lambda can host any write operation — cancellations, billing, notifications, inventory updates. Each function you add becomes a new agent-callable tool. This is how you connect your agent to your existing microservices.]{type="info"}
 
-### Step 5.2: Examine the Deploy Script — Tool Schema
+### Step 5.2: Examine what you uncommented — Tool Schema
 
-Open :code[infra/deploy_api_toolset.py]{showCopyAction=true} and look at **line 123** — the `tool_schema` definition:
+Still in :code[agentcore-topup-stack.yaml]{showCopyAction=true}, look at the `ApiIntegTarget` you just uncommented — its `ToolSchema.InlinePayload`:
 
-```python
-tool_schema = [{
-    "name": "create_booking_tool",
-    "description": "Create a new unicorn booking. Validates unicorn availability and calculates cost...",
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "customer_id": {"type": "string", "description": "The customer ID making the booking"},
-            "unicorn_id": {"type": "string", "description": "The unicorn ID to book"},
-            "start_datetime": {"type": "string", "description": "Booking start time in ISO format..."},
-            "end_datetime": {"type": "string", "description": "Booking end time in ISO format..."},
-            ...
-        },
-        "required": ["customer_id", "unicorn_id", "start_datetime", "end_datetime"]
-    }
-}]
+```yaml
+- Name: create_booking_tool
+  Description: Create a new unicorn booking. Validates unicorn availability and calculates cost ...
+  InputSchema:
+    Type: object
+    Properties:
+      customer_id: { Type: string, Description: The customer ID making the booking }
+      unicorn_id: { Type: string, Description: The unicorn ID to book }
+      start_datetime: { Type: string, Description: 'Booking start time in ISO format ...' }
+      end_datetime: { Type: string, Description: 'Booking end time in ISO format ...' }
+      # ...
+    Required: [customer_id, unicorn_id, start_datetime, end_datetime]
 ```
 
-Compare this to the PrebakedSQL tools from Step 4 — notice the `required` field. The LLM knows it must extract these 4 values before calling the tool. If the user says "book a unicorn for tomorrow", the agent will ask for the missing customer and unicorn instead of guessing.
+Compare this to the PrebakedSQL tools from Step 4 — notice the `Required` field. The LLM knows it must extract these 4 values before calling the tool. If the user says "book a unicorn for tomorrow", the agent will ask for the missing customer and unicorn instead of guessing.
 
-At **line 141**, the schema is registered as a separate target named `APIInteg`:
+The target is registered under a separate name, `APIInteg`:
 
-```python
-response = client.create_gateway_target(
-    gatewayIdentifier=GATEWAY_ID,
-    name="APIInteg",
-    ...
-)
+```yaml
+ApiIntegTarget:
+  Type: AWS::BedrockAgentCore::GatewayTarget
+  Properties:
+    GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
+    Name: APIInteg
+    # ...
 ```
 
 This means the agent sees the tool as `APIInteg___create_booking_tool`. The target name prefix is what Cedar policies reference in Step 7 to control who can call write tools.
@@ -104,14 +103,14 @@ Open :code[unicorn_rental_analytics.sop.md]{showCopyAction=true} and review:
 
 ### Step 5.4: Test It
 
-Booking creation requires an staff role. In the chat UI, log in as:
+Booking creation requires a staff or admin role. In the chat UI, log in as:
 
 | Field | Value |
 |-------|-------|
 | Username | `stella.moonbeam@example-mythicalunicorns.com` |
 | Password | `Unicorn123!` |
 
-::alert[**Use the right user:** In case you intend to run the below queries after deploying the AgentCore Policy and RLS in step 7, you MUST use users with "staff" or "rental_admin" or "saas_admin" type to be able to use the create booking tool. The user above (Stella Moonbeam) is an staff. If you run this step before deploying the components in step 7, the user does not matter.]{type="info"}
+::alert[**Use the right user:** In case you intend to run the below queries after deploying the AgentCore Policy and RLS in step 7, you MUST use users with "staff" or "rental_admin" or "saas_admin" type to be able to use the create booking tool. The user above (Stella Moonbeam) is a staff member. If you run this step before deploying the components in step 7, the user does not matter.]{type="info"}
 
 ::alert[**Start fresh:** It is best to clear the chatbot conversation from the previous step by clicking the small bin icon next to the chat input field or by refreshing the application demo browser tab.]{type="info"}
 
@@ -140,7 +139,7 @@ We'll fix this in the next step with AgentCore Policy.
 
 ## Verification
 
-- `deploy_api_toolset.py` completes without errors
+- After uncommenting Step 5 and `make deploy`, the stack updates without errors
 - The `APIInteg` target appears in the Gateway console alongside `PrebakedSQL`
 - The agent can create a booking via natural language
 - The booking response includes a booking reference, cost, and confirmation

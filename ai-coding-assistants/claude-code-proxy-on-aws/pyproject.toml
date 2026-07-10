@@ -13,6 +13,7 @@ dependencies = [
     "asyncpg>=0.30,<1",
     "boto3>=1.39,<2",
     "fastapi>=0.116,<1",
+    "httpx>=0.27,<1",
     "opentelemetry-api>=1.28,<2",
     "opentelemetry-sdk>=1.28,<2",
     "opentelemetry-exporter-otlp-proto-grpc>=1.28,<2",

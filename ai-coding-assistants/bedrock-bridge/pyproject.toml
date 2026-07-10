@@ -1,0 +1,43 @@
+[project]
+name = "bedrock-bridge"
+description = "Local proxy to run Claude Code with any Bedrock model"
+requires-python = ">=3.10"
+dynamic = ["version"]
+dependencies = [
+    "starlette>=0.40",
+    "uvicorn>=0.34",
+    "boto3>=1.35",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+bedrock-bridge = "bedrock_bridge.cli:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "bedrock_bridge.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# tests/manual holds hand-run compatibility probes that emit a markdown report;
+# they have no pytest assertions, so never auto-collect them.
+norecursedirs = ["tests/manual"]
+markers = [
+    "functional: hits a live bridge + real Bedrock (needs AWS creds; runs on pre-commit)",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "ANN"]
+# ANN401: allow explicit `Any` on args that are genuinely dynamic (boto3
+# clients, arbitrary JSON scrubbed for debug dumps); annotating them as Any is
+# honest, not lazy.
+ignore = ["ANN401"]

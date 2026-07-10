@@ -1,0 +1,31 @@
+{
+  "name": "claude-apps-gateway-on-aws",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "claude-apps-gateway-on-aws": "bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "prepare:claude": "scripts/prepare-claude-binary.sh",
+    "validate:gateway-config": "node scripts/validate-gateway-config.js"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.258.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "aws-cdk": "^2.1029.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.0",
+    "yaml": "^2.7.0"
+  }
+}

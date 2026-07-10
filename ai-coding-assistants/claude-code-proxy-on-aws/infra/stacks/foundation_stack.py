@@ -35,6 +35,11 @@ class FoundationStack(Stack):
         )
         CfnOutput(self, "AlbSecurityGroupId", value=self.network.alb_sg.security_group_id)
         CfnOutput(self, "DbSecretArn", value=self.data.db_secret.secret_arn)
+        CfnOutput(
+            self,
+            "AnthropicApiKeySecretArn",
+            value=self.data.anthropic_api_key_secret.secret_arn,
+        )
         CfnOutput(self, "AuroraClusterArn", value=self.data.aurora_cluster.cluster_arn)
         CfnOutput(self, "AuroraClusterEndpoint", value=self.data.db_endpoint)
         CfnOutput(self, "AuroraClusterReadEndpoint", value=self.data.db_read_endpoint)

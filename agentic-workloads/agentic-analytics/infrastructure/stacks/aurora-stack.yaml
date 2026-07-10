@@ -507,6 +507,15 @@ Outputs:
     Export:
       Name: !Sub ${EnvironmentName}-PrivateSubnet2Id
 
+  # Exported so the voice stack can attach its own AgentCore-AZ-pinned subnets to the
+  # existing NAT-routed private route table (the voice Runtime needs egress to
+  # Deepgram/Bedrock/KVS but must live in AgentCore-supported AZs — see voice-agentcore-stack).
+  PrivateRouteTableId:
+    Description: Private route table (default route -> NAT gateway)
+    Value: !Ref PrivateRouteTable
+    Export:
+      Name: !Sub ${EnvironmentName}-PrivateRouteTableId
+
   LambdaSecurityGroupId:
     Description: Lambda Security Group ID
     Value: !Ref LambdaSecurityGroup
