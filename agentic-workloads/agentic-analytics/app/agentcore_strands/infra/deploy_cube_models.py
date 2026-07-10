@@ -185,8 +185,12 @@ def verify_cube_models(cube_endpoint, expected_cube_count):
     actual_count = 0
     for attempt in range(1, max_retries + 1):
         try:
+            # Cube runs on a private EC2 host over http; reject any non-http(s)
+            # scheme so a malformed endpoint can't read file:// (B310 mitigation).
+            if not url.lower().startswith(("http://", "https://")):
+                raise ValueError(f"unexpected Cube URL scheme: {url[:40]}")
             req = Request(url)
-            with urlopen(req, timeout=30) as resp:
+            with urlopen(req, timeout=30) as resp:  # nosec B310 - scheme constrained to http/https above
                 data = json.loads(resp.read().decode())
 
             cubes = data.get("cubes", [])

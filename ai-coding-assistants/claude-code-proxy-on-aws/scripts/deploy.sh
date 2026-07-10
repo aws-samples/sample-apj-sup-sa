@@ -154,6 +154,9 @@ _discover_identity_store_id() {
 
         local count
         count=$(echo "$instances" | jq 'length')
+        if [[ "$count" -eq 0 ]]; then
+            continue
+        fi
         if [[ "$count" -eq 1 ]]; then
             DISCOVERED_IDENTITY_STORE_REGION="$r"
             echo "$instances" | jq -r '.[0].IdentityStoreId'

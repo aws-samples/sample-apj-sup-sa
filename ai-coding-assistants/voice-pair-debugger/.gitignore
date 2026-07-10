@@ -1,0 +1,14 @@
+.env
+.venv
+
+sample-app/.terraform/
+sample-app/terraform.tfstate*
+sample-app/.build/
+
+__pycache__/
+
+# Security scanner output
+.checkov/
+.semgrep/
+.bandit/
+.sbom/

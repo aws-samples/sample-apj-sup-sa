@@ -15,6 +15,7 @@ class ModelCreate(BaseModel):
     canonical_name: str
     bedrock_model_id: str
     bedrock_region: str | None = None
+    anthropic_model_id: str | None = None
     provider: str
     family: str | None = None
     status: ModelStatus | None = None
@@ -28,6 +29,7 @@ class ModelUpdate(BaseModel):
     canonical_name: str | None = None
     bedrock_model_id: str | None = None
     bedrock_region: str | None = None
+    anthropic_model_id: str | None = None
     provider: str | None = None
     family: str | None = None
     status: ModelStatus | None = None
@@ -44,6 +46,7 @@ class ModelResponse(BaseModel):
     canonical_name: str
     bedrock_model_id: str
     bedrock_region: str | None
+    anthropic_model_id: str | None
     provider: str
     family: str | None
     status: ModelStatus

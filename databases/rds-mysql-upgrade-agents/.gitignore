@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# Env files (may contain secrets)
+.env
+.env.local
+.env.*.local
+
+# CDK
+cdk.out/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code (local agent state / worktrees)
+.claude/
+
+# Local working docs
+*.pptx

@@ -1,0 +1,538 @@
+[
+  {
+    "special_id": "72bc33f2-b13c-5690-87ec-88738c0cc7be",
+    "product_id": "ccdac20e-50a3-5aa0-bcb9-3198ea8a3536",
+    "special_price_cents": 215,
+    "was_price_cents": 429,
+    "savings_cents": 214,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "de37ad11-8f18-5f4d-812c-1f9ea0e10ffc",
+    "product_id": "b9992b17-b08b-56fa-b454-8d018a1a9795",
+    "special_price_cents": 275,
+    "was_price_cents": 409,
+    "savings_cents": 134,
+    "special_type": "special"
+  },
+  {
+    "special_id": "ae3a032e-f2b4-5c01-b8af-f98f9d7e1d22",
+    "product_id": "7982aa30-24d4-5704-bd44-89e64e02c9a5",
+    "special_price_cents": 345,
+    "was_price_cents": 519,
+    "savings_cents": 174,
+    "special_type": "special"
+  },
+  {
+    "special_id": "4d6cf7fb-51f2-5d69-9e29-0492d0590dec",
+    "product_id": "95735c6a-069f-5510-8cc1-2abdda5db3f7",
+    "special_price_cents": 505,
+    "was_price_cents": 1009,
+    "savings_cents": 504,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "008187c4-4017-5dfc-a020-cb38bdbd4f54",
+    "product_id": "732a804e-6f9d-54d5-98c0-8a99ebd7a16a",
+    "special_price_cents": 535,
+    "was_price_cents": 595,
+    "savings_cents": 60,
+    "special_type": "special"
+  },
+  {
+    "special_id": "26448043-ff83-5af1-a3d7-b57d6000582b",
+    "product_id": "d13a0d47-3513-59bc-874e-ebedd6793e40",
+    "special_price_cents": 265,
+    "was_price_cents": 289,
+    "savings_cents": 24,
+    "special_type": "special"
+  },
+  {
+    "special_id": "116b8825-9ea2-5ed3-a0d4-52968bbc4f63",
+    "product_id": "3b20bd74-43be-5e20-b37c-35f3f071da19",
+    "special_price_cents": 295,
+    "was_price_cents": 349,
+    "savings_cents": 54,
+    "special_type": "special"
+  },
+  {
+    "special_id": "1df7b058-51e0-5ba2-918d-b571f57c2664",
+    "product_id": "61b3ce29-dc85-5a0a-b875-af0be94d260e",
+    "special_price_cents": 195,
+    "was_price_cents": 385,
+    "savings_cents": 190,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "ddd10a4b-8578-5ceb-85c6-7a5b31a79e68",
+    "product_id": "9505de33-cf02-5d3a-98f2-4f7f0eb45064",
+    "special_price_cents": 245,
+    "was_price_cents": 365,
+    "savings_cents": 120,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "d3b2ea64-b1ef-50c5-b472-cc06c0103efd",
+    "product_id": "f2baaa24-9f81-58da-abe0-c66856877986",
+    "special_price_cents": 275,
+    "was_price_cents": 339,
+    "savings_cents": 64,
+    "special_type": "special"
+  },
+  {
+    "special_id": "208eb3ad-f8b9-5a4a-ad95-0b219e1bda88",
+    "product_id": "88f8ccbe-596a-5f99-8cfc-498149065160",
+    "special_price_cents": 125,
+    "was_price_cents": 245,
+    "savings_cents": 120,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "3277a4d2-0bcb-5ce1-88ff-6cf4b94e7725",
+    "product_id": "27d56d17-67b6-5e72-818e-9cd4aa0238f4",
+    "special_price_cents": 435,
+    "was_price_cents": 545,
+    "savings_cents": 110,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "5fc42ea5-8e8d-570c-b321-fa28659f3586",
+    "product_id": "f92a509c-037d-506c-8181-89202fd15d20",
+    "special_price_cents": 135,
+    "was_price_cents": 279,
+    "savings_cents": 144,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "635e302b-4789-5184-8dc4-f16ebed4d680",
+    "product_id": "e04711db-e5be-548d-a1cc-496304da14f6",
+    "special_price_cents": 225,
+    "was_price_cents": 245,
+    "savings_cents": 20,
+    "special_type": "special"
+  },
+  {
+    "special_id": "ebd45f93-04cb-5c82-b6c6-19ab8c3b226e",
+    "product_id": "6510297a-2e97-5b71-b242-a863650b9e05",
+    "special_price_cents": 265,
+    "was_price_cents": 329,
+    "savings_cents": 64,
+    "special_type": "special"
+  },
+  {
+    "special_id": "a57ef53b-5db0-5a22-bd2b-35ca6aae3018",
+    "product_id": "5a980321-7e93-54a1-a9af-cda641d21bdc",
+    "special_price_cents": 135,
+    "was_price_cents": 155,
+    "savings_cents": 20,
+    "special_type": "special"
+  },
+  {
+    "special_id": "da7fbfb1-bf62-596f-be36-fcb78b0ea828",
+    "product_id": "24c5b7a7-4043-58ea-b7c5-c99665aab5ee",
+    "special_price_cents": 245,
+    "was_price_cents": 285,
+    "savings_cents": 40,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "ced60a0b-e214-5677-9081-73298d98bf48",
+    "product_id": "0fadee69-cfd8-57af-8e9c-8abd7f89a2cf",
+    "special_price_cents": 75,
+    "was_price_cents": 109,
+    "savings_cents": 34,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "943217e2-62a2-5d2d-98a1-4ec771db1326",
+    "product_id": "4e38d9f4-1961-5bbf-ae34-bb89a526504a",
+    "special_price_cents": 95,
+    "was_price_cents": 119,
+    "savings_cents": 24,
+    "special_type": "special"
+  },
+  {
+    "special_id": "02b07008-9ecf-5947-a4bd-74ce4d7dc4ab",
+    "product_id": "5c52d071-bbff-5db2-958d-73a5e560a58d",
+    "special_price_cents": 205,
+    "was_price_cents": 259,
+    "savings_cents": 54,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "1e0a6a32-6822-5f51-8e70-aaaa15a8b9c1",
+    "product_id": "7acd464c-8a6a-5e3d-904b-a2ec21256535",
+    "special_price_cents": 145,
+    "was_price_cents": 185,
+    "savings_cents": 40,
+    "special_type": "special"
+  },
+  {
+    "special_id": "1ee4328d-6f75-52cd-b8b0-672aabf2967f",
+    "product_id": "ce403c2b-658e-5088-a7ee-a54ae72d3198",
+    "special_price_cents": 955,
+    "was_price_cents": 1279,
+    "savings_cents": 324,
+    "special_type": "special"
+  },
+  {
+    "special_id": "24e99a92-2223-575e-9d84-7424624ecfc4",
+    "product_id": "2daa3960-47cd-564f-9b09-406eefb205c2",
+    "special_price_cents": 475,
+    "was_price_cents": 945,
+    "savings_cents": 470,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "7ab22f98-210d-5c09-8cdc-c10fc0c49351",
+    "product_id": "f117d44c-fbb7-517b-bed9-d58f63a05376",
+    "special_price_cents": 455,
+    "was_price_cents": 679,
+    "savings_cents": 224,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "42312d9c-fdbd-5cba-a194-332bf6f36346",
+    "product_id": "9e37d39e-ee15-5174-b341-0f73c3eb6ddd",
+    "special_price_cents": 455,
+    "was_price_cents": 535,
+    "savings_cents": 80,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "cda00582-659f-59dd-93ef-32dd71f8a947",
+    "product_id": "f581e45d-d29b-593f-b205-1654061a4226",
+    "special_price_cents": 365,
+    "was_price_cents": 539,
+    "savings_cents": 174,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "6d1442f7-4258-5bec-af45-9886d0aacfb6",
+    "product_id": "351175da-850b-5b8c-80e7-46547951ad90",
+    "special_price_cents": 285,
+    "was_price_cents": 385,
+    "savings_cents": 100,
+    "special_type": "special"
+  },
+  {
+    "special_id": "aa42a60d-7a31-570f-8c02-b91854bf07a9",
+    "product_id": "455ebd1f-8441-5dbd-b703-7043dda70a90",
+    "special_price_cents": 205,
+    "was_price_cents": 305,
+    "savings_cents": 100,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "171850a8-2fbd-58d7-b778-0e186176814a",
+    "product_id": "5dfd500a-7eec-52f1-8005-9d2aa2491d91",
+    "special_price_cents": 355,
+    "was_price_cents": 389,
+    "savings_cents": 34,
+    "special_type": "special"
+  },
+  {
+    "special_id": "723ee6bd-6c6e-5554-a453-0b29b361a49c",
+    "product_id": "60f68c1a-0d70-5e88-9088-4c43e5c110c4",
+    "special_price_cents": 725,
+    "was_price_cents": 805,
+    "savings_cents": 80,
+    "special_type": "special"
+  },
+  {
+    "special_id": "aacfc387-3d01-5924-99e4-1a57450d0a28",
+    "product_id": "a44301e2-c5a6-5149-acc5-100f6c7be285",
+    "special_price_cents": 365,
+    "was_price_cents": 429,
+    "savings_cents": 64,
+    "special_type": "special"
+  },
+  {
+    "special_id": "7be28779-6e6d-5240-969b-d3c65b908300",
+    "product_id": "27592379-b568-5a37-8f42-906099ff89bf",
+    "special_price_cents": 565,
+    "was_price_cents": 709,
+    "savings_cents": 144,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "05817ec9-153c-5c1c-866c-034180fae7e3",
+    "product_id": "47ab79db-d09c-5440-89e2-df2f30b944b1",
+    "special_price_cents": 435,
+    "was_price_cents": 655,
+    "savings_cents": 220,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "75c2f466-b317-5dd4-8f08-ae9f34503661",
+    "product_id": "7afab063-1d7e-5fab-89d1-15b9e465eacb",
+    "special_price_cents": 315,
+    "was_price_cents": 395,
+    "savings_cents": 80,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "ffba5238-eb18-55ca-bc23-14b396c753b7",
+    "product_id": "f724a2bb-7bdc-5baa-811c-76d5ec9946b5",
+    "special_price_cents": 145,
+    "was_price_cents": 219,
+    "savings_cents": 74,
+    "special_type": "special"
+  },
+  {
+    "special_id": "616e15d2-137a-5317-8958-9497ee083858",
+    "product_id": "bdbb3302-038e-5025-b683-ff520c186ba1",
+    "special_price_cents": 555,
+    "was_price_cents": 689,
+    "savings_cents": 134,
+    "special_type": "special"
+  },
+  {
+    "special_id": "0f5095b3-5249-5bf1-aa37-7228d3c5e181",
+    "product_id": "2477eb9c-b812-5405-9a52-8606bee84ea9",
+    "special_price_cents": 485,
+    "was_price_cents": 605,
+    "savings_cents": 120,
+    "special_type": "special"
+  },
+  {
+    "special_id": "d4ec0288-8d19-57f4-bcbd-362b3ebc0371",
+    "product_id": "52996665-38b4-5a43-9393-54c56faf8010",
+    "special_price_cents": 285,
+    "was_price_cents": 385,
+    "savings_cents": 100,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "65f8c681-9bd6-5659-9e74-ff6648c1cab8",
+    "product_id": "d564f52d-0d8a-5fda-b9e4-989bb2acd382",
+    "special_price_cents": 225,
+    "was_price_cents": 279,
+    "savings_cents": 54,
+    "special_type": "special"
+  },
+  {
+    "special_id": "126c084b-ee32-5e6f-b6a5-e94a1f45853d",
+    "product_id": "2c5509f3-d8f7-5228-b7e5-9c34ee799ffb",
+    "special_price_cents": 495,
+    "was_price_cents": 545,
+    "savings_cents": 50,
+    "special_type": "special"
+  },
+  {
+    "special_id": "ff7cebaf-2a13-5d4e-a952-acdb3db91a15",
+    "product_id": "8f2f5e65-31f0-59bd-82c2-bd184217b128",
+    "special_price_cents": 685,
+    "was_price_cents": 809,
+    "savings_cents": 124,
+    "special_type": "special"
+  },
+  {
+    "special_id": "c467a7e1-34e1-5a1d-9540-c182455ab4c0",
+    "product_id": "f080ac32-a9ae-56d9-a30b-a58c744280fc",
+    "special_price_cents": 1425,
+    "was_price_cents": 1899,
+    "savings_cents": 474,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "e54226a8-0096-50b0-8e64-a5db88db2a71",
+    "product_id": "e22f7f1f-0c67-51a5-bd16-366885569d17",
+    "special_price_cents": 325,
+    "was_price_cents": 439,
+    "savings_cents": 114,
+    "special_type": "special"
+  },
+  {
+    "special_id": "d759764a-54bb-5de5-b83a-47c49b23c006",
+    "product_id": "3fdc193f-fc6b-5917-913e-22099471671a",
+    "special_price_cents": 175,
+    "was_price_cents": 355,
+    "savings_cents": 180,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "1c4dba6d-bcfc-5142-8e38-98f5614087d8",
+    "product_id": "a119b7df-2bc9-527d-bd2d-9d1b62f7b9e3",
+    "special_price_cents": 375,
+    "was_price_cents": 465,
+    "savings_cents": 90,
+    "special_type": "special"
+  },
+  {
+    "special_id": "46132020-d21b-5659-bfcf-76b8e459ba12",
+    "product_id": "b256069e-bf1c-552a-90bc-f2c1db155d87",
+    "special_price_cents": 305,
+    "was_price_cents": 379,
+    "savings_cents": 74,
+    "special_type": "special"
+  },
+  {
+    "special_id": "9bbdbeac-1b44-52c2-a88a-4bf1c94ccbc9",
+    "product_id": "51aee465-523a-5feb-8af2-35d5dd5daca1",
+    "special_price_cents": 325,
+    "was_price_cents": 485,
+    "savings_cents": 160,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "32e12cfb-5c21-5eaf-a825-24df25fee7fe",
+    "product_id": "b57ca101-d54b-50fa-bdbf-bb91f9510574",
+    "special_price_cents": 255,
+    "was_price_cents": 345,
+    "savings_cents": 90,
+    "special_type": "special"
+  },
+  {
+    "special_id": "de10095e-5943-5619-a036-6d527fd82aed",
+    "product_id": "9d7ffe3e-685d-529f-94d1-ced9d3bce04d",
+    "special_price_cents": 405,
+    "was_price_cents": 449,
+    "savings_cents": 44,
+    "special_type": "special"
+  },
+  {
+    "special_id": "752de7a5-22ac-54b3-aeb0-870b45c7a1a3",
+    "product_id": "586da17d-c0c5-506c-b8da-e6f7c4948c78",
+    "special_price_cents": 225,
+    "was_price_cents": 279,
+    "savings_cents": 54,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "072e7337-092c-5f37-9679-0d646152f6c0",
+    "product_id": "7495832c-3208-5b88-9568-afb9e4fa9560",
+    "special_price_cents": 385,
+    "was_price_cents": 519,
+    "savings_cents": 134,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "8ac84fc5-b09b-52b5-9073-5984e23c2676",
+    "product_id": "0c09db4f-f18f-587b-8db8-6448e6ceb0d3",
+    "special_price_cents": 265,
+    "was_price_cents": 329,
+    "savings_cents": 64,
+    "special_type": "special"
+  },
+  {
+    "special_id": "c453e772-65b1-5497-ab43-79a743532562",
+    "product_id": "cadb55be-97c8-590b-bb39-c8ec3e60a606",
+    "special_price_cents": 315,
+    "was_price_cents": 425,
+    "savings_cents": 110,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "97bb53f0-065d-5907-b831-abc2f194d3d5",
+    "product_id": "c2f0dd2a-b26c-5b2b-bbff-c6747671a1b5",
+    "special_price_cents": 1485,
+    "was_price_cents": 2975,
+    "savings_cents": 1490,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "16083c96-e766-51cf-a6ab-8e51a5ae5df2",
+    "product_id": "d5aaedaf-e5e5-5935-abf2-a35f3c78d08e",
+    "special_price_cents": 2645,
+    "was_price_cents": 3305,
+    "savings_cents": 660,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "7eed0dd3-c0a9-551a-91d6-f2c38e39def7",
+    "product_id": "8a7e3468-cba4-5753-bcd6-994969a70426",
+    "special_price_cents": 275,
+    "was_price_cents": 409,
+    "savings_cents": 134,
+    "special_type": "special"
+  },
+  {
+    "special_id": "4d5492ad-561c-5768-bf93-b1548e018276",
+    "product_id": "180cf460-e029-55a9-9ec0-31a576e773b6",
+    "special_price_cents": 315,
+    "was_price_cents": 395,
+    "savings_cents": 80,
+    "special_type": "special"
+  },
+  {
+    "special_id": "72ead436-2aa8-5cdf-af4e-8e01791b222e",
+    "product_id": "53c6cb7e-fb4b-5aea-aff4-0bb65b6f3a55",
+    "special_price_cents": 435,
+    "was_price_cents": 485,
+    "savings_cents": 50,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "23e5407c-8621-57c0-97f4-49a4a663550c",
+    "product_id": "89db0821-8ff1-5946-8bb4-2f9821568043",
+    "special_price_cents": 225,
+    "was_price_cents": 305,
+    "savings_cents": 80,
+    "special_type": "special"
+  },
+  {
+    "special_id": "a502a7e0-e138-5084-8f65-609d24ab9319",
+    "product_id": "b9ad8154-3748-5d5f-96f7-cc48d6ab91b7",
+    "special_price_cents": 925,
+    "was_price_cents": 1375,
+    "savings_cents": 450,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "51464603-5c3f-5078-854f-0a09efff3e8a",
+    "product_id": "70088953-09d9-5028-8143-9edd2e6409be",
+    "special_price_cents": 325,
+    "was_price_cents": 479,
+    "savings_cents": 154,
+    "special_type": "special"
+  },
+  {
+    "special_id": "a240af13-2b48-589a-b972-36771152c186",
+    "product_id": "ec8af2c7-f311-5610-b7cd-1ce8eb7f154d",
+    "special_price_cents": 555,
+    "was_price_cents": 735,
+    "savings_cents": 180,
+    "special_type": "special"
+  },
+  {
+    "special_id": "a013553a-fe5e-5eca-8de0-f5acb8741c2d",
+    "product_id": "79bf0217-918b-54f0-bd21-05c7de40b401",
+    "special_price_cents": 1955,
+    "was_price_cents": 2439,
+    "savings_cents": 484,
+    "special_type": "special"
+  },
+  {
+    "special_id": "e58bc5a5-c94e-56c5-a1c0-2f242266f73c",
+    "product_id": "ca6b5110-3c2f-5e01-834c-dafda763b6b4",
+    "special_price_cents": 1855,
+    "was_price_cents": 2319,
+    "savings_cents": 464,
+    "special_type": "special"
+  },
+  {
+    "special_id": "7881d90f-3800-5205-9dc0-4ebf46513e8d",
+    "product_id": "8a576137-e02d-516b-9ed1-2439deb65192",
+    "special_price_cents": 1625,
+    "was_price_cents": 1915,
+    "savings_cents": 290,
+    "special_type": "member_price"
+  },
+  {
+    "special_id": "bbeffc3a-a2b2-5477-b68f-0fddf836b67b",
+    "product_id": "472801ab-fa7b-500a-8acf-1885ac400d38",
+    "special_price_cents": 695,
+    "was_price_cents": 1395,
+    "savings_cents": 700,
+    "special_type": "half_price"
+  },
+  {
+    "special_id": "fb272bab-1ca7-537e-a204-165fa28cb1c2",
+    "product_id": "75f9ec23-7df1-560d-9f30-3b3d4f2add91",
+    "special_price_cents": 1175,
+    "was_price_cents": 1565,
+    "savings_cents": 390,
+    "special_type": "special"
+  }
+]

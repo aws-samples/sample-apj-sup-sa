@@ -21,6 +21,8 @@ This directory is the code-aligned documentation set for the current repository 
    Current relational model, constraints, and state semantics.
 4. [`RUNTIME_TRANSLATION.md`](./RUNTIME_TRANSLATION.md)
    Anthropic-compatible request/response conversion rules actually implemented by the gateway.
+5. [`BEDROCK_FALLBACK.md`](./BEDROCK_FALLBACK.md)
+   Bedrock-to-Anthropic-1P fallback: triggers, circuit breaker, streaming vs non-streaming, and limits.
 
 ## Current Status
 

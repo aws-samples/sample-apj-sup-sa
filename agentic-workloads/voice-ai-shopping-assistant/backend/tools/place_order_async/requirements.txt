@@ -1,0 +1,8 @@
+# place_order_async drives the AgentCore managed browser over raw CDP and calls
+# the preview AgentCore APIs (get_payment_instrument_balance, *BrowserSession*),
+# which the Lambda python3.12 runtime's built-in boto3 is too old for. Bundle a
+# current boto3 + websocket-client (pure-Python, so CDK can bundle without Docker
+# — matches the live CLI-deployed zip).
+boto3>=1.43.27
+websocket-client>=1.9.0
+stripe>=10.0.0

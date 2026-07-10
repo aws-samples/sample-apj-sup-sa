@@ -1,0 +1,72 @@
+# Local container smoke test (Phase B4).
+#
+# Brings up the two service images + Postgres to prove the containers RUN under Linux before any
+# cloud spend: the worker's bundled native media stack (aiortc/av/pylibsrtp) loads, both health
+# endpoints respond, and the 3-table schema migrates. This is NOT the deployment topology (that is
+# infra/g1/deploy.yaml in Phase C) — it has no NLB/WebRTC media plane; a full spoken-turn test runs
+# against the real worker over WebRTC in Phase A4 (local) and Phase D (hosted).
+#
+# Run:  docker compose up --build      (Ctrl-C to stop; docker compose down -v to wipe the DB)
+# Env:  DEEPGRAM_API_KEY is read from voice-worker/.env if present; not required for the smoke.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: interviewcoach
+      POSTGRES_PASSWORD: localsmoke
+      POSTGRES_DB: interviewcoach
+    # No host-port mapping: the worker/backend/migrate services reach Postgres over the
+    # compose-internal `db:5432` hostname. Exposing 5432 to the host is unnecessary for the
+    # smoke test and collides with anything already bound there (e.g. an SSH tunnel).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U interviewcoach -d interviewcoach"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: create the 3-table G1 slice, then exit. Both services depend on it completing.
+  migrate:
+    image: interviewcoach-voice-worker:b1
+    build:
+      context: ./voice-worker
+    environment:
+      DATABASE_URL: postgres://interviewcoach:localsmoke@db:5432/interviewcoach
+      LOG_FILE: /tmp/migrate.log
+    command: ["python", "-m", "src.db_migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  voice-worker:
+    image: interviewcoach-voice-worker:b1
+    build:
+      context: ./voice-worker
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      DATABASE_URL: postgres://interviewcoach:localsmoke@db:5432/interviewcoach
+      VOICE_TOKEN_SECRET: local-smoke-shared-secret-0123456789abcdef
+      REPLY_PROVIDER: bedrock_direct
+      LOG_FILE: /tmp/voice-worker.log
+    ports:
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  backend:
+    image: interviewcoach-backend:b2
+    build:
+      context: ./backend
+    environment:
+      PORT: 8000
+      DATABASE_URL: postgres://interviewcoach:localsmoke@db:5432/interviewcoach
+      VOICE_TOKEN_SECRET: local-smoke-shared-secret-0123456789abcdef
+      MEDIA_ENDPOINT: http://voice-worker:8080
+      REPLY_PROVIDER: bedrock_direct
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

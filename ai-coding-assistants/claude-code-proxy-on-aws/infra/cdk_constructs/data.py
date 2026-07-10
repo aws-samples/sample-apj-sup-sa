@@ -60,6 +60,23 @@ class DataConstruct(Construct):
             ),
         )
 
+        self.anthropic_api_key_secret = secretsmanager.Secret(
+            self,
+            "AnthropicApiKeySecret",
+            secret_name=context.secret_name("anthropic-api-key"),
+            description=(
+                "Anthropic 1P API key used as Bedrock fallback. "
+                'Populate after deploy: aws secretsmanager put-secret-value '
+                '--secret-id <arn> --secret-string \'{"api_key":"sk-ant-..."}\''
+            ),
+            generate_secret_string=secretsmanager.SecretStringGenerator(
+                secret_string_template='{"api_key":""}',
+                generate_string_key="placeholder",
+                password_length=8,
+            ),
+            removal_policy=context.resource_removal_policy,
+        )
+
         self.db_subnet_group = rds.SubnetGroup(
             self,
             "DbSubnetGroup",

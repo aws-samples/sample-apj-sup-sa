@@ -1,0 +1,36 @@
+# Python venv and caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.ipynb_checkpoints/
+
+# Local secrets / tokens
+.env
+.hf_token
+*.pem
+*.key
+
+# LLMeter / benchmark outputs
+outputs/
+medgemma-27b/outputs/
+
+# NOTE: benchmark sample data lives in ../sample-data/travel/
+# (synthesized by Amazon Bedrock — see ../sample-data/scripts/synthesize.py).
+# benchmark/data/ is intentionally empty in this repo.
+
+# NOTE: catalog_cache.json IS checked in (so clones work offline). Re-run
+# `python -m vllm_ec2_bench.data.catalog --refresh` before benchmarking to
+# pull current prices. The file has a `_meta.refreshed_at` timestamp.
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Dev scratch
+.scratch/

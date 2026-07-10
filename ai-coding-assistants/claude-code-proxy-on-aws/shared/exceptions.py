@@ -52,11 +52,27 @@ class UpstreamError(AppError):
 
 
 class BedrockError(UpstreamError):
-    """Bedrock invocation error."""
+    """Bedrock invocation error eligible for fallback (provider-side, transient)."""
 
 
 class BedrockThrottlingError(UpstreamError):
-    """Bedrock throttling error."""
+    """Bedrock throttling error eligible for fallback."""
+
+
+class BedrockClientBugError(UpstreamError):
+    """Bedrock rejection caused by request shape, auth, or policy.
+
+    Not eligible for 1P fallback because the same payload would fail upstream too.
+    Examples: ValidationException, AccessDeniedException, ResourceNotFoundException.
+    """
+
+
+class AnthropicError(UpstreamError):
+    """Anthropic 1P invocation error."""
+
+
+class AnthropicThrottlingError(UpstreamError):
+    """Anthropic 1P throttling error."""
 
 
 class ValidationError(AppError):

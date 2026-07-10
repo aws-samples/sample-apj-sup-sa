@@ -1,0 +1,30 @@
+{"prompt": "What color is the sky?", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "Say hello in French.", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "What is 12 × 8?", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "Is a tomato a fruit or a vegetable?", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "Name three primary colors.", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "What does HTML stand for?", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "Convert 100°F to Celsius.", "expected_tier": 1, "category": "trivial", "expected_model_hint": "gemma-3-4b"}
+{"prompt": "How many days are in a leap year?", "expected_tier": 1, "category": "trivial", "expected_model_hint": "nova-micro"}
+{"prompt": "Unicorn Rental Co. wants a tagline for their summer campaign. Suggest three options.", "expected_tier": 2, "category": "simple", "expected_model_hint": "gemma-3-12b"}
+{"prompt": "Summarize the pros and cons of renting unicorns versus pegasi for corporate retreats.", "expected_tier": 2, "category": "simple", "expected_model_hint": "qwen3-32b"}
+{"prompt": "Draft a one-paragraph company description for Unicorn Rental's About Us page.", "expected_tier": 2, "category": "simple", "expected_model_hint": "gemma-3-12b"}
+{"prompt": "What factors should Unicorn Rental consider when expanding into the European market?", "expected_tier": 2, "category": "simple", "expected_model_hint": "qwen3-32b"}
+{"prompt": "Write a FAQ with five questions for first-time unicorn renters.", "expected_tier": 2, "category": "simple", "expected_model_hint": "gemma-3-12b"}
+{"prompt": "Explain the difference between REST and GraphQL APIs for a junior developer.", "expected_tier": 2, "category": "simple", "expected_model_hint": "qwen3-32b"}
+{"prompt": "Write a Python function that validates email addresses using regex and returns a list of invalid ones from a CSV file.", "expected_tier": 3, "category": "code", "expected_model_hint": "deepseek-v3"}
+{"prompt": "Implement a binary search tree in Python with insert, delete, and in-order traversal methods.", "expected_tier": 3, "category": "code", "expected_model_hint": "deepseek-v3"}
+{"prompt": "Write a Bash script that monitors disk usage and sends an alert when any partition exceeds 90%.", "expected_tier": 3, "category": "code", "expected_model_hint": "deepseek-v3"}
+{"prompt": "Create a FastAPI endpoint for Unicorn Rental that accepts booking requests, validates dates, and stores them in DynamoDB.", "expected_tier": 3, "category": "code", "expected_model_hint": "deepseek-v3"}
+{"prompt": "Write unit tests with pytest for a function that calculates dynamic pricing for unicorn rentals based on season, duration, and unicorn rarity.", "expected_tier": 3, "category": "code", "expected_model_hint": "deepseek-v3"}
+{"prompt": "Unicorn Rental's fleet costs $2M/year. Utilization is 62%. Propose a mathematical model to optimize fleet size versus demand, accounting for seasonal variance and maintenance windows.", "expected_tier": 3, "category": "reasoning", "expected_model_hint": "nova-pro"}
+{"prompt": "Compare eventual consistency vs. strong consistency for Unicorn Rental's booking system. When would you pick each? Include trade-offs around latency, availability, and user experience.", "expected_tier": 3, "category": "reasoning", "expected_model_hint": "nova-pro"}
+{"prompt": "Design a reward-shaping strategy for an RL agent that learns optimal unicorn feeding schedules given variable weather, rider weight, and terrain.", "expected_tier": 3, "category": "reasoning", "expected_model_hint": "nova-pro"}
+{"prompt": "Analyze the game-theoretic implications of Unicorn Rental entering a duopoly market against Pegasus Express. Model it as a Bertrand competition and derive equilibrium prices.", "expected_tier": 4, "category": "reasoning", "expected_model_hint": "sonnet"}
+{"prompt": "Design a complete microservices architecture for Unicorn Rental: booking, fleet management, payments, notifications. Include service boundaries, data ownership, async communication patterns, failure modes, and an ADR for choosing between ECS and EKS.", "expected_tier": 4, "category": "expert", "expected_model_hint": "sonnet"}
+{"prompt": "Write a detailed RFC for migrating Unicorn Rental's monolith to event-driven architecture on AWS. Cover EventBridge schemas, DLQ strategies, idempotency, exactly-once semantics, and a phased rollout plan with rollback criteria.", "expected_tier": 4, "category": "expert", "expected_model_hint": "sonnet"}
+{"prompt": "Critically evaluate whether transformer-based architectures or state-space models are better suited for real-time unicorn health telemetry (heart rate, gait, temperature at 100Hz). Discuss latency, memory, and accuracy trade-offs with references to recent papers.", "expected_tier": 4, "category": "expert", "expected_model_hint": "sonnet"}
+{"prompt": "用中文写一份独角兽租赁公司的季度业绩摘要，包含收入、客户增长和市场展望三个部分。", "expected_tier": 2, "category": "cjk", "expected_model_hint": "glm-4.7"}
+{"prompt": "ユニコーンレンタルの利用規約を日本語で簡潔にまとめてください。", "expected_tier": 2, "category": "cjk", "expected_model_hint": "glm-4.7-flash"}
+{"prompt": "Given the following 120,000-token document containing Unicorn Rental's complete operational logs for Q1 2026, identify the top five anomalies by frequency and severity. [PLACEHOLDER: attach long document]", "expected_tier": 2, "category": "long_context", "expected_model_hint": "llama4-scout"}
+{"prompt": "Search the Unicorn Rental inventory database for all unicorns available in the Bay Area next weekend, then calculate the total rental cost for a party of 12 with the gold package.", "expected_tier": 3, "category": "tool_use", "expected_model_hint": "haiku"}

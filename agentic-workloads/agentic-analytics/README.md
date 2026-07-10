@@ -1,6 +1,6 @@
-# Agentic Analytics: Self-Service Analytics with Agentic AI on AWS
+# Agentic Analytics for Multi-tenant SaaS with AgentCore
 
-A reference implementation and [AWS Workshop Studio](https://workshops.aws/) deployable for building AI-powered self-service analytics on multi-tenant SaaS. Business users ask questions in plain English — the AI agent selects the right query, enforces security policies, and returns formatted insights.
+A reference implementation and [AWS Workshop Studio](https://workshops.aws/) deployable for building AI-powered self-service analytics on multi-tenant SaaS. Business users ask questions in plain English — by **text or by voice** — the AI agent selects the right query, enforces security policies, and returns formatted insights, including **generated charts**.
 
 Built with [Amazon Bedrock AgentCore](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html), [Strands Agents SDK](https://strandsagents.com/latest/), Aurora PostgreSQL, and Cedar policies.
 
@@ -15,14 +15,17 @@ Built with [Amazon Bedrock AgentCore](https://docs.aws.amazon.com/bedrock-agentc
 3. **AgentCore Runtime** hosts a Strands agent that interprets the query and selects the right tool(s)
 4. **MCP Gateway** routes tool calls to Lambda functions, enforcing Cedar RBAC policies and propagating the JWT
 5. **Lambda Tools** execute parameterized SQL against Aurora PostgreSQL, with Row-Level Security filtering data by tenant
-6. **Agent** formats the results and streams them back to the UI
+6. **Agent** formats the results and streams them back to the UI — as text, a markdown table, and/or a generated chart image
+7. **(Optional) Voice** — the same agent answers spoken questions: a Pipecat pipeline (its own AgentCore Runtime, WebRTC + Amazon KVS managed TURN, Deepgram STT/TTS) calls the analytics agent and speaks the answer back
 
 ### Key Components
 
 | Component | Purpose |
 |-----------|---------|
-| **React UI** | Chat interface with streaming responses and SQL approval workflow |
+| **React UI** | Chat interface with streaming responses, SQL approval workflow, rendered charts, and optional voice mode |
 | **AgentCore Runtime** | Hosts the Strands agent with memory, SOP, and guardrails |
+| **Voice Runtime** *(optional)* | A second AgentCore Runtime running the Pipecat voice pipeline (WebRTC + KVS TURN, Deepgram STT/TTS) that invokes the analytics agent |
+| **Chart Code Interpreter** | Sandboxed matplotlib rendering → PNG to S3; the agent returns a short presigned `<chart>` tag (no base64 in the stream) |
 | **MCP Gateway** | Authenticated tool routing with Cedar policy enforcement |
 | **Prebaked SQL Toolset** | 27+ analytics tools backed by database Views |
 | **API Integration Toolset** | Write operations (e.g., create booking) with tenant-scoped inserts |
@@ -71,35 +74,123 @@ This repository is designed as a deployable for **AWS Workshop Studio**. The wor
 | 8 | Guardrails (topic blocking, PII filtering) |
 | 9 | Observability (CloudWatch + X-Ray tracing) |
 | 10 | Evaluation (LLM-as-a-Judge with Strands Evals) |
+| Optional | Semantic layer with Cube Core |
+| Optional | Voice — talk to your data (Pipecat + WebRTC + KVS TURN, no 3rd-party SFU) |
 
 Workshop content is in the [`workshop/`](workshop/) directory. For hands-on instructions, deploy via Workshop Studio or follow the Hugo markdown in `workshop/content/`.
 
+### Voice & charts
+
+Beyond text chat, the agent can **speak** and **draw**:
+
+- **Charts** — when a question calls for a visual, the agent renders a real chart in a sandboxed Code Interpreter, uploads the PNG to S3, and returns a short presigned `<chart>` tag the UI renders. Image bytes never cross the model stream. Works in both text and voice.
+- **Voice** — an optional second AgentCore Runtime hosts a [Pipecat](https://www.pipecat.ai/) pipeline (Deepgram STT/TTS). Two transports are supported: **`agentcore`** (WebRTC over **Amazon Kinesis Video Streams (KVS) managed TURN** — no third-party media vendor; both the runtime and the browser fetch the same TURN creds, the browser via the signaling proxy's JWT-gated `GET /api/ice`, so ICE can traverse NAT to the VPC runtime) and **`pipecat-cloud`** (Daily's hosted SFU). Either way it invokes the *same* analytics agent over the same JWT, so RBAC/RLS and the conversation memory thread are shared across text and voice. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the voice deploy modes.
+
 ### Workshop Deployment
 
-The workshop uses CloudFormation to pre-provision infrastructure (Aurora, Glue, Bedrock KB, Cognito, EC2 Code Editor). Participants then build the agent layer progressively using code overlays with TODO placeholders. See [`workshop/contentspec.yaml`](workshop/contentspec.yaml) for the Workshop Studio configuration.
+The workshop uses CloudFormation to pre-provision base infrastructure (Aurora, Glue, Bedrock KB, Cognito, EC2 Code Editor). Participants then deploy a single **AgentCore top-up CloudFormation stack** and build the agent layer step-by-step — each lab step uncomments one fenced section of the template (or flips one value) and redeploys with `make deploy`. There's no `agentcore` CLI in the runtime lifecycle; the container image is built by CloudFormation via CodeBuild. See [`workshop/contentspec.yaml`](workshop/contentspec.yaml) for the Workshop Studio configuration.
+
+## Demo Deployment (Full Automation)
+
+Demo mode deploys everything including AgentCore Gateway and Amplify UI. Uses the same packaging script as Workshop mode, only `DeployMode` differs.
+
+> **Artifacts bucket:** pick a globally-unique, account-scoped name (e.g.
+> `agentic-analytics-demo-<account-id>`) — a bare `agentic-analytics-demo` may
+> already be owned by another account and fail with `AccessDenied`.
+>
+> **npm registry:** the UI build (`package_and_upload.sh`) runs `npm install`. The
+> repo pins the public registry in `app/ui/.npmrc`, so no private/CodeArtifact
+> auth is needed — a developer's global `~/.npmrc` pointing at an authenticated
+> mirror won't break the build.
+
+```bash
+# 1. Create S3 bucket for artifacts (account-scoped name)
+aws s3 mb s3://agentic-analytics-demo-<account-id> --region us-west-2
+
+# 2. Upload deployment artifacts (demo is the default mode — packages agent code, datafoundation Lambda, psycopg2 layer, amplify Lambda, and UI build in addition to workshop artifacts)
+cd infrastructure/scripts
+./package_and_upload.sh agentic-analytics-demo-<account-id>
+
+# 3. Deploy demo stack (use the command output from step 2, changing DeployMode to demo and stack name to agentic-analytics-demo)
+aws cloudformation create-stack \
+  --stack-name agentic-analytics-demo \
+  --template-url https://your-artifacts-bucket.s3.us-west-2.amazonaws.com/templates/main-stack.yaml \
+  --parameters \
+      ParameterKey=ArtifactsBucket,ParameterValue=your-artifacts-bucket \
+      ParameterKey=DeployMode,ParameterValue=demo \
+      ParameterKey=DatabaseInitLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=GlueCrawlerLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=BedrockKBLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=AmplifyLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=InterceptorLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=ApiIntegLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=CustomSqlLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=SemanticLayerLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=ObservabilityLambdaKey,ParameterValue=<from-output> \
+      ParameterKey=UIBuildKey,ParameterValue=<from-output> \
+      ParameterKey=AgentCodeS3Key,ParameterValue=agent/agent_code.zip \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+  --region us-west-2
+```
+
+### Demo with voice
+
+Voice is off by default (Voice button hidden). To deploy with voice, add these to the
+create/update parameters and pick a mode:
+
+```
+ParameterKey=EnableVoice,ParameterValue=true
+ParameterKey=VoiceMode,ParameterValue=agentcore        # or pipecat-cloud
+ParameterKey=DeepgramApiKey,ParameterValue=<key>
+ParameterKey=DeepgramVoiceId,ParameterValue=aura-2-apollo-en
+```
+
+- **`agentcore`** — fully CFN: a second AgentCore Runtime (Pipecat) + WebRTC over
+  Amazon KVS managed TURN + a JWT signaling proxy. One deploy, no third-party SFU.
+- **`pipecat-cloud`** — deploy with `VoiceMode=pipecat-cloud`, then run the post-deploy
+  finisher (Pipecat Cloud is external SaaS that can't be pure CFN):
+  ```bash
+  PCC_PAT=… PCC_PUBLIC_KEY=… PCC_PRIVATE_KEY=… DEEPGRAM_API_KEY=… DAILY_API_KEY=… \
+    infrastructure/scripts/deploy_voice_pcc.sh
+  ```
+
+Both modes invoke the *same* analytics agent with the signed-in user's JWT, so RBAC/RLS
+and the shared memory thread are identical to text. See [`DEPLOYMENT.md`](DEPLOYMENT.md)
+for details (including the agentcore voice teardown caveat — VPC ENIs reclaim slowly).
 
 ## Project Structure
 
 ```
 ├── app/
-│   ├── agentcore_strands/       # Strands agent, Lambda tools, deploy scripts
-│   │   ├── tools/               # Lambda toolsets (prebaked SQL, API, custom SQL, semantic layer)
-│   │   ├── infra/               # Gateway, toolset, and observability deployment
-│   │   ├── policy/              # Cedar policy deployment and pre-token Lambda
-│   │   └── guardrails/          # Bedrock Guardrail deployment
-│   └── ui/                      # React frontend
+│   ├── agentcore_strands/       # Strands agent + Lambda tools
+│   │   ├── unicorn_rental_agent.py          # main agent entrypoint
+│   │   ├── unicorn_rental_analytics.sop.md  # SOP (one file, text/voice mode-conditional)
+│   │   ├── tools/               # Lambda toolsets (prebaked SQL, API integration, custom SQL, semantic layer)
+│   │   ├── infra/               # Cube lab scripts (deploy_cube_models, deploy_semantic_layer_*) + the Gateway interceptor Lambda
+│   │   ├── agent/               # semantic-layer agent variant (Cube lab)
+│   │   ├── ui/                  # Amplify hosting deploy helper (demo mode)
+│   │   └── tests/               # agent unit tests
+│   ├── ui/                      # React frontend (text chat + charts + optional voice)
+│   └── voice/                   # Pipecat voice bot (optional) — runs as its own AgentCore Runtime
 ├── infrastructure/
-│   ├── stacks/                  # CloudFormation templates (nested stacks)
-│   ├── custom-resource-lambdas/ # Custom Resource Lambda handlers
-│   └── scripts/                 # Deployment and utility scripts
+│   ├── stacks/                  # CloudFormation templates (nested stacks; incl. agentcore-topup-stack.yaml, voice-agentcore-stack.yaml)
+│   ├── custom-resource-lambdas/ # Custom Resource Lambda handlers (DB init, Glue crawler, Bedrock KB ingestion)
+│   ├── voice-proxy/             # JWT signaling/start proxy for the voice modes (optional)
+│   ├── voice-pcc-cr/            # Pipecat Cloud custom resource (pipecat-cloud voice mode, optional)
+│   ├── config/                  # deployment-config sample
+│   ├── scripts/                 # Deployment and packaging scripts
+│   └── tests/                   # infrastructure tests
 ├── workshop/
-│   ├── content/                 # Workshop guide (Steps 0–10)
-│   ├── code/                    # Code overlays with TODO placeholders
+│   ├── content/                 # Workshop guide (Steps 0–10 + optional Cube & Voice, grouped into modules)
+│   ├── code/                    # Code overlays with TODO placeholders (incl. the participant Makefile + top-up stack)
 │   └── static/images/           # Architecture diagrams
 ├── dataset/                     # → symlink to unicorn-rental-dataset
 ├── exercises/                   # Learning exercises (basic_agent.py)
-└── common/                      # Shared utilities
+├── common/                      # Shared utilities (build/amplify helpers)
+└── dev/                         # Maintainer-only tooling (NOT shipped): eval harness, specs, skills, app-index.json
 ```
+
+> **Note on the AgentCore layer:** Gateway, Runtime, Memory, the toolset Lambdas, the Cedar policy engine, and the Bedrock Guardrail are all **CloudFormation resources** in `infrastructure/stacks/agentcore-topup-stack.yaml` (workshop) / `agentcore-stack.yaml` (demo) — not standalone `deploy_*.py` scripts. The pre-token Lambda lives in `cognito-stack.yaml`.
 
 ## The Scenario: Timely-Unicorn
 

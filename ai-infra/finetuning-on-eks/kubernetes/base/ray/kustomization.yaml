@@ -9,6 +9,8 @@ configurations:
 resources:
   - s3-config.yaml
   - rayjob.yaml
+  - serviceaccount.yaml
+  - efs-pvc.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: fine-tuning-on-eks

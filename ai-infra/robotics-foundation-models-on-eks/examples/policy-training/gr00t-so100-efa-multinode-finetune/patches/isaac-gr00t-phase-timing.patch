@@ -1,0 +1,157 @@
+diff --git a/gr00t/experiment/experiment.py b/gr00t/experiment/experiment.py
+index e977edf..3f15a03 100755
+--- a/gr00t/experiment/experiment.py
++++ b/gr00t/experiment/experiment.py
+@@ -4,6 +4,7 @@ import logging
+ import os
+ from pathlib import Path
+ import warnings
++import time
+
+ from omegaconf import OmegaConf
+ import torch
+@@ -107,6 +108,7 @@ def warn_configs(config: Config):
+
+ def run(config: Config):
+     warn_configs(config)
++    run_start = time.perf_counter()
+
+     """Main training function."""
+     # If using distributed training, initialize the process group
+@@ -146,6 +148,11 @@ def run(config: Config):
+         output_dir = Path(config.training.output_dir) / config.training.experiment_name
+         experiment_name = config.training.experiment_name
+
++    phase_timings = {
++        "rank": global_rank,
++        "run_setup_seconds": time.perf_counter() - run_start,
++    }
++
+     output_dir.mkdir(parents=True, exist_ok=True)
+
+     # Save config
+@@ -169,18 +176,24 @@ def run(config: Config):
+         )
+
+     # Setup model training pipeline.
++    pipeline_start = time.perf_counter()
+     pipeline = MODEL_REGISTRY.get(type(config.model))(config, save_cfg_dir)
+     pipeline.setup()
++    phase_timings["pipeline_setup_seconds"] = time.perf_counter() - pipeline_start
++    phase_timings.update(getattr(pipeline, "profile_timings", {}))
+     model = pipeline.return_model()
+     train_dataset, eval_dataset = pipeline.return_dataset()
+     data_collator = pipeline.return_collator()
+     processor = pipeline.return_processor()
++    processor_save_start = time.perf_counter()
+     processor.save_pretrained(processor_dir)
++    phase_timings["processor_save_seconds"] = time.perf_counter() - processor_save_start
+
+     # deepspeed config
++    trainer_prepare_start = time.perf_counter()
+     if config.training.num_gpus > 1 and not config.training.use_ddp:
+         deepspeed_config = config.get_deepspeed_config()
+     else:
+         deepspeed_config = None
+
+     # for now we will let batch_size override global_batch_size, in future we will deprecate batch_size
+@@ -237,6 +254,7 @@ def run(config: Config):
+         data_collator=data_collator,
+         multiprocessing_context=config.data.multiprocessing_context,
+     )
++    phase_timings["trainer_init_seconds"] = time.perf_counter() - trainer_prepare_start
+
+     trainer.add_callback(
+         CheckpointFormatCallback(
+@@ -263,6 +281,8 @@ def run(config: Config):
+
+     # Train
+     logging.info("🚀 Starting training...")
++    train_loop_start = time.perf_counter()
++    train_result = None
+     if config.training.enable_profiling:
+         from functools import partial
+
+@@ -285,11 +305,21 @@ def run(config: Config):
+             on_trace_ready=partial(on_trace_ready_handler, trainer, profile_dir),
+         ) as prof:
+             trainer.add_callback(ProfCallback(prof=prof))
+-            trainer.train(resume_from_checkpoint=True)
++            train_result = trainer.train(resume_from_checkpoint=True)
+     else:
+-        trainer.train(resume_from_checkpoint=True)
++        train_result = trainer.train(resume_from_checkpoint=True)
++    phase_timings["train_loop_wall_seconds"] = time.perf_counter() - train_loop_start
++    if train_result is not None:
++        phase_timings["hf_train_metrics"] = train_result.metrics
+
+     # Save final model
++    save_model_start = time.perf_counter()
+     trainer.save_model()
++    phase_timings["save_model_seconds"] = time.perf_counter() - save_model_start
++    phase_timings["total_run_seconds"] = time.perf_counter() - run_start
++    phase_timing_path = output_dir / f"phase-timing-rank-{global_rank}.json"
++    with open(phase_timing_path, "w") as f:
++        json.dump(phase_timings, f, indent=2, sort_keys=True)
++    logging.info(f"Phase timing saved to {phase_timing_path}")
+     logging.info(f"Model saved to {output_dir}")
+
+     if config.training.assert_loss_less_than is not None:
+diff --git a/gr00t/model/gr00t_n1d6/setup.py b/gr00t/model/gr00t_n1d6/setup.py
+index 6eb805e..7e3cd36 100644
+--- a/gr00t/model/gr00t_n1d6/setup.py
++++ b/gr00t/model/gr00t_n1d6/setup.py
+@@ -1,5 +1,6 @@
+ import json
+ import logging
++import time
+ from pathlib import Path
+
+ from gr00t.configs.base_config import Config
+@@ -56,9 +57,18 @@ class Gr00tN1d6Pipeline(ModelPipeline):
+         return self.config.model
+
+     def setup(self):
++        self.profile_timings = {}
++        start = time.perf_counter()
+         self.model = self._create_model()
++        self.profile_timings["model_load_seconds"] = time.perf_counter() - start
++
++        start = time.perf_counter()
+         self.train_dataset, self.eval_dataset = self._create_dataset(self.save_cfg_dir)
++        self.profile_timings["dataset_setup_total_seconds"] = time.perf_counter() - start
++
++        start = time.perf_counter()
+         self.data_collator = self._create_collator()
++        self.profile_timings["collator_setup_seconds"] = time.perf_counter() - start
+
+     def _create_model(self):
+         """Setup model with proper vocabulary expansion."""
+@@ -116,6 +128,7 @@ class Gr00tN1d6Pipeline(ModelPipeline):
+     def _create_dataset(self, save_cfg_dir: Path):
+         """Create appropriate dataset based on task and mode."""
+
++        processor_start = time.perf_counter()
+         if self.config.training.start_from_checkpoint is not None:
+             processor = AutoProcessor.from_pretrained(
+                 self.config.training.start_from_checkpoint,
+@@ -181,13 +194,19 @@ class Gr00tN1d6Pipeline(ModelPipeline):
+         self.processor = processor
++        self.profile_timings["processor_load_seconds"] = time.perf_counter() - processor_start
++
++        dataset_start = time.perf_counter()
+         dataset_factory = DatasetFactory(config=self.config)
+         train_dataset, eval_dataset = dataset_factory.build(processor=self.processor)
++        self.profile_timings["dataset_build_seconds"] = time.perf_counter() - dataset_start
+
+         # Save dataset statistics for inference
++        stats_start = time.perf_counter()
+         stats = train_dataset.get_dataset_statistics()
+         stats_dict = convert_tensors_to_lists(stats)
+         # Save statistics
+         with open(save_cfg_dir / "dataset_statistics.json", "w") as f:
+             json.dump(stats_dict, f, indent=2)
++        self.profile_timings["dataset_stats_save_seconds"] = time.perf_counter() - stats_start
+         logging.info("Saved dataset statistics for inference")
+
+         return train_dataset, eval_dataset
