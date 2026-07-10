@@ -1,0 +1,40 @@
+#!/bin/sh
+# Tracked pre-commit hook. Enable once per clone with:
+#   git config core.hooksPath scripts/git-hooks
+#
+# Runs tests/ before each commit: the pure offline suite plus the functional
+# suite (which hits real Bedrock through a spawned bridge). Functional tests
+# are mandatory and hard-fail when AWS is unreachable; that is deliberate, a
+# machine that cannot verify the bridge should not be committing to it. To
+# commit offline on purpose, run the offline subset yourself and bypass the
+# hook for that commit: pytest -m 'not functional' && git commit --no-verify.
+# The e2e output-distance grader lives in scripts/ (not tests/), so it is NOT
+# collected here; run it by hand or per the PR checklist (it costs tokens and
+# needs Claude Code).
+#
+# Resolves a Python that has pytest: prefers a PYTEST env override, then the
+# workspace-parent .venv used in development, then python3 on PATH. If pytest
+# is not installed anywhere we can see, the hook skips rather than blocking the
+# commit; tests are a dev-time dependency (pip install -e '.[dev]').
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+
+# A PYTEST override is treated as a ready-to-run pytest executable; otherwise we
+# locate a Python interpreter that has pytest and invoke it as `<python> -m
+# pytest`. Both paths exec with explicit quoted arguments (no command string is
+# built and re-split), so interpreter paths containing spaces work correctly.
+if [ -n "$PYTEST" ] && "$PYTEST" --version >/dev/null 2>&1; then
+    echo "pre-commit: running tests via $PYTEST" >&2
+    exec "$PYTEST" -q "$repo_root/tests"
+fi
+
+for py in "$repo_root/../.venv/bin/python" "$repo_root/.venv/bin/python" python3; do
+    if "$py" -c "import pytest" >/dev/null 2>&1; then
+        echo "pre-commit: running tests via $py -m pytest" >&2
+        exec "$py" -m pytest -q "$repo_root/tests"
+    fi
+done
+
+echo "pre-commit: pytest not found; skipping tests (install with: pip install -e '.[dev]')" >&2
+exit 0

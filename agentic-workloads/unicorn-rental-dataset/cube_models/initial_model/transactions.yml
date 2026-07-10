@@ -1,0 +1,56 @@
+cubes:
+  - name: transactions
+    sql_table: transactions
+    description: >
+      Financial records for all monetary activity. Each booking generates
+      a transaction record.
+
+    dimensions:
+      - name: transaction_id
+        sql: transaction_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+
+      - name: transaction_type
+        sql: "{CUBE}.transaction_type::text"
+        type: string
+
+      - name: status
+        sql: "{CUBE}.status::text"
+        type: string
+
+      - name: payment_method
+        sql: "{CUBE}.payment_method::text"
+        type: string
+
+      - name: currency
+        sql: currency
+        type: string
+
+      - name: payment_reference
+        sql: payment_reference
+        type: string
+
+      - name: description
+        sql: description
+        type: string
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+      - name: processed_at
+        sql: processed_at
+        type: time
+
+      - name: refunded_at
+        sql: refunded_at
+        type: time
+
+    measures:
+      - name: count
+        type: count

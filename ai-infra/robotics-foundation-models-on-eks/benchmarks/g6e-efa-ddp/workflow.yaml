@@ -1,0 +1,121 @@
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: 1h
+    queue_timeout: 2h
+  resources:
+    ddp_rank:
+      cpu: {{ cpu_count }}
+      gpu: 1
+      memory: {{ memory }}
+      storage: {{ storage }}
+      platform: {{ platform }}
+
+  groups:
+  - name: ddp
+    ignoreNonleadStatus: false
+    tasks:
+    - name: master
+      lead: true
+      resource: ddp_rank
+      image: {{ image_name }}
+      environment:
+        NCCL_DEBUG: INFO
+        NCCL_DEBUG_SUBSYS: INIT,NET
+        {% if mode == "efa" %}
+        FI_PROVIDER: efa
+        FI_EFA_USE_DEVICE_RDMA: "1"
+        {% else %}
+        NCCL_NET: Socket
+        NCCL_SOCKET_IFNAME: eth0
+        {% endif %}
+      command: ["/bin/bash", "-lc"]
+      args:
+      - |
+        set -euo pipefail
+        mkdir -p "{{output}}/results"
+        python -m torch.distributed.run \
+          --nnodes=2 \
+          --nproc_per_node=1 \
+          --node_rank=0 \
+          --master_addr={{host:master}} \
+          --master_port={{ master_port }} \
+          /tmp/train.py \
+          --mode {{ mode }} \
+          --param-mib {{ param_mib }} \
+          --warmup-steps {{ warmup_steps }} \
+          --steps {{ steps }} \
+          --bucket-cap-mb {{ bucket_cap_mb }} 2>&1 | tee /tmp/ddp-master.log
+        cp /tmp/ddp-master.log "{{output}}/results/master.log"
+        grep 'RESULT_JSON:' /tmp/ddp-master.log | tail -1 | sed 's/^RESULT_JSON: //' >"{{output}}/results/result.json"
+        test -s "{{output}}/results/result.json"
+        cat >"{{output}}/results/run-manifest.json" <<JSON
+        {
+          "workflow": "{{ workflow_name }}",
+          "mode": "{{ mode }}",
+          "platform": "{{ platform }}",
+          "image": "{{ image_name }}",
+          "nodes": 2,
+          "gpus_per_node": 1,
+          "param_mib": {{ param_mib }},
+          "warmup_steps": {{ warmup_steps }},
+          "steps": {{ steps }},
+          "bucket_cap_mb": {{ bucket_cap_mb }}
+        }
+        JSON
+        cat "{{output}}/results/result.json"
+      files:
+      - path: /tmp/train.py
+        localpath: train.py
+      outputs:
+      - dataset:
+          name: {{ output_dataset }}
+          path: results
+
+    - name: worker
+      resource: ddp_rank
+      image: {{ image_name }}
+      environment:
+        NCCL_DEBUG: INFO
+        NCCL_DEBUG_SUBSYS: INIT,NET
+        {% if mode == "efa" %}
+        FI_PROVIDER: efa
+        FI_EFA_USE_DEVICE_RDMA: "1"
+        {% else %}
+        NCCL_NET: Socket
+        NCCL_SOCKET_IFNAME: eth0
+        {% endif %}
+      command: ["/bin/bash", "-lc"]
+      args:
+      - |
+        set -euo pipefail
+        python -m torch.distributed.run \
+          --nnodes=2 \
+          --nproc_per_node=1 \
+          --node_rank=1 \
+          --master_addr={{host:master}} \
+          --master_port={{ master_port }} \
+          /tmp/train.py \
+          --mode {{ mode }} \
+          --param-mib {{ param_mib }} \
+          --warmup-steps {{ warmup_steps }} \
+          --steps {{ steps }} \
+          --bucket-cap-mb {{ bucket_cap_mb }}
+      files:
+      - path: /tmp/train.py
+        localpath: train.py
+
+default-values:
+  workflow_name: aws-g6e-efa-ddp
+  mode: efa
+  platform: g6e-l40s-efa
+  image_name: public.ecr.aws/deep-learning-containers/pytorch-training:2.9.0-gpu-py312-cu130-ubuntu22.04-ec2-v1.11
+  output_dataset: aws-g6e-efa-ddp-results
+  cpu_count: 4
+  memory: 16Gi
+  storage: 30Gi
+  master_port: 29500
+  param_mib: 64
+  warmup_steps: 1
+  steps: 3
+  bucket_cap_mb: 64

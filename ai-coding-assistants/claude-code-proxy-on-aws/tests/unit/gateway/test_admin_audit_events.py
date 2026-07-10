@@ -221,6 +221,7 @@ async def test_model_admin_mutations_emit_audit_events() -> None:
         canonical_name="claude-sonnet-4-6",
         bedrock_model_id="anthropic.claude-sonnet-4-6",
         bedrock_region="ap-northeast-1",
+        anthropic_model_id=None,
         provider="anthropic",
         family="claude-sonnet-4-6",
         status=ModelStatus.ACTIVE,
@@ -275,7 +276,7 @@ async def test_model_admin_mutations_emit_audit_events() -> None:
         ),
         audit_repo=audit_repo,
         admin_ctx=_admin_ctx(),
-        session=SimpleNamespace(commit=AsyncMock()),
+        session=SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock()),
     )
 
     create_payload = ModelCreate(

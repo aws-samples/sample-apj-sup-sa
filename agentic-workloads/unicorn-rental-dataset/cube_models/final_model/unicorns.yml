@@ -1,0 +1,215 @@
+cubes:
+  - name: unicorns
+    sql_table: unicorns
+    description: >
+      The fleet of unicorns available for rental. Each unicorn belongs to one
+      account and has unique specs (breed, color, horn, magic abilities) and
+      an hourly rental rate ($295-$400/hr). ~100 unicorns across 2 accounts.
+      Breeds are Celestial variants (Celestial Nebula, Celestial Pegasus, etc.).
+
+    joins:
+      - name: accounts
+        relationship: many_to_one
+        sql: "{unicorns.account_id} = {accounts.account_id}"
+
+    dimensions:
+      - name: unicorn_id
+        sql: unicorn_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+        description: Tenant isolation key
+
+      - name: unicorn_uid
+        sql: unicorn_uid
+        type: string
+        description: "Fleet identifier (e.g., MYTHICAL-005)"
+
+      - name: name
+        sql: name
+        type: string
+        description: "Formal registered name (e.g., Sheratan Autunite)"
+
+      - name: friendly_name
+        sql: friendly_name
+        type: string
+        description: "Staff nickname (e.g., Aurora, Starry)"
+
+      - name: breed
+        sql: breed
+        type: string
+        description: "Unicorn breed classification (Celestial variants)"
+
+      - name: color
+        sql: color
+        type: string
+        description: "Coat color (e.g., Iridescent White, Stardust Silver)"
+
+      - name: horn_material
+        sql: horn_material
+        type: string
+        description: "Horn composition affecting magical properties (e.g., Starlight Crystal)"
+
+      - name: magic_abilities
+        sql: magic_abilities
+        type: string
+        description: "Free-text special powers (e.g., Flight, Weather Control, Healing Aura)"
+
+      - name: fuel_type
+        sql: fuel_type
+        type: string
+        description: "Energy source (e.g., Astral Energy, Lunar Essence)"
+
+      - name: is_available
+        sql: is_available
+        type: boolean
+        description: Current real-time availability (synced by DB trigger from unicorn_availability)
+
+      - name: is_active
+        sql: is_active
+        type: boolean
+        description: Whether unicorn is part of the active fleet (not retired)
+
+      - name: year_of_making
+        sql: year_of_making
+        type: number
+        description: Year the unicorn was born/created
+
+      - name: seat_capacity
+        sql: seat_capacity
+        type: number
+        description: Total passenger capacity including rider (2 or 3 in current fleet)
+
+      - name: last_service_date
+        sql: last_service_date
+        type: time
+        description: Date of last maintenance service
+
+      - name: next_service_due
+        sql: next_service_due
+        type: time
+        description: Scheduled next maintenance date
+
+      - name: purchase_date
+        sql: purchase_date
+        type: time
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+      - name: maintenance_urgency
+        sql: >
+          CASE
+            WHEN {CUBE}.next_service_due <= CURRENT_DATE THEN 'overdue'
+            WHEN {CUBE}.next_service_due <= CURRENT_DATE + INTERVAL '7 days' THEN 'due_this_week'
+            WHEN {CUBE}.next_service_due <= CURRENT_DATE + INTERVAL '30 days' THEN 'due_this_month'
+            ELSE 'scheduled'
+          END
+        type: string
+        description: >
+          Maintenance urgency classification: overdue, due_this_week,
+          due_this_month, or scheduled. Based on next_service_due vs current date.
+
+      - name: days_until_maintenance
+        sql: "{CUBE}.next_service_due - CURRENT_DATE"
+        type: number
+        description: Days until next scheduled maintenance (negative = overdue)
+
+    measures:
+      - name: count
+        type: count
+        description: Total unicorns in fleet
+
+      - name: available_count
+        type: count
+        filters:
+          - sql: "{CUBE}.is_available = true AND {CUBE}.is_active = true"
+        description: Unicorns currently available for booking
+
+      - name: unavailable_count
+        type: count
+        filters:
+          - sql: "{CUBE}.is_available = false AND {CUBE}.is_active = true"
+        description: Active unicorns currently unavailable (maintenance, repair, etc.)
+
+      - name: avg_hourly_rate
+        sql: hourly_rate
+        type: avg
+        format: currency
+        description: Average rental rate per hour across fleet
+
+      - name: min_hourly_rate
+        sql: hourly_rate
+        type: min
+        format: currency
+
+      - name: max_hourly_rate
+        sql: hourly_rate
+        type: max
+        format: currency
+
+      - name: total_fleet_value
+        sql: purchase_price
+        type: sum
+        format: currency
+        description: Total acquisition cost of the fleet
+
+      - name: avg_purchase_price
+        sql: purchase_price
+        type: avg
+        format: currency
+
+      - name: avg_horn_length_cm
+        sql: horn_length_cm
+        type: avg
+
+      - name: avg_max_speed_kmh
+        sql: max_speed_kmh
+        type: avg
+
+      - name: avg_fuel_capacity
+        sql: fuel_capacity
+        type: avg
+
+      - name: overdue_maintenance_count
+        type: count
+        filters:
+          - sql: "{CUBE}.next_service_due IS NOT NULL AND {CUBE}.next_service_due <= CURRENT_DATE AND {CUBE}.is_active = true"
+        description: Active unicorns with overdue maintenance
+
+    segments:
+      - name: active_fleet
+        sql: "{CUBE}.is_active = true"
+        description: Unicorns currently part of the fleet (not retired/decommissioned)
+
+      - name: available_now
+        sql: "{CUBE}.is_available = true AND {CUBE}.is_active = true"
+        description: Unicorns ready for booking right now
+
+      - name: in_maintenance
+        sql: "{CUBE}.is_available = false AND {CUBE}.is_active = true"
+        description: Active unicorns currently unavailable (maintenance, repair, cleaning, reserved)
+
+      - name: maintenance_overdue
+        sql: "{CUBE}.next_service_due IS NOT NULL AND {CUBE}.next_service_due <= CURRENT_DATE AND {CUBE}.is_active = true"
+        description: Active unicorns past their scheduled maintenance date
+
+      - name: maintenance_due_this_week
+        sql: >
+          {CUBE}.next_service_due IS NOT NULL
+          AND {CUBE}.next_service_due > CURRENT_DATE
+          AND {CUBE}.next_service_due <= CURRENT_DATE + INTERVAL '7 days'
+          AND {CUBE}.is_active = true
+        description: Active unicorns with maintenance due within the next 7 days
+
+      - name: maintenance_due_this_month
+        sql: >
+          {CUBE}.next_service_due IS NOT NULL
+          AND {CUBE}.next_service_due > CURRENT_DATE
+          AND {CUBE}.next_service_due <= CURRENT_DATE + INTERVAL '30 days'
+          AND {CUBE}.is_active = true
+        description: Active unicorns with maintenance due within the next 30 days

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from copy import deepcopy
 from dataclasses import dataclass
@@ -16,7 +17,9 @@ MIN_REQUEST_MAX_TOKENS_FOR_FIXED_THINKING = MIN_BEDROCK_THINKING_BUDGET_TOKENS +
 FIXED_THINKING_RESERVED_OUTPUT_TOKENS = 1
 DEFAULT_FIXED_THINKING_BUDGET_TOKENS = MIN_BEDROCK_THINKING_BUDGET_TOKENS
 MAX_CACHE_POINTS_PER_REQUEST = 4
-ADAPTIVE_THINKING_MODEL_FAMILIES = frozenset({"claude-opus-4-6", "claude-sonnet-4-6"})
+ADAPTIVE_THINKING_MODEL_FAMILIES = frozenset(
+    {"claude-opus-4-6", "claude-opus-4-8", "claude-sonnet-4-6"}
+)
 BEDROCK_TOOL_RESULT_CONTENT_KEYS = {
     "document",
     "image",
@@ -24,6 +27,24 @@ BEDROCK_TOOL_RESULT_CONTENT_KEYS = {
     "searchResult",
     "text",
     "video",
+}
+IMAGE_MEDIA_TYPE_TO_BEDROCK_FORMAT = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/jpg": "jpeg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+DOCUMENT_MEDIA_TYPE_TO_BEDROCK_FORMAT = {
+    "application/pdf": "pdf",
+    "text/csv": "csv",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/html": "html",
+    "text/plain": "txt",
+    "text/markdown": "md",
 }
 
 
@@ -62,9 +83,15 @@ class AnthropicToBedrockConverter:
                 effective_tool_choice
             )
 
+        # Bedrock Converse only accepts user/assistant turns; any system-role
+        # message in the conversation (e.g. Claude Code injecting skill context
+        # mid-conversation) must be lifted into the top-level system field, or
+        # Bedrock rejects the request (conversation must end with a user turn).
+        conversation, inline_system = self._split_system_messages(anthropic_req.messages)
+
         request = {
             "modelId": resolved_model.bedrock_model_id,
-            "messages": self.convert_messages(anthropic_req.messages, cache_policy, cache_counter),
+            "messages": self.convert_messages(conversation, cache_policy, cache_counter),
             "inferenceConfig": {
                 "maxTokens": effective_max_tokens,
             },
@@ -75,14 +102,19 @@ class AnthropicToBedrockConverter:
             request["inferenceConfig"]["topP"] = anthropic_req.top_p
         if anthropic_req.stop_sequences:
             request["inferenceConfig"]["stopSequences"] = anthropic_req.stop_sequences
+        converted_system: list[dict[str, Any]] = []
         if anthropic_req.system is not None:
             converted_system = self.convert_system(
                 anthropic_req.system,
                 cache_policy,
                 cache_counter,
             )
-            if converted_system:
-                request["system"] = converted_system
+        for system_message in inline_system:
+            converted_system.extend(
+                self.convert_system(system_message.content, cache_policy, cache_counter)
+            )
+        if converted_system:
+            request["system"] = converted_system
         if anthropic_req.tools:
             request["toolConfig"] = self.convert_tools(
                 anthropic_req.tools, effective_tool_choice, cache_policy, cache_counter
@@ -106,6 +138,25 @@ class AnthropicToBedrockConverter:
                 return []
             return [{"text": system}]
         return self._convert_blocks(system, cache_policy, cache_counter)
+
+    @staticmethod
+    def _split_system_messages(
+        messages: list[Any],
+    ) -> tuple[list[Any], list[Any]]:
+        """Separate system-role messages from the user/assistant conversation.
+
+        Bedrock Converse rejects system-role entries inside `messages`; they are
+        returned separately so the caller can fold them into the top-level
+        system field. Order is preserved for both lists.
+        """
+        conversation: list[Any] = []
+        system_messages: list[Any] = []
+        for message in messages:
+            if getattr(message, "role", None) == "system":
+                system_messages.append(message)
+            else:
+                conversation.append(message)
+        return conversation, system_messages
 
     def convert_messages(
         self,
@@ -343,17 +394,19 @@ class AnthropicToBedrockConverter:
                 }
             }
         if block_type == "tool_result":
+            # Anthropic marks failed tool calls with is_error; Bedrock uses status.
+            status = "error" if block.get("is_error") else block.get("status", "success")
             return {
                 "toolResult": {
                     "toolUseId": block.get("tool_use_id"),
                     "content": self._convert_tool_result_content(block.get("content", [])),
-                    "status": block.get("status", "success"),
+                    "status": status,
                 }
             }
         if block_type == "image":
-            return {"image": block.get("source", block)}
+            return self._convert_image_block(block)
         if block_type == "document":
-            return {"document": block.get("source", block)}
+            return self._convert_document_block(block)
         if block_type == "thinking":
             reasoning_text: dict[str, Any] = {"text": block.get("thinking", "")}
             signature = block.get("signature")
@@ -396,9 +449,9 @@ class AnthropicToBedrockConverter:
             if block_type == "text":
                 return {"text": block.get("text", "")}
             if block_type == "image":
-                return {"image": deepcopy(block.get("source", block))}
+                return self._convert_image_block(block)
             if block_type == "document":
-                return {"document": deepcopy(block.get("source", block))}
+                return self._convert_document_block(block)
             if block_type == "json":
                 return {"json": deepcopy(block.get("json", block.get("data", {})))}
             if block_type == "search_result":
@@ -407,6 +460,76 @@ class AnthropicToBedrockConverter:
                     return {"searchResult": deepcopy(search_result)}
             return {"json": deepcopy(block)}
         return {"text": str(block)}
+
+    def _convert_image_block(self, block: dict[str, Any]) -> dict[str, Any]:
+        source = block.get("source")
+        if not isinstance(source, dict):
+            return {"image": source if source is not None else block}
+        source_type = source.get("type")
+        if source_type is None:
+            # Already-Bedrock shapes ({"bytes": ...}, {"s3Location": ...}).
+            return {"image": deepcopy(source)}
+        if source_type != "base64":
+            raise ValidationError(
+                f"Unsupported image source type for Bedrock Converse: {source_type!r}"
+            )
+        media_type = source.get("media_type", "")
+        image_format = IMAGE_MEDIA_TYPE_TO_BEDROCK_FORMAT.get(media_type)
+        if image_format is None:
+            raise ValidationError(
+                f"Unsupported image media type for Bedrock Converse: {media_type!r}"
+            )
+        try:
+            image_bytes = base64.b64decode(source.get("data", ""))
+        except (ValueError, TypeError) as exc:
+            raise ValidationError("Image data is not valid base64.") from exc
+        return {"image": {"format": image_format, "source": {"bytes": image_bytes}}}
+
+    def _convert_document_block(self, block: dict[str, Any]) -> dict[str, Any]:
+        source = block.get("source")
+        if not isinstance(source, dict):
+            return {"document": source if source is not None else block}
+        source_type = source.get("type")
+        if source_type is None:
+            # Already-Bedrock shapes ({"bytes": ...}, {"s3Location": ...}).
+            return {"document": deepcopy(source)}
+        media_type = source.get("media_type", "")
+        if source_type == "base64":
+            document_format = DOCUMENT_MEDIA_TYPE_TO_BEDROCK_FORMAT.get(media_type)
+            if document_format is None:
+                raise ValidationError(
+                    f"Unsupported document media type for Bedrock Converse: {media_type!r}"
+                )
+            try:
+                document_bytes = base64.b64decode(source.get("data", ""))
+            except (ValueError, TypeError) as exc:
+                raise ValidationError("Document data is not valid base64.") from exc
+        elif source_type == "text":
+            document_format = DOCUMENT_MEDIA_TYPE_TO_BEDROCK_FORMAT.get(media_type, "txt")
+            document_bytes = str(source.get("data", "")).encode("utf-8")
+        else:
+            raise ValidationError(
+                f"Unsupported document source type for Bedrock Converse: {source_type!r}"
+            )
+        return {
+            "document": {
+                "format": document_format,
+                "name": self._sanitize_document_name(block.get("title")),
+                "source": {"bytes": document_bytes},
+            }
+        }
+
+    @staticmethod
+    def _sanitize_document_name(title: Any) -> str:
+        # Bedrock document names only allow alphanumerics, single spaces,
+        # hyphens, parentheses, and square brackets.
+        if not isinstance(title, str) or not title.strip():
+            return "document"
+        sanitized_chars = [
+            ch if (ch.isalnum() or ch in " -()[]") else " " for ch in title
+        ]
+        sanitized = " ".join("".join(sanitized_chars).split())
+        return sanitized or "document"
 
     def _is_bedrock_tool_result_content_block(self, block: dict[str, Any]) -> bool:
         matching_keys = [key for key in BEDROCK_TOOL_RESULT_CONTENT_KEYS if key in block]

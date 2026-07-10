@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Observability Stack - Enables CloudWatch Transaction Search for AgentCore traces'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing Lambda code
+
+  LambdaS3Key:
+    Type: String
+    Default: lambdas/observability_setup.zip
+    Description: S3 key for observability setup Lambda
+
+Resources:
+  ObservabilityRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-observability-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ObservabilitySetupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: TransactionSearchXRayPermissions
+                Effect: Allow
+                Action:
+                  - xray:GetTraceSegmentDestination
+                  - xray:UpdateTraceSegmentDestination
+                  - xray:GetIndexingRules
+                  - xray:UpdateIndexingRule
+                Resource: '*'
+              - Sid: TransactionSearchLogGroupPermissions
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutRetentionPolicy
+                Resource:
+                  - !Sub arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/application-signals/data:*
+                  - !Sub arn:aws:logs:*:${AWS::AccountId}:log-group:aws/spans:*
+              - Sid: TransactionSearchLogsPermissions
+                Effect: Allow
+                Action:
+                  - logs:PutResourcePolicy
+                  - logs:DeleteResourcePolicy
+                  - logs:DescribeResourcePolicies
+                Resource: '*'
+              - Sid: TransactionSearchApplicationSignalsPermissions
+                Effect: Allow
+                Action:
+                  - application-signals:StartDiscovery
+                Resource: '*'
+              - Sid: CloudWatchApplicationSignalsCreateSLR
+                Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/application-signals.cloudwatch.amazonaws.com/AWSServiceRoleForCloudWatchApplicationSignals
+                Condition:
+                  StringLike:
+                    iam:AWSServiceName: application-signals.cloudwatch.amazonaws.com
+              - Sid: CloudWatchApplicationSignalsGetRole
+                Effect: Allow
+                Action: iam:GetRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/application-signals.cloudwatch.amazonaws.com/AWSServiceRoleForCloudWatchApplicationSignals
+              - Sid: CloudWatchApplicationSignalsCloudTrail
+                Effect: Allow
+                Action: cloudtrail:CreateServiceLinkedChannel
+                Resource: !Sub arn:aws:cloudtrail:*:${AWS::AccountId}:channel/aws-service-channel/application-signals/*
+
+  ObservabilityFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-observability-setup
+      Description: Enable CloudWatch Transaction Search for AgentCore observability
+      Runtime: python3.12
+      Handler: handler.lambda_handler
+      Role: !GetAtt ObservabilityRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Ref LambdaS3Key
+
+  ObservabilityTrigger:
+    Type: Custom::ObservabilitySetup
+    DependsOn: ObservabilityFunction
+    Properties:
+      ServiceToken: !GetAtt ObservabilityFunction.Arn
+      AccountId: !Ref AWS::AccountId
+
+Outputs:
+  TransactionSearchEnabled:
+    Description: Whether Transaction Search was enabled
+    Value: !GetAtt ObservabilityTrigger.TransactionSearchEnabled

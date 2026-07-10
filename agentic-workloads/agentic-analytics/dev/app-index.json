@@ -1,0 +1,267 @@
+{
+  "name": "Agentic Analytics",
+  "version": "0.2.0-alpha",
+  "description": "AWS Workshop Studio deployable and reference sample for agentic AI-powered self-service analytics on multi-tenant SaaS, built with Amazon Bedrock AgentCore, Strands Agents, Aurora PostgreSQL, and Cedar policies.",
+  "technologies": [
+    "CloudFormation",
+    "Python",
+    "React",
+    "PostgreSQL",
+    "AWS Lambda",
+    "Bedrock AgentCore",
+    "Bedrock Knowledge Base"
+  ],
+  "structure": {
+    "app/": "Application code including agent, Lambda functions, and UI",
+    "app/agentcore_strands/": "Strands agent and Lambda tools",
+    "app/agentcore_strands/agent/": "Semantic layer agent (Cube)",
+    "app/agentcore_strands/tools/": "Lambda toolset functions (prebaked SQL, custom SQL, API integration)",
+    "app/agentcore_strands/infra/": "Gateway interceptor Lambda (interceptor_lambda.py) + Cube semantic-layer deploy scripts",
+    "app/agentcore_strands/ui/": "Amplify hosting deployment (optional workshop UI step)",
+    "app/ui/": "React frontend application",
+    "exercises/": "Learning exercises (basic_agent.py for Step 1)",
+    "infrastructure/": "CloudFormation infrastructure and deployment",
+    "infrastructure/stacks/": "CloudFormation templates (nested stacks)",
+    "infrastructure/custom-resource-lambdas/": "Custom Resource Lambda handlers for CFN",
+    "infrastructure/scripts/": "Deployment and utility scripts",
+    "dataset/": "Symlink to unicorn-rental-dataset - synthetic data, schema, docs, and validation",
+    "workshop/": "Workshop Studio configuration and assets",
+    "workshop/content/": "Workshop guide pages (Steps 0-10 + semantic layer)",
+    "workshop/code/": "Workshop code overlay with TODO blanks (agent, exercises, top-up CFN, Makefile)",
+    "dev/": "Maintainer-only files (unshipped): app-index.json, the Strands Evals harness (dev/evaluation/), the project spec (dev/specs/), and maintainer skills (dev/skills/)"
+  },
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "summary": "Agent context file (AGENTS.md standard) — architecture, deployment modes, commands, conventions, config, test users, security layers"
+    },
+    {
+      "path": "README.md",
+      "summary": "Project documentation with architecture overview, prerequisites, infrastructure deployment, quick start guide, available analytics queries, write operations, text-to-SQL workflow, and observability setup"
+    },
+    {
+      "path": "infrastructure/stacks/main-stack.yaml",
+      "summary": "Root CloudFormation stack with demo/workshop modes. Supports ArtifactsPrefix for Workshop Studio magic variables. Demo deploys everything; workshop deploys infrastructure + EC2 VS Code (no AgentCore/Amplify)"
+    },
+    {
+      "path": "infrastructure/stacks/database-init-stack.yaml",
+      "summary": "CloudFormation stack with custom resource Lambda for database schema, data, and views initialization via RDS Data API"
+    },
+    {
+      "path": "infrastructure/stacks/bedrock-kb-stack.yaml",
+      "summary": "CloudFormation stack for Bedrock Knowledge Base with Aurora pgvector, custom data source, and hierarchical chunking (parent=1000, child=300, overlap=50)"
+    },
+    {
+      "path": "infrastructure/stacks/agentcore-stack.yaml",
+      "summary": "CloudFormation stack for AgentCore Gateway deployment with custom resource Lambda. Supports workshop mode with CognitoUserPoolId/CognitoClientId params to use existing Cognito"
+    },
+    {
+      "path": "infrastructure/stacks/agentcore-topup-stack.yaml",
+      "summary": "Workshop AgentCore top-up stack (canonical, all-live answer key). Standalone version of agentcore-stack.yaml using Fn::ImportValue for base inputs; resources ordered so each toolset Lambda+target is one uncomment fence; EnforceRls condition for the Step 7.2 RLS switch; workshop-simplified wildcard GatewayRole; container build chain replaces the agentcore CLI. KEEP IN SYNC with agentcore-stack.yaml."
+    },
+    {
+      "path": "workshop/code/app/agentcore_strands/agentcore-topup-stack.yaml",
+      "summary": "Participant-facing copy of the AgentCore top-up, commented down to the Step-2 baseline. Each lab step uncomments one fenced section. Ships via the workshop/code overlay."
+    },
+    {
+      "path": "workshop/code/app/agentcore_strands/Makefile",
+      "summary": "Thin workshop wrapper: make deploy (cloudformation deploy of the top-up), make build (rebuild agent image + roll runtime via the replace-trap), make outputs/status, make voice-deploy. Reads coordinates from config.env."
+    },
+    {
+      "path": "workshop/code/app/agentcore_strands/voice-agentcore-stack.yaml",
+      "summary": "Participant copy of the voice stack (verbatim of infrastructure/stacks/voice-agentcore-stack.yaml) for the optional Voice lab; deployed via make voice-deploy."
+    },
+    {
+      "path": "workshop/content/05-voice/index.en.md",
+      "summary": "Optional workshop page (weight 78, after Cube): deploy a voice front-end for the same analytics agent via make voice-deploy + a config.js edit. Separate AgentCore Runtime (Pipecat, WebRTC+KVS TURN) reusing the Step-2 agent."
+    },
+    {
+      "path": "infrastructure/stacks/observability-stack.yaml",
+      "summary": "CloudFormation stack to enable CloudWatch Transaction Search via custom resource Lambda (logs:PutResourcePolicy + xray:UpdateTraceSegmentDestination + xray:UpdateIndexingRule)"
+    },
+    {
+      "path": "infrastructure/custom-resource-lambdas/observability_setup/handler.py",
+      "summary": "Custom Resource Lambda to enable CloudWatch Transaction Search — one-time per-account setup required for AgentCore traces to be visible in GenAI Observability dashboard"
+    },
+    {
+      "path": "infrastructure/stacks/cognito-stack.yaml",
+      "summary": "Standalone Cognito stack for workshop mode - User Pool with custom:role/account_id, Pre-Token Lambda V2 (inlined ZipFile), App Client, users from S3 CSV, SSM credentials storage, Identity Pool for demo mode"
+    },
+    {
+      "path": "infrastructure/custom-resource-lambdas/database_init/handler.py",
+      "summary": "Custom Resource Lambda for database initialization - loads schema.sql, CSV data, creates views via RDS Data API"
+    },
+    {
+      "path": "infrastructure/custom-resource-lambdas/glue_crawler_trigger/handler.py",
+      "summary": "Custom Resource Lambda to trigger Glue crawler and wait for completion"
+    },
+    {
+      "path": "infrastructure/custom-resource-lambdas/bedrock_kb_ingestion/handler.py",
+      "summary": "Custom Resource Lambda to create Bedrock KB with Aurora pgvector and ingest business-context.md via IngestKnowledgeBaseDocuments API"
+    },
+    {
+      "path": "infrastructure/custom-resource-lambdas/amplify_hosting/handler.py",
+      "summary": "Custom Resource Lambda to deploy React UI to Amplify Hosting from S3 ZIP file"
+    },
+    {
+      "path": "infrastructure/stacks/amplify-stack.yaml",
+      "summary": "CloudFormation stack for Amplify Hosting deployment with custom resource Lambda and environment variables"
+    },
+    {
+      "path": "infrastructure/stacks/code-editor-stack.yaml",
+      "summary": "CloudFormation stack for EC2 VS Code (workshop mode) - Intel instance, CloudFront, IAM role with AgentCore/Lambda/Bedrock/Glue/Amplify permissions, Aurora SG ingress, URL resolver for one-click access"
+    },
+    {
+      "path": "infrastructure/scripts/package_and_upload.sh",
+      "summary": "Script to package custom resource Lambdas and upload all deployment artifacts to S3 (demo mode)"
+    },
+    {
+      "path": "infrastructure/scripts/deploy_backend.sh",
+      "summary": "Demo-mode backend deploy: packages + uploads artifacts then deploys main-stack.yaml (nested CFN). --agent-only fast path re-zips the agent, rebuilds the image and rolls the AgentCore Runtime (re-sending authorizer/header/network config)."
+    },
+    {
+      "path": "infrastructure/scripts/package_for_workshop.sh",
+      "summary": "Script to package deployment artifacts for Workshop Studio - copies templates to static/assets, packages Lambda ZIPs, copies data/schema/docs/drivers/repo"
+    },
+    {
+      "path": "infrastructure/scripts/deploy_to_workshop.sh",
+      "summary": "Interactive deploy script for Workshop Studio - prompts for WS repo path and S3 assets, packages artifacts, syncs to S3, copies to WS repo, commits and pushes"
+    },
+    {
+      "path": "app/agentcore_strands/unicorn_rental_agent.py",
+      "summary": "Main Strands agent with AgentCore Gateway, Cognito JWT auth, memory hooks (STM, max_results=20), native Bedrock guardrails, SOP from file/S3, current_datetime tool. Model: Claude Opus 4.6 Global CRIS. rls_context passed as parameter (no globals)."
+    },
+    {
+      "path": "app/agentcore_strands/ui/deploy_amplify_hosting.py",
+      "summary": "Deployment script for React UI to Amplify Hosting - builds app, creates Amplify app/branch, deploys via presigned URL. Usable standalone (optional workshop UI step) or via the amplify_hosting custom-resource Lambda in demo mode"
+    },
+    {
+      "path": "app/agentcore_strands/requirements.txt",
+      "summary": "Python dependencies for agent and Lambda functions"
+    },
+    {
+      "path": "app/ui/src/components/ChatPanel.js",
+      "summary": "React chat interface with query plan approval workflow - parseSqlApproval, SqlApprovalCard (shows business-level query plan, not raw SQL), streaming support, and human-in-the-loop UI"
+    },
+    {
+      "path": "app/ui/src/services/awsAgentCore.js",
+      "summary": "AWS SDK integration for BedrockAgentCoreClient, invokeAgent with streaming, session management, gateway token passing. Tool detection via structured toolUse events only (no regex fallback)."
+    },
+    {
+      "path": "app/ui/src/services/authService.js",
+      "summary": "Cognito authentication service with simulated user, token fetching (delegated to agent due to CORS), and user context for multi-tenant isolation"
+    },
+    {
+      "path": "infrastructure/stacks/aurora-stack.yaml",
+      "summary": "CloudFormation template for Aurora PostgreSQL Serverless v2 with VPC, subnets, security groups, NAT gateway, Secrets Manager, and RDS Data API enabled"
+    },
+    {
+      "path": "infrastructure/stacks/glue-stack.yaml",
+      "summary": "CloudFormation template for AWS Glue Data Catalog - database, IAM role, crawler, dedicated S3 bucket for JDBC driver (copied from artifacts via inline Lambda), and connection configuration for Aurora PostgreSQL"
+    },
+    {
+      "path": "app/agentcore_strands/infra/interceptor_lambda.py",
+      "summary": "Gateway interceptor Lambda for JWT header propagation (RLS). Bundled into the live gateway_interceptor.zip by both demo (package_and_upload.sh) and workshop (package_for_workshop.sh) packagers."
+    },
+    {
+      "path": "app/agentcore_strands/infra/deploy_semantic_layer_stack.py",
+      "summary": "Cube semantic-layer lab (documented script exception): deploys the parallel semantic AgentCore Runtime (agent/unicorn_rental_semantic_agent.py)."
+    },
+    {
+      "path": "app/agentcore_strands/infra/deploy_cube_models.py",
+      "summary": "Cube semantic-layer lab (documented script exception): generates/deploys Cube data models."
+    },
+    {
+      "path": "app/agentcore_strands/infra/deploy_semantic_layer_toolset.py",
+      "summary": "Cube semantic-layer lab (documented script exception): deploys the semantic-layer toolset target to the Gateway."
+    },
+    {
+      "path": "dev/specs/agentic-analytics/requirements.md",
+      "summary": "13 requirements with acceptance criteria covering natural language processing, multi-tenant isolation, core data access, analytics tools, write operations, and infrastructure automation"
+    },
+    {
+      "path": "dev/specs/agentic-analytics/design.md",
+      "summary": "Architecture design document with implementation status, component diagram, data flow, and infrastructure gap analysis"
+    },
+    {
+      "path": "dev/specs/agentic-analytics/tasks.md",
+      "summary": "12 task groups implementation plan for CloudFormation, Glue integration, embeddings, and test coverage"
+    },
+    {
+      "path": "dataset/docs/business-context.md",
+      "summary": "Business context documentation for database tables with schemas in YAML format, including unicorns, availability tracking, bookings, transactions, subscription tracker, and views"
+    },
+    {
+      "path": "dataset/docs/user-story.md",
+      "summary": "User stories for the timely-unicorn rental management system covering admin and staff perspectives"
+    },
+    {
+      "path": "dataset/schema/schema.sql",
+      "summary": "PostgreSQL DDL script with ENUM types, tables, triggers, and 22 views for the unicorn rental application"
+    },
+    {
+      "path": "dataset/README.md",
+      "summary": "Dataset documentation with overview, schema structure, views, data files, and license (CC0-1.0)"
+    },
+    {
+      "path": "workshop/contentspec.yaml",
+      "summary": "Workshop Studio contentspec - deploys main-stack.yaml with magic variables for ArtifactsBucket/ArtifactsPrefix, workshop mode, 2 deployable regions"
+    },
+    {
+      "path": "exercises/basic_agent.py",
+      "summary": "Learning exercise: simplified local Strands agent for Step 1"
+    },
+    {
+      "path": "dataset/validation/ground_truth.json",
+      "summary": "Pre-computed ground truth answers from PostgreSQL for both Mythical Unicorns and Mythic Unicorns tenants"
+    },
+    {
+      "path": "dataset/validation/experiment.json",
+      "summary": "Strands Evals experiment with 108 test cases covering all workshop scenarios, SOP behavior, guardrails, RLS, and RBAC"
+    },
+    {
+      "path": "dev/evaluation/run_evaluation.py",
+      "summary": "Maintainer-only (unshipped): runs the Strands Evals experiment against the deployed AgentCore Runtime via agentcore invoke, per-persona Cognito auth, LLM-as-judge scoring. Step-10 reference implementation."
+    },
+    {
+      "path": "dev/evaluation/build_experiment.py",
+      "summary": "Maintainer-only (unshipped): expands ground_truth.json into the ~108-case Strands Evals experiment.json."
+    },
+    {
+      "path": "dev/evaluation/generate_ground_truth.py",
+      "summary": "Maintainer-only (unshipped): queries a local PostgreSQL with explicit account_id filters to produce ground_truth.json."
+    },
+    {
+      "path": "dev/README.md",
+      "summary": "Explains that dev/ is maintainer-only and excluded from both deploy paths; documents dev/evaluation/, dev/specs/, and dev/skills/."
+    },
+    {
+      "path": "app/agentcore_strands/tools/prebaked_sql_toolset_lambda.py",
+      "summary": "Lambda with 27+ prebaked analytics tools backed by database Views. rls_context passed as parameter through handler(args, rls_context) → get_db_connection(rls_context). Includes semantic_search_tool via Bedrock KB."
+    },
+    {
+      "path": "app/agentcore_strands/tools/api_integration_toolset_lambda.py",
+      "summary": "Lambda for API integration tools (booking creation). rls_context from JWT for tenant-scoped writes. account_id from JWT for INSERT."
+    },
+    {
+      "path": "app/agentcore_strands/tools/custom_sql_toolset_lambda.py",
+      "summary": "Lambda for custom SQL with full Glue schema (all tables, prefix stripped) + Bedrock KB RAG + human approval. rls_context passed as parameter."
+    },
+    {
+      "path": "LICENSE",
+      "summary": "MIT-0 license for code (dataset/ has separate CC0 license)"
+    },
+    {
+      "path": "dataset/LICENSE",
+      "summary": "CC0 1.0 Universal license for synthetic dataset"
+    },
+    {
+      "path": "dev/skills/workshop-deployment/SKILL.md",
+      "summary": "Agent Skill: step-by-step procedure to package code, sync S3 assets, and push content to Workshop Studio"
+    },
+    {
+      "path": "dev/skills/overlay-management/SKILL.md",
+      "summary": "Agent Skill: rules for managing workshop code overlays (TODO files that override app/ in packaged ZIP)"
+    }
+  ]
+}

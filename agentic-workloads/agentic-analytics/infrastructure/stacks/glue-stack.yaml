@@ -1,0 +1,515 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS Glue Data Catalog resources for Agentic Analytics'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+    Description: Environment name prefix for resources
+
+  AuroraStackName:
+    Type: String
+    Default: agentic-analytics-aurora
+    Description: Name of the Aurora CloudFormation stack to import values from
+
+  GlueDatabaseName:
+    Type: String
+    Default: timely_unicorn
+    Description: Name of the Glue database
+
+  ConnectionVersion:
+    Type: String
+    Default: v2
+    Description: Version to force connection recreation
+
+  TriggerCrawler:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Whether to trigger crawler on deployment
+
+  ArtifactsBucket:
+    Type: String
+    Default: ''
+    Description: S3 bucket for Lambda code (required if TriggerCrawler is true)
+
+  ArtifactsPrefix:
+    Type: String
+    Default: ''
+    Description: S3 key prefix for artifacts
+
+  LambdaS3Key:
+    Type: String
+    Default: lambdas/glue_crawler_trigger.zip
+    Description: S3 key for Lambda code (use hash-versioned key for updates)
+
+Conditions:
+  ShouldTriggerCrawler: !Equals [!Ref TriggerCrawler, 'true']
+
+Resources:
+  #============================================================================
+  # Lake Formation data lake settings (deterministic fix for a fresh-account race)
+  #============================================================================
+  # Freshly-leased accounts are INCONSISTENT in their default Lake Formation
+  # mode. Some arrive in "Use only IAM access control" (Glue catalog governed by
+  # plain IAM — CreateDatabaseDefaultPermissions = ALL to IAM_ALLOWED_PRINCIPALS),
+  # and some arrive in pure Lake-Formation mode (no IAM_ALLOWED_PRINCIPALS grant).
+  # In the latter, `glue:CreateDatabase` fails the deploy with
+  #   "Insufficient Lake Formation permission(s): Required Create Database on Catalog"
+  # even though the deploy principal has glue:* via IAM. This is a non-deterministic
+  # capacity/propagation race we hit on real fresh accounts.
+  #
+  # This resource pins the account into the IAM-access-control mode that works,
+  # by asserting ALL -> IAM_ALLOWED_PRINCIPALS as the create-database/table default
+  # (the only values CloudFormation accepts here besides an empty array). GlueDatabase
+  # DependsOn this, so the setting is applied BEFORE the database is created.
+  # MutationType: APPEND so we never clobber any pre-existing data-lake admins.
+  LakeFormationSettings:
+    Type: AWS::LakeFormation::DataLakeSettings
+    Metadata:
+      # cfn-lint's bundled schema wrongly types Principal as a string and flags the
+      # object form (E3012). The live PutDataLakeSettings API requires the object
+      # form (verified by deploy + direct API call), so suppress the false positive.
+      cfn-lint:
+        config:
+          ignore_checks:
+            - E3012
+    Properties:
+      MutationType: APPEND
+      # NOTE: Principal must be the OBJECT form { DataLakePrincipalIdentifier: ... }.
+      # The CloudFormation docs show a bare string and cfn-lint (E3012) wrongly
+      # flags the object form, but the live resource provider REJECTS the string
+      # ("Value of property .../Principal does not match type {Object}"). The object
+      # form matches `aws lakeformation get-data-lake-settings` output. Verified on
+      # a real deploy — do not "simplify" to a string.
+      CreateDatabaseDefaultPermissions:
+        - Principal:
+            DataLakePrincipalIdentifier: IAM_ALLOWED_PRINCIPALS
+          Permissions:
+            - ALL
+      CreateTableDefaultPermissions:
+        - Principal:
+            DataLakePrincipalIdentifier: IAM_ALLOWED_PRINCIPALS
+          Permissions:
+            - ALL
+
+  #============================================================================
+  # Glue Database
+  #============================================================================
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    DependsOn: LakeFormationSettings
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Ref GlueDatabaseName
+        Description: Timely-Unicorn rental management system data catalog
+        LocationUri: !Sub 's3://${EnvironmentName}-glue-data/'
+        Parameters:
+          classification: postgresql
+          source: aurora-postgresql
+
+
+  #============================================================================
+  # IAM Role for Glue
+  #============================================================================
+  GlueServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-glue-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  Fn::ImportValue: !Sub ${EnvironmentName}-DatabaseSecretArn
+        - PolicyName: GlueVPCAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
+                Condition:
+                  ForAllValues:StringEquals:
+                    aws:TagKeys:
+                      - aws-glue-service-resource
+        - PolicyName: GlueS3DriverAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:aws:s3:::${GlueDriverBucket}
+                  - !Sub arn:aws:s3:::${GlueDriverBucket}/*
+        - PolicyName: GlueJobAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - glue:CreateJob
+                  - glue:DeleteJob
+                  - glue:GetJob
+                  - glue:GetJobRun
+                  - glue:StartJobRun
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/${EnvironmentName}-glue-role
+
+  #============================================================================
+  # S3 Bucket for JDBC Driver (Glue needs write access to driver bucket)
+  #============================================================================
+  GlueDriverBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-glue-drivers-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LoggingConfiguration:
+        LogFilePrefix: !Sub ${EnvironmentName}-glue-drivers-logs/
+
+  GlueDriverBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref GlueDriverBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub arn:aws:s3:::${GlueDriverBucket}
+              - !Sub arn:aws:s3:::${GlueDriverBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+  EmptyGlueDriverBucketRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EmptyBucket
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['s3:ListBucket', 's3:DeleteObject', 's3:DeleteObjectVersion', 's3:ListBucketVersions']
+                Resource:
+                  - !Sub arn:aws:s3:::${GlueDriverBucket}
+                  - !Sub arn:aws:s3:::${GlueDriverBucket}/*
+
+  EmptyGlueDriverBucketFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 120
+      Role: !GetAtt EmptyGlueDriverBucketRole.Arn
+      Code:
+        ZipFile: |
+          import boto3, json, urllib.request
+          def handler(event, context):
+            try:
+              if event['RequestType'] == 'Delete':
+                bucket = event['ResourceProperties']['BucketName']
+                s3 = boto3.resource('s3')
+                b = s3.Bucket(bucket)
+                b.object_versions.delete()
+                b.objects.delete()
+              send(event, context, 'SUCCESS', {})
+            except Exception as e:
+              print(e)
+              send(event, context, 'SUCCESS', {})
+          def send(event, context, status, data):
+            body = json.dumps({'Status': status, 'Reason': 'See CloudWatch', 'PhysicalResourceId': context.log_stream_name, 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'Data': data}).encode()
+            req = urllib.request.Request(event['ResponseURL'], data=body, headers={'Content-Type': ''}, method='PUT')
+            urllib.request.urlopen(req)
+
+  EmptyGlueDriverBucketTrigger:
+    Type: Custom::EmptyGlueDriverBucket
+    DependsOn:
+      - GlueDriverBucket
+      - EmptyGlueDriverBucketFunction
+    Properties:
+      ServiceToken: !GetAtt EmptyGlueDriverBucketFunction.Arn
+      BucketName: !Ref GlueDriverBucket
+
+  #============================================================================
+  # Copy JDBC Driver from Artifacts to Glue Driver Bucket
+  #============================================================================
+  CopyDriverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-copy-driver-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CopyDriverPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${GlueDriverBucket}/*
+
+  CopyDriverFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-copy-jdbc-driver
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt CopyDriverRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3, json, urllib.request
+          def send(event, context, status, data={}, reason=''):
+              body = json.dumps({'Status': status, 'Reason': reason or f'See CloudWatch Log Stream: {context.log_stream_name}', 'PhysicalResourceId': context.log_stream_name, 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'Data': data})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'], data=body.encode(), headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS')
+                  return
+              try:
+                  import os
+                  # Pin to the regional endpoint with path addressing: a just-created bucket
+                  # isn't consistently resolvable on the us-east-1 global endpoint yet, so a
+                  # default client gets PermanentRedirect on CopyObject. (us-east-1 fresh-deploy race.)
+                  s3 = boto3.client('s3', region_name=os.environ['AWS_REGION'],
+                                    config=boto3.session.Config(s3={'addressing_style': 'path'}))
+                  p = event['ResourceProperties']
+                  s3.copy_object(CopySource={'Bucket': p['SrcBucket'], 'Key': p['SrcKey']}, Bucket=p['DstBucket'], Key=p['DstKey'])
+                  send(event, context, 'SUCCESS', {'DriverUri': f"s3://{p['DstBucket']}/{p['DstKey']}"})
+              except Exception as e:
+                  send(event, context, 'FAILED', reason=str(e))
+
+  CopyDriverTrigger:
+    Type: Custom::CopyDriver
+    DependsOn:
+      - GlueDriverBucket
+      - CopyDriverFunction
+    Properties:
+      ServiceToken: !GetAtt CopyDriverFunction.Arn
+      SrcBucket: !Ref ArtifactsBucket
+      SrcKey: !Sub ${ArtifactsPrefix}drivers/postgresql-42.7.3.jar
+      DstBucket: !Ref GlueDriverBucket
+      DstKey: drivers/postgresql-42.7.3.jar
+
+  #============================================================================
+  # Glue Connection (JDBC to Aurora with custom driver for scram-sha-256)
+  #============================================================================
+  GlueConnection:
+    Type: AWS::Glue::Connection
+    DependsOn: CopyDriverTrigger
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      ConnectionInput:
+        Name: !Sub ${EnvironmentName}-aurora-connection-${ConnectionVersion}
+        Description: JDBC connection to Aurora PostgreSQL with custom driver
+        ConnectionType: JDBC
+        ConnectionProperties:
+          JDBC_CONNECTION_URL: !Sub 
+            - jdbc:postgresql://${Endpoint}:5432/${DBName}
+            - Endpoint:
+                Fn::ImportValue: !Sub ${EnvironmentName}-AuroraClusterEndpoint
+              DBName: !Ref GlueDatabaseName
+          USERNAME: '{{resolve:secretsmanager:agentic-analytics/aurora/credentials:SecretString:username}}'
+          PASSWORD: '{{resolve:secretsmanager:agentic-analytics/aurora/credentials:SecretString:password}}'
+          JDBC_DRIVER_CLASS_NAME: org.postgresql.Driver
+          JDBC_DRIVER_JAR_URI: !Sub s3://${GlueDriverBucket}/drivers/postgresql-42.7.3.jar
+        PhysicalConnectionRequirements:
+          AvailabilityZone: !Select 
+            - 1
+            - !GetAZs ''
+          SecurityGroupIdList:
+            - Fn::ImportValue: !Sub ${EnvironmentName}-GlueSecurityGroupId
+          SubnetId:
+            Fn::ImportValue: !Sub ${EnvironmentName}-PrivateSubnet2Id
+
+  #============================================================================
+  # Glue Crawler
+  #============================================================================
+  GlueCrawler:
+    Type: AWS::Glue::Crawler
+    DependsOn:
+      - GlueDatabase
+      - GlueConnection
+    Properties:
+      Name: !Sub ${EnvironmentName}-aurora-crawler
+      Description: Crawler to discover tables in Aurora PostgreSQL database
+      Role: !GetAtt GlueServiceRole.Arn
+      DatabaseName: !Ref GlueDatabaseName
+      Targets:
+        JdbcTargets:
+          - ConnectionName: !Sub ${EnvironmentName}-aurora-connection-${ConnectionVersion}
+            Path: !Sub ${GlueDatabaseName}/public/%
+            Exclusions: []
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+      Configuration: >-
+        {
+          "Version": 1.0,
+          "Grouping": {
+            "TableGroupingPolicy": "CombineCompatibleSchemas"
+          }
+        }
+      Tags:
+        Environment: !Ref EnvironmentName
+
+  #============================================================================
+  # IAM Role for Crawler Trigger Lambda
+  #============================================================================
+  CrawlerTriggerRole:
+    Type: AWS::IAM::Role
+    Condition: ShouldTriggerCrawler
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-crawler-trigger-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CrawlerTriggerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - glue:StartCrawler
+                  - glue:GetCrawler
+                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${EnvironmentName}-aurora-crawler
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DetachNetworkInterface
+                Resource: '*'
+
+  #============================================================================
+  # Crawler Trigger Lambda Function
+  #============================================================================
+  CrawlerTriggerFunction:
+    Type: AWS::Lambda::Function
+    Condition: ShouldTriggerCrawler
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-crawler-trigger
+      Description: Trigger Glue crawler and wait for completion
+      Runtime: python3.12
+      Handler: handler.lambda_handler
+      Role: !GetAtt CrawlerTriggerRole.Arn
+      Timeout: 900
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Ref LambdaS3Key
+
+  #============================================================================
+  # Custom Resource to Trigger Crawler
+  #============================================================================
+  CrawlerTrigger:
+    Type: Custom::CrawlerTrigger
+    Condition: ShouldTriggerCrawler
+    DependsOn:
+      - GlueCrawler
+      - CrawlerTriggerFunction
+    Properties:
+      ServiceToken: !GetAtt CrawlerTriggerFunction.Arn
+      CrawlerName: !Ref GlueCrawler
+      WaitForCompletion: 'true'
+      GlueSecurityGroupId:
+        Fn::ImportValue: !Sub ${EnvironmentName}-GlueSecurityGroupId
+
+
+#============================================================================
+# Outputs
+#============================================================================
+Outputs:
+  GlueDatabaseName:
+    Description: Glue Database Name
+    Value: !Ref GlueDatabase
+    Export:
+      Name: !Sub ${EnvironmentName}-GlueDatabaseName
+
+  GlueConnectionName:
+    Description: Glue Connection Name
+    Value: !Sub ${EnvironmentName}-aurora-connection
+    Export:
+      Name: !Sub ${EnvironmentName}-GlueConnectionName
+
+  GlueCrawlerName:
+    Description: Glue Crawler Name
+    Value: !Ref GlueCrawler
+    Export:
+      Name: !Sub ${EnvironmentName}-GlueCrawlerName
+
+  GlueServiceRoleArn:
+    Description: Glue Service Role ARN
+    Value: !GetAtt GlueServiceRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-GlueServiceRoleArn

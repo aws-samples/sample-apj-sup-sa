@@ -64,4 +64,4 @@ You may also find the following resources helpful as you build on AWS:
 
 ## License
 
-This library is licensed under the MIT-0 License. See the LICENSE file for details.
+This library is licensed under the MIT-0 License. See the LICENSE file for details. The `agentic-workloads/unicorn-rental-dataset/` folder is licensed under CC0-1.0 — see its own [LICENSE](agentic-workloads/unicorn-rental-dataset/LICENSE) file.

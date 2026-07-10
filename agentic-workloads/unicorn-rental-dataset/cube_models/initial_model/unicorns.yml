@@ -1,0 +1,84 @@
+cubes:
+  - name: unicorns
+    sql_table: unicorns
+    description: >
+      The fleet of unicorns available for rental. Each unicorn belongs to one
+      account and has unique specs and an hourly rental rate.
+
+    dimensions:
+      - name: unicorn_id
+        sql: unicorn_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+
+      - name: unicorn_uid
+        sql: unicorn_uid
+        type: string
+
+      - name: name
+        sql: name
+        type: string
+
+      - name: friendly_name
+        sql: friendly_name
+        type: string
+
+      - name: breed
+        sql: breed
+        type: string
+
+      - name: color
+        sql: color
+        type: string
+
+      - name: horn_material
+        sql: horn_material
+        type: string
+
+      - name: magic_abilities
+        sql: magic_abilities
+        type: string
+
+      - name: fuel_type
+        sql: fuel_type
+        type: string
+
+      - name: is_available
+        sql: is_available
+        type: boolean
+
+      - name: is_active
+        sql: is_active
+        type: boolean
+
+      - name: year_of_making
+        sql: year_of_making
+        type: number
+
+      - name: seat_capacity
+        sql: seat_capacity
+        type: number
+
+      - name: last_service_date
+        sql: last_service_date
+        type: time
+
+      - name: next_service_due
+        sql: next_service_due
+        type: time
+
+      - name: purchase_date
+        sql: purchase_date
+        type: time
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+    measures:
+      - name: count
+        type: count

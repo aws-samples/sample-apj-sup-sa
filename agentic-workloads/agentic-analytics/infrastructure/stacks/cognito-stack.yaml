@@ -1,0 +1,457 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cognito User Pool for Workshop Mode - Pre-deploy before AgentCore'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing users.csv and Lambda code
+
+  UsersCSVKey:
+    Type: String
+    Default: data/users.csv
+    Description: S3 key for users.csv file
+
+Resources:
+  #============================================================================
+  # Cognito User Pool
+  #============================================================================
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DependsOn: PreTokenLambdaPermission
+    Properties:
+      UserPoolName: !Sub ${EnvironmentName}-user-pool
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      LambdaConfig:
+        PreTokenGenerationConfig:
+          LambdaArn: !GetAtt PreTokenLambda.Arn
+          LambdaVersion: V2_0
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '256'
+        - Name: account_id
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '36'
+            MaxLength: '36'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  #============================================================================
+  # Cognito Domain
+  #============================================================================
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${EnvironmentName}-${AWS::AccountId}
+      UserPoolId: !Ref UserPool
+
+  #============================================================================
+  # App Client for User Login (Authorization Code Flow)
+  #============================================================================
+  UserLoginClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${EnvironmentName}-user-login
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      # Local-dev callbacks. The UI's redirect_uri is window.location.origin +
+      # pathname; `npm start` runs with PUBLIC_URL=/app, so the local redirect is
+      # http://localhost:3001/app — it MUST be listed or Cognito 400s with
+      # redirect_mismatch. The live Amplify URL is appended post-deploy by the
+      # amplify_hosting custom resource (it doesn't know the domain until the app exists).
+      CallbackURLs:
+        - http://localhost:3000
+        - http://localhost:3001
+        - http://localhost:3001/
+        - http://localhost:3001/app
+      LogoutURLs:
+        - http://localhost:3000
+        - http://localhost:3001
+        - http://localhost:3001/app
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - profile
+        - email
+      AllowedOAuthFlowsUserPoolClient: true
+      ReadAttributes:
+        - email
+        - name
+        - custom:role
+        - custom:account_id
+      WriteAttributes:
+        - email
+        - name
+
+  #============================================================================
+  # Pre-Token Generation Lambda (adds custom:role to access tokens)
+  #============================================================================
+  PreTokenLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-pretoken-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  PreTokenLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-pretoken
+      Description: Add custom:role and custom:account_id to access tokens
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt PreTokenLambdaRole.Arn
+      Timeout: 10
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              """Add custom:role and custom:account_id to access token claims (V2 trigger)"""
+              trigger = event.get('triggerSource', '')
+              attrs = event.get('request', {}).get('userAttributes', {})
+              role = attrs.get('custom:role', 'user')
+              account_id = attrs.get('custom:account_id', '')
+              claims = {'custom:role': role, 'custom:account_id': account_id}
+              
+              if trigger in ('TokenGeneration_HostedAuth', 'TokenGeneration_Authentication'):
+                  event['response'] = {
+                      'claimsAndScopeOverrideDetails': {
+                          'accessTokenGeneration': {'claimsToAddOrOverride': claims},
+                          'idTokenGeneration': {'claimsToAddOrOverride': claims}
+                      }
+                  }
+              else:
+                  event['response'] = {'claimsOverrideDetails': {'claimsToAddOrOverride': claims}}
+              return event
+
+  PreTokenLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PreTokenLambda
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+
+  #============================================================================
+  # Custom Resource Lambda Role
+  #============================================================================
+  CognitoSetupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-cognito-setup-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CognitoSetupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminSetUserPassword
+                  - cognito-idp:AdminUpdateUserAttributes
+                Resource: !GetAtt UserPool.Arn
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/agentic-analytics/*
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                Resource: '*'
+
+  #============================================================================
+  # Custom Resource Lambda (creates users from CSV)
+  #============================================================================
+  CognitoSetupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-cognito-setup
+      Description: Create Cognito users from CSV and store credentials in SSM
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt CognitoSetupRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import csv
+          import secrets
+          import string
+          import urllib.request
+
+          def send_response(event, context, status, data=None, reason=None):
+              body = {
+                  'Status': status,
+                  'Reason': reason or f'See CloudWatch: {context.log_stream_name}',
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data or {}
+              }
+              req = urllib.request.Request(event['ResponseURL'], data=json.dumps(body).encode(), headers={'Content-Type': 'application/json'}, method='PUT')
+              urllib.request.urlopen(req)
+
+          def generate_password():
+              # Standardized password for workshop — easy for participants to remember
+              return 'Unicorn123!'
+
+          def lambda_handler(event, context):
+              print(f"Event: {json.dumps(event)}")
+              props = event['ResourceProperties']
+              
+              if event['RequestType'] == 'Delete':
+                  try:
+                      ssm = boto3.client('ssm')
+                      ssm.delete_parameter(Name=props.get('SSMParameterName', '/agentic-analytics/demo/users'))
+                  except: pass
+                  send_response(event, context, 'SUCCESS')
+                  return
+              
+              try:
+                  s3 = boto3.client('s3')
+                  cognito = boto3.client('cognito-idp')
+                  ssm = boto3.client('ssm')
+                  
+                  pool_id = props['UserPoolId']
+                  bucket = props['ArtifactsBucket']
+                  csv_key = props.get('UsersCSVKey', 'data/users.csv')
+                  ssm_param = props.get('SSMParameterName', '/agentic-analytics/demo/users')
+                  
+                  # Download CSV
+                  response = s3.get_object(Bucket=bucket, Key=csv_key)
+                  csv_content = response['Body'].read().decode('utf-8')
+                  reader = csv.DictReader(csv_content.splitlines())
+                  
+                  users = []
+                  for row in reader:
+                      email = row['email']
+                      role = row['role']
+                      account_id = row['account_id']
+                      display_name = row.get('first_name', email.split('@')[0])
+                      password = generate_password()
+                      
+                      try:
+                          cognito.admin_create_user(
+                              UserPoolId=pool_id,
+                              Username=email,
+                              UserAttributes=[
+                                  {'Name': 'email', 'Value': email},
+                                  {'Name': 'email_verified', 'Value': 'true'},
+                                  {'Name': 'custom:role', 'Value': role},
+                                  {'Name': 'custom:account_id', 'Value': account_id}
+                              ],
+                              TemporaryPassword='TempPass123!',
+                              MessageAction='SUPPRESS'
+                          )
+                          cognito.admin_set_user_password(UserPoolId=pool_id, Username=email, Password=password, Permanent=True)
+                          print(f"Created user: {email}")
+                      except cognito.exceptions.UsernameExistsException:
+                          cognito.admin_update_user_attributes(
+                              UserPoolId=pool_id,
+                              Username=email,
+                              UserAttributes=[
+                                  {'Name': 'custom:role', 'Value': role},
+                                  {'Name': 'custom:account_id', 'Value': account_id}
+                              ]
+                          )
+                          print(f"Updated user: {email}")
+                      
+                      users.append({'email': email, 'password': password, 'role': role, 'account_id': account_id, 'display_name': display_name})
+                  
+                  # Store in SSM
+                  ssm.put_parameter(Name=ssm_param, Value=json.dumps(users), Type='SecureString', Overwrite=True)
+                  print(f"Stored {len(users)} users in SSM: {ssm_param}")
+                  
+                  send_response(event, context, 'SUCCESS', {'UserCount': str(len(users))})
+              except Exception as e:
+                  print(f"Error: {e}")
+                  send_response(event, context, 'FAILED', reason=str(e))
+
+  #============================================================================
+  # Trigger User Creation
+  #============================================================================
+  CognitoSetupTrigger:
+    Type: Custom::CognitoSetup
+    DependsOn:
+      - CognitoSetupFunction
+      - UserPool
+    Properties:
+      ServiceToken: !GetAtt CognitoSetupFunction.Arn
+      UserPoolId: !Ref UserPool
+      ArtifactsBucket: !Ref ArtifactsBucket
+      UsersCSVKey: !Ref UsersCSVKey
+      SSMParameterName: /agentic-analytics/demo/users
+
+  #============================================================================
+  # Identity Pool for Demo Mode (unauth SSM access)
+  #============================================================================
+  DemoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub ${EnvironmentName}-demo-pool
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserLoginClient
+          ProviderName: !GetAtt UserPool.ProviderName
+
+  DemoAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-demo-auth-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref DemoIdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+        - PolicyName: AgentCoreInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:InvokeAgentRuntime
+                  - bedrock-agentcore:InvokeAgentRuntimeStream
+                Resource: '*'
+
+  DemoUnauthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-demo-unauth-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref DemoIdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: unauthenticated
+      Policies:
+        - PolicyName: SSMReadDemoUsers
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/agentic-analytics/demo/*
+        - PolicyName: AgentCoreInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:InvokeAgentRuntime
+                  - bedrock-agentcore:InvokeAgentRuntimeStream
+                Resource: '*'
+
+  DemoIdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref DemoIdentityPool
+      Roles:
+        authenticated: !GetAtt DemoAuthRole.Arn
+        unauthenticated: !GetAtt DemoUnauthRole.Arn
+
+Outputs:
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub ${EnvironmentName}-UserPoolId
+
+  UserPoolArn:
+    Description: Cognito User Pool ARN
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-UserPoolArn
+
+  UserLoginClientId:
+    Description: Cognito App Client ID for user login
+    Value: !Ref UserLoginClient
+    Export:
+      Name: !Sub ${EnvironmentName}-UserLoginClientId
+
+  CognitoDomain:
+    Description: Cognito Domain URL
+    Value: !Sub ${EnvironmentName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com
+    Export:
+      Name: !Sub ${EnvironmentName}-CognitoDomain
+
+  DiscoveryUrl:
+    Description: OpenID Connect Discovery URL for AgentCore
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/openid-configuration
+    Export:
+      Name: !Sub ${EnvironmentName}-DiscoveryUrl
+
+  IdentityPoolId:
+    Description: Cognito Identity Pool ID for demo mode
+    Value: !Ref DemoIdentityPool
+    Export:
+      Name: !Sub ${EnvironmentName}-IdentityPoolId
+
+  UserCount:
+    Description: Number of users created
+    Value: !GetAtt CognitoSetupTrigger.UserCount

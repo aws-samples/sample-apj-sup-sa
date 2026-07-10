@@ -1,8 +1,8 @@
 fastapi==0.128.4
 uvicorn==0.40.0
-langgraph==1.0.8
+langgraph==1.0.10rc1
 langchain==1.2.9
-langchain-openai==1.1.7
+langchain-openai==1.1.14
 langchain-mcp-adapters==0.2.1
 pymilvus==2.6.8
 opentelemetry-api==1.39.1
@@ -10,7 +10,7 @@ opentelemetry-sdk==1.39.1
 opentelemetry-instrumentation-fastapi==0.60b1
 opentelemetry-instrumentation-requests==0.60b1
 opentelemetry-exporter-otlp==1.39.1
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 sentence-transformers==5.2.2
 opentelemetry-instrumentation-langchain==0.52.1
 opentelemetry-instrumentation-httpx==0.60b1

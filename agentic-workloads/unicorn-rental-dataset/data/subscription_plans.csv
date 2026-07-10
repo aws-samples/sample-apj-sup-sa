@@ -1,0 +1,6 @@
+plan_id,plan_name,user_limit,storage_limit_gb,monthly_price,is_custom,description,is_active,created_at,updated_at
+7fe92e3d-d1f5-4db4-8df4-3ac98279f647,Free,3,2.00,0.00,f,Our entry-level plan with basic features - includes 3 user accounts and 2GB storage,t,2026-01-03 11:40:21.951398,2026-01-03 11:40:21.951398
+20f276ed-1b44-405d-a87d-83aca759cbfd,Starter,5,15.00,49.99,f,Ideal for small teams needing basic unicorn rental capabilities. Includes 5 user accounts and 15GB storage.,t,2026-01-03 11:40:21.951398,2026-01-03 11:40:21.951398
+7898da90-3465-4de9-a792-ed6f3ea99670,Small Business,15,50.00,99.99,f,"Ideal for growing teams - 15 users, 50GB storage, and priority support",t,2026-01-03 11:40:21.951398,2026-01-03 11:40:21.951398
+bf9fe394-4e54-46a3-8463-2663e642fb29,Enterprise,100,500.00,299.99,f,Premium enterprise solution with 100 users and 500GB storage,t,2026-01-03 11:40:21.951398,2026-01-03 11:40:21.951398
+fd8f9aef-3c10-4120-ad37-ac5767e43d35,Custom,0,0.00,0.00,t,Tailored unicorn rental solution with flexible terms. Contact sales for personalized configuration.,f,2026-01-03 11:40:21.951398,2026-01-03 11:40:21.951398

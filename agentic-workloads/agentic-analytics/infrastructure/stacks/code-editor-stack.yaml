@@ -1,0 +1,853 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Code Editor (VS Code) EC2 instance for workshop mode'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  VpcId:
+    Type: String
+    Description: VPC ID
+
+  PublicSubnetId:
+    Type: String
+    Description: Public subnet ID for EC2
+
+  VpcCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: VPC CIDR for security group rules
+
+  VPCEndpointSecurityGroupId:
+    Type: String
+    Description: VPC Endpoint Security Group ID (for EC2 to access AWS APIs via VPC endpoints)
+
+  AuroraSecurityGroupId:
+    Type: String
+    Description: Aurora Security Group ID (for EC2 to access Aurora directly)
+
+  DatabaseSecretArn:
+    Type: String
+    Description: Database secret ARN
+
+  AuroraEndpoint:
+    Type: String
+    Description: Aurora cluster endpoint
+
+  DatabaseName:
+    Type: String
+    Default: timely_unicorn
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket with deployment artifacts
+
+  ArtifactsPrefix:
+    Type: String
+    Default: ''
+    Description: S3 key prefix for artifacts
+
+  KnowledgeBaseId:
+    Type: String
+    Default: ''
+    Description: Bedrock Knowledge Base ID
+
+  GlueDatabaseName:
+    Type: String
+    Default: ''
+    Description: Glue database name
+
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: Cognito User Pool ID
+
+  LambdaSecurityGroupId:
+    Type: String
+    Default: ''
+    Description: Lambda Security Group ID (for VPC config)
+
+  PrivateSubnet1Id:
+    Type: String
+    Default: ''
+    Description: Private Subnet 1 ID
+
+  PrivateSubnet2Id:
+    Type: String
+    Default: ''
+    Description: Private Subnet 2 ID
+
+  CognitoUserLoginClientId:
+    Type: String
+    Default: ''
+    Description: Cognito App Client ID for user login (Authorization Code flow)
+
+  CognitoDomain:
+    Type: String
+    Default: ''
+    Description: Cognito Hosted UI domain (e.g. myapp-123456.auth.us-east-1.amazoncognito.com)
+  AppDatabaseSecretArn:
+    Type: String
+    Default: ''
+    Description: Secrets Manager ARN for app_user DB credentials (non-owner role for RLS)
+
+  InstanceType:
+    Type: String
+    # Graviton (arm64) by default: m8g.xlarge has by far the widest capacity
+    # footprint in us-east-1 (all AZs, ~10x the free pool of c6i.xlarge), which
+    # avoids the "insufficient <type> capacity in <AZ>" launch failures we hit on
+    # real fresh-account events. The AMI below and the AWS CLI download in UserData
+    # resolve arm64 to match. If you change this to an x86 type, also flip the AMI
+    # SSM path (…-arm64 -> …-x86_64) — the UserData CLI download auto-detects arch.
+    Default: m8g.xlarge
+    AllowedValues:
+      - m8g.large
+      - m8g.xlarge
+      - m8g.2xlarge
+      - m7g.xlarge
+      - c8g.xlarge
+      - c7g.xlarge
+
+  VolumeSize:
+    Type: Number
+    Default: 50
+    MinValue: 30
+    MaxValue: 200
+
+  CodeEditorUser:
+    Type: String
+    Default: participant
+
+  HomeFolder:
+    Type: String
+    Default: /workshop
+
+  RepoUrl:
+    Type: String
+    Default: ''
+    Description: Git repo URL (optional - if empty, downloads from S3 artifacts bucket)
+
+Resources:
+  #============================================================================
+  # Code Editor Password Secret
+  #============================================================================
+  CodeEditorSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: !Sub ${EnvironmentName}-code-editor-${AWS::StackName}
+      Description: Code Editor credentials
+      GenerateSecretString:
+        PasswordLength: 16
+        SecretStringTemplate: !Sub '{"username":"${CodeEditorUser}"}'
+        GenerateStringKey: password
+        ExcludePunctuation: true
+
+  #============================================================================
+  # Security Group
+  #============================================================================
+  CodeEditorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Code Editor EC2 security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          # Justification: Port 80 is open to 0.0.0.0/0 because CloudFront requires
+          # HTTP access to the EC2 origin. CloudFront does not support security group
+          # restrictions. The Code Editor is password-protected via code-server auth
+          # token embedded in the CloudFront URL. In production, use an ALB with
+          # WAF and CloudFront origin access control.
+          Description: HTTP for CloudFront origin (password-protected via code-server)
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS for AWS APIs
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP for package downloads
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref VpcCIDR
+          Description: PostgreSQL to Aurora
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          CidrIp: !Ref VpcCIDR
+          Description: Cube Core API on EC2 (port 4000)
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-code-editor-sg
+
+  # Allow EC2 to access VPC endpoints (Secrets Manager, etc.)
+  VPCEndpointIngressRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref VPCEndpointSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref CodeEditorSecurityGroup
+
+  # Allow EC2 to access Aurora PostgreSQL directly (for local agent testing)
+  AuroraIngressFromCodeEditor:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AuroraSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref CodeEditorSecurityGroup
+      Description: Allow Code Editor EC2 to access Aurora
+
+  #============================================================================
+  # IAM Role - Workshop Permissions
+  #============================================================================
+  CodeEditorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-code-editor-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: WorkshopPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Secrets Manager
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:PutSecretValue
+                Resource: '*'
+
+              # RDS Data API
+              - Effect: Allow
+                Action: rds-data:*
+                Resource: '*'
+
+              # S3
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: '*'
+
+              # Bedrock - Full access (Converse, InvokeModel, Guardrails, KB, etc.)
+              - Effect: Allow
+                Action: bedrock:*
+                Resource: '*'
+              - Effect: Allow
+                Action: bedrock-agent-runtime:*
+                Resource: '*'
+
+              # AWS Marketplace - Bedrock model subscription verification
+              - Effect: Allow
+                Action:
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                Resource: '*'
+
+              # Glue
+              - Effect: Allow
+                Action: glue:*
+                Resource: '*'
+
+              # Lambda - Full access for deploy scripts
+              - Effect: Allow
+                Action: lambda:*
+                Resource: '*'
+
+              # IAM - Full access for creating roles/policies
+              - Effect: Allow
+                Action: iam:*
+                Resource: '*'
+
+              # EC2 - VPC endpoints, security groups, network interfaces
+              - Effect: Allow
+                Action: ec2:*
+                Resource: '*'
+
+              # AgentCore - Full access
+              - Effect: Allow
+                Action: bedrock-agentcore:*
+                Resource: '*'
+
+              # Voice lab (optional) - the voice stack creates an API Gateway
+              # HTTP API (the JWT signaling proxy) and uses Kinesis Video Streams
+              # managed WebRTC TURN for media. Without apigateway + kinesisvideo,
+              # `make voice-deploy` rolls back with AccessDenied on apigateway:POST
+              # (SignalingHttpApi) and on the KVS signaling channel.
+              - Effect: Allow
+                Action:
+                  - apigateway:*
+                  - execute-api:*
+                  - kinesisvideo:*
+                Resource: '*'
+
+              # Cognito - Full access for Gateway auth setup
+              - Effect: Allow
+                Action: cognito-idp:*
+                Resource: '*'
+
+              # CloudFormation - Read stack outputs for auto-detection (any stack)
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStackResources
+                  - cloudformation:ListStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplateSummary
+                Resource: '*'
+              # CloudFormation - participants deploy the AgentCore top-up + voice
+              # stacks via `make deploy` / `make voice-deploy` (aws cloudformation
+              # deploy = create/update via change sets). Scoped to the workshop's
+              # own stacks. Without this, make deploy fails with
+              # AccessDenied: cloudformation:CreateChangeSet.
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:GetTemplate
+                  - cloudformation:ValidateTemplate
+                Resource:
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/agentic-analytics-agentcore/*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/agentic-analytics-voice/*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/awscli-cloudformation-package-deploy-*
+
+              # Amplify - Deploy UI
+              - Effect: Allow
+                Action: amplify:*
+                Resource: '*'
+
+              # SSM - Parameter store
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: '*'
+
+              # ECR - Container registry for AgentCore Runtime
+              - Effect: Allow
+                Action: ecr:*
+                Resource: '*'
+
+              # CodeBuild - Build containers for AgentCore Runtime
+              - Effect: Allow
+                Action: codebuild:*
+                Resource: '*'
+
+              # STS - Service bearer tokens
+              - Effect: Allow
+                Action: sts:*
+                Resource: '*'
+
+              # CloudWatch Logs
+              - Effect: Allow
+                Action: logs:*
+                Resource: '*'
+
+              # X-Ray (for traces delivery configuration)
+              - Effect: Allow
+                Action:
+                  - xray:*
+                Resource: '*'
+
+              # S3 - CodeBuild source bucket for AgentCore Runtime builds
+              - Effect: Allow
+                Action: s3:*
+                Resource:
+                  - arn:aws:s3:::bedrock-agentcore-*
+                  - arn:aws:s3:::bedrock-agentcore-*/*
+
+              # EC2 - For VPC config lookups + resolving the Cube private IP by tag
+              # (cube-resolve.sh points the cube-tunnel socat forwarder at Cube)
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeInstances
+                Resource: '*'
+
+  CodeEditorInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CodeEditorRole
+
+  #============================================================================
+  # EC2 Instance
+  #============================================================================
+  CodeEditorInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      # arm64 AMI to match the Graviton InstanceType default (m8g). If you switch
+      # InstanceType to an x86 family, change arm64 -> x86_64 here.
+      ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}'
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref CodeEditorInstanceProfile
+      SubnetId: !Ref PublicSubnetId
+      SecurityGroupIds:
+        - !Ref CodeEditorSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+            Encrypted: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-code-editor
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/user-data.log) 2>&1
+
+          echo "=== Starting Code Editor Bootstrap ==="
+
+          # Variables
+          CODE_EDITOR_USER="${CodeEditorUser}"
+          HOME_FOLDER="${HomeFolder}"
+          AWS_REGION="${AWS::Region}"
+
+          # Get password from Secrets Manager
+          CODE_EDITOR_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id ${CodeEditorSecret} \
+            --query 'SecretString' --output text | jq -r '.password')
+
+          # Install packages (skip curl - curl-minimal is pre-installed on AL2023)
+          dnf update -y -q
+          dnf install -y -q unzip nginx jq git wget python3.11 python3.11-pip nodejs gcc make postgresql16
+
+          # AWS CLI v2 (arch-detected so this works on both arm64 and x86_64)
+          cd /tmp
+          CLI_ARCH=$(uname -m)  # aarch64 on Graviton, x86_64 on Intel/AMD
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${!CLI_ARCH}.zip" -o awscliv2.zip
+          unzip -q awscliv2.zip && ./aws/install --update && rm -rf awscliv2.zip aws/
+
+          # Create user
+          if ! id "$CODE_EDITOR_USER" &>/dev/null; then
+            adduser -c '' "$CODE_EDITOR_USER"
+            echo "$CODE_EDITOR_USER:$CODE_EDITOR_PASSWORD" | chpasswd
+            usermod -aG wheel "$CODE_EDITOR_USER"
+          fi
+
+          # Create workspace and clone repo
+          mkdir -p "$HOME_FOLDER"
+          cd "$HOME_FOLDER"
+          
+          # Download repo from S3 (packaged during deployment) or clone from Git
+          REPO_URL="${RepoUrl}"
+          ARTIFACTS_BUCKET="${ArtifactsBucket}"
+          ARTIFACTS_PREFIX="${ArtifactsPrefix}"
+          if [ -z "$REPO_URL" ]; then
+              echo "Downloading repo from S3..."
+              aws s3 cp "s3://$ARTIFACTS_BUCKET/${!ARTIFACTS_PREFIX}repo/agentic-analytics.zip" "$HOME_FOLDER/repo.zip"
+              unzip -q "$HOME_FOLDER/repo.zip" -d "$HOME_FOLDER/agentic-analytics"
+              rm "$HOME_FOLDER/repo.zip"
+          else
+              echo "Cloning repo from $REPO_URL..."
+              git clone "$REPO_URL" agentic-analytics || true
+          fi
+          chown -R "$CODE_EDITOR_USER:$CODE_EDITOR_USER" "$HOME_FOLDER"
+
+          # Create environment config
+          cat > "$HOME_FOLDER/agentic-analytics/app/agentcore_strands/config.env" << ENVEOF
+          AWS_REGION=${AWS::Region}
+          AWS_DEFAULT_REGION=${AWS::Region}
+          AURORA_ENDPOINT=${AuroraEndpoint}
+          AURORA_SECRET_ARN=${DatabaseSecretArn}
+          # ^ postgres secret — used by the local Step-1 exercise. RLS for the
+          #   DEPLOYED agent is a runtime SSM flag (/<env>/rls-mode), flipped in
+          #   Step 7.2 — not here.
+          DATABASE_NAME=${DatabaseName}
+          KNOWLEDGE_BASE_ID=${KnowledgeBaseId}
+          GLUE_DATABASE=${GlueDatabaseName}
+          COGNITO_USER_POOL_ID=${CognitoUserPoolId}
+          VPC_ID=${VpcId}
+          SECURITY_GROUP_ID=${LambdaSecurityGroupId}
+          SUBNET_IDS=${PrivateSubnet1Id},${PrivateSubnet2Id}
+          COGNITO_USER_LOGIN_CLIENT_ID=${CognitoUserLoginClientId}
+          COGNITO_DOMAIN=${CognitoDomain}
+          ARTIFACTS_BUCKET=${ArtifactsBucket}
+          ARTIFACTS_PREFIX=${ArtifactsPrefix}
+          ENVEOF
+          chown "$CODE_EDITOR_USER:$CODE_EDITOR_USER" "$HOME_FOLDER/agentic-analytics/app/agentcore_strands/config.env"
+
+          # Install Code Editor
+          export CodeEditorUser="$CODE_EDITOR_USER"
+          curl -fsSL https://code-editor.amazonaws.com/content/code-editor-server/dist/aws-workshop-studio/install.sh | bash -s --
+
+          CODE_EDITOR_CMD="/home/$CODE_EDITOR_USER/.local/bin/code-editor-server"
+
+          # Configure token
+          sudo -u "$CODE_EDITOR_USER" mkdir -p "/home/$CODE_EDITOR_USER/.code-editor-server/data"
+          echo -n "$CODE_EDITOR_PASSWORD" > "/home/$CODE_EDITOR_USER/.code-editor-server/data/token"
+          chown "$CODE_EDITOR_USER:$CODE_EDITOR_USER" "/home/$CODE_EDITOR_USER/.code-editor-server/data/token"
+          chmod 600 "/home/$CODE_EDITOR_USER/.code-editor-server/data/token"
+
+          # Nginx config (Code Editor + React UI proxies, unchanged).
+          cat > /etc/nginx/conf.d/code-editor.conf << 'NGINXEOF'
+          server {
+              listen 80;
+              server_name _;
+              location / {
+                  proxy_pass http://127.0.0.1:8080/;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection upgrade;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_read_timeout 86400;
+              }
+              # React UI dev server proxy — keeps /app prefix (React uses PUBLIC_URL=/app)
+              location /app {
+                  proxy_pass http://127.0.0.1:3001;
+                  proxy_set_header Host localhost;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection upgrade;
+                  proxy_read_timeout 86400;
+              }
+              # Redirect /ports/3001/ to /app for Code Editor Ports panel
+              location /ports/3001/ {
+                  return 301 /app;
+              }
+          }
+          NGINXEOF
+          # Disable default server block that conflicts with our conf.d config
+          sed -i '/^    server {/,/^    }/s/^/#/' /etc/nginx/nginx.conf
+          nginx -t && systemctl enable nginx && systemctl start nginx
+
+          # --- Cube Playground access (private EC2) ---
+          # The Cube Playground SPA serves assets from absolute "/" paths, so it cannot
+          # be reverse-proxied under a subpath. Instead we run a TCP forwarder so
+          # localhost:4000 on this box transparently maps to the private Cube:4000 — the
+          # code-server "Ports" panel then exposes :4000 to the participant's browser at
+          # ROOT, where the SPA (and its websocket) works correctly.
+          #   * cube-resolve.sh writes the discovered Cube IP into /etc/cube-tunnel.env
+          #   * cube-tunnel.service runs socat in the FOREGROUND (long-lived; not a
+          #     backgrounded child of a oneshot, which systemd would reap)
+          #   * a timer re-resolves until Cube (which deploys after this box) appears
+          dnf install -y -q socat || true
+          # cube-resolve.sh is delivered base64-encoded so Fn::Sub never parses its
+          # bash syntax. It looks up the Cube instance by Name tag, writes CUBE_IP into
+          # /etc/cube-tunnel.env, and restarts cube-tunnel.service.
+          CUBE_RESOLVE_B64='IyEvYmluL2Jhc2gKUkVHSU9OPSIke0NVQkVfUkVHSU9OOi11cy1lYXN0LTF9IgpFTlZfTkFNRT0iJHtDVUJFX0VOVk5BTUU6LWFnZW50aWMtYW5hbHl0aWNzfSIKSVA9JChhd3MgZWMyIGRlc2NyaWJlLWluc3RhbmNlcyAtLXJlZ2lvbiAiJFJFR0lPTiIgLS1maWx0ZXJzICJOYW1lPXRhZzpOYW1lLFZhbHVlcz0kRU5WX05BTUUtY3ViZSIgIk5hbWU9aW5zdGFuY2Utc3RhdGUtbmFtZSxWYWx1ZXM9cnVubmluZyIgLS1xdWVyeSAnUmVzZXJ2YXRpb25zW10uSW5zdGFuY2VzW10uUHJpdmF0ZUlwQWRkcmVzcyB8IFswXScgLS1vdXRwdXQgdGV4dCAyPi9kZXYvbnVsbCkKaWYgWyAtbiAiJElQIiBdICYmIFsgIiRJUCIgIT0gIk5vbmUiIF07IHRoZW4KICBlY2hvICJDVUJFX0lQPSRJUCIgPiAvZXRjL2N1YmUtdHVubmVsLmVudgogIHN5c3RlbWN0bCByZXN0YXJ0IGN1YmUtdHVubmVsLnNlcnZpY2UgMj4vZGV2L251bGwgfHwgdHJ1ZQogIGVjaG8gImN1YmUtcmVzb2x2ZSAtPiAkSVAiCmVsc2UKICBlY2hvICJjdWJlIG5vdCBmb3VuZCB5ZXQiCmZpCg=='
+          echo "$CUBE_RESOLVE_B64" | base64 -d > /usr/local/bin/cube-resolve.sh
+          chmod +x /usr/local/bin/cube-resolve.sh
+          echo "CUBE_IP=127.0.0.1" > /etc/cube-tunnel.env
+          # Long-lived socat tunnel: localhost:4000 -> Cube:4000 (reads CUBE_IP from env file)
+          cat > /etc/systemd/system/cube-tunnel.service << 'TUNEOF'
+          [Unit]
+          Description=TCP tunnel localhost:4000 -> private Cube EC2:4000 (for code-server Ports panel)
+          After=network-online.target
+          [Service]
+          EnvironmentFile=/etc/cube-tunnel.env
+          ExecStart=/usr/bin/socat TCP-LISTEN:4000,fork,reuseaddr TCP:${!CUBE_IP}:4000
+          Restart=always
+          RestartSec=5
+          [Install]
+          WantedBy=multi-user.target
+          TUNEOF
+          # Resolver service + timer (re-resolve until Cube appears, then keep fresh)
+          cat > /etc/systemd/system/cube-resolve.service << SVCEOF
+          [Unit]
+          Description=Resolve private Cube IP and (re)point the cube-tunnel
+          After=network-online.target
+          [Service]
+          Type=oneshot
+          Environment=CUBE_REGION=${AWS::Region}
+          Environment=CUBE_ENVNAME=${EnvironmentName}
+          ExecStart=/usr/local/bin/cube-resolve.sh
+          SVCEOF
+          cat > /etc/systemd/system/cube-resolve.timer << 'TMREOF'
+          [Unit]
+          Description=Re-resolve Cube IP every 2 min until it is up
+          [Timer]
+          OnBootSec=45
+          OnUnitActiveSec=120
+          [Install]
+          WantedBy=timers.target
+          TMREOF
+          systemctl daemon-reload
+          systemctl enable cube-tunnel.service
+          systemctl enable --now cube-resolve.timer
+          systemctl start cube-resolve.service || true
+
+          # Code Editor systemd service (use explicit user, not %i template)
+          cat > /etc/systemd/system/code-editor.service << SVCEOF
+          [Unit]
+          Description=Code Editor Server
+          After=network.target
+          [Service]
+          Type=simple
+          User=$CODE_EDITOR_USER
+          Environment=AWS_REGION=$AWS_REGION
+          Environment=AWS_DEFAULT_REGION=$AWS_REGION
+          ExecStart=$CODE_EDITOR_CMD --accept-server-license-terms --host 127.0.0.1 --port 8080 --default-workspace $HOME_FOLDER/agentic-analytics --default-folder $HOME_FOLDER/agentic-analytics --connection-token $CODE_EDITOR_PASSWORD
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+          SVCEOF
+
+          systemctl daemon-reload
+          systemctl enable code-editor
+          systemctl start code-editor
+
+          # Install VS Code extensions (Python only — Amazon Q is intentionally NOT
+          # installed; this workshop uses Claude Code on Amazon Bedrock instead).
+          sleep 10
+          sudo -u "$CODE_EDITOR_USER" "$CODE_EDITOR_CMD" --install-extension ms-python.python --force || true
+
+          # --- Claude Code CLI on Amazon Bedrock -------------------------------
+          # Install the CLI globally (nodejs is installed above) and configure it to
+          # use Bedrock via the EC2 instance role (no API key). The instance role
+          # already grants bedrock:* + aws-marketplace:Subscribe/ViewSubscriptions.
+          # Model is pinned to the cross-region Sonnet 4.6 inference profile — the
+          # model reliably invocable in fresh Bedrock accounts (Opus 4.7/4.8 are
+          # gated behind account containment score; opus-4-6 needs a per-account
+          # Marketplace subscription that may not exist). Claude Code uses the
+          # default AWS SDK credential chain, so the instance role is picked up
+          # automatically.
+          npm install -g @anthropic-ai/claude-code 2>&1 || echo "claude-code install failed (non-fatal)"
+          cat >> "/home/$CODE_EDITOR_USER/.bashrc" << CLAUDEEOF
+          # Claude Code -> Amazon Bedrock (instance-role auth, no API key)
+          export CLAUDE_CODE_USE_BEDROCK=1
+          export ANTHROPIC_MODEL='us.anthropic.claude-sonnet-4-6'
+          export ANTHROPIC_DEFAULT_SONNET_MODEL='us.anthropic.claude-sonnet-4-6'
+          CLAUDEEOF
+
+          # Python venv setup
+          sudo -u "$CODE_EDITOR_USER" python3.11 -m pip install --user --upgrade pip
+          cd "$HOME_FOLDER/agentic-analytics/app/agentcore_strands"
+          sudo -u "$CODE_EDITOR_USER" python3.11 -m venv "$HOME_FOLDER/.venv"
+          sudo -u "$CODE_EDITOR_USER" "$HOME_FOLDER/.venv/bin/pip" install -r requirements.txt || true
+
+          # Bashrc shortcuts
+          cat >> "/home/$CODE_EDITOR_USER/.bashrc" << 'BASHEOF'
+          export AWS_REGION="${AWS::Region}"
+          export AWS_DEFAULT_REGION="${AWS::Region}"
+          alias workshop='cd /workshop/agentic-analytics'
+          alias activate='source /workshop/.venv/bin/activate'
+          source /workshop/.venv/bin/activate
+          BASHEOF
+
+          echo "=== Code Editor Bootstrap Complete ==="
+
+  #============================================================================
+  # CloudFront Cache Policy
+  #============================================================================
+  CloudFrontCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${EnvironmentName}-code-editor-cache
+        DefaultTTL: 0
+        MaxTTL: 86400
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: all
+          EnableAcceptEncodingGzip: false
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Accept-Charset
+              - Authorization
+              - Origin
+              - Accept
+              - Referer
+              - Host
+              - Accept-Language
+              - Accept-Encoding
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  #============================================================================
+  # CloudFront Distribution
+  #============================================================================
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: CodeEditorInstance
+    # checkov:skip=CKV_AWS_174: uses the default *.cloudfront.net viewer cert
+    #   (already TLS 1.2+); MinimumProtocolVersion only applies with a custom ACM cert.
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2and3
+        DefaultCacheBehavior:
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachePolicyId: !Ref CloudFrontCachePolicy
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          TargetOriginId: code-editor-origin
+          # Force viewers onto HTTPS — the Code Editor URL carries an auth token,
+          # so it must never be served over plaintext HTTP. (CKV_AWS_34)
+          ViewerProtocolPolicy: redirect-to-https
+        Origins:
+          - Id: code-editor-origin
+            DomainName: !GetAtt CodeEditorInstance.PublicDnsName
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 60
+
+  #============================================================================
+  # URL Resolver - reads password from Secrets Manager to build clickable URL
+  #============================================================================
+  UrlResolverRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-url-resolver-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref CodeEditorSecret
+        - PolicyName: RegisterCognitoCallback
+          # Lets the post-CloudFront resolver append the CloudFront /app URL to the
+          # Cognito user-pool client's callback/logout lists (fixes redirect_mismatch:
+          # the client ships with only localhost callbacks; the live URL isn't known
+          # until CloudFront exists).
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:UpdateUserPoolClient
+                Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+
+  UrlResolverFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-url-resolver
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt UrlResolverRole.Arn
+      Timeout: 30
+      Code:
+        ZipFile: |
+          import boto3, json, urllib.request
+          def send(event, context, status, data={}, reason=''):
+              body = json.dumps({'Status': status, 'Reason': reason or 'OK', 'PhysicalResourceId': context.log_stream_name, 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'Data': data})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'], data=body.encode(), headers={'Content-Type': ''}, method='PUT'))
+          def register_cognito_callback(pool_id, client_id, domain):
+              # Append https://<cloudfront-domain>/app to the client's callback/logout
+              # URLs so the OAuth Authorization Code flow works from the deployed UI.
+              # Best-effort: never fail the stack over this (manual add is documented).
+              if not (pool_id and client_id and domain):
+                  print('skip cognito callback: missing pool/client/domain'); return
+              c = boto3.client('cognito-idp')
+              try:
+                  cur = c.describe_user_pool_client(UserPoolId=pool_id, ClientId=client_id)['UserPoolClient']
+              except Exception as e:
+                  print(f'describe_user_pool_client failed: {e}'); return
+              app_url = f'https://{domain}/app'
+              cbs = list(cur.get('CallbackURLs') or []); los = list(cur.get('LogoutURLs') or [])
+              changed = False
+              for u in (app_url, app_url + '/'):
+                  if u not in cbs: cbs.append(u); changed = True
+                  if u not in los: los.append(u); changed = True
+              if not changed:
+                  print('cognito client already allows the CloudFront /app URL'); return
+              args = {'UserPoolId': pool_id, 'ClientId': client_id, 'CallbackURLs': cbs, 'LogoutURLs': los}
+              # Re-pass fields update_user_pool_client would otherwise CLEAR (notably
+              # ExplicitAuthFlows — losing it breaks USER_PASSWORD_AUTH login).
+              for f in ('AllowedOAuthFlows','AllowedOAuthScopes','AllowedOAuthFlowsUserPoolClient','SupportedIdentityProviders','ExplicitAuthFlows','ClientName','ReadAttributes','WriteAttributes'):
+                  if f in cur: args[f] = cur[f]
+              try:
+                  c.update_user_pool_client(**args); print(f'added {app_url} to cognito client {client_id}')
+              except Exception as e:
+                  print(f'update_user_pool_client failed: {e}')
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS')
+                  return
+              try:
+                  p = event['ResourceProperties']
+                  secret = boto3.client('secretsmanager').get_secret_value(SecretId=p['SecretId'])  # checkov:skip=CKV_SECRET_6: false positive — reads a CFN-generated password from Secrets Manager at runtime; no literal secret here
+                  password = json.loads(secret['SecretString'])['password']
+                  url = f"https://{p['Domain']}/?tkn={password}&folder={p['Folder']}"
+                  register_cognito_callback(p.get('CognitoUserPoolId'), p.get('CognitoUserLoginClientId'), p.get('Domain'))
+                  send(event, context, 'SUCCESS', {'Url': url})
+              except Exception as e:
+                  send(event, context, 'FAILED', reason=str(e))
+
+  UrlResolver:
+    Type: Custom::UrlResolver
+    DependsOn:
+      - UrlResolverFunction
+      - CloudFrontDistribution
+    Properties:
+      ServiceToken: !GetAtt UrlResolverFunction.Arn
+      SecretId: !Ref CodeEditorSecret
+      Domain: !GetAtt CloudFrontDistribution.DomainName
+      Folder: !Sub ${HomeFolder}/agentic-analytics
+      # Used to register https://<domain>/app as a Cognito callback (redirect_mismatch fix)
+      CognitoUserPoolId: !Ref CognitoUserPoolId
+      CognitoUserLoginClientId: !Ref CognitoUserLoginClientId
+
+Outputs:
+  CodeEditorUrl:
+    Description: Code Editor URL (VS Code in browser)
+    Value: !GetAtt UrlResolver.Url
+
+  CodeEditorSecretArn:
+    Description: Secret ARN containing Code Editor password
+    Value: !Ref CodeEditorSecret
+
+  InstanceId:
+    Description: EC2 Instance ID
+    Value: !Ref CodeEditorInstance
+
+  CloudFrontDomain:
+    Description: CloudFront domain
+    Value: !GetAtt CloudFrontDistribution.DomainName
+
+  CodeEditorSecurityGroupId:
+    Description: Code Editor SG (Cube allows inbound on 4000 from this so the nginx proxy can reach the private Cube)
+    Value: !Ref CodeEditorSecurityGroup

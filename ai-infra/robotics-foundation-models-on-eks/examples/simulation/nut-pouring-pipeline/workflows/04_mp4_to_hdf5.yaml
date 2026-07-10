@@ -1,0 +1,205 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 4: Merge augmented MP4 videos back into HDF5 format
+# Usage: osmo workflow submit 04_mp4_to_hdf5.yaml --pool default
+
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: 24h
+    queue_timeout: 12h
+  resources:
+    default:
+      platform: g7e-rtx-pro-6000
+      cpu: {{ num_cpu }}
+      gpu: {{ num_gpu }}
+      memory: {{ memory }}
+      storage: 200Gi
+
+  tasks:
+  - name: mp4_to_hdf5_conversion
+    image: {{ image_name }}
+    environment:
+      ACCEPT_EULA: Y
+      OMNI_KIT_ALLOW_ROOT: 1
+      NO_NUCLEUS: Y
+    credentials:
+      huggingface_token:
+        HF_TOKEN: token
+
+    inputs:
+    - dataset:
+        name: {{ input_dataset_mimic_gen}}
+    - dataset:
+        name: {{ input_dataset_cosmos_augmented_mp4}}
+    outputs:
+    - dataset:
+        name: {{ output_dataset }}
+
+    args:
+    - /tmp/entry.sh
+    command:
+    - bash
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+
+          set -e
+          set -euxo pipefail
+
+          echo "=== System Info ==="
+          nvidia-smi
+
+          echo "=== Input Locations ==="
+          echo "Original HDF5 (reference): {{input:0}}"
+          echo "Augmented MP4 videos: {{input:1}}"
+          ls -lah {{input:0}}
+          ls -lah {{input:1}}
+
+          echo "=== Working Directory ==="
+          cd /workspace/isaaclab
+          pwd
+
+          echo "=== Find original HDF5 file (for structure reference) ==="
+          INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
+          echo "Using reference HDF5: $INPUT_HDF5"
+
+          echo "=== Convert augmented MP4 back to HDF5 ==="
+          AUGMENTED_VIDEOS_DIR=/tmp/cosmos_augmented_mp4_flat
+          rm -rf "$AUGMENTED_VIDEOS_DIR"
+          mkdir -p "$AUGMENTED_VIDEOS_DIR"
+          find {{input:1}} -type f -name "demo_*.mp4" \
+            ! -name "*_depth.mp4" \
+            ! -name "*_normals.mp4" \
+            ! -name "*_segmentation.mp4" \
+            ! -name "*control_depth.mp4" \
+            -exec cp {} "$AUGMENTED_VIDEOS_DIR" \;
+          while IFS= read -r generated_mp4; do
+            demo_name=$(basename "$(dirname "$generated_mp4")")
+            if [[ "$demo_name" == demo_* ]]; then
+              cp "$generated_mp4" "$AUGMENTED_VIDEOS_DIR/${demo_name}.mp4"
+            fi
+          done < <(find {{input:1}} -type f -name "robot_depth.mp4" | sort)
+          AUGMENTED_VIDEO_COUNT=$(find "$AUGMENTED_VIDEOS_DIR" -maxdepth 1 -type f -name "demo_*.mp4" | wc -l)
+          echo "Flattened augmented MP4 file count: $AUGMENTED_VIDEO_COUNT"
+          find "$AUGMENTED_VIDEOS_DIR" -maxdepth 1 -type f -name "demo_*.mp4" | sort | head -20
+          if [ "$AUGMENTED_VIDEO_COUNT" -eq 0 ]; then
+            echo "No augmented MP4 files found under {{input:1}}" >&2
+            find {{input:1}} -maxdepth 5 -type f | sort | head -100
+            exit 1
+          fi
+          /workspace/isaaclab/_isaac_sim/python.sh - "$INPUT_HDF5" "$AUGMENTED_VIDEOS_DIR" "{{output}}/cosmos_augmented_dataset.hdf5" <<PY_GR1_MP4_TO_HDF5
+          import glob
+          import os
+          import sys
+          from pathlib import Path
+
+          import cv2
+          import h5py
+          import numpy as np
+
+
+          def frames_from_mp4(video_path, target_height, target_width):
+              video = cv2.VideoCapture(str(video_path))
+              frames = []
+              try:
+                  while True:
+                      ok, frame = video.read()
+                      if not ok:
+                          break
+                      frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                      frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
+                      frames.append(frame)
+              finally:
+                  video.release()
+              if not frames:
+                  raise RuntimeError(f"no frames decoded from {video_path}")
+              return np.asarray(frames, dtype=np.uint8)
+
+
+          def main():
+              input_file = Path(sys.argv[1])
+              videos_dir = Path(sys.argv[2])
+              output_file = Path(sys.argv[3])
+              video_paths = sorted(glob.glob(str(videos_dir / "*.mp4")))
+              print(f"Found {len(video_paths)} MP4 videos in {videos_dir}")
+              output_file.parent.mkdir(parents=True, exist_ok=True)
+
+              with h5py.File(input_file, "r") as f_in, h5py.File(output_file, "w") as f_out:
+                  f_in.copy("data", f_out)
+                  demo_ids = [int(key.split("_")[1]) for key in f_in["data"].keys()]
+                  next_demo_id = max(demo_ids) + 1
+                  print(f"Starting new demos from ID: {next_demo_id}")
+
+                  for video_path in video_paths:
+                      video_name = os.path.basename(video_path)
+                      orig_demo_id = int(video_name.split("_")[1])
+                      source_demo = f"data/demo_{orig_demo_id}"
+                      new_demo = f"demo_{next_demo_id}"
+                      f_in.copy(source_demo, f_out["data"], name=new_demo)
+
+                      obs = f_out[f"data/{new_demo}/obs"]
+                      camera_key = "robot_pov_cam" if "robot_pov_cam" in obs else "table_cam"
+                      original_shape = f_in[f"{source_demo}/obs/{camera_key}"].shape
+                      target_height, target_width = original_shape[1:3]
+                      frames = frames_from_mp4(video_path, target_height, target_width)
+                      if frames.shape[0] != original_shape[0]:
+                          print(
+                              f"Warning: {video_name} frame count {frames.shape[0]} differs from "
+                              f"source demo frame count {original_shape[0]}"
+                          )
+
+                      del obs[camera_key]
+                      obs.create_dataset(camera_key, data=frames, compression="gzip")
+                      print(f"Added augmented {new_demo} from demo_{orig_demo_id} using {camera_key}")
+                      next_demo_id += 1
+
+              print(f"Augmented data saved to {output_file}")
+
+
+          if __name__ == "__main__":
+              main()
+          PY_GR1_MP4_TO_HDF5
+
+          echo "=== Verify output HDF5 ==="
+          /workspace/isaaclab/_isaac_sim/python.sh << PYTHON_CHECK
+          import h5py
+          with h5py.File("{{output}}/cosmos_augmented_dataset.hdf5", "r") as f:
+              num_demos = len([k for k in f["data"].keys() if k.startswith("demo_")])
+              print(f"Total demonstrations: {num_demos}")
+              demo_0 = f["data/demo_0"]
+              obs_keys = list(demo_0["obs"].keys())
+              print(f"Observation keys: {obs_keys}")
+          PYTHON_CHECK
+
+          echo "=== Conversion complete ==="
+          ls -lah {{output}}
+
+          echo "=== MP4 to HDF5 Conversion Complete ==="
+
+    resource: default
+
+default-values:
+  workflow_name: mp4_to_hdf5_conversion
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
+  memory: 64Gi
+  storage: 200Gi
+  num_gpu: 1
+  num_cpu: 16
+  input_dataset_mimic_gen: PhysAI-MimicGen
+  input_dataset_cosmos_augmented_mp4: PhysAI-CosmosAugmentedMP4
+  output_dataset: PhysAI-CosmosAugmentedHDF5

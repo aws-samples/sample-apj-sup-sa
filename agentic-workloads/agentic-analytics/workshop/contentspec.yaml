@@ -1,0 +1,49 @@
+version: 2.0
+
+defaultLocaleCode: en-US
+localeCodes:
+  - en-US
+
+additionalLinks:
+  - title: Amazon Bedrock AgentCore
+    link: https://aws.amazon.com/bedrock/agentcore/
+  - title: Strands Agents SDK
+    link: https://github.com/strands-agents/sdk-python
+
+awsAccountConfig:
+  accountSources:
+    - workshop_studio
+  participantRole:
+    managedPolicies:
+      - "arn:aws:iam::aws:policy/AdministratorAccess"
+    trustedPrincipals:
+      service:
+        - ec2.amazonaws.com
+        - lambda.amazonaws.com
+        - glue.amazonaws.com
+        - bedrock.amazonaws.com
+  regionConfiguration:
+    minAccessibleRegions: 1
+    maxAccessibleRegions: 3
+    accessibleRegions:
+      required:
+        - us-east-1
+      optional:
+        - us-west-2
+    deployableRegions:
+      recommended:
+        - us-east-1
+        - us-west-2
+
+infrastructure:
+  cloudformationTemplates:
+    - templateLocation: static/main-stack.yaml
+      label: agentic-analytics
+      participantAllStackOutputsVisible: true
+      parameters:
+        - templateParameter: ArtifactsBucket
+          defaultValue: "{{.AssetsBucketName}}"
+        - templateParameter: ArtifactsPrefix
+          defaultValue: "{{.AssetsBucketPrefix}}"
+        - templateParameter: DeployMode
+          defaultValue: workshop

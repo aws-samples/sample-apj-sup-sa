@@ -1,0 +1,64 @@
+cubes:
+  - name: accounts
+    sql_table: accounts
+    description: >
+      Unicorn rental businesses that subscribe to the Timely-Unicorn SaaS platform.
+      Each account is a tenant with isolated data.
+
+    dimensions:
+      - name: account_id
+        sql: account_id
+        type: string
+        primary_key: true
+
+      - name: account_name
+        sql: account_name
+        type: string
+
+      - name: status
+        sql: "{CUBE}.status::text"
+        type: string
+
+      - name: billing_cycle
+        sql: "{CUBE}.billing_cycle::text"
+        type: string
+
+      - name: industry
+        sql: industry
+        type: string
+
+      - name: billing_email
+        sql: billing_email
+        type: string
+
+      - name: billing_city
+        sql: billing_city
+        type: string
+
+      - name: billing_country
+        sql: billing_country
+        type: string
+
+      - name: headquarters_city
+        sql: headquarters_city
+        type: string
+
+      - name: headquarters_country
+        sql: headquarters_country
+        type: string
+
+      - name: next_billing_date
+        sql: next_billing_date
+        type: time
+
+      - name: activated_at
+        sql: activated_at
+        type: time
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+    measures:
+      - name: count
+        type: count

@@ -1,0 +1,89 @@
+workflow:
+  name: aws-sequential-policy
+  timeout:
+    exec_timeout: 4h
+    queue_timeout: 1h
+  resources:
+    cpu_small:
+      cpu: 1
+      memory: 2Gi
+      storage: 2Gi
+    gpu_g7e:
+      cpu: 2
+      gpu: 1
+      memory: 8Gi
+      storage: 20Gi
+      platform: g7e-rtx-pro-6000
+
+  tasks:
+  - name: inspect-dataset
+    resource: cpu_small
+    image: public.ecr.aws/docker/library/python:3.12-slim
+    command: ["sh", "-ec"]
+    args:
+    - |
+      mkdir -p {{output}}/dataset
+      cat > {{output}}/dataset/manifest.json <<'JSON'
+      {
+        "dataset": "example-robot-policy-dataset",
+        "format": "lerobot",
+        "episodes": 8,
+        "cameras": ["wrist", "front"],
+        "state_dim": 6,
+        "action_dim": 6
+      }
+      JSON
+      python3 -m json.tool {{output}}/dataset/manifest.json
+    outputs:
+    - dataset:
+        name: {{ prepared_dataset }}
+        path: dataset
+
+  - name: train-policy
+    resource: gpu_g7e
+    image: nvcr.io/nvidia/cuda:12.8.1-base-ubuntu24.04
+    command: ["bash", "-lc"]
+    args:
+    - |
+      set -euo pipefail
+      nvidia-smi
+      mkdir -p {{output}}/checkpoints
+      cp {{input:0}}/dataset/manifest.json {{output}}/checkpoints/manifest.json
+      cat > {{output}}/checkpoints/model-card.txt <<'EOF'
+      Example policy checkpoint.
+      Replace this task with the GR00T or OpenPI training command for real runs.
+      EOF
+      find {{output}} -maxdepth 3 -type f -print
+    inputs:
+    - task: inspect-dataset
+    outputs:
+    - dataset:
+        name: {{ checkpoint_dataset }}
+        path: checkpoints
+
+  - name: package-evaluation
+    resource: cpu_small
+    image: public.ecr.aws/docker/library/python:3.12-slim
+    command: ["sh", "-ec"]
+    args:
+    - |
+      mkdir -p {{output}}/release
+      cp -a {{input:0}}/checkpoints {{output}}/release/
+      python3 - <<'PY'
+      from pathlib import Path
+      release = Path("{{output}}/release")
+      files = sorted(str(path.relative_to(release)) for path in release.rglob("*") if path.is_file())
+      (release / "contents.txt").write_text("\n".join(files) + "\n")
+      print((release / "contents.txt").read_text())
+      PY
+    inputs:
+    - task: train-policy
+    outputs:
+    - dataset:
+        name: {{ release_dataset }}
+        path: release
+
+default-values:
+  prepared_dataset: aws-sequential-policy-prepared-dataset
+  checkpoint_dataset: aws-sequential-policy-checkpoint
+  release_dataset: aws-sequential-policy-release

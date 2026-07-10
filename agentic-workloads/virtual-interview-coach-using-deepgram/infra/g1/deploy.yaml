@@ -1,0 +1,1480 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+# InterviewCoach G1 hosted-demo stack (Phase C) — full design notes.
+#
+# Stands up the runnable, clickable demo on a full-shaped-but-demo-scale topology: ECR repos,
+# an ECS Fargate cluster running the voice worker (media + signaling) and the backend app API,
+# an internet-facing ALB fronting the worker's /offer signaling and the backend's /api/*, a
+# CloudFront distribution + S3 bucket serving the React SPA (and proxying /api + /offer to the
+# ALB over one origin so the browser sees a single HTTPS origin), and a Cognito user pool.
+#
+# REUSES (does NOT duplicate) the gate-enablement stack's RDS, Bedrock model access, Deepgram
+# secret, and CloudWatch namespace — passed in as parameters (gate-enablement exposes Outputs,
+# not Exports).
+#
+# KEY TOPOLOGY DECISIONS (see specs/001-voice-interview-loop/deployment-plan.md):
+#   * Runs in the DEFAULT VPC (where the RDS already lives): public subnets, an IGW route, NO
+#     NAT gateway. Fargate tasks get public IPs and egress to Deepgram/Bedrock/ECR via the IGW.
+#     Removes the NAT-gateway cost line and the cross-VPC reachability problem.
+#   * WebRTC media flows browser <-> worker task DIRECTLY (not through a load balancer). The
+#     worker is given STUN servers so aiortc discovers the task's public (srflx) candidate; the
+#     task SG opens the ephemeral UDP range so the browser's media can reach it. Only the
+#     HTTP/TCP control planes (/offer, /api/*) traverse the ALB.
+#   * The DB is reached over its existing public endpoint; this stack adds an SG-to-SG ingress
+#     rule onto the EXISTING RDS security group via a standalone AWS::EC2::SecurityGroupIngress
+#     resource, so the gate-enablement stack is untouched.
+#
+# PREREQUISITES (CLI, around deploy — cannot live in this template):
+#   1. Claude model access enabled in Bedrock for this region (same as gate-enablement).
+#   2. The Deepgram secret (DeepgramSecretArn) must be POPULATED (gate-enablement created it
+#      empty). Push the key from voice-worker/.env via the CLI — never commit it.
+#   3. Worker + backend images built and pushed to the ECR repos this stack creates; the
+#      services will not stabilize until images exist (create repos -> push -> services pull).
+Description: >-
+  InterviewCoach G1 hosted-demo stack (Phase C): ECS Fargate worker + backend, ALB, CloudFront
+  + S3 SPA, Cognito. Reuses the gate-enablement RDS/Bedrock/Deepgram/CloudWatch via parameters.
+  Browser<->worker WebRTC media is direct (STUN); only /offer and /api/* traverse the ALB.
+
+# =========================================================================================
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: interviewcoach-g1
+    Description: Cost-allocation tag applied to all resources.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC the RDS lives in (the default VPC). Tasks run in its public subnets.
+
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >-
+      At least two PUBLIC subnets (different AZs) for the ALB and the Fargate tasks. Use the
+      default VPC's public subnets.
+
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: >-
+      The EXISTING RDS security group (sg-...) from gate-enablement. This stack adds an
+      ingress rule allowing the Fargate task SG to reach Postgres on 5432.
+
+  DBEndpoint:
+    Type: String
+    Description: RDS endpoint host (gate-enablement Output DBEndpoint).
+
+  DBPort:
+    Type: String
+    Default: "5432"
+
+  DBName:
+    Type: String
+    Default: interviewcoach
+
+  DBMasterUsername:
+    Type: String
+    Default: icadmin
+
+  DBMasterSecretArn:
+    Type: String
+    Description: >-
+      Secrets Manager ARN of the RDS-managed master secret (gate-enablement Output
+      DBMasterSecretArn). Its JSON `password` key is injected into the tasks as DB_PASSWORD.
+
+  DeepgramSecretArn:
+    Type: String
+    Description: >-
+      Secrets Manager ARN holding {"DEEPGRAM_API_KEY": "..."} (gate-enablement Output
+      DeepgramSecretArn). MUST be populated before the worker can do STT/TTS.
+
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Bedrock model / inference-profile id the worker invokes (bedrock_direct path).
+
+  BedrockEmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: >-
+      F002 (G2) Bedrock Titan embedding model id. Off the response_gap clock — used by the
+      offline bank pipeline and session-prep JD embedding only. Pinned; a change forces a
+      bank re-embed (embedding_model is stored beside each vector).
+
+  CwMetricNamespace:
+    Type: String
+    Default: InterviewCoach/G1
+
+  WorkerImageTag:
+    Type: String
+    Default: c1
+    Description: Image tag pushed to the worker ECR repo (e.g. a git short-sha or 'c1').
+
+  BackendImageTag:
+    Type: String
+    Default: c1
+    Description: Image tag pushed to the backend ECR repo.
+
+  ReportImageTag:
+    Type: String
+    Default: c1
+    Description: Image tag pushed to the report-worker ECR repo (F003 async scoring worker).
+
+  StunUrls:
+    Type: String
+    Default: stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+    Description: Comma-separated STUN URLs handed to the worker's RTCPeerConnection (ICE_STUN_URLS).
+
+  MediaUdpFromPort:
+    Type: Number
+    Default: 1024
+    Description: >-
+      Low end of the inbound UDP range opened to the worker task for WebRTC media. aioice
+      0.10.2 binds media sockets to an OS-assigned EPHEMERAL port (no port-pinning API), so
+      this range must cover the Linux ephemeral range; the default 1024-65535 opens all
+      non-privileged UDP. Media is gated by the voice_token + DTLS-SRTP, not the SG.
+
+  MediaUdpToPort:
+    Type: Number
+    Default: 65535
+    Description: High end of the inbound UDP media range (see MediaUdpFromPort).
+
+  DesiredWorkerCount:
+    Type: Number
+    Default: 1
+    Description: Worker tasks (demo scale = 1; the media plane is the scaling concern, not this demo).
+
+  DesiredBackendCount:
+    Type: Number
+    Default: 1
+
+  DesiredReportWorkerCount:
+    Type: Number
+    Default: 1
+    Description: Report-worker tasks (F003 async scoring; demo scale = 1, scaled independently).
+
+  GenerativeMode:
+    Type: String
+    Default: "0"
+    AllowedValues: ["0", "1"]
+    Description: >-
+      F009 (Constitution VII). "0" (default) = the vetted bank is preferred; the backend only
+      generates questions in the prep window when the bank has none at the chosen difficulty.
+      "1" = force generative mode (generate the full plan even when a bank exists) for testing/demo.
+      Generation is always prep-window only (never on the response_gap clock).
+
+  CloudFrontPrefixListId:
+    Type: String
+    Default: ""
+    Description: >-
+      OPTIONAL hardening: the id of the AWS-managed CloudFront origin-facing prefix list
+      (com.amazonaws.global.cloudfront.origin-facing, e.g. pl-xxxxxxxx — region-specific, look it
+      up with `aws ec2 describe-managed-prefix-lists`). When set, the ALB only accepts HTTP from
+      CloudFront edge IPs, so the demo origin cannot be reached directly by bypassing CloudFront.
+      Leave EMPTY (default) to keep the demo-friendly open-to-internet ALB (current behavior).
+
+# =========================================================================================
+Conditions:
+  # True when CloudFrontPrefixListId is provided — switches the ALB ingress from 0.0.0.0/0 to the
+  # CloudFront origin-facing managed prefix list.
+  RestrictAlbToCloudFront: !Not [!Equals [!Ref CloudFrontPrefixListId, ""]]
+
+# =========================================================================================
+Resources:
+
+  # --- ECR repositories ------------------------------------------------------------------
+  WorkerRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    # CKV_AWS_136 (ECR CMK) suppressed: ECR encrypts images with an AWS-managed key (AES256) by
+    # default. A dedicated CMK adds cost + key-policy management not warranted for sample images.
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_136
+            comment: ECR default AES256 encryption is sufficient for sample images; CMK adds cost.
+    Properties:
+      RepositoryName: !Sub ${ProjectTag}/voice-worker
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  BackendRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_136
+            comment: ECR default AES256 encryption is sufficient for sample images; CMK adds cost.
+    Properties:
+      RepositoryName: !Sub ${ProjectTag}/backend
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  ReportWorkerRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_136
+            comment: ECR default AES256 encryption is sufficient for sample images; CMK adds cost.
+    Properties:
+      RepositoryName: !Sub ${ProjectTag}/report-worker
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- F003 async report job queue -------------------------------------------------------
+  # Dead-letter queue: a scoring message that fails repeatedly (poison job — bad payload, a
+  # persistent Bedrock error) is moved here after maxReceiveCount attempts instead of
+  # redelivering until MessageRetentionPeriod expires (which would block the queue and waste
+  # Bedrock spend). Inspect it to debug failed jobs; it shares the source queue's retention.
+  ReportDLQ:
+    Type: AWS::SQS::Queue
+    Metadata:
+      guard:
+        SuppressedRules:
+          - SQS_QUEUE_KMS_MASTER_KEY_ID_RULE
+      checkov:
+        skip:
+          - id: CKV_AWS_27
+            comment: SSE-SQS (SqsManagedSseEnabled) encrypts at rest; CMK not needed for a sample.
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-report-jobs-dlq
+      MessageRetentionPeriod: 1209600  # 14 days — keep failed jobs long enough to investigate
+      SqsManagedSseEnabled: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  ReportQueue:
+    Type: AWS::SQS::Queue
+    # SQS_QUEUE_KMS_MASTER_KEY_ID_RULE suppressed: this queue uses SSE-SQS (AWS-managed key,
+    # enabled below) which encrypts messages at rest at no cost. A customer-managed KMS key is
+    # unnecessary for sample-code job metadata (reviewer-cited as an unnecessary finding).
+    Metadata:
+      guard:
+        SuppressedRules:
+          - SQS_QUEUE_KMS_MASTER_KEY_ID_RULE
+      checkov:
+        skip:
+          # CKV_AWS_27 only recognizes a KMS key, not SSE-SQS. The queue IS encrypted at rest via
+          # SqsManagedSseEnabled (AWS-managed key, free); a CMK is unnecessary for sample job metadata.
+          - id: CKV_AWS_27
+            comment: SSE-SQS (SqsManagedSseEnabled) encrypts at rest; CMK not needed for a sample.
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-report-jobs
+      VisibilityTimeout: 360        # > the worker's per-job scoring time; redrive if it crashes
+      MessageRetentionPeriod: 86400 # 1 day
+      SqsManagedSseEnabled: true    # SSE-SQS at-rest encryption (AWS-managed key, free) — CKV_AWS_27
+      # After 5 failed receives a poison job is moved to the DLQ instead of looping forever.
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReportDLQ.Arn
+        maxReceiveCount: 5
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Security groups -------------------------------------------------------------------
+  # ALB ingress: when CloudFrontPrefixListId is supplied, lock :80 to the CloudFront origin-facing
+  # managed prefix list (CloudFront edge IPs only — origin cannot be reached by bypassing the
+  # distribution). Otherwise keep the demo default of open-to-internet :80. The two ingress shapes
+  # are mutually exclusive via the RestrictAlbToCloudFront condition.
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName} ALB ingress (HTTP from CloudFront/Internet)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress: !If
+        - RestrictAlbToCloudFront
+        - - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            SourcePrefixListId: !Ref CloudFrontPrefixListId
+            Description: HTTP from CloudFront origin-facing edge IPs only
+        - - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+            Description: HTTP (CloudFront origin fetch / demo direct access)
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName} Fargate tasks (signaling/API from ALB + WebRTC media)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Signaling (worker :8080) and API (backend :8000) from the ALB only.
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: Worker signaling /offer + /health from ALB
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: Backend /api/* from ALB
+        # WebRTC media: browser connects DIRECTLY to the task's public IP over UDP. aioice
+        # binds media to an OS-assigned ephemeral port (no pinning), so the range must cover
+        # the ephemeral range. The voice_token (issued at session create) + DTLS-SRTP gate the
+        # media, not the SG. STUN/UDP only; no TURN relay.
+        - IpProtocol: udp
+          FromPort: !Ref MediaUdpFromPort
+          ToPort: !Ref MediaUdpToPort
+          CidrIp: 0.0.0.0/0
+          Description: Inbound WebRTC media (DTLS-SRTP over UDP) direct from the browser
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # Allow the tasks to reach the existing RDS without touching the gate-enablement stack.
+  RdsIngressFromTasks:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref TaskSecurityGroup
+      # EC2 SG rule descriptions reject '>' (and most punctuation); keep to the allowed set.
+      Description: !Sub ${AWS::StackName} Fargate tasks to Postgres
+
+  # --- IAM roles -------------------------------------------------------------------------
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-secrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref DBMasterSecretArn
+                  - !Ref DeepgramSecretArn
+                  # The tasks also inject VOICE_TOKEN_SECRET from this stack's own secret; the
+                  # execution role pulls every Secrets entry referenced by the task definitions.
+                  - !Ref VoiceTokenSecret
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        # Runtime read of the RDS master secret so the DB pool fetches the LIVE password per
+        # connection (rotation-proof). The execution role reads it once at boot for env injection;
+        # the TASK role needs it too, because the running process re-reads it after a rotation.
+        - PolicyName: db-secret-read
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DBMasterSecretArn
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  # Scoped to the model FAMILIES actually invoked (Haiku 4.5 live+scoring, Titan
+                  # embed v2 for JD embedding) instead of all foundation models (code-review #14).
+                  # Region wildcard kept: cross-region inference profiles (us.*) route to the
+                  # underlying foundation-model ARNs in multiple regions.
+                  - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*
+                  - arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v2*
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+        - PolicyName: cloudwatch-put
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: !Ref CwMetricNamespace
+        # F006 (G6): the worker writes per-turn audio objects (consent-gated) under SSE-KMS.
+        - PolicyName: audio-bucket-write
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub arn:aws:s3:::${AudioBucket}/*
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt AudioKmsKey.Arn
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  BackendTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        # Runtime read of the RDS master secret so the DB pool fetches the live password per
+        # connection (rotation-proof — the pool re-evaluates it on each new connection).
+        - PolicyName: db-secret-read
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DBMasterSecretArn
+        # F002 (G2): the backend stores/reads/deletes the raw resume in the resume bucket
+        # (sole durable PII home alongside RDS — Constitution III). Scoped to objects under the
+        # bucket only; the bounded-blast-radius delete (FR-219) needs s3:DeleteObject.
+        - PolicyName: resume-bucket-rw
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${ResumeBucket}/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${ResumeBucket}
+        # Encrypt/decrypt resume objects with the dedicated CMK (SSE-KMS).
+        - PolicyName: resume-kms
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: !GetAtt ResumeKmsKey.Arn
+        # F006 (G6): the backend mints pre-signed GET URLs for playback (GetObject) and purges audio
+        # on the bounded delete fan-out (DeleteObject + ListBucket for the race-safe prefix sweep).
+        - PolicyName: audio-bucket-rd
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${AudioBucket}/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${AudioBucket}
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !GetAtt AudioKmsKey.Arn
+        # F002 (G2): the backend invokes Bedrock OFF the response_gap clock only — resume
+        # structured-extraction (T011) and the one-time session-prep JD embedding (T016).
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  # Scoped to the model FAMILIES actually invoked (Haiku 4.5 live+scoring, Titan
+                  # embed v2 for JD embedding) instead of all foundation models (code-review #14).
+                  # Region wildcard kept: cross-region inference profiles (us.*) route to the
+                  # underlying foundation-model ARNs in multiple regions.
+                  - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*
+                  - arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v2*
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+        # F003 (G3): the backend enqueues a report job on session end (the only live-path touch).
+        - PolicyName: report-queue-send
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt ReportQueue.Arn
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- F003 Report Worker task role: invoke Bedrock (scoring) + consume the report queue --
+  ReportWorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        # Runtime read of the RDS master secret so the retention sweep + scoring connections fetch
+        # the LIVE password per connect (rotation-proof — this is the service the rotation broke).
+        - PolicyName: db-secret-read
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DBMasterSecretArn
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  # Scoped to the model FAMILIES actually invoked (Haiku 4.5 live+scoring, Titan
+                  # embed v2 for JD embedding) instead of all foundation models (code-review #14).
+                  # Region wildcard kept: cross-region inference profiles (us.*) route to the
+                  # underlying foundation-model ARNs in multiple regions.
+                  - arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5*
+                  - arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v2*
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+        - PolicyName: report-queue-consume
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt ReportQueue.Arn
+        # F006 (G6): the retention TTL sweep purges expired audio objects (DeleteObject + ListBucket
+        # for the per-session prefix). It does not read object bodies, so no KMS decrypt is needed.
+        - PolicyName: audio-bucket-purge
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${AudioBucket}/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${AudioBucket}
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Shared voice_token secret (backend mints, worker verifies; same value) ------------
+  VoiceTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    # SECRETSMANAGER_USING_CMK / CKV_AWS_149 suppressed: Secrets Manager encrypts with the
+    # AWS-managed aws/secretsmanager key by default. A dedicated CMK is unnecessary for a
+    # sample's shared HS256 signing secret. Rotation (SECRETSMANAGER_ROTATION_ENABLED_CHECK)
+    # is intentionally not configured for this demo.
+    Metadata:
+      guard:
+        SuppressedRules:
+          - SECRETSMANAGER_USING_CMK
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Default aws/secretsmanager key suffices for a sample; CMK adds cost.
+    Properties:
+      Name: !Sub ${AWS::StackName}/voice-token
+      Description: HS256 secret shared by backend (mint) and worker (verify) for voice_token.
+      GenerateSecretString:
+        # A single opaque >=32-byte secret string (PyJWT HS256 requires >=32 bytes).
+        PasswordLength: 48
+        ExcludePunctuation: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Logs ------------------------------------------------------------------------------
+  # CLOUDWATCH_LOG_GROUP_ENCRYPTED suppressed on all three log groups: CloudWatch Logs are
+  # encrypted at rest with an AWS-managed key by default. A customer-managed KMS key (with the
+  # logs.amazonaws.com key-policy grant it requires) is unnecessary for sample operational logs.
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Metadata:
+      guard:
+        SuppressedRules:
+          - CLOUDWATCH_LOG_GROUP_ENCRYPTED
+    Properties:
+      LogGroupName: !Sub /interviewcoach/g1/${AWS::StackName}/voice-worker
+      RetentionInDays: 14
+
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Metadata:
+      guard:
+        SuppressedRules:
+          - CLOUDWATCH_LOG_GROUP_ENCRYPTED
+    Properties:
+      LogGroupName: !Sub /interviewcoach/g1/${AWS::StackName}/backend
+      RetentionInDays: 14
+
+  ReportWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Metadata:
+      guard:
+        SuppressedRules:
+          - CLOUDWATCH_LOG_GROUP_ENCRYPTED
+    Properties:
+      LogGroupName: !Sub /interviewcoach/g1/${AWS::StackName}/report-worker
+      RetentionInDays: 14
+
+  # --- ECS cluster -----------------------------------------------------------------------
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${AWS::StackName}
+      ClusterSettings:
+        - Name: containerInsights
+          Value: disabled
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Cognito ---------------------------------------------------------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-users
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true   # demo: seed one test user via CLI, no open sign-up
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireUppercase: false
+          RequireSymbols: false
+      UserPoolTags:
+        project: !Ref ProjectTag
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${AWS::StackName}-spa
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  # --- Task definitions ------------------------------------------------------------------
+  WorkerTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-voice-worker
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt WorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: voice-worker
+          Image: !Sub ${WorkerRepo.RepositoryUri}:${WorkerImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: SERVER_HOST
+              Value: 0.0.0.0
+            - Name: SERVER_PORT
+              Value: "8080"
+            - Name: REPLY_PROVIDER
+              Value: bedrock_direct
+            # F007 (Pipecat adoption): which latency strategy the Pipecat pipeline uses. "processor"
+            # keeps the LLM OFF the response_gap clock (lead-clause backchannel) — the SC-001 PASS
+            # lever, locked as the default from the A/B (contracts/latency-strategy-ab.md). "native"
+            # puts the LLM on the gap clock (the comparison arm). Only consumed by the Pipecat image.
+            - Name: LEAD_CLAUSE_STRATEGY
+              Value: "processor"
+            # Silero VAD tuning (on-audio end-of-speech; replaces the DTX watchdog). VAD_START_SECS +
+            # VAD_CONFIDENCE raised (was 0.2/0.7) so brief noise doesn't register as speech (ISSUE 1).
+            # Voice barge-in no longer fires on raw VAD — it requires VOICE_BARGE_IN_MIN_WORDS real
+            # transcribed words (so breathing/noise/coach-echo can't cancel the coach's reply).
+            - Name: VAD_START_SECS
+              Value: "0.5"
+            - Name: VAD_STOP_SECS
+              Value: "0.8"
+            - Name: VAD_CONFIDENCE
+              Value: "0.8"
+            - Name: VOICE_BARGE_IN_MIN_WORDS
+              Value: "3"
+            - Name: BEDROCK_MODEL_ID
+              Value: !Ref BedrockModelId
+            - Name: BEDROCK_EMBEDDING_MODEL_ID
+              Value: !Ref BedrockEmbeddingModelId
+            # Hands-free turn-taking patience (tuned from human testing). A deliberate speaker pauses
+            # ~1-2s mid-thought; the proven defaults (1200/2000/2500) cut such a speaker off
+            # ("...and then" -> coach jumps in). 2000ms felt a touch slow in testing, so trimmed to
+            # 1600ms — still well above the 1200ms that caused cutoffs, but snappier. Keep
+            # endpointing <= utterance_end < watchdog. NONE of these touch the response_gap clock
+            # (the gate streams continuous audio), so SC-001 is unaffected.
+            # Pause tolerance raised for interviews: a candidate composing a STAR answer pauses ~2s
+            # mid-thought, so 1.6s let the coach cut in early. 2200/3000 (endpointing < utterance_end)
+            # tolerates a normal thinking pause without interrupting (push-to-talk removes the
+            # guesswork for users who prefer it). The DTX watchdog is retired (Silero VAD, T033).
+            - Name: STT_ENDPOINTING_MS
+              Value: "2200"
+            - Name: STT_UTTERANCE_END_MS
+              Value: "3000"
+            # Bound interview length + balance competency coverage (human-test feedback): wrap up after
+            # the planned questions, cap follow-ups per competency, and honor the chosen duration via a
+            # total coach-turn budget + wall-clock budget (both derived from the planned question
+            # count). FOLLOWUPS_PER_QUESTION also spreads the budget across mains so every planned
+            # question gets asked. ~90s/question matches the backend duration->question sizing. All off
+            # the gap clock; the wrap-up they trigger is a deterministic line.
+            - Name: MAX_MAIN_QUESTIONS
+              Value: "8"
+            - Name: FOLLOWUP_CEILING
+              Value: "3"
+            - Name: FOLLOWUPS_PER_QUESTION
+              Value: "2"
+            - Name: SECONDS_PER_QUESTION
+              Value: "90"
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: CW_METRIC_NAMESPACE
+              Value: !Ref CwMetricNamespace
+            - Name: ICE_STUN_URLS
+              Value: !Ref StunUrls
+            - Name: DB_HOST
+              Value: !Ref DBEndpoint
+            - Name: DB_PORT
+              Value: !Ref DBPort
+            - Name: DB_NAME
+              Value: !Ref DBName
+            - Name: DB_USER
+              Value: !Ref DBMasterUsername
+            # Rotation-proof DB auth: the process fetches the live RDS password from this secret
+            # per connection. DB_PASSWORD is still injected at boot as the fallback; with this set
+            # the passwordless DSN + provider path is used instead (config._database_url).
+            - Name: DB_SECRET_ARN
+              Value: !Ref DBMasterSecretArn
+            # F006 (G6): consent-gated per-turn audio recording to S3 SSE-KMS.
+            - Name: AUDIO_BUCKET
+              Value: !Ref AudioBucket
+            - Name: AUDIO_KMS_KEY_ID
+              Value: !Ref AudioKmsKey
+            - Name: LOG_FILE
+              Value: /tmp/voice-worker.log
+          Secrets:
+            - Name: DEEPGRAM_API_KEY
+              ValueFrom: !Sub "${DeepgramSecretArn}:DEEPGRAM_API_KEY::"
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub "${DBMasterSecretArn}:password::"
+            - Name: VOICE_TOKEN_SECRET
+              ValueFrom: !Ref VoiceTokenSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  BackendTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-backend
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt BackendTaskRole.Arn
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Sub ${BackendRepo.RepositoryUri}:${BackendImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: PORT
+              Value: "8000"
+            - Name: REPLY_PROVIDER
+              Value: bedrock_direct
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            # F009 (Constitution VII): force/allow prep-window question generation. Off the gap clock.
+            - Name: GENERATIVE_MODE
+              Value: !Ref GenerativeMode
+            # F002 (G2): resume structured-extraction (T011) invokes this model OFF the gap clock.
+            # Must be the inference-profile id (us.*) so on-demand invoke works in this region;
+            # without it the backend falls back to a bare model id Bedrock rejects (ValidationException).
+            - Name: BEDROCK_MODEL_ID
+              Value: !Ref BedrockModelId
+            - Name: BEDROCK_EMBEDDING_MODEL_ID
+              Value: !Ref BedrockEmbeddingModelId
+            - Name: RESUME_BUCKET
+              Value: !Ref ResumeBucket
+            - Name: RESUME_KMS_KEY_ID
+              Value: !Ref ResumeKmsKey
+            # F006 (G6): the backend mints playback URLs + runs the delete fan-out over audio.
+            - Name: AUDIO_BUCKET
+              Value: !Ref AudioBucket
+            - Name: AUDIO_KMS_KEY_ID
+              Value: !Ref AudioKmsKey
+            - Name: AUDIO_URL_TTL_S
+              Value: "300"
+            - Name: COGNITO_REGION
+              Value: !Ref AWS::Region
+            - Name: COGNITO_USER_POOL_ID
+              Value: !Ref UserPool
+            - Name: COGNITO_APP_CLIENT_ID
+              Value: !Ref UserPoolClient
+            # F003 (G3): the queue the backend enqueues a report job to on /end.
+            - Name: REPORT_QUEUE_URL
+              Value: !Ref ReportQueue
+            # The browser reaches the worker's /offer on the SAME CloudFront origin (path
+            # /offer routed to the worker target group), so a relative endpoint is correct.
+            - Name: MEDIA_ENDPOINT
+              Value: ""
+            - Name: STUN_URL
+              Value: stun:stun.l.google.com:19302
+            - Name: VOICE_TOKEN_TTL_S
+              Value: "120"
+            - Name: DB_HOST
+              Value: !Ref DBEndpoint
+            - Name: DB_PORT
+              Value: !Ref DBPort
+            - Name: DB_NAME
+              Value: !Ref DBName
+            - Name: DB_USER
+              Value: !Ref DBMasterUsername
+            # Rotation-proof DB auth: the process fetches the live RDS password from this secret
+            # per connection. DB_PASSWORD is still injected at boot as the fallback; with this set
+            # the passwordless DSN + provider path is used instead (config._database_url).
+            - Name: DB_SECRET_ARN
+              Value: !Ref DBMasterSecretArn
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub "${DBMasterSecretArn}:password::"
+            - Name: VOICE_TOKEN_SECRET
+              ValueFrom: !Ref VoiceTokenSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backend
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- F003 Report Worker task: async scoring, SQS-consumed, no ALB (off the live path) --
+  ReportWorkerTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-report-worker
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt ReportWorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: report-worker
+          Image: !Sub ${ReportWorkerRepo.RepositoryUri}:${ReportImageTag}
+          Essential: true
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: REPORT_QUEUE_URL
+              Value: !Ref ReportQueue
+            # Scoring model — the inference-profile id (us.*) so on-demand invoke works in-region.
+            - Name: BEDROCK_MODEL_ID
+              Value: !Ref BedrockModelId
+            # Self-consistency: score each answer N times at temp 0, aggregate by median (NFR-8).
+            - Name: SCORING_SAMPLES
+              Value: "3"
+            - Name: SCORING_TEMPERATURE
+              Value: "0"
+            - Name: RUBRIC_VERSION
+              Value: g3-2026.1
+            # F006 (G6): the retention TTL sweep purges expired audio from this bucket, on an interval.
+            - Name: AUDIO_BUCKET
+              Value: !Ref AudioBucket
+            - Name: AUDIO_KMS_KEY_ID
+              Value: !Ref AudioKmsKey
+            - Name: RETENTION_SWEEP_INTERVAL_S
+              Value: "3600"
+            - Name: DB_HOST
+              Value: !Ref DBEndpoint
+            - Name: DB_PORT
+              Value: !Ref DBPort
+            - Name: DB_NAME
+              Value: !Ref DBName
+            - Name: DB_USER
+              Value: !Ref DBMasterUsername
+            # Rotation-proof DB auth: the process fetches the live RDS password from this secret
+            # per connection. DB_PASSWORD is still injected at boot as the fallback; with this set
+            # the passwordless DSN + provider path is used instead (config._database_url).
+            - Name: DB_SECRET_ARN
+              Value: !Ref DBMasterSecretArn
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub "${DBMasterSecretArn}:password::"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ReportWorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: report-worker
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- Load balancer ---------------------------------------------------------------------
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${AWS::StackName}-alb
+      Type: application
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      # ELB target-group names cap at 32 chars; ${AWS::StackName} is already 22, so the suffix
+      # must stay short (-backend-tg would overflow to 33). The resource type says "target group".
+      Name: !Sub ${AWS::StackName}-backend
+      VpcId: !Ref VpcId
+      Port: 8000
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  WorkerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      # See BackendTargetGroup: keep within the 32-char ELB limit (-worker-tg would be 32, on the edge).
+      Name: !Sub ${AWS::StackName}-worker
+      VpcId: !Ref VpcId
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      # Default to the backend; /offer is routed to the worker by the rule below.
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  WorkerSignalingRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref AlbListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /offer
+              - /health
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref WorkerTargetGroup
+
+  # --- ECS services ----------------------------------------------------------------------
+  BackendService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbListener
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-backend
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref BackendTaskDef
+      DesiredCount: !Ref DesiredBackendCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED   # public subnets, no NAT -> task needs a public IP to egress
+          Subnets: !Ref PublicSubnetIds
+          SecurityGroups:
+            - !Ref TaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 8000
+          TargetGroupArn: !Ref BackendTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbListener
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-voice-worker
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref WorkerTaskDef
+      DesiredCount: !Ref DesiredWorkerCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED   # the task's public IP IS the WebRTC media destination
+          Subnets: !Ref PublicSubnetIds
+          SecurityGroups:
+            - !Ref TaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: voice-worker
+          ContainerPort: 8080
+          TargetGroupArn: !Ref WorkerTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # F003: the report worker has NO load balancer — it consumes SQS, so no target group / listener dep.
+  ReportWorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-report-worker
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref ReportWorkerTaskDef
+      DesiredCount: !Ref DesiredReportWorkerCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED   # public subnets, no NAT -> needs a public IP to reach SQS/Bedrock
+          Subnets: !Ref PublicSubnetIds
+          SecurityGroups:
+            - !Ref TaskSecurityGroup
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- SPA hosting: S3 + CloudFront ------------------------------------------------------
+  SpaBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    # S3_DEFAULT_ENCRYPTION_KMS suppressed: SSE-S3 (AES256) is applied below and is sufficient for
+    # public, non-PII static SPA assets; a CMK is not warranted. S3_BUCKET_LOGGING_ENABLED,
+    # S3_BUCKET_DEFAULT_LOCK_ENABLED and S3_BUCKET_VERSIONING_ENABLED are intentionally NOT met
+    # (access logging needs a dedicated log bucket; Object Lock + versioning both fight the demo's
+    # DeletionPolicy: Delete teardown — versioning leaves delete markers + noncurrent versions so the
+    # bucket never empties and the stack delete fails).
+    Metadata:
+      guard:
+        SuppressedRules:
+          - S3_DEFAULT_ENCRYPTION_KMS
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-spa-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256   # SSE-S3 at-rest encryption (free) — S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  CloudFrontOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${AWS::StackName} SPA + API/signaling
+        DefaultRootObject: index.html
+        # NO CustomErrorResponses: the SPA is a single component with NO path-based routing (all state
+        # is in-memory in Session.tsx), so it needs no deep-link 404->index fallback. A blanket
+        # 403/404->index/200 remap is distribution-wide (CloudFront can't scope it per-origin), so it
+        # MASKED real ALB /api + /offer errors as a 200 SPA page — hiding backend failures and making a
+        # 404 look healthy (code-review finding #13). Removed so API errors surface honestly.
+        Origins:
+          - Id: spa-s3
+            DomainName: !GetAtt SpaBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOac
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+          - Id: alb
+            DomainName: !GetAtt Alb.DNSName
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: spa-s3
+          ViewerProtocolPolicy: redirect-to-https
+          # CachingOptimized managed policy.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          AllowedMethods: [GET, HEAD, OPTIONS]
+        CacheBehaviors:
+          # Control planes: no caching, forward everything (auth headers, body).
+          - PathPattern: /api/*
+            TargetOriginId: alb
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad        # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # AllViewerExceptHostHeader
+          - PathPattern: /offer
+            TargetOriginId: alb
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  SpaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SpaBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${SpaBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+          # Enforce TLS-only access — S3_BUCKET_SSL_REQUESTS_ONLY / CKV_AWS_53.
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt SpaBucket.Arn
+              - !Sub ${SpaBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  # --- F002 (G2): raw-resume storage (Constitution III) ----------------------------------
+  # Dedicated CMK so resume PII is encrypted under a key distinct from anything else, and the
+  # blast radius of a key-policy change is exactly this bucket. The backend task role is granted
+  # Encrypt/Decrypt/GenerateDataKey on this key only.
+  ResumeKmsKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: !Sub ${AWS::StackName} SSE-KMS key for raw resume objects (F002 G2).
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        # Least-privilege replacement for the default 'kms:*'-to-root policy (Holmes IAM1a).
+        # Runtime data access is granted by the scoped IAM task-role policies above; this key
+        # policy enables that IAM delegation (the data actions those roles use must also be
+        # allowed here) plus explicit key administration for root so the account never loses
+        # control of the key (no lockout). Only partial wildcards (kms:Create*, etc.) — the
+        # AWS-canonical key-admin set — are used; no full 'kms:*' wildcard.
+        Statement:
+          - Sid: EnableIAMDelegation
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+          - Sid: AllowKeyAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: "*"
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  ResumeKmsAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-resume
+      TargetKeyId: !Ref ResumeKmsKey
+
+  # Sole durable home for the raw resume file (alongside RDS for derived facts). SSE-KMS,
+  # public access fully blocked, versioning off (one active resume per user — overwrite), and a
+  # 30-day expiry lifecycle that matches the default retention (FR-217). DeletionPolicy: Delete
+  # so a demo teardown removes the PII with the stack (bounded blast radius — FR-219).
+  ResumeBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-resumes-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref ResumeKmsKey
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: default-retention-30d
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  # --- F006 (G6): per-turn audio storage (Constitution III) ------------------------------
+  # Dedicated CMK so audio PII is under a key distinct from resumes; the worker (Encrypt) and the
+  # backend (Decrypt for playback presign) are granted on this key only.
+  AudioKmsKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: !Sub ${AWS::StackName} SSE-KMS key for per-turn interview audio (F006 G6).
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        # Least-privilege replacement for the default 'kms:*'-to-root policy (Holmes IAM1a).
+        # Runtime data access is granted by the scoped IAM task-role policies above; this key
+        # policy enables that IAM delegation (the data actions those roles use must also be
+        # allowed here) plus explicit key administration for root so the account never loses
+        # control of the key (no lockout). Only partial wildcards (kms:Create*, etc.) — the
+        # AWS-canonical key-admin set — are used; no full 'kms:*' wildcard.
+        Statement:
+          - Sid: EnableIAMDelegation
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+          - Sid: AllowKeyAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: "*"
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+  AudioKmsAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-audio
+      TargetKeyId: !Ref AudioKmsKey
+
+  # Sole durable home for per-turn interview audio (alongside the uri in RDS). SSE-KMS, public access
+  # fully blocked (playback is via short-lived owner-scoped pre-signed URLs only — never public). A
+  # 35-day lifecycle is a DEFENSE-IN-DEPTH backstop slightly above the 30-day retention window; the
+  # report-worker retention sweep is the AUTHORITATIVE purge (it also removes the RDS rows). The
+  # bounded delete fan-out + consent-revoke purge delete objects directly. DeletionPolicy: Delete so a
+  # demo teardown removes the PII with the stack (bounded blast radius — FR-219).
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-audio-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref AudioKmsKey
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: audio-retention-backstop-35d
+            Status: Enabled
+            ExpirationInDays: 35
+      Tags:
+        - Key: project
+          Value: !Ref ProjectTag
+
+# =========================================================================================
+Outputs:
+  DemoUrl:
+    Description: The clickable hosted demo (open this in a browser).
+    Value: !Sub https://${Distribution.DomainName}
+
+  CloudFrontDomain:
+    Value: !GetAtt Distribution.DomainName
+
+  AlbDnsName:
+    Description: ALB DNS (origin for /api/* and /offer; not opened to users directly).
+    Value: !GetAtt Alb.DNSName
+
+  SpaBucketName:
+    Description: Upload the built SPA (frontend/dist/*) here, then invalidate CloudFront.
+    Value: !Ref SpaBucket
+
+  WorkerRepoUri:
+    Description: docker build/push target for the voice worker.
+    Value: !GetAtt WorkerRepo.RepositoryUri
+
+  BackendRepoUri:
+    Description: docker build/push target for the backend.
+    Value: !GetAtt BackendRepo.RepositoryUri
+
+  ReportWorkerRepoUri:
+    Description: docker build/push target for the F003 report worker.
+    Value: !GetAtt ReportWorkerRepo.RepositoryUri
+
+  UserPoolId:
+    Value: !Ref UserPool
+
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+
+  VoiceTokenSecretArn:
+    Description: Shared HS256 secret (backend mints, worker verifies) — generated by this stack.
+    Value: !Ref VoiceTokenSecret

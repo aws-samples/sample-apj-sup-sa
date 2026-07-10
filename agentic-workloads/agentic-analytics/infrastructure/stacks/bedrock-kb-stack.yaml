@@ -1,0 +1,332 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Bedrock Knowledge Base Stack - Custom Resource for KB creation and ingestion'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  AuroraClusterArn:
+    Type: String
+    Description: Aurora cluster ARN
+
+  DatabaseSecretArn:
+    Type: String
+    Description: Secrets Manager ARN for database credentials
+
+  DatabaseName:
+    Type: String
+    Default: timely_unicorn
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing business-context.md
+
+  ArtifactsPrefix:
+    Type: String
+    Default: ''
+    Description: S3 key prefix for artifacts
+
+  BusinessContextKey:
+    Type: String
+    Default: docs/business-context.md
+
+  KnowledgeBaseName:
+    Type: String
+    Default: agentic-analytics-kb
+
+  LambdaS3Key:
+    Type: String
+    Default: lambdas/bedrock_kb_ingestion.zip
+    Description: S3 key for Lambda code (use hash-versioned key for updates)
+
+Resources:
+  #============================================================================
+  # S3 Bucket for KB Documents (Bedrock needs direct S3 access)
+  #============================================================================
+  KBDocsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      # Region in the name avoids S3 global-endpoint stale-region-cache 301s when the
+      # same account previously held this bucket name in another region (e.g. a prior
+      # demo in us-west-2). Bedrock ingestion uses the global endpoint and won't follow
+      # the 301, so a region-distinct name is required for reliable multi-region reuse.
+      BucketName: !Sub ${EnvironmentName}-kb-docs-${AWS::AccountId}-${AWS::Region}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LoggingConfiguration:
+        LogFilePrefix: !Sub ${EnvironmentName}-kb-docs-logs/
+
+  KBDocsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref KBDocsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub arn:aws:s3:::${KBDocsBucket}
+              - !Sub arn:aws:s3:::${KBDocsBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+  EmptyKBDocsBucketRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EmptyBucket
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['s3:ListBucket', 's3:DeleteObject', 's3:DeleteObjectVersion', 's3:ListBucketVersions']
+                Resource:
+                  - !Sub arn:aws:s3:::${KBDocsBucket}
+                  - !Sub arn:aws:s3:::${KBDocsBucket}/*
+
+  EmptyKBDocsBucketFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 120
+      Role: !GetAtt EmptyKBDocsBucketRole.Arn
+      Code:
+        ZipFile: |
+          import boto3, json, urllib.request
+          def handler(event, context):
+            try:
+              if event['RequestType'] == 'Delete':
+                bucket = event['ResourceProperties']['BucketName']
+                s3 = boto3.resource('s3')
+                b = s3.Bucket(bucket)
+                b.object_versions.delete()
+                b.objects.delete()
+              send(event, context, 'SUCCESS', {})
+            except Exception as e:
+              print(e)
+              send(event, context, 'SUCCESS', {})
+          def send(event, context, status, data):
+            body = json.dumps({'Status': status, 'Reason': 'See CloudWatch', 'PhysicalResourceId': context.log_stream_name, 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'Data': data}).encode()
+            req = urllib.request.Request(event['ResponseURL'], data=body, headers={'Content-Type': ''}, method='PUT')
+            urllib.request.urlopen(req)
+
+  EmptyKBDocsBucket:
+    Type: Custom::EmptyBucket
+    Properties:
+      ServiceToken: !GetAtt EmptyKBDocsBucketFunction.Arn
+      BucketName: !Ref KBDocsBucket
+
+  #============================================================================
+  # Copy business-context.md from Artifacts to KB Docs Bucket
+  #============================================================================
+  CopyDocsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-copy-kb-docs-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CopyDocsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${KBDocsBucket}/*
+
+  CopyDocsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-copy-kb-docs
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt CopyDocsRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3, json, urllib.request
+          def send(event, context, status, data={}, reason=''):
+              body = json.dumps({'Status': status, 'Reason': reason or 'OK', 'PhysicalResourceId': context.log_stream_name, 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'Data': data})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'], data=body.encode(), headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS')
+                  return
+              try:
+                  import os
+                  # Pin to the regional endpoint with path addressing: a just-created bucket
+                  # isn't consistently resolvable on the us-east-1 global endpoint yet, so a
+                  # default client gets PermanentRedirect on CopyObject. (us-east-1 fresh-deploy race.)
+                  s3 = boto3.client('s3', region_name=os.environ['AWS_REGION'],
+                                    config=boto3.session.Config(s3={'addressing_style': 'path'}))
+                  p = event['ResourceProperties']
+                  s3.copy_object(CopySource={'Bucket': p['SrcBucket'], 'Key': p['SrcKey']}, Bucket=p['DstBucket'], Key=p['DstKey'])
+                  send(event, context, 'SUCCESS', {'DstBucket': p['DstBucket'], 'DstKey': p['DstKey']})
+              except Exception as e:
+                  send(event, context, 'FAILED', reason=str(e))
+
+  CopyDocsTrigger:
+    Type: Custom::CopyDocs
+    DependsOn:
+      - KBDocsBucket
+      - CopyDocsFunction
+    Properties:
+      ServiceToken: !GetAtt CopyDocsFunction.Arn
+      SrcBucket: !Ref ArtifactsBucket
+      SrcKey: !Ref BusinessContextKey
+      DstBucket: !Ref KBDocsBucket
+      DstKey: docs/business-context.md
+
+  #============================================================================
+  # IAM Role for Bedrock KB Lambda
+  #============================================================================
+  BedrockKBRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-bedrock-kb-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockKBPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:CreateKnowledgeBase
+                  - bedrock:DeleteKnowledgeBase
+                  - bedrock:GetKnowledgeBase
+                  - bedrock:ListKnowledgeBases
+                  - bedrock:CreateDataSource
+                  - bedrock:DeleteDataSource
+                  - bedrock:GetDataSource
+                  - bedrock:ListDataSources
+                  - bedrock:IngestKnowledgeBaseDocuments
+                  - bedrock:StartIngestionJob
+                  - bedrock:GetIngestionJob
+                  - bedrock:ListIngestionJobs
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:PassRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseName}-role
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  # Required so the S3 client can resolve the bucket region; without it,
+                  # us-east-1 ingestion gets 301 PermanentRedirect on the global endpoint.
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub arn:aws:s3:::${ArtifactsBucket}/*
+                  - !Sub arn:aws:s3:::${KBDocsBucket}
+                  - !Sub arn:aws:s3:::${KBDocsBucket}/*
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecretArn
+              - Effect: Allow
+                Action:
+                  - rds-data:ExecuteStatement
+                Resource: !Ref AuroraClusterArn
+
+  #============================================================================
+  # Bedrock KB Lambda Function
+  #============================================================================
+  BedrockKBFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-bedrock-kb
+      Description: Create Bedrock Knowledge Base and ingest business context
+      Runtime: python3.12
+      Handler: handler.lambda_handler
+      Role: !GetAtt BedrockKBRole.Arn
+      Timeout: 900
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Ref LambdaS3Key
+      Environment:
+        Variables:
+          AWS_REGION_NAME: !Ref AWS::Region
+
+  #============================================================================
+  # Custom Resource to Create KB and Ingest
+  #============================================================================
+  BedrockKBTrigger:
+    Type: Custom::BedrockKB
+    DependsOn:
+      - BedrockKBFunction
+      - CopyDocsTrigger
+    Properties:
+      ServiceToken: !GetAtt BedrockKBFunction.Arn
+      KnowledgeBaseName: !Ref KnowledgeBaseName
+      AuroraClusterArn: !Ref AuroraClusterArn
+      DatabaseSecretArn: !Ref DatabaseSecretArn
+      DatabaseName: !Ref DatabaseName
+      KBDocsBucket: !Ref KBDocsBucket
+      BusinessContextKey: docs/business-context.md
+
+Outputs:
+  BedrockKBFunctionArn:
+    Description: Bedrock KB Lambda Function ARN
+    Value: !GetAtt BedrockKBFunction.Arn
+
+  KnowledgeBaseId:
+    Description: Bedrock Knowledge Base ID
+    Value: !GetAtt BedrockKBTrigger.KnowledgeBaseId
+    # NOTE: do not rename — imported by agentcore-topup-stack.yaml (workshop) as
+    # ${EnvironmentName}-KnowledgeBaseId. Renaming/removing breaks the import.
+    Export:
+      Name: !Sub ${EnvironmentName}-KnowledgeBaseId
+
+  DataSourceId:
+    Description: Bedrock Data Source ID
+    Value: !GetAtt BedrockKBTrigger.DataSourceId
+
+  KBDocsBucketName:
+    Description: S3 bucket for KB documents
+    Value: !Ref KBDocsBucket

@@ -1,0 +1,63 @@
+cubes:
+  - name: bookings
+    sql_table: bookings
+    description: >
+      Rental bookings linking a customer to a unicorn for a time period.
+
+    dimensions:
+      - name: booking_id
+        sql: booking_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+
+      - name: booking_reference
+        sql: booking_reference
+        type: string
+
+      - name: is_completed
+        sql: is_completed
+        type: boolean
+
+      - name: is_recurring
+        sql: is_recurring
+        type: boolean
+
+      - name: special_requests
+        sql: special_requests
+        type: string
+
+      - name: pickup_location
+        sql: pickup_location
+        type: string
+
+      - name: dropoff_location
+        sql: dropoff_location
+        type: string
+
+      - name: cancellation_reason
+        sql: cancellation_reason
+        type: string
+
+      - name: damage_assessment
+        sql: damage_assessment
+        type: string
+
+      - name: start_datetime
+        sql: start_datetime
+        type: time
+
+      - name: end_datetime
+        sql: end_datetime
+        type: time
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+    measures:
+      - name: count
+        type: count

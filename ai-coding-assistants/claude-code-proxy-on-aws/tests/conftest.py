@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 from aws_cdk import App
-from aws_cdk.assertions import Template
 
 from infra.app import StackBundle, build_stacks
 
-SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 TEST_CONTEXT: dict[str, Any] = {
     "environment": "dev",
     "region": "ap-northeast-2",
@@ -35,16 +31,7 @@ TEST_CONTEXT: dict[str, Any] = {
 
 @pytest.fixture(scope="session")
 def stack_bundle() -> StackBundle:
-    """Build the CDK application once for snapshot-style tests."""
+    """Build the CDK application once for stack assertion tests."""
 
     app = App(context=TEST_CONTEXT)
     return build_stacks(app, account="123456789012")
-
-
-def assert_matches_snapshot(name: str, template: Template) -> None:
-    """Compare a template against the checked-in JSON snapshot."""
-
-    snapshot_path = SNAPSHOT_DIR / f"{name}.json"
-    rendered = json.dumps(template.to_json(), indent=2, sort_keys=True) + "\n"
-    expected = snapshot_path.read_text()
-    assert rendered == expected

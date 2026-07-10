@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --ink: #141414;
+  --muted: #7a7a7a;
+  --border: rgba(0,0,0,0.08);
+  --accent: #635bff;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Sans', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, sans-serif;
+}

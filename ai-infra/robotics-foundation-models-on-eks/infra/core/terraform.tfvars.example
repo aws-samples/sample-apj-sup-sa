@@ -1,0 +1,25 @@
+aws_region   = "ap-northeast-2"
+project_name = "aws-osmo"
+environment  = "dev-repro"
+
+# The Terraform module can keep the EKS API endpoint private-only when this is
+# empty. The Quick Start wrapper, scripts/deploy-infra.sh, overrides this by
+# default with the caller's current public IPv4 /32 so follow-up kubectl and Helm
+# deployment commands can run from a local workstation or CI runner. Set
+# CLUSTER_ENDPOINT_PUBLIC_ACCESS_CIDRS=private when running from a bastion, VPN,
+# or other network path that can reach the private endpoint.
+cluster_endpoint_public_access_cidrs = []
+
+# Use one NAT gateway for lower-cost reproducibility tests. Set false for
+# AZ-aligned NAT in reference-ha deployments.
+single_nat_gateway = true
+
+eks_cluster_version = "1.35"
+
+system_node_instance_types = ["m7i.2xlarge"]
+system_node_min_size       = 3
+system_node_desired_size   = 3
+system_node_max_size       = 5
+
+reference_ha        = false
+deletion_protection = false

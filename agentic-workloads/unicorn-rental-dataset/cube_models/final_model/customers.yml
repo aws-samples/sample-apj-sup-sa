@@ -1,0 +1,236 @@
+cubes:
+  - name: customers
+    sql_table: customers
+    description: >
+      End users who rent unicorns from rental businesses. Can be individuals
+      (personal use) or organizations (B2B/B2G). Each customer belongs to
+      exactly one account. ~500 customers across 2 accounts.
+
+    joins:
+      - name: accounts
+        relationship: many_to_one
+        sql: "{customers.account_id} = {accounts.account_id}"
+
+      - name: bookings
+        relationship: one_to_many
+        sql: "{customers.customer_id} = {bookings.customer_id}"
+
+      - name: transactions
+        relationship: one_to_many
+        sql: "{customers.customer_id} = {transactions.customer_id}"
+
+    dimensions:
+      - name: customer_id
+        sql: customer_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+        description: Tenant isolation key — the rental business this customer belongs to
+
+      - name: customer_type
+        sql: "{CUBE}.customer_type::text"
+        type: string
+        description: "individual (person) or organization (company/group)"
+
+      - name: first_name
+        sql: first_name
+        type: string
+
+      - name: last_name
+        sql: last_name
+        type: string
+
+      - name: full_name
+        sql: "CONCAT({CUBE}.first_name, ' ', {CUBE}.last_name)"
+        type: string
+        description: Full name of the customer or primary contact
+
+      - name: display_name
+        sql: >
+          CASE
+            WHEN {CUBE}.customer_type = 'individual'
+            THEN CONCAT({CUBE}.first_name, ' ', {CUBE}.last_name)
+            ELSE {CUBE}.organization_name
+          END
+        type: string
+        description: Display name — full name for individuals, org name for organizations
+
+      - name: organization_name
+        sql: organization_name
+        type: string
+        description: Company name (only for organization-type customers)
+
+      - name: email
+        sql: email
+        type: string
+
+      - name: city
+        sql: city
+        type: string
+
+      - name: country
+        sql: country
+        type: string
+
+      - name: billing_preference
+        sql: "{CUBE}.billing_preference::text"
+        type: string
+        description: "Invoice delivery: email, mail, or both"
+
+      - name: department
+        sql: department
+        type: string
+        description: Department within organization (org customers only)
+
+      - name: title
+        sql: title
+        type: string
+        description: Job title of customer contact
+
+      - name: created_at
+        sql: created_at
+        type: time
+        description: When the customer record was created
+
+      # ------------------------------------------------------------------
+      # Subquery dimensions — pull aggregated measures from joined cubes
+      # into per-customer values. Cube implements these as correlated
+      # subqueries via joins (not actual SQL subqueries) for performance.
+      # ------------------------------------------------------------------
+
+      - name: lifetime_revenue
+        sql: "{transactions.total_booking_fees}"
+        type: number
+        sub_query: true
+        description: >
+          Total booking fee revenue from this customer (subquery from transactions cube).
+          Used to derive the revenue_segment dimension.
+
+      - name: lifetime_bookings
+        sql: "{bookings.count}"
+        type: number
+        sub_query: true
+        description: >
+          Total number of bookings by this customer (subquery from bookings cube).
+          Used to derive the retention_segment dimension.
+
+      - name: days_since_last_booking
+        sql: "{bookings.days_since_latest_booking}"
+        type: number
+        sub_query: true
+        description: >
+          Days since this customer's most recent booking (subquery from bookings cube).
+          Used to derive the retention_segment dimension.
+
+      # ------------------------------------------------------------------
+      # Derived dimensions — business logic from RAG knowledge base
+      # encoded as CASE expressions over the subquery dimensions above.
+      # ------------------------------------------------------------------
+
+      - name: revenue_segment
+        description: >
+          Customer value tier based on lifetime revenue.
+          Thresholds from business context: VIP >= $5,000, Premium >= $2,000,
+          Standard >= $500, Basic < $500.
+        type: string
+        case:
+          when:
+            - sql: "{lifetime_revenue} >= 5000"
+              label: VIP
+            - sql: "{lifetime_revenue} >= 2000"
+              label: Premium
+            - sql: "{lifetime_revenue} >= 500"
+              label: Standard
+          else:
+            label: Basic
+
+      - name: retention_segment
+        description: >
+          Customer retention status based on recency and frequency.
+          From business context: churned (>90 days since last booking),
+          at_risk (>30 days), active (3+ bookings), new (fewer).
+        type: string
+        case:
+          when:
+            - sql: "{days_since_last_booking} > 90"
+              label: churned
+            - sql: "{days_since_last_booking} > 30"
+              label: at_risk
+            - sql: "{lifetime_bookings} >= 3"
+              label: active
+          else:
+            label: new
+
+    measures:
+      - name: count
+        type: count
+        description: Total number of customers
+
+      - name: individual_count
+        type: count
+        filters:
+          - sql: "{CUBE}.customer_type = 'individual'"
+        description: Count of individual (person) customers
+
+      - name: organization_count
+        type: count
+        filters:
+          - sql: "{CUBE}.customer_type = 'organization'"
+        description: Count of organization (B2B/B2G) customers
+
+      - name: avg_lifetime_revenue
+        sql: "{lifetime_revenue}"
+        type: avg
+        format: currency
+        description: Average lifetime revenue per customer
+
+      - name: avg_lifetime_bookings
+        sql: "{lifetime_bookings}"
+        type: avg
+        description: Average number of bookings per customer
+
+    segments:
+      - name: individuals
+        sql: "{CUBE}.customer_type = 'individual'"
+        description: Individual person customers
+
+      - name: organizations
+        sql: "{CUBE}.customer_type = 'organization'"
+        description: Organization/company customers (B2B/B2G)
+
+      # Revenue-based segments (using the case dimension for filtering)
+      - name: vip_customers
+        sql: "COALESCE({lifetime_revenue}, 0) >= 5000"
+        description: "VIP tier: lifetime revenue >= $5,000"
+
+      - name: premium_customers
+        sql: "COALESCE({lifetime_revenue}, 0) >= 2000 AND COALESCE({lifetime_revenue}, 0) < 5000"
+        description: "Premium tier: lifetime revenue $2,000-$4,999"
+
+      - name: standard_customers
+        sql: "COALESCE({lifetime_revenue}, 0) >= 500 AND COALESCE({lifetime_revenue}, 0) < 2000"
+        description: "Standard tier: lifetime revenue $500-$1,999"
+
+      - name: basic_customers
+        sql: "COALESCE({lifetime_revenue}, 0) < 500"
+        description: "Basic tier: lifetime revenue < $500"
+
+      # Retention-based segments
+      - name: churned_customers
+        sql: "COALESCE({days_since_last_booking}, 999) > 90"
+        description: "Churned: no booking in over 90 days"
+
+      - name: at_risk_customers
+        sql: "COALESCE({days_since_last_booking}, 999) > 30 AND COALESCE({days_since_last_booking}, 999) <= 90"
+        description: "At risk: last booking 31-90 days ago"
+
+      - name: active_customers
+        sql: "COALESCE({days_since_last_booking}, 999) <= 30 AND COALESCE({lifetime_bookings}, 0) >= 3"
+        description: "Active: recent booking (<=30 days) and 3+ total bookings"
+
+      - name: new_customers
+        sql: "COALESCE({days_since_last_booking}, 999) <= 30 AND COALESCE({lifetime_bookings}, 0) < 3"
+        description: "New: recent booking but fewer than 3 total bookings"

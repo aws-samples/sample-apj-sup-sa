@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Database Initialization Stack - Custom Resource for schema and data loading'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  AuroraClusterArn:
+    Type: String
+    Description: Aurora cluster ARN for RDS Data API
+
+  DatabaseSecretArn:
+    Type: String
+    Description: Secrets Manager ARN for database credentials
+
+  DatabaseName:
+    Type: String
+    Default: timely_unicorn
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing schema and data files
+
+  SchemaKey:
+    Type: String
+    Default: schema/schema.sql
+
+  DataPrefix:
+    Type: String
+    Default: data
+
+  LambdaS3Key:
+    Type: String
+    Default: lambdas/database_init.zip
+    Description: S3 key for Lambda code (use hash-versioned key for updates)
+
+Resources:
+  #============================================================================
+  # IAM Role for Database Init Lambda
+  #============================================================================
+  DatabaseInitRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-db-init-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DatabaseInitPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
+                Resource: !Ref AuroraClusterArn
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecretArn
+              - Effect: Allow
+                Action:
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:UpdateSecret
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:agentic-analytics/aurora/app-credentials*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+
+  #============================================================================
+  # Database Init Lambda Function
+  #============================================================================
+  DatabaseInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-db-init
+      Description: Initialize Aurora database with schema and data
+      Runtime: python3.12
+      Handler: handler.lambda_handler
+      Role: !GetAtt DatabaseInitRole.Arn
+      Timeout: 900
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Ref LambdaS3Key
+      Environment:
+        Variables:
+          AWS_REGION_NAME: !Ref AWS::Region
+
+  #============================================================================
+  # Custom Resource to Trigger Database Init
+  #============================================================================
+  DatabaseInitTrigger:
+    Type: Custom::DatabaseInit
+    DependsOn: DatabaseInitFunction
+    Properties:
+      ServiceToken: !GetAtt DatabaseInitFunction.Arn
+      AuroraClusterArn: !Ref AuroraClusterArn
+      DatabaseSecretArn: !Ref DatabaseSecretArn
+      DatabaseName: !Ref DatabaseName
+      ArtifactsBucket: !Ref ArtifactsBucket
+      SchemaKey: !Ref SchemaKey
+      DataPrefix: !Ref DataPrefix
+
+Outputs:
+  DatabaseInitFunctionArn:
+    Description: Database Init Lambda Function ARN
+    Value: !GetAtt DatabaseInitFunction.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-DatabaseInitFunctionArn
+
+  DatabaseInitialized:
+    Description: Database initialization status
+    Value: !GetAtt DatabaseInitTrigger.DatabaseInitialized
+
+  AppDatabaseSecretArn:
+    Description: Secrets Manager ARN for app_user DB credentials (used by Lambda tools)
+    Value: !GetAtt DatabaseInitTrigger.AppDatabaseSecretArn
+    # NOTE: do not rename — imported by agentcore-topup-stack.yaml (workshop) as
+    # ${EnvironmentName}-AppDatabaseSecretArn. Renaming/removing breaks the import.
+    Export:
+      Name: !Sub ${EnvironmentName}-AppDatabaseSecretArn

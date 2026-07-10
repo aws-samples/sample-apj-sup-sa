@@ -1,0 +1,6 @@
+streamlit>=1.36
+boto3>=1.34
+numpy>=1.26
+pypdf>=4.0
+PyJWT>=2.8
+cryptography>=41.0

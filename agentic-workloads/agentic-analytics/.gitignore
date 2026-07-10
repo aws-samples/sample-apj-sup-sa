@@ -1,0 +1,67 @@
+# --- Secrets / environment (NEVER commit API keys or credentials) ---
+.env
+.env.local
+.env.*.local
+*/.env
+config.env
+*/config.env
+app/agentcore_strands/.env
+app/agentcore_strands/*.env
+app/ui/.env
+*.pem
+*.key
+# Generated config that contains DB endpoints / secret ARNs / VPC ids
+infrastructure/config/deployment-config.json
+# keep the example templates
+!env.example
+!*.env.example
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+**/.hypothesis/
+
+# --- Node / web client ---
+node_modules/
+app/ui/node_modules/
+dist/
+build/
+app/ui/build/
+.vite/
+
+# --- Bedrock AgentCore runtime artifacts ---
+.bedrock_agentcore*
+app/agentcore_strands/gateway_config.json
+app/agentcore_strands/Dockerfile
+
+# --- Generated / build artifacts ---
+*.zip
+
+# --- Workshop Studio (generated during packaging) ---
+workshop/.deploy-config
+workshop/assets/
+workshop/static/main-stack.yaml
+workshop/static/assets/
+
+# --- Temporary / test artifacts ---
+tmp/*
+dataset/dev/tmp/
+dev/tmp/
+app/agentcore_strands/lambda_tests/
+changes.md
+.kiro/specs/semantic-layer-cube/*
+
+# --- OS / editor ---
+.DS_Store
+*DS_Store*
+*.swp
+.idea/
+
+# --- Claude Code local (personal) overrides ---
+.claude/settings.local.json
+.claude/.credentials.json

@@ -82,6 +82,7 @@ class ApiConstruct(Construct):
             amp_workspace_id=observability.amp_workspace_id,
             log_group=compute.ecs_log_group,
             origin_secret=self.origin_secret,
+            anthropic_api_key_secret_arn=data.anthropic_api_key_secret.secret_arn,
         )
         self.gateway_service = ecs.FargateService(
             self,

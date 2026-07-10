@@ -1,0 +1,23 @@
+aws_region  = "ap-northeast-2"
+name_prefix = "example-osmo-eks"
+
+# Populate these from the core deployment or live cluster:
+#
+#   terraform -chdir=infra/core output -raw cluster_name
+#   terraform -chdir=infra/core output -raw cluster_oidc_issuer_url
+#   terraform -chdir=infra/core output -raw cluster_oidc_provider_arn
+#
+cluster_name              = "example-osmo-eks"
+cluster_oidc_issuer_url   = "https://oidc.eks.ap-northeast-2.amazonaws.com/id/EXAMPLE"
+cluster_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.ap-northeast-2.amazonaws.com/id/EXAMPLE"
+
+# AMG uses AWS IAM Identity Center. There is no Grafana local id/password,
+# and this root does not create IAM users for Grafana. Add IAM Identity Center
+# UserId or GroupId values to allow browser login.
+admin_user_ids  = []
+admin_group_ids = []
+
+tags = {
+  Project     = "aws-osmo"
+  Environment = "dev-repro"
+}

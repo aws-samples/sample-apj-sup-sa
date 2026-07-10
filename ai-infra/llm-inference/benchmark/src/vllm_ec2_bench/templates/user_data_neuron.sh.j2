@@ -1,0 +1,144 @@
+#!/bin/bash
+# =============================================================================
+# user_data_neuron.sh.j2 -- Cloud-init for AWS Neuron (inf2/trn1) EC2.
+#
+# Rendered with Jinja2 by vllm_ec2_bench.deployer.user_data.UserDataRenderer.
+# Runs vLLM with --device=neuron inside the AWS Deep Learning Container
+# for Neuron.
+#
+# Required Jinja2 variables:
+#   log_tag                  -- free-form tag for log lines
+#   model_id                 -- HF repo id
+#   served_model_name        -- vLLM --served-model-name
+#   hf_token                 -- (REMOVED) HF token now fetched from Secrets Manager
+#   hf_secret_name           -- Name of the Secrets Manager secret holding the HF token
+#   vllm_api_key             -- bearer token clients must present
+#   tensor_parallel_size     -- vLLM --tensor-parallel-size (== Neuron core count)
+#   data_parallel_size       -- vLLM --data-parallel-size
+#   pipeline_parallel_size   -- vLLM --pipeline-parallel-size
+#   max_model_len            -- vLLM --max-model-len
+#   enable_prefix_caching    -- bool
+#   dtype                    -- "bfloat16"
+#   container_name           -- Docker --name value
+#   ready_check_name         -- filename stem for the readiness helper
+#   neuron_image             -- fully-qualified Neuron DLC image
+#   neuron_visible_devices   -- "ALL" or comma list (maps to NEURON_RT_VISIBLE_CORES)
+#   num_accelerators         -- physical Neuron device count; we add --device=/dev/neuronN
+#                                for N in 0..num_accelerators-1
+#   region                   -- AWS region (for ECR login)
+# =============================================================================
+set -euxo pipefail
+exec > >(tee -a /var/log/{{ log_tag }}-bootstrap.log) 2>&1
+
+echo "[{{ log_tag }}] neuron bootstrap start $(date -Iseconds)"
+
+export DEBIAN_FRONTEND=noninteractive
+
+# ---------------------------------------------------------------------------
+# 1. Docker
+# ---------------------------------------------------------------------------
+if ! command -v docker >/dev/null 2>&1; then
+  apt-get update -y && apt-get install -y docker.io
+  systemctl enable --now docker
+fi
+
+# ---------------------------------------------------------------------------
+# 2. SSM agent
+# ---------------------------------------------------------------------------
+if ! systemctl is-active --quiet amazon-ssm-agent \
+   && ! systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+  snap install amazon-ssm-agent --classic || true
+  systemctl enable --now snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+fi
+
+# ---------------------------------------------------------------------------
+# 3. HF cache + ECR login for the AWS-published Neuron DLC
+# ---------------------------------------------------------------------------
+HF_HOME=/opt/hf-cache
+mkdir -p "$HF_HOME"
+
+NEURON_REGISTRY=$(echo '{{ neuron_image }}' | cut -d/ -f1)
+if echo "$NEURON_REGISTRY" | grep -q "public.ecr.aws"; then
+  # Public ECR images can be pulled without authentication
+  echo "[{{ log_tag }}] pulling from public ECR (no login needed)"
+else
+  aws ecr get-login-password --region '{{ region }}' \
+    | docker login --username AWS --password-stdin "$NEURON_REGISTRY"
+fi
+
+docker pull '{{ neuron_image }}'
+
+# ---------------------------------------------------------------------------
+# 4. Launch vLLM with the Neuron backend
+# ---------------------------------------------------------------------------
+docker rm -f {{ container_name }} || true
+
+PREFIX_CACHING_FLAG=""
+if [ "{{ 'true' if enable_prefix_caching else 'false' }}" = "true" ]; then
+  PREFIX_CACHING_FLAG="--enable-prefix-caching"
+fi
+
+# Build --device flags dynamically from num_accelerators
+NEURON_DEVICE_FLAGS=""
+for i in $(seq 0 $(({{ num_accelerators }} - 1))); do
+  NEURON_DEVICE_FLAGS="$NEURON_DEVICE_FLAGS --device=/dev/neuron$i"
+done
+
+# HF_TOKEN from Secrets Manager — never appears in this user-data blob.
+HF_TOKEN=""
+{% if hf_secret_name %}
+HF_TOKEN="$(aws secretsmanager get-secret-value \
+  --secret-id '{{ hf_secret_name }}' \
+  --region '{{ region }}' \
+  --query SecretString --output text 2>/dev/null || true)"
+if [ -z "$HF_TOKEN" ]; then
+  echo "WARNING: failed to fetch HF_TOKEN from Secrets Manager secret '{{ hf_secret_name }}' — model pulls may fail if the repo is gated."
+fi
+{% endif %}
+
+docker run -d \
+  --name {{ container_name }} \
+  --restart unless-stopped \
+  $NEURON_DEVICE_FLAGS \
+  --cap-add=IPC_LOCK \
+  --shm-size=16g \
+  -p 8000:8000 \
+  -e NEURON_RT_VISIBLE_CORES='{{ neuron_visible_devices }}' \
+{% if hf_secret_name %}
+  -e HF_TOKEN="$HF_TOKEN" \
+  -e HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" \
+{% endif %}
+  -e HF_HOME=/root/.cache/huggingface \
+  -v "$HF_HOME:/root/.cache/huggingface" \
+  '{{ neuron_image }}' \
+  vllm serve '{{ model_id }}' \
+    --served-model-name '{{ served_model_name }}' \
+    --tensor-parallel-size {{ tensor_parallel_size }} \
+    --pipeline-parallel-size {{ pipeline_parallel_size }} \
+    --dtype {{ dtype }} \
+    --max-model-len {{ max_model_len }} \
+    --block-size 32 \
+    --api-key '{{ vllm_api_key }}' \
+    --trust-remote-code \
+    --host 0.0.0.0 --port 8000 \
+    $PREFIX_CACHING_FLAG
+
+# ---------------------------------------------------------------------------
+# 5. Readiness marker
+# ---------------------------------------------------------------------------
+cat > /usr/local/bin/{{ ready_check_name }}.sh <<'EOF'
+#!/bin/bash
+for i in {1..3600}; do
+  if curl -fsS -H "Authorization: Bearer $1" http://127.0.0.1:8000/v1/models >/dev/null 2>&1; then
+    touch /run/{{ ready_check_name }}-ready
+    exit 0
+  fi
+  sleep 5
+done
+exit 1
+EOF
+chmod +x /usr/local/bin/{{ ready_check_name }}.sh
+nohup /usr/local/bin/{{ ready_check_name }}.sh '{{ vllm_api_key }}' \
+  >/var/log/{{ ready_check_name }}.log 2>&1 &
+
+echo "[{{ log_tag }}] neuron bootstrap done $(date -Iseconds)"

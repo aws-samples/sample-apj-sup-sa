@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amplify Hosting Stack - Deploy React UI to AWS Amplify'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing deployment artifacts
+
+  UIBuildKey:
+    Type: String
+    Default: ui/build.zip
+    Description: S3 key for UI build ZIP file
+
+  AppName:
+    Type: String
+    Default: agentic-analytics-ui
+    Description: Amplify app name
+
+  BranchName:
+    Type: String
+    Default: main
+    Description: Branch name for deployment
+
+  # Environment variables for React app
+  AWSRegion:
+    Type: String
+    Default: us-east-1
+
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: Cognito User Pool ID
+
+  CognitoUserClientId:
+    Type: String
+    Default: ''
+    Description: Cognito User Client ID
+
+  CognitoDomain:
+    Type: String
+    Default: ''
+    Description: Cognito domain
+
+  CognitoIdentityPoolId:
+    Type: String
+    Default: ''
+    Description: Cognito Identity Pool ID
+
+  AgentCoreRuntimeEndpoint:
+    Type: String
+    Default: ''
+    Description: AgentCore Runtime endpoint
+
+  VoiceSignalingUrl:
+    Type: String
+    Default: ''
+    Description: WebRTC signaling proxy base URL (set when EnableVoice=true). Blank → UI hides the Voice button. The SPA POSTs SDP offers / PATCHes ICE to {this}/api/offer.
+
+  LambdaS3Key:
+    Type: String
+    Default: lambda/amplify_hosting.zip
+    Description: S3 key for Amplify Hosting Lambda code
+
+Resources:
+  #============================================================================
+  # IAM Role for Amplify Hosting Lambda
+  #============================================================================
+  AmplifyHostingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-amplify-hosting-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AmplifyHostingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - amplify:CreateApp
+                  - amplify:DeleteApp
+                  - amplify:UpdateApp
+                  - amplify:ListApps
+                  - amplify:CreateBranch
+                  - amplify:GetBranch
+                  - amplify:CreateDeployment
+                  - amplify:StartDeployment
+                  - amplify:GetJob
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:UpdateUserPoolClient
+                Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+
+  #============================================================================
+  # Amplify Hosting Lambda Function
+  #============================================================================
+  AmplifyHostingFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-amplify-hosting
+      Description: Deploy React UI to Amplify Hosting
+      Runtime: python3.12
+      Handler: handler.lambda_handler
+      Role: !GetAtt AmplifyHostingRole.Arn
+      Timeout: 600
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Ref LambdaS3Key
+      Environment:
+        Variables:
+          AWS_REGION_NAME: !Ref AWS::Region
+
+  #============================================================================
+  # Custom Resource to Deploy Amplify App
+  #============================================================================
+  AmplifyHostingTrigger:
+    Type: Custom::AmplifyHosting
+    DependsOn: AmplifyHostingFunction
+    Properties:
+      ServiceToken: !GetAtt AmplifyHostingFunction.Arn
+      AppName: !Ref AppName
+      BranchName: !Ref BranchName
+      ArtifactsBucket: !Ref ArtifactsBucket
+      ArtifactsKey: !Ref UIBuildKey
+      CognitoUserPoolId: !Ref CognitoUserPoolId
+      CognitoUserClientId: !Ref CognitoUserClientId
+      EnvironmentVariables:
+        REACT_APP_AWS_REGION: !Ref AWSRegion
+        REACT_APP_COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+        REACT_APP_COGNITO_USER_CLIENT_ID: !Ref CognitoUserClientId
+        REACT_APP_COGNITO_DOMAIN: !Ref CognitoDomain
+        REACT_APP_COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
+        REACT_APP_AGENTCORE_RUNTIME_ENDPOINT: !Ref AgentCoreRuntimeEndpoint
+        REACT_APP_VOICE_SIGNALING_URL: !Ref VoiceSignalingUrl
+
+Outputs:
+  AmplifyAppId:
+    Description: Amplify App ID
+    Value: !GetAtt AmplifyHostingTrigger.AppId
+    Export:
+      Name: !Sub ${EnvironmentName}-AmplifyAppId
+
+  AmplifyAppUrl:
+    Description: Amplify App URL
+    Value: !GetAtt AmplifyHostingTrigger.AppUrl
+    Export:
+      Name: !Sub ${EnvironmentName}-AmplifyAppUrl
+
+  AmplifyDefaultDomain:
+    Description: Amplify Default Domain
+    Value: !GetAtt AmplifyHostingTrigger.DefaultDomain
+    Export:
+      Name: !Sub ${EnvironmentName}-AmplifyDefaultDomain

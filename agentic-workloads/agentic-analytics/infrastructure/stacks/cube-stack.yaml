@@ -1,0 +1,351 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cube Core Semantic Layer - EC2 with Docker in a PRIVATE subnet (no public IP)'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID (from aurora-stack)
+
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet for the Cube EC2 (no public IP; egress via NAT)
+
+  LambdaSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Lambda SG - Cube must allow inbound from this on port 4000
+
+  CodeEditorSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Code Editor SG - allowed inbound on 4000 so the Code Editor nginx can proxy the Cube Playground
+
+  VPCEndpointSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: VPC Endpoint SG - Cube (now private) reaches Secrets Manager via the interface endpoint, so it needs inbound 443 here
+
+  AuroraSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Aurora SG - must allow inbound from Cube SG on port 5432
+
+  DatabaseSecretArn:
+    Type: String
+    Description: Secrets Manager ARN for Aurora credentials
+
+  AuroraEndpoint:
+    Type: String
+    Description: Aurora cluster endpoint (hostname)
+
+  DatabaseName:
+    Type: String
+    Default: timely_unicorn
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64
+
+Resources:
+  #============================================================================
+  # S3 Bucket for Cube Configuration (models, etc.)
+  #============================================================================
+  CubeConfigBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-cube-config-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-cube-config
+
+  #============================================================================
+  # Cube API secret — generated per deploy (replaces the old hardcoded value).
+  # Shared HS256 secret between the Cube container (CUBEJS_API_SECRET) and the
+  # semantic-layer Lambda, which mints short-lived tokens to call Cube's API.
+  #============================================================================
+  CubeApiSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}/cube/api-secret
+      Description: HS256 secret shared by Cube Core and the semantic-layer Lambda
+      GenerateSecretString:
+        # Hex-only token; exclude punctuation so it's shell/env-safe in UserData.
+        PasswordLength: 48
+        ExcludePunctuation: true
+        IncludeSpace: false
+
+  #============================================================================
+  # Security Groups
+  #============================================================================
+  CubeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-cube-sg
+      GroupDescription: Security group for Cube Core EC2 instance
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          SourceSecurityGroupId: !Ref LambdaSecurityGroupId
+          Description: Allow Cube API from the semantic-layer Lambda (the tool path)
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          SourceSecurityGroupId: !Ref CodeEditorSecurityGroupId
+          Description: Allow Cube Playground only from the Code Editor (nginx reverse proxy) - no public access
+
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref AuroraSecurityGroupId
+          Description: Allow PostgreSQL outbound to Aurora
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTPS outbound (Docker pulls, AWS APIs)
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-cube-sg
+
+  # Allow Lambda to reach Cube on port 4000
+  LambdaSecurityGroupCubeEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref LambdaSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 4000
+      ToPort: 4000
+      DestinationSecurityGroupId: !Ref CubeSecurityGroup
+      Description: Allow Cube API outbound to Cube EC2
+
+  # Allow Aurora to accept connections from Cube
+  AuroraSecurityGroupCubeIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AuroraSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref CubeSecurityGroup
+      Description: Allow PostgreSQL from Cube EC2
+
+  # Cube is in a PRIVATE subnet. The Secrets Manager interface endpoint has
+  # Private DNS enabled, so secretsmanager.<region>.amazonaws.com resolves to
+  # the endpoint's ENIs — not out via NAT. Cube reads its DB credentials (and
+  # the Cube API secret) at boot, so it must be allowed inbound 443 on the
+  # VPC-endpoint SG, or the get-secret-value call times out and Cube starts
+  # with empty DB credentials.
+  VPCEndpointIngressFromCube:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref VPCEndpointSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref CubeSecurityGroup
+      Description: Allow Cube EC2 to reach Secrets Manager via the interface VPC endpoint
+
+  #============================================================================
+  # IAM Role for Cube EC2
+  #============================================================================
+  CubeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-cube-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: CubeSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref DatabaseSecretArn
+                  - !Ref CubeApiSecret
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:SignalResource
+                Resource: !Ref AWS::StackId
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt CubeConfigBucket.Arn
+                  - !Sub ${CubeConfigBucket.Arn}/*
+
+  CubeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CubeInstanceRole
+
+  #============================================================================
+  # Cube EC2 Instance (public subnet)
+  #============================================================================
+  CubeInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - CubeInstanceRole
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT15M
+    Properties:
+      InstanceType: t3.large
+      ImageId: !Ref LatestAmiId
+      IamInstanceProfile: !Ref CubeInstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: false
+          DeviceIndex: '0'
+          SubnetId: !Ref PrivateSubnet1Id
+          GroupSet:
+            - !Ref CubeSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-cube
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+            - ""
+            - - |-
+                #!/bin/bash
+                (
+                  set +e
+                  /opt/aws/bin/cfn-init -v --region 
+              - !Ref AWS::Region
+              - " --stack "
+              - !Ref AWS::StackName
+              - !Sub |2-
+                 --resource CubeInstance -c default
+                  /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource CubeInstance
+                  cat /var/log/cfn-init.log >&2
+                )
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default:
+            - prereqs
+            - cuberun
+        prereqs:
+          packages:
+            yum:
+              docker: []
+              jq: []
+          commands:
+            "000":
+              command: systemctl enable docker
+            "001":
+              command: systemctl start docker
+            "002":
+              command: sleep 10
+              ignoreErrors: true
+            "003":
+              command: mkdir -p /cube/conf/model
+          services:
+            sysvinit:
+              docker:
+                enabled: true
+                ensureRunning: true
+        cuberun:
+          commands:
+            "000":
+              command: !Sub |
+                SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id ${DatabaseSecretArn} --region ${AWS::Region} --query SecretString --output text)
+                DB_USER=$(echo "$SECRET_JSON" | jq -r '.username')
+                DB_PASS=$(echo "$SECRET_JSON" | jq -r '.password')
+                # Per-deploy Cube API secret (no longer a hardcoded value)
+                CUBE_API_SECRET=$(aws secretsmanager get-secret-value --secret-id ${CubeApiSecret} --region ${AWS::Region} --query SecretString --output text)
+                docker run -d \
+                  --name cube \
+                  --restart unless-stopped \
+                  -p 4000:4000 \
+                  -v /cube/conf:/cube/conf \
+                  -e CUBEJS_DB_TYPE=postgres \
+                  -e CUBEJS_DB_HOST=${AuroraEndpoint} \
+                  -e CUBEJS_DB_PORT=5432 \
+                  -e CUBEJS_DB_NAME=${DatabaseName} \
+                  -e CUBEJS_DB_USER="$DB_USER" \
+                  -e CUBEJS_DB_PASS="$DB_PASS" \
+                  -e CUBEJS_DB_SSL=true \
+                  -e CUBEJS_DEV_MODE=true \
+                  -e CUBEJS_API_SECRET="$CUBE_API_SECRET" \
+                  cubejs/cube:v0.36.11
+              ignoreErrors: true
+            "001":
+              command: |
+                echo "Waiting for Cube Core to start..."
+                for i in $(seq 1 30); do
+                  if curl -s http://localhost:4000/cubejs-api/v1/meta > /dev/null 2>&1; then
+                    echo "Cube Core is ready"
+                    break
+                  fi
+                  sleep 5
+                done
+              ignoreErrors: true
+Outputs:
+  CubeEndpoint:
+    Description: Cube Core API endpoint (private - reachable in-VPC by the Lambda and the Code Editor proxy)
+    Value: !Sub "http://${CubeInstance.PrivateIp}:4000"
+    Export:
+      Name: !Sub ${EnvironmentName}-CubeEndpoint
+
+  CubePrivateIp:
+    Description: Private IP of Cube EC2 instance (for Lambda access)
+    Value: !GetAtt CubeInstance.PrivateIp
+    Export:
+      Name: !Sub ${EnvironmentName}-CubePrivateIp
+
+  CubeApiSecretArn:
+    Description: ARN of the generated Cube API secret (shared with the semantic Lambda)
+    Value: !Ref CubeApiSecret
+    Export:
+      Name: !Sub ${EnvironmentName}-CubeApiSecretArn
+
+  CubeSecurityGroupId:
+    Description: Cube Security Group ID
+    Value: !Ref CubeSecurityGroup
+    Export:
+      Name: !Sub ${EnvironmentName}-CubeSecurityGroupId
+
+  CubeInstanceId:
+    Description: Cube EC2 Instance ID (for SSM commands)
+    Value: !Ref CubeInstance
+    Export:
+      Name: !Sub ${EnvironmentName}-CubeInstanceId
+
+  CubeConfigBucketName:
+    Description: S3 bucket for Cube configuration files (models, etc.)
+    Value: !Ref CubeConfigBucket
+    Export:
+      Name: !Sub ${EnvironmentName}-CubeConfigBucket
+

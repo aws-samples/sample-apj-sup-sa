@@ -1,0 +1,526 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Agentic Analytics - One-Click Deployment (Root Stack)'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+    Description: Environment name prefix for all resources
+
+  DeployMode:
+    Type: String
+    Default: demo
+    AllowedValues:
+      - demo
+      - workshop
+    Description: 'demo = deploy everything, workshop = infrastructure + EC2 VS Code (no AgentCore/Amplify)'
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket containing deployment artifacts (schema, data, Lambda code)
+
+  ArtifactsPrefix:
+    Type: String
+    Default: ''
+    Description: 'S3 key prefix for artifacts (empty for direct deploy, set by Workshop Studio via {{.AssetsBucketPrefix}})'
+
+  # Lambda S3 keys with content hash for versioning
+  DatabaseInitLambdaKey:
+    Type: String
+    Default: lambdas/database_init.zip
+    Description: S3 key for database init Lambda (use hash-versioned key)
+
+  GlueCrawlerLambdaKey:
+    Type: String
+    Default: lambdas/glue_crawler_trigger.zip
+    Description: S3 key for Glue crawler Lambda (use hash-versioned key)
+
+  BedrockKBLambdaKey:
+    Type: String
+    Default: lambdas/bedrock_kb_ingestion.zip
+    Description: S3 key for Bedrock KB Lambda (use hash-versioned key)
+
+  AgentCodeS3Key:
+    Type: String
+    Default: agent/agent_code.zip
+    Description: S3 key for agent code ZIP (for AgentCore Runtime)
+
+  AmplifyLambdaKey:
+    Type: String
+    Default: lambdas/amplify_hosting.zip
+    Description: S3 key for Amplify Hosting Lambda (use hash-versioned key)
+
+  DataFoundationLambdaKey:
+    Type: String
+    Default: lambda/datafoundation_lambda.zip
+    Description: S3 key for DataFoundation toolset Lambda (use hash-versioned key)
+
+  InterceptorLambdaKey:
+    Type: String
+    Default: lambdas/gateway_interceptor.zip
+    Description: S3 key for Gateway interceptor Lambda (use hash-versioned key)
+
+  ApiIntegLambdaKey:
+    Type: String
+    Default: lambdas/api_integration_toolset.zip
+    Description: S3 key for API integration toolset Lambda (use hash-versioned key)
+
+  CustomSqlLambdaKey:
+    Type: String
+    Default: lambdas/custom_sql_toolset.zip
+    Description: S3 key for custom SQL toolset Lambda (use hash-versioned key)
+
+  SemanticLayerLambdaKey:
+    Type: String
+    Default: lambdas/semantic_layer_toolset.zip
+    Description: S3 key for semantic layer toolset Lambda (use hash-versioned key)
+
+  PolicyMode:
+    Type: String
+    Default: LOG_ONLY
+    AllowedValues:
+      - LOG_ONLY
+      - ENFORCE
+    Description: 'Cedar policy enforcement mode (demo only). LOG_ONLY logs decisions; ENFORCE blocks unauthorized access.'
+
+  EnableGuardrail:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: 'Whether to deploy a Bedrock Guardrail and wire it into the agent runtime (demo only).'
+
+  UIBuildKey:
+    Type: String
+    Default: ui/build.zip
+    Description: S3 key for the UI build ZIP (use hash-versioned key so iterative deploys re-trigger the Amplify custom resource)
+
+  ObservabilityLambdaKey:
+    Type: String
+    Default: lambdas/observability_setup.zip
+    Description: S3 key for observability setup Lambda (use hash-versioned key)
+
+  # ── Voice (optional, additive) ──────────────────────────────────────────────
+  EnableVoice:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Deploy the voice layer (Pipecat pipeline). Demo mode only. Default off.
+  VoiceMode:
+    Type: String
+    Default: agentcore
+    AllowedValues: [agentcore, pipecat-cloud]
+    Description: Where the voice pipeline runs when EnableVoice=true. agentcore = its own AgentCore Runtime (WebRTC+KVS). (laptop is a local-dev path, not a CFN value.)
+  VoiceAgentCodeS3Key:
+    Type: String
+    Default: voice/voice_agent_code.zip
+    Description: S3 key of the voice bot code zip (CodeBuild source for agentcore mode)
+  DeepgramApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Deepgram API key (required when EnableVoice=true)
+  DeepgramVoiceId:
+    Type: String
+    Default: aura-2-apollo-en
+    Description: Deepgram TTS voice id
+
+Conditions:
+  IsDemo: !Equals [!Ref DeployMode, 'demo']
+  IsWorkshop: !Equals [!Ref DeployMode, 'workshop']
+  # Voice is demo-only and additive. VoiceAgentCore is the CFN-wired mode (the voice
+  # pipeline runs as its own AgentCore Runtime, WebRTC + KVS TURN, no vendor SFU);
+  # pipecat-cloud is managed by its own custom-resource stack
+  # (infrastructure/voice-pcc-cr) deployed separately.
+  VoiceEnabled: !And [!Equals [!Ref DeployMode, 'demo'], !Equals [!Ref EnableVoice, 'true']]
+  VoiceAgentCore: !And [!Condition VoiceEnabled, !Equals [!Ref VoiceMode, 'agentcore']]
+
+Resources:
+  #============================================================================
+  # Phase 1: Infrastructure (VPC, Aurora, Security Groups)
+  #============================================================================
+  ObservabilityStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/observability-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        LambdaS3Key: !Sub ${ArtifactsPrefix}${ObservabilityLambdaKey}
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  AuroraStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/aurora-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 1b: Cognito (User Pool, Users, Identity Pool)
+  #============================================================================
+  CognitoStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/cognito-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        UsersCSVKey: !Sub ${ArtifactsPrefix}data/users.csv
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 2: Database Initialization (Schema, Data, Views)
+  #============================================================================
+  DatabaseInitStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: AuroraStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/database-init-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AuroraClusterArn: !GetAtt AuroraStack.Outputs.AuroraResourceArn
+        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+        DatabaseName: !GetAtt AuroraStack.Outputs.DatabaseName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        LambdaS3Key: !Sub ${ArtifactsPrefix}${DatabaseInitLambdaKey}
+        SchemaKey: !Sub ${ArtifactsPrefix}schema/schema.sql
+        DataPrefix: !Sub ${ArtifactsPrefix}data
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 3: Glue Data Catalog
+  #============================================================================
+  GlueStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DatabaseInitStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/glue-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AuroraStackName: !Sub ${EnvironmentName}-aurora
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        TriggerCrawler: 'true'
+        LambdaS3Key: !Sub ${ArtifactsPrefix}${GlueCrawlerLambdaKey}
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 4: Bedrock Knowledge Base
+  #============================================================================
+  BedrockKBStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DatabaseInitStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/bedrock-kb-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AuroraClusterArn: !GetAtt AuroraStack.Outputs.AuroraResourceArn
+        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+        DatabaseName: !GetAtt AuroraStack.Outputs.DatabaseName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        LambdaS3Key: !Sub ${ArtifactsPrefix}${BedrockKBLambdaKey}
+        BusinessContextKey: !Sub ${ArtifactsPrefix}docs/business-context.md
+        KnowledgeBaseName: !Sub ${EnvironmentName}-kb
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 5: Code Editor (Workshop mode only)
+  #============================================================================
+  CodeEditorStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsWorkshop
+    DependsOn:
+      - DatabaseInitStack
+      - CognitoStack
+      - GlueStack
+      - BedrockKBStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/code-editor-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcId: !GetAtt AuroraStack.Outputs.VpcId
+        PublicSubnetId: !GetAtt AuroraStack.Outputs.PublicSubnet1Id
+        VpcCIDR: !GetAtt AuroraStack.Outputs.VpcCIDR
+        VPCEndpointSecurityGroupId: !GetAtt AuroraStack.Outputs.VPCEndpointSecurityGroupId
+        AuroraSecurityGroupId: !GetAtt AuroraStack.Outputs.AuroraSecurityGroupId
+        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+        AuroraEndpoint: !GetAtt AuroraStack.Outputs.AuroraClusterEndpoint
+        DatabaseName: !GetAtt AuroraStack.Outputs.DatabaseName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        KnowledgeBaseId: !GetAtt BedrockKBStack.Outputs.KnowledgeBaseId
+        GlueDatabaseName: !GetAtt GlueStack.Outputs.GlueDatabaseName
+        CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        CognitoUserLoginClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
+        CognitoDomain: !GetAtt CognitoStack.Outputs.CognitoDomain
+        LambdaSecurityGroupId: !GetAtt AuroraStack.Outputs.LambdaSecurityGroupId
+        PrivateSubnet1Id: !GetAtt AuroraStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt AuroraStack.Outputs.PrivateSubnet2Id
+        AppDatabaseSecretArn: !GetAtt DatabaseInitStack.Outputs.AppDatabaseSecretArn
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 5b: Cube Core Semantic Layer
+  #============================================================================
+  CubeStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsWorkshop
+    # DependsOn CodeEditorStack: Cube's SG allows inbound 4000 only from the Code
+    # Editor SG (no public access), so the Code Editor SG must exist first. The
+    # Code Editor reaches Cube's private IP at RUNTIME (tag lookup), so there is no
+    # reverse build-time dependency — no cycle.
+    DependsOn:
+      - DatabaseInitStack
+      - CodeEditorStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/cube-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcId: !GetAtt AuroraStack.Outputs.VpcId
+        PrivateSubnet1Id: !GetAtt AuroraStack.Outputs.PrivateSubnet1Id
+        LambdaSecurityGroupId: !GetAtt AuroraStack.Outputs.LambdaSecurityGroupId
+        CodeEditorSecurityGroupId: !GetAtt CodeEditorStack.Outputs.CodeEditorSecurityGroupId
+        VPCEndpointSecurityGroupId: !GetAtt AuroraStack.Outputs.VPCEndpointSecurityGroupId
+        AuroraSecurityGroupId: !GetAtt AuroraStack.Outputs.AuroraSecurityGroupId
+        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+        AuroraEndpoint: !GetAtt AuroraStack.Outputs.AuroraClusterEndpoint
+        DatabaseName: !GetAtt AuroraStack.Outputs.DatabaseName
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 6: AgentCore Gateway + Runtime (Demo mode only)
+  #============================================================================
+  AgentCoreStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsDemo
+    DependsOn:
+      - DatabaseInitStack
+      - CognitoStack
+      - BedrockKBStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/agentcore-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AuroraEndpoint: !GetAtt AuroraStack.Outputs.AuroraClusterEndpoint
+        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+        AppDatabaseSecretArn: !GetAtt DatabaseInitStack.Outputs.AppDatabaseSecretArn
+        SubnetIds: !Join [',', [!GetAtt AuroraStack.Outputs.PrivateSubnet1Id, !GetAtt AuroraStack.Outputs.PrivateSubnet2Id]]
+        SecurityGroupId: !GetAtt AuroraStack.Outputs.LambdaSecurityGroupId
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        KnowledgeBaseId: !GetAtt BedrockKBStack.Outputs.KnowledgeBaseId
+        CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        CognitoClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
+        DataFoundationLambdaKey: !Ref DataFoundationLambdaKey
+        InterceptorLambdaKey: !Ref InterceptorLambdaKey
+        ApiIntegLambdaKey: !Ref ApiIntegLambdaKey
+        CustomSqlLambdaKey: !Ref CustomSqlLambdaKey
+        SemanticLayerLambdaKey: !Ref SemanticLayerLambdaKey
+        CubePrivateIp: !If [IsWorkshop, !GetAtt CubeStack.Outputs.CubePrivateIp, '']
+        PolicyMode: !Ref PolicyMode
+        EnableGuardrail: !Ref EnableGuardrail
+        AgentCodeS3Key: agent/agent_code.zip
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 6: Voice (optional, agentcore mode) — the Pipecat pipeline as its OWN
+  # AgentCore Runtime (WebRTC + KVS managed TURN, no vendor SFU). Built before
+  # Amplify so its signaling-proxy URL can be injected into the UI's runtime config.
+  # Reuses the Aurora VPC's private subnets + NAT (VPC NetworkMode is required for
+  # UDP TURN). The pipeline invokes the Strands analytics runtime over Bearer HTTPS.
+  #============================================================================
+  VoiceAgentCoreStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: VoiceAgentCore
+    DependsOn:
+      - CognitoStack
+      - AgentCoreStack
+      - AuroraStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/voice-agentcore-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        VoiceAgentCodeS3Key: !Ref VoiceAgentCodeS3Key
+        CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        CognitoClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
+        StrandsAgentRuntimeArn: !GetAtt AgentCoreStack.Outputs.AgentRuntimeArn
+        ChartBucket: !Ref ArtifactsBucket
+        DeepgramApiKey: !Ref DeepgramApiKey
+        DeepgramVoiceId: !Ref DeepgramVoiceId
+        VpcId: !GetAtt AuroraStack.Outputs.VpcId
+        PrivateSubnet1Id: !GetAtt AuroraStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt AuroraStack.Outputs.PrivateSubnet2Id
+        # The voice Runtime builds its own AgentCore-supported-AZ subnets and attaches
+        # them to this NAT-routed private route table (Aurora private subnets can land
+        # in an AgentCore-unsupported AZ like use1-az6).
+        PrivateRouteTableId: !GetAtt AuroraStack.Outputs.PrivateRouteTableId
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 7: Amplify Hosting (Demo mode only)
+  #============================================================================
+  AmplifyStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsDemo
+    DependsOn:
+      - CognitoStack
+      - AgentCoreStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/amplify-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        AWSRegion: !Ref AWS::Region
+        CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        CognitoUserClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
+        CognitoDomain: !GetAtt CognitoStack.Outputs.CognitoDomain
+        CognitoIdentityPoolId: !GetAtt CognitoStack.Outputs.IdentityPoolId
+        AgentCoreRuntimeEndpoint: !GetAtt AgentCoreStack.Outputs.AgentRuntimeEndpointArn
+        # Empty unless voice (agentcore) is enabled → UI hides the Voice button when blank.
+        # The WebRTC signaling proxy base URL; the SPA POSTs SDP offers / PATCHes ICE
+        # to {this}/api/offer (the proxy forwards to the runtime + unwraps the SSE answer).
+        VoiceSignalingUrl: !If [VoiceAgentCore, !GetAtt VoiceAgentCoreStack.Outputs.VoiceSignalingUrl, '']
+        LambdaS3Key: !Sub ${ArtifactsPrefix}${AmplifyLambdaKey}
+        UIBuildKey: !Sub ${ArtifactsPrefix}${UIBuildKey}
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+Outputs:
+  VpcId:
+    Description: VPC ID
+    Value: !GetAtt AuroraStack.Outputs.VpcId
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !GetAtt AuroraStack.Outputs.PrivateSubnet1Id
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !GetAtt AuroraStack.Outputs.PrivateSubnet2Id
+
+  LambdaSecurityGroupId:
+    Description: Lambda Security Group ID
+    Value: !GetAtt AuroraStack.Outputs.LambdaSecurityGroupId
+
+  AuroraClusterEndpoint:
+    Description: Aurora Cluster Endpoint
+    Value: !GetAtt AuroraStack.Outputs.AuroraClusterEndpoint
+
+  AuroraResourceArn:
+    Description: Aurora Resource ARN for RDS Data API
+    Value: !GetAtt AuroraStack.Outputs.AuroraResourceArn
+
+  DatabaseSecretArn:
+    Description: Database Secret ARN
+    Value: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+
+  DatabaseName:
+    Description: Database Name
+    Value: !GetAtt AuroraStack.Outputs.DatabaseName
+
+  KnowledgeBaseId:
+    Description: Bedrock Knowledge Base ID
+    Value: !GetAtt BedrockKBStack.Outputs.KnowledgeBaseId
+
+  GlueDatabaseName:
+    Description: Glue Database Name
+    Value: !GetAtt GlueStack.Outputs.GlueDatabaseName
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !GetAtt CognitoStack.Outputs.UserPoolId
+
+  CognitoClientId:
+    Description: Cognito App Client ID
+    Value: !GetAtt CognitoStack.Outputs.UserLoginClientId
+
+  CognitoDiscoveryUrl:
+    Description: Cognito OpenID Connect Discovery URL
+    Value: !GetAtt CognitoStack.Outputs.DiscoveryUrl
+
+  IdentityPoolId:
+    Description: Cognito Identity Pool ID for demo mode
+    Value: !GetAtt CognitoStack.Outputs.IdentityPoolId
+
+  GatewayId:
+    Condition: IsDemo
+    Description: AgentCore Gateway ID
+    Value: !GetAtt AgentCoreStack.Outputs.GatewayId
+
+  GatewayUrl:
+    Condition: IsDemo
+    Description: AgentCore Gateway URL
+    Value: !GetAtt AgentCoreStack.Outputs.GatewayUrl
+
+  AgentRuntimeId:
+    Condition: IsDemo
+    Description: AgentCore Runtime ID
+    Value: !GetAtt AgentCoreStack.Outputs.AgentRuntimeId
+
+  AgentRuntimeEndpointArn:
+    Condition: IsDemo
+    Description: AgentCore Runtime Endpoint ARN
+    Value: !GetAtt AgentCoreStack.Outputs.AgentRuntimeEndpointArn
+
+  AmplifyAppUrl:
+    Condition: IsDemo
+    Description: Amplify App URL (UI)
+    Value: !GetAtt AmplifyStack.Outputs.AmplifyAppUrl
+
+  CodeEditorUrl:
+    Condition: IsWorkshop
+    Description: Code Editor URL (VS Code in browser)
+    Value: !GetAtt CodeEditorStack.Outputs.CodeEditorUrl
+
+  CodeEditorSecretArn:
+    Condition: IsWorkshop
+    Description: Secret ARN containing Code Editor password
+    Value: !GetAtt CodeEditorStack.Outputs.CodeEditorSecretArn
+
+  CubeEndpoint:
+    Condition: IsWorkshop
+    Description: Cube Core API endpoint (public DNS)
+    Value: !GetAtt CubeStack.Outputs.CubeEndpoint
+
+  CubePrivateIp:
+    Condition: IsWorkshop
+    Description: Cube EC2 private IP (for Lambda access within VPC)
+    Value: !GetAtt CubeStack.Outputs.CubePrivateIp
+
+  CubeInstanceId:
+    Condition: IsWorkshop
+    Description: Cube EC2 Instance ID (for SSM commands)
+    Value: !GetAtt CubeStack.Outputs.CubeInstanceId
+
+  CubeConfigBucketName:
+    Condition: IsWorkshop
+    Description: S3 bucket for Cube configuration files
+    Value: !GetAtt CubeStack.Outputs.CubeConfigBucketName
+
+
+

@@ -1,0 +1,96 @@
+cubes:
+  - name: accounts
+    sql_table: accounts
+    description: >
+      Unicorn rental businesses that subscribe to the Timely-Unicorn SaaS platform.
+      Each account is a tenant with isolated data. Two accounts exist in the dataset:
+      Mythical Unicorns (Starter plan) and Mythic Unicorns (Enterprise plan).
+
+    dimensions:
+      - name: account_id
+        sql: account_id
+        type: string
+        primary_key: true
+
+      - name: account_name
+        sql: account_name
+        type: string
+        description: Display name of the rental business
+
+      - name: status
+        sql: "{CUBE}.status::text"
+        type: string
+        description: "Account lifecycle status: active, suspended, or terminated"
+
+      - name: billing_cycle
+        sql: "{CUBE}.billing_cycle::text"
+        type: string
+        description: "Billing frequency: monthly, quarterly, or annual"
+
+      - name: industry
+        sql: industry
+        type: string
+
+      - name: billing_email
+        sql: billing_email
+        type: string
+
+      - name: billing_city
+        sql: billing_city
+        type: string
+
+      - name: billing_country
+        sql: billing_country
+        type: string
+
+      - name: headquarters_city
+        sql: headquarters_city
+        type: string
+
+      - name: headquarters_country
+        sql: headquarters_country
+        type: string
+
+      - name: next_billing_date
+        sql: next_billing_date
+        type: time
+        description: Date of next billing cycle
+
+      - name: activated_at
+        sql: activated_at
+        type: time
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+    measures:
+      - name: count
+        type: count
+        description: Number of rental business accounts
+
+      - name: total_user_count
+        sql: current_user_count
+        type: sum
+        description: Total staff users across accounts
+
+      - name: total_storage_usage_gb
+        sql: current_storage_usage_gb
+        type: sum
+
+      - name: avg_user_count
+        sql: current_user_count
+        type: avg
+
+    segments:
+      - name: active_accounts
+        sql: "{CUBE}.status = 'active'"
+        description: Accounts with active status
+
+      - name: suspended_accounts
+        sql: "{CUBE}.status = 'suspended'"
+        description: Accounts that have been suspended (e.g., payment failure)
+
+      - name: terminated_accounts
+        sql: "{CUBE}.status = 'terminated'"
+        description: Permanently terminated accounts (cannot be reactivated)

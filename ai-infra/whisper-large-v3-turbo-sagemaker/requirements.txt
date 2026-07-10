@@ -1,0 +1,5 @@
+# Local tooling deps (for running the scripts in common/ and the deploy scripts).
+# Not what runs inside the SageMaker container -- that's the DLC / vLLM image.
+sagemaker>=2.219.0,<3
+boto3>=1.34.0
+huggingface_hub>=0.23.0

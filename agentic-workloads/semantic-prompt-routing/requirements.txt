@@ -1,0 +1,14 @@
+# Cost-Optimized Model Routing on AWS
+# Core dependencies
+
+strands-agents>=0.1.0
+strands-agents-tools>=0.1.0
+boto3>=1.35.0
+
+# Hybrid router with LiteLLM (optional but recommended for production)
+litellm>=1.55.0
+
+# Dashboard & visualization
+streamlit>=1.40.0
+pandas>=2.0.0
+plotly>=5.0.0

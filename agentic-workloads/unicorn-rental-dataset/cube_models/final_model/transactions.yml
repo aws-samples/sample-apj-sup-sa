@@ -1,0 +1,232 @@
+cubes:
+  - name: transactions
+    sql_table: transactions
+    description: >
+      Financial records for all monetary activity. Each booking generates a
+      booking_fee transaction. Other types include subscription, storage_overage,
+      refund, and adjustment. Amount is always positive — transaction_type
+      indicates direction. Net revenue = SUM(booking_fee + subscription + storage_overage) - SUM(refund).
+      Current dataset: all transactions are booking_fee type, all completed.
+
+    joins:
+      - name: accounts
+        relationship: many_to_one
+        sql: "{transactions.account_id} = {accounts.account_id}"
+
+      - name: customers
+        relationship: many_to_one
+        sql: "{transactions.customer_id} = {customers.customer_id}"
+
+      - name: bookings
+        relationship: many_to_one
+        sql: "{transactions.booking_id} = {bookings.booking_id}"
+
+    dimensions:
+      - name: transaction_id
+        sql: transaction_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+        description: Tenant isolation key
+
+      - name: customer_id
+        sql: customer_id
+        type: string
+        description: Foreign key to customers cube
+
+      - name: booking_id
+        sql: booking_id
+        type: string
+        description: Foreign key to bookings cube
+
+      - name: transaction_type
+        sql: "{CUBE}.transaction_type::text"
+        type: string
+        description: "Type: booking_fee, subscription, storage_overage, refund, adjustment"
+
+      - name: status
+        sql: "{CUBE}.status::text"
+        type: string
+        description: "Processing status: pending, processing, completed, failed, refunded"
+
+      - name: payment_method
+        sql: "{CUBE}.payment_method::text"
+        type: string
+        description: "Payment method: credit_card, bank_transfer, paypal, invoice"
+
+      - name: currency
+        sql: currency
+        type: string
+        description: ISO 4217 currency code (always USD in current dataset)
+
+      - name: payment_reference
+        sql: payment_reference
+        type: string
+        description: External payment gateway reference
+
+      - name: description
+        sql: description
+        type: string
+
+      - name: created_at
+        sql: created_at
+        type: time
+        description: When the transaction was created
+
+      - name: processed_at
+        sql: processed_at
+        type: time
+        description: When payment was actually processed
+
+      - name: refunded_at
+        sql: refunded_at
+        type: time
+        description: When refund was issued (refund transactions only)
+
+      - name: created_month
+        sql: "TO_CHAR({CUBE}.created_at, 'YYYY-MM')"
+        type: string
+        description: Year-month of transaction for monthly trending
+
+      - name: created_day_of_week
+        sql: "TRIM(TO_CHAR({CUBE}.created_at, 'Day'))"
+        type: string
+
+      - name: created_hour
+        sql: "EXTRACT(HOUR FROM {CUBE}.created_at)"
+        type: number
+
+    measures:
+      - name: count
+        type: count
+        description: Total number of transactions
+
+      - name: total_amount
+        sql: amount
+        type: sum
+        format: currency
+        description: Sum of all transaction amounts (regardless of type)
+
+      - name: avg_amount
+        sql: amount
+        type: avg
+        format: currency
+
+      - name: min_amount
+        sql: amount
+        type: min
+        format: currency
+
+      - name: max_amount
+        sql: amount
+        type: max
+        format: currency
+
+      - name: total_revenue
+        sql: amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.transaction_type IN ('booking_fee', 'subscription', 'storage_overage')"
+        description: >
+          Gross revenue from booking fees, subscriptions, and storage overages.
+          Does not subtract refunds.
+
+      - name: total_booking_fees
+        sql: amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.transaction_type = 'booking_fee'"
+        description: Revenue from booking fees only
+
+      - name: total_subscription_fees
+        sql: amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.transaction_type = 'subscription'"
+        description: Revenue from subscription payments
+
+      - name: total_refunds
+        sql: amount
+        type: sum
+        format: currency
+        filters:
+          - sql: "{CUBE}.transaction_type = 'refund'"
+        description: Total refund amount
+
+      - name: net_revenue
+        sql: >
+          CASE
+            WHEN {CUBE}.transaction_type IN ('booking_fee', 'subscription', 'storage_overage')
+            THEN {CUBE}.amount
+            WHEN {CUBE}.transaction_type = 'refund'
+            THEN -{CUBE}.amount
+            ELSE 0
+          END
+        type: sum
+        format: currency
+        description: >
+          Net revenue: revenue types minus refunds.
+          Formula: SUM(booking_fee + subscription + storage_overage) - SUM(refund)
+
+      - name: total_tax
+        sql: tax_amount
+        type: sum
+        format: currency
+        description: Total tax collected (included within transaction amount)
+
+      - name: avg_tax_rate
+        sql: tax_rate
+        type: avg
+        description: Average tax rate applied
+
+      - name: unique_customers
+        sql: customer_id
+        type: count_distinct
+        description: Distinct customers with transactions
+
+      - name: avg_booking_fee
+        sql: amount
+        type: avg
+        format: currency
+        filters:
+          - sql: "{CUBE}.transaction_type = 'booking_fee'"
+        description: Average booking fee amount
+
+    segments:
+      - name: booking_fees
+        sql: "{CUBE}.transaction_type = 'booking_fee'"
+        description: Transactions for unicorn rental booking fees
+
+      - name: subscription_payments
+        sql: "{CUBE}.transaction_type = 'subscription'"
+        description: Subscription plan payment transactions
+
+      - name: refunds
+        sql: "{CUBE}.transaction_type = 'refund'"
+        description: Refund transactions
+
+      - name: completed_transactions
+        sql: "{CUBE}.status = 'completed'"
+        description: Successfully processed transactions
+
+      - name: pending_transactions
+        sql: "{CUBE}.status = 'pending'"
+        description: Transactions awaiting processing
+
+      - name: failed_transactions
+        sql: "{CUBE}.status = 'failed'"
+        description: Transactions that failed processing
+
+      - name: credit_card_payments
+        sql: "{CUBE}.payment_method = 'credit_card'"
+        description: Transactions paid by credit card
+
+      - name: bank_transfers
+        sql: "{CUBE}.payment_method = 'bank_transfer'"
+        description: Transactions paid by bank transfer

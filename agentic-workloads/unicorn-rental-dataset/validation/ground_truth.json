@@ -1,0 +1,282 @@
+{
+  "mythical_top_revenue_customers": [
+    {
+      "customer_name": "Example Fantasy Ecosystems",
+      "total_revenue": 2731004.59,
+      "total_bookings": 1032
+    },
+    {
+      "customer_name": "Example Fantasy Ecosystems",
+      "total_revenue": 2408003.87,
+      "total_bookings": 899
+    },
+    {
+      "customer_name": "Example Enchanted Hospitality",
+      "total_revenue": 2406946.59,
+      "total_bookings": 881
+    },
+    {
+      "customer_name": "Example Enchanted Logistics",
+      "total_revenue": 2103983.1,
+      "total_bookings": 748
+    },
+    {
+      "customer_name": "Example Mythical Enterprises",
+      "total_revenue": 1567105.88,
+      "total_bookings": 672
+    }
+  ],
+  "mythical_top_revenue_breeds": [
+    {
+      "breed": "Celestial",
+      "total_revenue": 7958502.19,
+      "total_bookings": 2931
+    },
+    {
+      "breed": "Celestial Pegasus",
+      "total_revenue": 4159500.0,
+      "total_bookings": 1426
+    },
+    {
+      "breed": "Celestial Radiance",
+      "total_revenue": 2224620.0,
+      "total_bookings": 1001
+    },
+    {
+      "breed": "Celestial Comet",
+      "total_revenue": 2173925.0,
+      "total_bookings": 778
+    },
+    {
+      "breed": "Celestial Steed",
+      "total_revenue": 1287270.39,
+      "total_bookings": 392
+    }
+  ],
+  "mythical_customer_segmentation": [
+    {
+      "customer_segment": "Basic",
+      "customer_count": 230,
+      "total_revenue": 0.0
+    },
+    {
+      "customer_segment": "VIP",
+      "customer_count": 20,
+      "total_revenue": 18831616.47
+    }
+  ],
+  "mythical_maintenance_counts": [
+    {
+      "maintenance_urgency": "scheduled",
+      "count": 12
+    },
+    {
+      "maintenance_urgency": "overdue",
+      "count": 33
+    },
+    {
+      "maintenance_urgency": "due_this_week",
+      "count": 1
+    },
+    {
+      "maintenance_urgency": "due_this_month",
+      "count": 4
+    }
+  ],
+  "mythical_counts": [
+    {
+      "entity": "customers",
+      "count": 250
+    },
+    {
+      "entity": "unicorns",
+      "count": 50
+    },
+    {
+      "entity": "bookings",
+      "count": 6963
+    },
+    {
+      "entity": "transactions",
+      "count": 6963
+    }
+  ],
+  "mythical_total_revenue": [
+    {
+      "total_revenue": 18831616.47
+    }
+  ],
+  "mythical_subscription": [
+    {
+      "account_name": "Mythical Unicorns",
+      "plan_name": "Starter",
+      "account_status": "active",
+      "monthly_price": 49.99
+    }
+  ],
+  "mythical_clv_top5": [
+    {
+      "customer_name": "Example Fantasy Ecosystems",
+      "lifetime_value": 2731004.59,
+      "total_bookings": 1032
+    },
+    {
+      "customer_name": "Example Fantasy Ecosystems",
+      "lifetime_value": 2408003.87,
+      "total_bookings": 899
+    },
+    {
+      "customer_name": "Example Enchanted Hospitality",
+      "lifetime_value": 2406946.59,
+      "total_bookings": 881
+    },
+    {
+      "customer_name": "Example Enchanted Logistics",
+      "lifetime_value": 2103983.1,
+      "total_bookings": 748
+    },
+    {
+      "customer_name": "Example Mythical Enterprises",
+      "lifetime_value": 1567105.88,
+      "total_bookings": 672
+    }
+  ],
+  "mythical_unicorn_performance_top5": [
+    {
+      "unicorn_name": "Nembus Serpentine",
+      "breed": "Celestial Pegasus",
+      "total_revenue": 3066000.0,
+      "total_bookings": 1079
+    },
+    {
+      "unicorn_name": "Baten Kaitos Cavansite",
+      "breed": "Celestial",
+      "total_revenue": 2744250.0,
+      "total_bookings": 972
+    },
+    {
+      "unicorn_name": "Shedir Kunzite",
+      "breed": "Celestial Comet",
+      "total_revenue": 2173925.0,
+      "total_bookings": 778
+    },
+    {
+      "unicorn_name": "Wurren Iolite",
+      "breed": "Celestial Radiance",
+      "total_revenue": 1935495.0,
+      "total_bookings": 905
+    },
+    {
+      "unicorn_name": "Murzim Scapolite",
+      "breed": "Celestial",
+      "total_revenue": 1700250.0,
+      "total_bookings": 612
+    }
+  ],
+  "mythical_avg_duration_by_breed": [
+    {
+      "breed": "Celestial Steed",
+      "avg_hours": 8.68,
+      "total": 392
+    },
+    {
+      "breed": "Celestial Comet",
+      "avg_hours": 8.6,
+      "total": 778
+    },
+    {
+      "breed": "Celestial Equine",
+      "avg_hours": 8.54,
+      "total": 13
+    },
+    {
+      "breed": "Celestial Pegasus",
+      "avg_hours": 7.78,
+      "total": 1426
+    },
+    {
+      "breed": "Celestial",
+      "avg_hours": 7.57,
+      "total": 2931
+    },
+    {
+      "breed": "Celestial Radiance",
+      "avg_hours": 7.32,
+      "total": 1001
+    },
+    {
+      "breed": "Celestial Prism",
+      "avg_hours": 7.25,
+      "total": 422
+    }
+  ],
+  "mythical_search_mfaranwe": [
+    {
+      "customer_id": "75421d0d-567a-4b6c-8f57-83aa3fb9927c",
+      "first_name": "Mfaranwe",
+      "last_name": "Quoralis"
+    }
+  ],
+  "mythical_search_starlight": [
+    {
+      "unicorn_id": "6334d678-c725-44c6-8a52-2977c2ee9514",
+      "friendly_name": "Starlight",
+      "name": "Shedir Kunzite",
+      "breed": "Celestial Comet",
+      "hourly_rate": 325.0
+    },
+    {
+      "unicorn_id": "74975abc-72da-4109-b0a8-134678c7ad08",
+      "friendly_name": "Starlight",
+      "name": "Zaurak Gummite",
+      "breed": "Celestial Prism",
+      "hourly_rate": 375.0
+    }
+  ],
+  "mythic_top_revenue_customers": [
+    {
+      "customer_name": "Rvthelia Fxstorm",
+      "total_revenue": 3165561.2,
+      "total_bookings": 1140
+    },
+    {
+      "customer_name": "Example Enchanted Logistics",
+      "total_revenue": 2545598.97,
+      "total_bookings": 933
+    },
+    {
+      "customer_name": "Example Mythical Logistics",
+      "total_revenue": 2535717.53,
+      "total_bookings": 971
+    },
+    {
+      "customer_name": "Example Mythical Transport Solutions",
+      "total_revenue": 2200147.1,
+      "total_bookings": 785
+    },
+    {
+      "customer_name": "Example Mythical Logistics",
+      "total_revenue": 2040302.41,
+      "total_bookings": 687
+    }
+  ],
+  "mythic_total_revenue": [
+    {
+      "total_revenue": 19975408.16
+    }
+  ],
+  "mythic_counts": [
+    {
+      "entity": "customers",
+      "count": 250
+    },
+    {
+      "entity": "unicorns",
+      "count": 50
+    },
+    {
+      "entity": "bookings",
+      "count": 6949
+    }
+  ]
+}

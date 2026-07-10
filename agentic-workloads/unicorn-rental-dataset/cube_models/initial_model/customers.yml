@@ -1,0 +1,64 @@
+cubes:
+  - name: customers
+    sql_table: customers
+    description: >
+      End users who rent unicorns. Can be individuals or organizations.
+      Each customer belongs to exactly one account.
+
+    dimensions:
+      - name: customer_id
+        sql: customer_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+
+      - name: customer_type
+        sql: "{CUBE}.customer_type::text"
+        type: string
+
+      - name: first_name
+        sql: first_name
+        type: string
+
+      - name: last_name
+        sql: last_name
+        type: string
+
+      - name: organization_name
+        sql: organization_name
+        type: string
+
+      - name: email
+        sql: email
+        type: string
+
+      - name: city
+        sql: city
+        type: string
+
+      - name: country
+        sql: country
+        type: string
+
+      - name: billing_preference
+        sql: "{CUBE}.billing_preference::text"
+        type: string
+
+      - name: department
+        sql: department
+        type: string
+
+      - name: title
+        sql: title
+        type: string
+
+      - name: created_at
+        sql: created_at
+        type: time
+
+    measures:
+      - name: count
+        type: count

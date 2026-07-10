@@ -1,0 +1,281 @@
+cubes:
+  - name: bookings
+    sql_table: bookings
+    description: >
+      Rental bookings — confirmed upon creation, no separate status tracking.
+      Each booking links a customer to a unicorn for a time period.
+      Pricing: total_cost = base_hourly_rate × duration_hours (no discounts/surcharges).
+      ~2,000 bookings across 2 accounts. All current data is completed with no cancellations.
+
+    joins:
+      - name: accounts
+        relationship: many_to_one
+        sql: "{bookings.account_id} = {accounts.account_id}"
+
+      - name: customers
+        relationship: many_to_one
+        sql: "{bookings.customer_id} = {customers.customer_id}"
+
+      - name: unicorns
+        relationship: many_to_one
+        sql: "{bookings.unicorn_id} = {unicorns.unicorn_id}"
+
+    dimensions:
+      - name: booking_id
+        sql: booking_id
+        type: string
+        primary_key: true
+
+      - name: account_id
+        sql: account_id
+        type: string
+        description: Tenant isolation key
+
+      - name: customer_id
+        sql: customer_id
+        type: string
+        description: Foreign key to customers cube
+
+      - name: unicorn_id
+        sql: unicorn_id
+        type: string
+        description: Foreign key to unicorns cube
+
+      - name: booking_reference
+        sql: booking_reference
+        type: string
+        description: "Human-readable reference (e.g., BK860916)"
+
+      - name: status
+        sql: >
+          CASE
+            WHEN {CUBE}.cancellation_reason IS NOT NULL THEN 'cancelled'
+            WHEN {CUBE}.is_completed THEN 'completed'
+            ELSE 'confirmed'
+          END
+        type: string
+        description: >
+          Derived booking status: completed (returned and inspected),
+          cancelled (has cancellation_reason), or confirmed (active booking)
+
+      - name: is_completed
+        sql: is_completed
+        type: boolean
+
+      - name: is_cancelled
+        sql: "{CUBE}.cancellation_reason IS NOT NULL"
+        type: boolean
+        description: Whether booking was cancelled (cancellation_reason is populated)
+
+      - name: is_recurring
+        sql: is_recurring
+        type: boolean
+
+      - name: has_late_return
+        sql: "COALESCE({CUBE}.late_return_hours, 0) > 0"
+        type: boolean
+        description: Whether the unicorn was returned late
+
+      - name: has_damage
+        sql: "{CUBE}.damage_assessment IS NOT NULL"
+        type: boolean
+        description: Whether damage was reported at return inspection
+
+      - name: special_requests
+        sql: special_requests
+        type: string
+
+      - name: pickup_location
+        sql: pickup_location
+        type: string
+
+      - name: dropoff_location
+        sql: dropoff_location
+        type: string
+
+      - name: cancellation_reason
+        sql: cancellation_reason
+        type: string
+
+      - name: damage_assessment
+        sql: damage_assessment
+        type: string
+
+      - name: start_datetime
+        sql: start_datetime
+        type: time
+        description: Scheduled start of rental
+
+      - name: end_datetime
+        sql: end_datetime
+        type: time
+        description: Scheduled end of rental
+
+      - name: created_at
+        sql: created_at
+        type: time
+        description: When the booking was created
+
+      - name: start_hour
+        sql: "EXTRACT(HOUR FROM {CUBE}.start_datetime)"
+        type: number
+        description: Hour of day the booking starts (0-23), for peak period analysis
+
+      - name: start_day_of_week
+        sql: "EXTRACT(DOW FROM {CUBE}.start_datetime)"
+        type: number
+        description: Day of week (0=Sunday, 6=Saturday), for peak period analysis
+
+      - name: start_day_name
+        sql: "TRIM(TO_CHAR({CUBE}.start_datetime, 'Day'))"
+        type: string
+        description: Day name (Monday, Tuesday, etc.)
+
+      - name: start_month
+        sql: "TO_CHAR({CUBE}.start_datetime, 'YYYY-MM')"
+        type: string
+        description: Year-month of booking start for monthly trending
+
+      - name: duration_hours
+        sql: "ROUND(EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0, 2)"
+        type: number
+        description: >
+          Booking duration in hours. A "full-day booking" is 8 hours.
+          Calculated from scheduled start/end times.
+
+    measures:
+      - name: count
+        type: count
+        description: Total number of bookings
+
+      - name: total_revenue
+        sql: total_cost
+        type: sum
+        format: currency
+        description: Total booking revenue (total_cost = base_hourly_rate × duration_hours)
+
+      - name: avg_booking_value
+        sql: total_cost
+        type: avg
+        format: currency
+        description: Average booking cost
+
+      - name: min_booking_value
+        sql: total_cost
+        type: min
+        format: currency
+
+      - name: max_booking_value
+        sql: total_cost
+        type: max
+        format: currency
+
+      - name: avg_duration_hours
+        sql: "EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0"
+        type: avg
+        description: Average booking duration in hours
+
+      - name: min_duration_hours
+        sql: "EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0"
+        type: min
+
+      - name: max_duration_hours
+        sql: "EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0"
+        type: max
+
+      - name: total_booked_hours
+        sql: "EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0"
+        type: sum
+        description: Total hours booked across all bookings
+
+      - name: avg_hourly_rate
+        sql: base_hourly_rate
+        type: avg
+        format: currency
+        description: Average base hourly rate locked at booking time
+
+      - name: revenue_per_hour
+        sql: >
+          {CUBE}.total_cost / NULLIF(EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0, 0)
+        type: avg
+        format: currency
+        description: Average revenue per booked hour
+
+      - name: unique_customers
+        sql: customer_id
+        type: count_distinct
+        description: Number of distinct customers who made bookings
+
+      - name: unique_unicorns
+        sql: unicorn_id
+        type: count_distinct
+        description: Number of distinct unicorns that were booked
+
+      - name: completed_count
+        type: count
+        filters:
+          - sql: "{CUBE}.is_completed = true"
+        description: Bookings that have been completed (returned and inspected)
+
+      - name: cancelled_count
+        type: count
+        filters:
+          - sql: "{CUBE}.cancellation_reason IS NOT NULL"
+        description: Bookings that were cancelled
+
+      - name: total_late_return_hours
+        sql: "COALESCE({CUBE}.late_return_hours, 0)"
+        type: sum
+        description: Total hours of late returns across all bookings
+
+      - name: total_damage_cost
+        sql: "COALESCE({CUBE}.damage_cost_estimate, 0)"
+        type: sum
+        format: currency
+        description: Total estimated damage repair costs
+
+      - name: cancellation_rate
+        sql: >
+          CASE WHEN {CUBE}.cancellation_reason IS NOT NULL THEN 1.0 ELSE 0.0 END
+        type: avg
+        description: Fraction of bookings that were cancelled (0.0 to 1.0)
+
+      - name: days_since_latest_booking
+        sql: "EXTRACT(DAY FROM (NOW() - MAX({CUBE}.created_at)))"
+        type: number
+        description: >
+          Days since the most recent booking. Used by the customers cube
+          as a subquery dimension for retention segment classification.
+
+    segments:
+      - name: completed_bookings
+        sql: "{CUBE}.is_completed = true"
+        description: Bookings where the unicorn has been returned and inspected
+
+      - name: active_bookings
+        sql: "{CUBE}.is_completed = false AND {CUBE}.cancellation_reason IS NULL"
+        description: Currently active/confirmed bookings (not completed, not cancelled)
+
+      - name: cancelled_bookings
+        sql: "{CUBE}.cancellation_reason IS NOT NULL"
+        description: Bookings that were cancelled
+
+      - name: late_returns
+        sql: "COALESCE({CUBE}.late_return_hours, 0) > 0"
+        description: Bookings where the unicorn was returned late
+
+      - name: with_damage
+        sql: "{CUBE}.damage_assessment IS NOT NULL"
+        description: Bookings where damage was reported at return
+
+      - name: full_day_bookings
+        sql: "EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0 >= 8"
+        description: Bookings of 8+ hours (considered a full-day rental)
+
+      - name: short_bookings
+        sql: "EXTRACT(EPOCH FROM ({CUBE}.end_datetime - {CUBE}.start_datetime)) / 3600.0 < 2"
+        description: Bookings under 2 hours
+
+      - name: recurring_bookings
+        sql: "{CUBE}.is_recurring = true"
+        description: Bookings flagged as recurring

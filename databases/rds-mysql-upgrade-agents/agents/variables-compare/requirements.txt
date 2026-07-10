@@ -1,0 +1,9 @@
+# Pin to latest versions to ensure no cache issues
+boto3==1.42.77
+botocore==1.42.77
+strands-agents[otel]
+strands-agents-tools
+pymysql
+bedrock-agentcore
+python-dotenv
+aws-opentelemetry-distro
