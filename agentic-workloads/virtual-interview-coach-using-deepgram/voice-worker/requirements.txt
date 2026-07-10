@@ -9,7 +9,7 @@
 #   aws      -> AWSBedrockLLMService (Claude Haiku)
 #   silero   -> SileroVADAnalyzer (on-audio VAD; replaces the DTX watchdog; enables barge-in)
 # Pin to the 1.3.x line verified during research (Python >= 3.11; we run 3.13).
-pipecat-ai[webrtc,deepgram,aws,silero]>=1.3,<1.4
+pipecat-ai[webrtc,deepgram,aws,silero]>=1.4.0,<1.5
 
 # The seams we still own (Pipecat pulls aiortc/websockets transitively via [webrtc]/[deepgram]):
 boto3>=1.34            # Bedrock direct/AgentCore providers + S3 SSE-KMS recording
