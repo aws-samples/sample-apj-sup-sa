@@ -73,47 +73,47 @@ EC2 Capacity Blocks and SageMaker Training Plans are available in:
 - `ap-southeast-4` (Melbourne)
 - `sa-east-1` (São Paulo)
 
-Not all instance types are available in all regions. The scripts handle this
-gracefully — unsupported combinations return empty results rather than errors.
+Not all instance types are available in all regions. If a region doesn't support
+the requested instance type, the API returns an error — skip and continue.
 
 ## Valid durations
 
 - **1–14 days**: Any whole number of days
 - **15–182 days**: Weekly increments (21, 28, 35, ... 182)
 
-## APIs used
+## APIs
 
 ### EC2 Capacity Blocks
 
-**API:** `ec2:DescribeCapacityBlockOfferings`
+**CLI:** `aws ec2 describe-capacity-block-offerings`
 
-**Documentation:** https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeCapacityBlockOfferings.html
+**Docs:** https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeCapacityBlockOfferings.html
 
-**Key parameters:**
-- `InstanceType` — GPU instance type
-- `InstanceCount` — Number of instances (1–256)
-- `CapacityDurationHours` — Duration in hours (duration_days × 24)
-- `StartDateRange` — Earliest acceptable start date
-- `EndDateRange` — (optional) Latest acceptable end date
-- `MaxResults` — Up to 100
+**Parameters:**
+- `--instance-type` — GPU instance type (e.g., `p5.48xlarge`)
+- `--instance-count` — Number of instances (1–256)
+- `--capacity-duration-hours` — Duration in hours (days × 24)
+- `--start-date-range` — Earliest start (ISO 8601, e.g., `2026-07-20T00:00:00Z`)
+- `--end-date-range` — (optional) Latest end date
+- `--max-results` — Up to 100
 
-**Response includes:** AvailabilityZone, StartDate, EndDate, UpfrontFee, CapacityBlockDurationHours
+**Response key fields:** `CapacityBlockOfferings[].{AvailabilityZone, StartDate, EndDate, UpfrontFee, InstanceCount, CapacityBlockDurationHours}`
 
 ### SageMaker Training Plans
 
-**API:** `sagemaker:SearchTrainingPlanOfferings`
+**CLI:** `aws sagemaker search-training-plan-offerings`
 
-**Documentation:** https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_SearchTrainingPlanOfferings.html
+**Docs:** https://docs.aws.amazon.com/sagemaker/latest/APIReference/API_SearchTrainingPlanOfferings.html
 
-**Key parameters:**
-- `TargetResources` — Always `["training-job"]`
-- `InstanceType` — GPU instance type with `ml.` prefix (e.g., `ml.p5.48xlarge`)
-- `InstanceCount` — Number of instances
-- `DurationHours` — Duration in hours
-- `StartTimeAfter` — Earliest start date
-- `EndTimeBefore` — (optional) Latest end date
+**Parameters:**
+- `--target-resources '["training-job"]'` — Always this value
+- `--instance-type` — With `ml.` prefix (e.g., `ml.p5.48xlarge`)
+- `--instance-count` — Number of instances
+- `--duration-hours` — Duration in hours
+- `--start-time-after` — Earliest start (ISO 8601)
+- `--end-time-before` — (optional) Latest end
 
-**Response includes:** TrainingPlanOfferings with ReservedCapacityOfferings (StartTime, EndTime, AvailabilityZone, InstanceCount), UpfrontFee, DurationHours
+**Response key fields:** `TrainingPlanOfferings[].{UpfrontFee, DurationHours, ReservedCapacityOfferings[].{StartTime, EndTime, AvailabilityZone, InstanceType, InstanceCount}}`
 
 ## IAM permissions required
 
