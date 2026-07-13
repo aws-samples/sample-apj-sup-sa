@@ -218,6 +218,10 @@ uv run pytest tests -v
 - Running this sample uses billable AWS services (Bedrock, Athena, S3, and optionally
   OpenSearch/ElastiCache). Review the relevant pricing pages before running at scale.
 - This sample is provided for reference. Perform a security review before any production use.
+- **No guardrails are configured in this sample.** For production use, add
+  [Amazon Bedrock Guardrails](https://aws.amazon.com/bedrock/guardrails/) — for example,
+  PII detection/redaction, denied topics, and content filters — especially when the
+  underlying data source may contain PII or other sensitive information.
 
 ## License
 

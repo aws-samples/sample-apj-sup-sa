@@ -2691,7 +2691,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aws-opentelemetry-distro", specifier = ">=0.10.0" },
-    { name = "awslabs-aws-dataprocessing-mcp-server" },
+    { name = "awslabs-aws-dataprocessing-mcp-server", specifier = ">=0.1.13,<0.2.0" },
     { name = "boto3", specifier = ">=1.40.39" },
     { name = "opensearch-py", specifier = ">=2.4.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },

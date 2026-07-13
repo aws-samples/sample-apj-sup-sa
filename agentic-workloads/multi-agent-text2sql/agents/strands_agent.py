@@ -17,6 +17,7 @@ from typing import Any, Dict, Generator
 from strands import Agent
 from strands.models import BedrockModel
 from strands.tools import tool
+from strands_tools import calculator  # safe built-in calculator (replaces eval-based one)
 
 from agents.events.registry import EventRegistry, EventType
 from agents.events.lifecycle import (
@@ -27,17 +28,8 @@ from agents.events.lifecycle import (
 )
 from agents.events.ui import StreamlitUIState
 
-@tool
-def calculator(expression: str) -> str:
-    """Perform basic arithmetic calculations"""
-    try:
-        if any(char in expression for char in ['import', 'exec', 'eval', '__']):
-            return "Error: Invalid expression"
-        return str(eval(expression))
-    except Exception as e:
-        return f"Error: {str(e)}"
 
-@tool  
+@tool
 def weather(location: str) -> str:
     """Get weather information for a location"""
     return f"Weather in {location}: Sunny, 22°C (Mock data)"

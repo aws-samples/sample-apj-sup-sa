@@ -8,7 +8,7 @@ dependencies = [
     "boto3>=1.40.39",
     "strands-agents[otel]>=1.15.0",
     "streamlit>=1.50.0",
-    "awslabs.aws-dataprocessing-mcp-server",
+    "awslabs.aws-dataprocessing-mcp-server>=0.1.13,<0.2.0",
     "strands-agents-tools",
     "python-dotenv>=1.0.0",
     "opensearch-py>=2.4.0",

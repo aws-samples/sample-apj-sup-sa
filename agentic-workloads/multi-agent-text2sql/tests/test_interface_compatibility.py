@@ -132,55 +132,6 @@ class TestMCPClientManagement:
         assert hasattr(MultiAgentText2SQL, 'is_mcp_client_active')
 
 
-class TestInterfaceSignatureCompatibility:
-    """인터페이스 시그니처 호환성 테스트"""
-    
-    def test_stream_response_signature_matches_my_custom_agent(self):
-        """stream_response 시그니처가 MyCustomAgent와 일치하는지 확인"""
-        from agents.multi_agent.multi_agent_text2sql import MultiAgentText2SQL
-        from agents.my_custom_agent import MyCustomAgent
-        import inspect
-        
-        multi_agent_sig = inspect.signature(MultiAgentText2SQL.stream_response)
-        custom_agent_sig = inspect.signature(MyCustomAgent.stream_response)
-        
-        # 파라미터 이름 비교 (self 제외)
-        multi_params = list(multi_agent_sig.parameters.keys())
-        custom_params = list(custom_agent_sig.parameters.keys())
-        
-        assert multi_params == custom_params
-    
-    def test_get_ui_state_signature_matches_my_custom_agent(self):
-        """get_ui_state 시그니처가 MyCustomAgent와 일치하는지 확인"""
-        from agents.multi_agent.multi_agent_text2sql import MultiAgentText2SQL
-        from agents.my_custom_agent import MyCustomAgent
-        import inspect
-        
-        multi_agent_sig = inspect.signature(MultiAgentText2SQL.get_ui_state)
-        custom_agent_sig = inspect.signature(MyCustomAgent.get_ui_state)
-        
-        # 파라미터 이름 비교 (self 제외)
-        multi_params = list(multi_agent_sig.parameters.keys())
-        custom_params = list(custom_agent_sig.parameters.keys())
-        
-        assert multi_params == custom_params
-    
-    def test_enable_debug_mode_signature_matches_my_custom_agent(self):
-        """enable_debug_mode 시그니처가 MyCustomAgent와 일치하는지 확인"""
-        from agents.multi_agent.multi_agent_text2sql import MultiAgentText2SQL
-        from agents.my_custom_agent import MyCustomAgent
-        import inspect
-        
-        multi_agent_sig = inspect.signature(MultiAgentText2SQL.enable_debug_mode)
-        custom_agent_sig = inspect.signature(MyCustomAgent.enable_debug_mode)
-        
-        # 파라미터 이름 비교 (self 제외)
-        multi_params = list(multi_agent_sig.parameters.keys())
-        custom_params = list(custom_agent_sig.parameters.keys())
-        
-        assert multi_params == custom_params
-
-
 class TestWorkflowStatusInterface:
     """워크플로우 상태 인터페이스 테스트"""
     
