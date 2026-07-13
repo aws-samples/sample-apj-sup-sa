@@ -108,6 +108,7 @@ python ramp_test.py --dry-run --target-rpm 2000
 | `--api-key` | (env var) | Bedrock API key for mantle endpoint |
 | `--max-tokens` | `100` | Max tokens per request |
 | `--max-requests` | unlimited | Hard cap on total requests (budget safety) |
+| `--concurrency` | auto | Worker threads (auto-scales with RPM; override for very high targets) |
 | `--yes` / `-y` | `false` | Skip confirmation prompt (for CI) |
 | `--dry-run` | `false` | Show plan without calling Bedrock |
 | `--output` | `results.json` | Output file for results |
@@ -117,6 +118,15 @@ python ramp_test.py --dry-run --target-rpm 2000
 The script produces:
 - **Console progress** with live RPM, success rate, and current phase
 - **`results.json`** with full ramp history, latency percentiles, and error breakdown
+
+## High-RPM testing
+
+Worker threads auto-scale with your target RPM (formula: `RPM × 3s / 60 × 1.5`).
+For targets above ~2,000 RPM or models with high latency (>3s), you may need to:
+
+- Set `--concurrency` explicitly (e.g. `--concurrency 200` for 4,000 RPM at 3s latency)
+- Run multiple instances in parallel targeting the same endpoint
+- Consider async I/O for extreme throughput testing (>10,000 RPM)
 
 ## License
 

@@ -164,6 +164,7 @@ class BedrockRampTester:
         endpoint: str = "runtime",  # "runtime" or "mantle"
         api_key: str | None = None,
         max_requests: int | None = None,
+        concurrency: int | None = None,
     ):
         self.model_id = model_id
         self.region = region
@@ -177,6 +178,7 @@ class BedrockRampTester:
         self.endpoint = endpoint
         self.api_key = api_key
         self.max_requests = max_requests
+        self.concurrency_override = concurrency
         self._total_requests_all_phases = 0  # running total for budget cap
 
         if not dry_run:
@@ -305,16 +307,24 @@ class BedrockRampTester:
         Run requests at the given RPM for the specified duration.
 
         Uses a thread pool to maintain concurrency while spacing requests
-        to achieve the target rate.
+        to achieve the target rate. Worker count is derived from the target RPM
+        and expected latency to ensure the pool is never the bottleneck.
         """
         self._reset_counters()
         interval = 60.0 / rpm  # seconds between requests
         total_requests = int(rpm * (duration_seconds / 60.0))
-        concurrency = max(1, min(int(rpm / 10), 50))  # scale threads with RPM
+
+        # Size the pool so it can sustain target RPM assuming avg latency.
+        # Formula: workers >= RPM * (avg_latency_sec / 60)
+        # Use a conservative 3s assumed latency; scale with RPM.
+        # User can override with --concurrency.
+        assumed_latency_s = 3.0
+        auto_concurrency = max(4, int(math.ceil(rpm * assumed_latency_s / 60.0) * 1.5))
+        concurrency = self.concurrency_override or auto_concurrency
 
         console.print(
             f"  [cyan]Phase:[/cyan] {rpm:.0f} RPM × {duration_seconds:.0f}s "
-            f"({total_requests} requests, {concurrency} threads)"
+            f"({total_requests} requests, {concurrency} workers)"
         )
 
         start_time = time.perf_counter()
@@ -632,6 +642,10 @@ def main():
     parser.add_argument("--max-requests", type=int, default=None,
                         help="Hard cap on total requests across all phases (budget safety). "
                              "Aborts the test once this limit is reached.")
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="Override worker thread count. By default, auto-scaled from "
+                             "target RPM and expected latency (~RPM×3s/60×1.5). Set higher "
+                             "for very high RPM targets or high-latency models.")
     parser.add_argument("--yes", "-y", action="store_true",
                         help="Skip the confirmation prompt (for CI/automation)")
     parser.add_argument("--output", default="results.json",
@@ -652,6 +666,7 @@ def main():
         endpoint=args.endpoint,
         api_key=args.api_key,
         max_requests=args.max_requests,
+        concurrency=args.concurrency,
     )
 
     # Cost/confirmation gate (skip for dry runs and --yes)
