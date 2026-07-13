@@ -1,0 +1,5 @@
+boto3>=1.34.0
+rich>=13.0.0
+
+# Optional: required only for --endpoint mantle (OpenAI-compatible API)
+openai>=1.0.0
