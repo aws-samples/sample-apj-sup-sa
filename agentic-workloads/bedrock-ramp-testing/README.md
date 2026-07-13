@@ -25,7 +25,7 @@ At 130 tokens/request on a typical model, that's ~6.5M tokens. **Always start wi
 
 Amazon Bedrock provisions generous default TPM (Tokens Per Minute) and RPM
 (Requests Per Minute) quotas for on-demand models. These high limits reflect the
-platform's capacity to scale — but like any large-scale inference system, the
+Amazon Bedrock's capacity to scale — but like any large-scale inference system, the
 underlying compute benefits from a gradual warm-up to reach peak throughput
 reliably. Ramp testing helps you:
 

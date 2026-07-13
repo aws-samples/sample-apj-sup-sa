@@ -10,7 +10,7 @@ https://docs.aws.amazon.com/bedrock/latest/userguide/scaling-throughput-best-pra
 CONTEXT:
     Amazon Bedrock provides generous default TPM (Tokens Per Minute) and RPM
     (Requests Per Minute) quotas for on-demand models — these high limits reflect
-    the platform's ability to scale to meet demand. However, like any distributed
+    Amazon Bedrock's ability to scale to meet demand. However, like any distributed
     inference system, the underlying compute fleet benefits from gradual warm-up to
     deliver peak throughput consistently. This tool automates the recommended ramp-up
     procedure so you can confidently reach your target volume.
