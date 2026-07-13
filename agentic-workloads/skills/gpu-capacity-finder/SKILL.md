@@ -1,6 +1,6 @@
 ---
 name: gpu-capacity-finder
-description: Find short-term GPU reservations on AWS. Searches EC2 Capacity Blocks and SageMaker Training Plans across regions for available GPU instances (p5, p4d, trn, p6). Use when the user asks about reserving GPUs, finding GPU capacity, training plan availability, capacity blocks, or short-term compute for ML training.
+description: Find short-term GPU reservations on AWS. Searches EC2 Capacity Blocks and SageMaker Training Plans across regions. Translates NVIDIA GPU names (H100, A100, B200, L4, L40S), VRAM requirements, and architecture names (Hopper, Ampere, Blackwell, Ada Lovelace) into AWS instance types (P-series, G-series, Trainium). Use when the user asks about reserving GPUs, finding GPU capacity, training plan availability, capacity blocks, short-term compute for ML training, or mentions specific NVIDIA hardware.
 ---
 
 # GPU Capacity Finder
@@ -12,9 +12,12 @@ and SageMaker Training Plans across all supported regions.
 
 Trigger this skill when the user mentions:
 - Reserving GPUs, finding GPU capacity, or GPU availability
+- NVIDIA GPU names: H100, A100, B200, B300, L4, L40S, A10G
+- GPU architectures: Hopper, Ampere, Blackwell, Ada Lovelace
+- VRAM requirements (e.g., "I need 640GB VRAM", "80GB GPUs")
 - EC2 Capacity Blocks or SageMaker Training Plans
 - Short-term compute for ML training (days to weeks)
-- Instance types like p5, p4d, p6, trn1, trn2
+- AWS instance types like p5, p4d, p6, g5, g6, trn1, trn2
 - GPU pricing or scheduling for training jobs
 
 ## Conversation flow
@@ -22,7 +25,9 @@ Trigger this skill when the user mentions:
 Before searching, ensure you have these parameters. Ask the user for any that
 are missing:
 
-1. **Instance type** — Which GPU instance? (see REFERENCE.md for supported types)
+1. **Instance type** — Which GPU instance? Users may say the NVIDIA name (H100,
+   A100, B200, L4) or VRAM amount instead of the AWS instance type. Translate
+   using the mapping in REFERENCE.md. If ambiguous, offer options.
 2. **Instance count** — How many instances? (1–256)
 3. **Duration** — How many days? (1–14, then weekly increments up to 182)
 4. **Start date** — When do they need it? (defaults to today if not specified)
@@ -30,17 +35,20 @@ are missing:
 
 Example conversation:
 ```
-User: I need GPUs for a training job next week
+User: I need 640GB of H100 VRAM for a week
 
-You: I can help find available GPU capacity. A few questions:
-     - What instance type? (p5.48xlarge, p4d.24xlarge, trn1.32xlarge, etc.)
-     - How many instances?
-     - How many days do you need them?
-
-User: 4x p5.48xlarge for 7 days
-
-You: Searching all regions for 4× p5.48xlarge, 7 days, starting next week...
+You: That's 8× H100 80GB = 1× p5.48xlarge (640GB total VRAM).
+     Searching all regions for 1× p5.48xlarge, 7 days, starting today...
      [runs scripts]
+```
+
+Another example:
+```
+User: I need Blackwell GPUs for 2 weeks
+
+You: Blackwell is available as p6-b200.48xlarge (8× B200, 1.5TB VRAM)
+     or p6-b300.48xlarge (8× B300, 2.3TB VRAM). Which do you prefer?
+     And how many instances do you need?
 ```
 
 ## Executing the search
