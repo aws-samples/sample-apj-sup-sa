@@ -1,0 +1,814 @@
+{
+  "created": "2026-03-11T18:43:53.559141",
+  "seed": 42,
+  "total_pool": 500,
+  "filters": {
+    "db": null,
+    "difficulty": null
+  },
+  "count": 100,
+  "indices": [
+    3,
+    12,
+    13,
+    15,
+    16,
+    22,
+    23,
+    35,
+    36,
+    40,
+    44,
+    47,
+    49,
+    51,
+    52,
+    57,
+    63,
+    71,
+    79,
+    81,
+    83,
+    98,
+    101,
+    107,
+    110,
+    111,
+    112,
+    114,
+    116,
+    119,
+    125,
+    135,
+    136,
+    140,
+    142,
+    148,
+    150,
+    172,
+    174,
+    176,
+    181,
+    183,
+    185,
+    186,
+    189,
+    193,
+    194,
+    214,
+    216,
+    229,
+    232,
+    235,
+    258,
+    274,
+    279,
+    282,
+    287,
+    295,
+    301,
+    302,
+    308,
+    309,
+    316,
+    321,
+    325,
+    327,
+    331,
+    332,
+    338,
+    343,
+    346,
+    349,
+    357,
+    359,
+    360,
+    366,
+    373,
+    377,
+    379,
+    388,
+    390,
+    395,
+    412,
+    413,
+    414,
+    424,
+    433,
+    444,
+    445,
+    447,
+    454,
+    456,
+    464,
+    470,
+    478,
+    480,
+    483,
+    486,
+    490,
+    496
+  ],
+  "questions": [
+    {
+      "index": 3,
+      "question_id": 1476,
+      "db_id": "debit_card_specializing",
+      "difficulty": "challenging",
+      "question": "What was the difference in gas consumption between CZK-paying customers and EUR-paying customers in 2012?"
+    },
+    {
+      "index": 12,
+      "question_id": 1493,
+      "db_id": "debit_card_specializing",
+      "difficulty": "simple",
+      "question": "In February 2012, what percentage of customers consumed more than 528.3?"
+    },
+    {
+      "index": 13,
+      "question_id": 1498,
+      "db_id": "debit_card_specializing",
+      "difficulty": "simple",
+      "question": "What is the highest monthly consumption in the year 2012?"
+    },
+    {
+      "index": 15,
+      "question_id": 1501,
+      "db_id": "debit_card_specializing",
+      "difficulty": "moderate",
+      "question": "Please list the countries of the gas stations with transactions taken place in June, 2013."
+    },
+    {
+      "index": 16,
+      "question_id": 1505,
+      "db_id": "debit_card_specializing",
+      "difficulty": "simple",
+      "question": "Among the customers who paid in euro, how many of them have a monthly consumption of over 1000?"
+    },
+    {
+      "index": 22,
+      "question_id": 1521,
+      "db_id": "debit_card_specializing",
+      "difficulty": "moderate",
+      "question": "For all the transactions happened during 8:00-9:00 in 2012/8/26, how many happened in CZE?"
+    },
+    {
+      "index": 23,
+      "question_id": 1524,
+      "db_id": "debit_card_specializing",
+      "difficulty": "simple",
+      "question": "What's the nationality of the customer who spent 548.4 in 2012/8/24?"
+    },
+    {
+      "index": 35,
+      "question_id": 1334,
+      "db_id": "student_club",
+      "difficulty": "simple",
+      "question": "List the full name of the Student_Club members that grew up in Illinois state."
+    },
+    {
+      "index": 36,
+      "question_id": 1338,
+      "db_id": "student_club",
+      "difficulty": "moderate",
+      "question": "Was each expense in October Meeting on October 8, 2019 approved?"
+    },
+    {
+      "index": 40,
+      "question_id": 1346,
+      "db_id": "student_club",
+      "difficulty": "simple",
+      "question": "Tell the phone number of \"Carlo Jacobs\"."
+    },
+    {
+      "index": 44,
+      "question_id": 1356,
+      "db_id": "student_club",
+      "difficulty": "simple",
+      "question": "Which department was the President of the club in?"
+    },
+    {
+      "index": 47,
+      "question_id": 1361,
+      "db_id": "student_club",
+      "difficulty": "simple",
+      "question": "What is the total cost of the pizzas for all the events?"
+    },
+    {
+      "index": 49,
+      "question_id": 1368,
+      "db_id": "student_club",
+      "difficulty": "simple",
+      "question": "What does the person with the phone number \"809-555-3360\" major in?"
+    },
+    {
+      "index": 51,
+      "question_id": 1375,
+      "db_id": "student_club",
+      "difficulty": "moderate",
+      "question": "List all the members of the \"School of Applied Sciences, Technology and Education\" department."
+    },
+    {
+      "index": 52,
+      "question_id": 1376,
+      "db_id": "student_club",
+      "difficulty": "moderate",
+      "question": "Among all the closed events, which event has the highest spend-to-budget ratio?"
+    },
+    {
+      "index": 57,
+      "question_id": 1389,
+      "db_id": "student_club",
+      "difficulty": "simple",
+      "question": "Which event has the lowest cost?"
+    },
+    {
+      "index": 63,
+      "question_id": 1401,
+      "db_id": "student_club",
+      "difficulty": "moderate",
+      "question": "Indicate the cost of posters for 'September Speaker' event."
+    },
+    {
+      "index": 71,
+      "question_id": 1426,
+      "db_id": "student_club",
+      "difficulty": "moderate",
+      "question": "List the last name of members with a major in environmental engineering and include its department and college name."
+    },
+    {
+      "index": 79,
+      "question_id": 1150,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "moderate",
+      "question": "What is the percentage of female patient were born after 1930?"
+    },
+    {
+      "index": 81,
+      "question_id": 1153,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "simple",
+      "question": "What is the disease patient '30609' diagnosed with. List all the date of laboratory tests done for this patient."
+    },
+    {
+      "index": 83,
+      "question_id": 1156,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "moderate",
+      "question": "State the ID and age of patient with positive degree of coagulation."
+    },
+    {
+      "index": 98,
+      "question_id": 1198,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "simple",
+      "question": "How many female patients were given an APS diagnosis?"
+    },
+    {
+      "index": 101,
+      "question_id": 1208,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "moderate",
+      "question": "Provide IDs for male patients with ALT glutamic pylvic transaminase (GPT) that have history of ALT glutamic pylvic transaminase (GPT) exceed the normal range."
+    },
+    {
+      "index": 107,
+      "question_id": 1231,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "challenging",
+      "question": "For patient born between 1936-1956, how many male patients have creatinine phosphokinase beyond the normal range?"
+    },
+    {
+      "index": 110,
+      "question_id": 1238,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "moderate",
+      "question": "Among the patients who were diagnosed with SLE, who is the oldest with normal hemoglobin level. Provide the ID and sex."
+    },
+    {
+      "index": 111,
+      "question_id": 1239,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "challenging",
+      "question": "Name the ID and age of patient with two or more laboratory examinations which show their hematoclit level exceeded the normal range."
+    },
+    {
+      "index": 112,
+      "question_id": 1241,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "challenging",
+      "question": "For patients with abnormal platelet level, state the number of patients with lower than normal range. How is it compare to the number of patients with higher than normal range?"
+    },
+    {
+      "index": 114,
+      "question_id": 1243,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "challenging",
+      "question": "For all patients who are older than 55 years old, what is the percentage of female who has abnormal prothrombin time (PT)?"
+    },
+    {
+      "index": 116,
+      "question_id": 1251,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "simple",
+      "question": "How many patients with an Ig G higher than normal?"
+    },
+    {
+      "index": 119,
+      "question_id": 1255,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "moderate",
+      "question": "For the patients with an abnormal Ig M level, what is the most common disease they are diagnosed with?"
+    },
+    {
+      "index": 125,
+      "question_id": 1275,
+      "db_id": "thrombosis_prediction",
+      "difficulty": "moderate",
+      "question": "Among the patients who has a normal level of anti-centromere and a normal level of anti-SSB, how many of them are male?"
+    },
+    {
+      "index": 135,
+      "question_id": 1036,
+      "db_id": "european_football_2",
+      "difficulty": "challenging",
+      "question": "List the long name of teams with above-average build-up play passing in 2012."
+    },
+    {
+      "index": 136,
+      "question_id": 1037,
+      "db_id": "european_football_2",
+      "difficulty": "challenging",
+      "question": "Calculate the percentage of players who prefer left foot, who were born between 1987 and 1992."
+    },
+    {
+      "index": 140,
+      "question_id": 1044,
+      "db_id": "european_football_2",
+      "difficulty": "simple",
+      "question": "List the football players with a birthyear of 1970 and a birthmonth of October."
+    },
+    {
+      "index": 142,
+      "question_id": 1057,
+      "db_id": "european_football_2",
+      "difficulty": "moderate",
+      "question": "Calculate the average home team goal in the 2010/2011 season in the country of Poland."
+    },
+    {
+      "index": 148,
+      "question_id": 1080,
+      "db_id": "european_football_2",
+      "difficulty": "moderate",
+      "question": "Among the players whose preferred foot was the left foot when attacking, how many of them would remain in his position when the team attacked?"
+    },
+    {
+      "index": 150,
+      "question_id": 1088,
+      "db_id": "european_football_2",
+      "difficulty": "moderate",
+      "question": "Please list the names of the players whose volley score and dribbling score are over 70."
+    },
+    {
+      "index": 172,
+      "question_id": 1139,
+      "db_id": "european_football_2",
+      "difficulty": "challenging",
+      "question": "What was the final score for the match on September 24, 2008, in the Belgian Jupiler League between the home team and the away team?"
+    },
+    {
+      "index": 174,
+      "question_id": 1144,
+      "db_id": "european_football_2",
+      "difficulty": "simple",
+      "question": "Please state the finishing rate and curve score of the player who has the heaviest weight."
+    },
+    {
+      "index": 176,
+      "question_id": 1146,
+      "db_id": "european_football_2",
+      "difficulty": "moderate",
+      "question": "Please provide the full name of the away team that scored the most goals."
+    },
+    {
+      "index": 181,
+      "question_id": 850,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "Please give the name of the race held on the circuits in Germany."
+    },
+    {
+      "index": 183,
+      "question_id": 857,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "Give the coordinate position for Abu Dhabi Grand Prix."
+    },
+    {
+      "index": 185,
+      "question_id": 861,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?"
+    },
+    {
+      "index": 186,
+      "question_id": 862,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "For the Bahrain Grand Prix in 2007, how many drivers not finished the game?"
+    },
+    {
+      "index": 189,
+      "question_id": 868,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "Where is Malaysian Grand Prix held? Give the location coordinates."
+    },
+    {
+      "index": 193,
+      "question_id": 877,
+      "db_id": "formula_1",
+      "difficulty": "moderate",
+      "question": "For all the drivers who finished the game in race No. 872, who is the youngest?"
+    },
+    {
+      "index": 194,
+      "question_id": 879,
+      "db_id": "formula_1",
+      "difficulty": "moderate",
+      "question": "For the driver who set the fastest lap speed, what is his nationality?"
+    },
+    {
+      "index": 214,
+      "question_id": 931,
+      "db_id": "formula_1",
+      "difficulty": "moderate",
+      "question": "What was the fastest lap speed among all drivers in the 2009 Spanish Grand Prix?"
+    },
+    {
+      "index": 216,
+      "question_id": 937,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "What's the finish time for the driver who ranked second in 2008's AustChineseralian Grand Prix?"
+    },
+    {
+      "index": 229,
+      "question_id": 964,
+      "db_id": "formula_1",
+      "difficulty": "simple",
+      "question": "List out the code for drivers who have nationality in American."
+    },
+    {
+      "index": 232,
+      "question_id": 972,
+      "db_id": "formula_1",
+      "difficulty": "moderate",
+      "question": "Which drivers who were born in 1971 and has the fastest lap time on the race? Give id and code of these drivers."
+    },
+    {
+      "index": 235,
+      "question_id": 981,
+      "db_id": "formula_1",
+      "difficulty": "moderate",
+      "question": "On what year did the youngest driver had his first qualifying race? Also state the name, date and time of the race."
+    },
+    {
+      "index": 258,
+      "question_id": 740,
+      "db_id": "superhero",
+      "difficulty": "moderate",
+      "question": "How many female superheroes have a strength value of 100?"
+    },
+    {
+      "index": 274,
+      "question_id": 773,
+      "db_id": "superhero",
+      "difficulty": "challenging",
+      "question": "Which superhero has the same eyes, hair and skin colour? Indicate the publisher of the superhero."
+    },
+    {
+      "index": 279,
+      "question_id": 785,
+      "db_id": "superhero",
+      "difficulty": "simple",
+      "question": "Describe the names of neutral alignment superheroes."
+    },
+    {
+      "index": 282,
+      "question_id": 790,
+      "db_id": "superhero",
+      "difficulty": "moderate",
+      "question": "Calculate the difference between Emil Blonsky's weight and Charles Chandler's weight."
+    },
+    {
+      "index": 287,
+      "question_id": 797,
+      "db_id": "superhero",
+      "difficulty": "moderate",
+      "question": "Which superheroes have blue eyes with brown hair?"
+    },
+    {
+      "index": 295,
+      "question_id": 825,
+      "db_id": "superhero",
+      "difficulty": "moderate",
+      "question": "Identify the gender of the superhero who has the ability of Phoenix Force."
+    },
+    {
+      "index": 301,
+      "question_id": 537,
+      "db_id": "codebase_community",
+      "difficulty": "simple",
+      "question": "How many posts does the user csgillespie own?"
+    },
+    {
+      "index": 302,
+      "question_id": 544,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "What is the display name of the user who last edited the post \"Examples for teaching: Correlation does not mean causation\"?"
+    },
+    {
+      "index": 308,
+      "question_id": 565,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "User No.23853 gave a comment to a post at 9:08:18 on 2013/7/12, was that post well-finished?"
+    },
+    {
+      "index": 309,
+      "question_id": 567,
+      "db_id": "codebase_community",
+      "difficulty": "simple",
+      "question": "For the user with the display name of \"Tiago Pasqualini\", how many posts did he/she own?"
+    },
+    {
+      "index": 316,
+      "question_id": 581,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "Who is the owner of the post titled 'Open source tools for visualizing multi-dimensional data?'"
+    },
+    {
+      "index": 321,
+      "question_id": 595,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "Which user have only one post history per post and having at least 1000 views?"
+    },
+    {
+      "index": 325,
+      "question_id": 633,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "Which post by slashnick has the most answers count? State the post ID."
+    },
+    {
+      "index": 327,
+      "question_id": 637,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "State all the tags used by Mark Meckes in his posts that doesn't have comments."
+    },
+    {
+      "index": 331,
+      "question_id": 669,
+      "db_id": "codebase_community",
+      "difficulty": "simple",
+      "question": "When did 'chl' cast its first vote in a post?"
+    },
+    {
+      "index": 332,
+      "question_id": 671,
+      "db_id": "codebase_community",
+      "difficulty": "simple",
+      "question": "What is the display name of the user who acquired the first Autobiographer badge?"
+    },
+    {
+      "index": 338,
+      "question_id": 687,
+      "db_id": "codebase_community",
+      "difficulty": "simple",
+      "question": "How many comments were added to the post with the highest score?"
+    },
+    {
+      "index": 343,
+      "question_id": 707,
+      "db_id": "codebase_community",
+      "difficulty": "moderate",
+      "question": "Among the posts with views ranging from 100 to 150, what is the comment with the highest score?"
+    },
+    {
+      "index": 346,
+      "question_id": 340,
+      "db_id": "card_games",
+      "difficulty": "simple",
+      "question": "Which are the cards that have incredibly powerful foils."
+    },
+    {
+      "index": 349,
+      "question_id": 345,
+      "db_id": "card_games",
+      "difficulty": "moderate",
+      "question": "For artifact type of cards that do not have multiple faces on the same card, state its legalities status for vintage play format."
+    },
+    {
+      "index": 357,
+      "question_id": 368,
+      "db_id": "card_games",
+      "difficulty": "simple",
+      "question": "What is the percentage of borderless cards?"
+    },
+    {
+      "index": 359,
+      "question_id": 377,
+      "db_id": "card_games",
+      "difficulty": "simple",
+      "question": "How many cards with original type of \"Summon - Angel\" have subtype other than \"Angel\"?"
+    },
+    {
+      "index": 360,
+      "question_id": 379,
+      "db_id": "card_games",
+      "difficulty": "simple",
+      "question": "What are the cards belong to duel deck a? List the ID."
+    },
+    {
+      "index": 366,
+      "question_id": 407,
+      "db_id": "card_games",
+      "difficulty": "moderate",
+      "question": "Lists all types of cards in German."
+    },
+    {
+      "index": 373,
+      "question_id": 422,
+      "db_id": "card_games",
+      "difficulty": "simple",
+      "question": "What is the language of the card with the multiverse number 149934?"
+    },
+    {
+      "index": 377,
+      "question_id": 459,
+      "db_id": "card_games",
+      "difficulty": "moderate",
+      "question": "Which card costs more converted mana, \"Serra Angel\" or \"Shrine Keeper\"?"
+    },
+    {
+      "index": 379,
+      "question_id": 465,
+      "db_id": "card_games",
+      "difficulty": "moderate",
+      "question": "For the set of cards with \"Ancestor's Chosen\" in it, is there a Korean version of it?"
+    },
+    {
+      "index": 388,
+      "question_id": 480,
+      "db_id": "card_games",
+      "difficulty": "moderate",
+      "question": "What is the Italian flavor text of the card \"Ancestor's Chosen\"?"
+    },
+    {
+      "index": 390,
+      "question_id": 484,
+      "db_id": "card_games",
+      "difficulty": "moderate",
+      "question": "Please list the Italian names of the cards in the set Coldsnap with the highest converted mana cost."
+    },
+    {
+      "index": 395,
+      "question_id": 528,
+      "db_id": "card_games",
+      "difficulty": "challenging",
+      "question": "List the names of all the cards in the set Hour of Devastation and find the formats in which these cards are legal."
+    },
+    {
+      "index": 412,
+      "question_id": 226,
+      "db_id": "toxicology",
+      "difficulty": "moderate",
+      "question": "What is the percentage of double bonds in the molecule TR008? Please provide your answer as a percentage with five decimal places."
+    },
+    {
+      "index": 413,
+      "question_id": 227,
+      "db_id": "toxicology",
+      "difficulty": "simple",
+      "question": "What is the percentage of molecules that are carcinogenic? Please provide your answer as a percentage with three decimal places."
+    },
+    {
+      "index": 414,
+      "question_id": 228,
+      "db_id": "toxicology",
+      "difficulty": "moderate",
+      "question": "How much of the hydrogen in molecule TR206 is accounted for? Please provide your answer as a percentage with four decimal places."
+    },
+    {
+      "index": 424,
+      "question_id": 244,
+      "db_id": "toxicology",
+      "difficulty": "moderate",
+      "question": "Is the molecule with the most double bonds carcinogenic?"
+    },
+    {
+      "index": 433,
+      "question_id": 268,
+      "db_id": "toxicology",
+      "difficulty": "challenging",
+      "question": "What are the elements for bond id TR001_10_11?"
+    },
+    {
+      "index": 444,
+      "question_id": 25,
+      "db_id": "california_schools",
+      "difficulty": "moderate",
+      "question": "Name schools in Riverside which the average of average math score for SAT is grater than 400, what is the funding type of these schools?"
+    },
+    {
+      "index": 445,
+      "question_id": 26,
+      "db_id": "california_schools",
+      "difficulty": "moderate",
+      "question": "State the names and full communication address of high schools in Monterey which has more than 800 free or reduced price meals for ages 15-17?"
+    },
+    {
+      "index": 447,
+      "question_id": 28,
+      "db_id": "california_schools",
+      "difficulty": "challenging",
+      "question": "Consider the average difference between K-12 enrollment and 15-17 enrollment of schools that are locally funded, list the names and DOC type of schools which has a difference above this average."
+    },
+    {
+      "index": 454,
+      "question_id": 41,
+      "db_id": "california_schools",
+      "difficulty": "simple",
+      "question": "List the names of virtual schools that are among the top 5 in their respective counties based on average reading scores."
+    },
+    {
+      "index": 456,
+      "question_id": 46,
+      "db_id": "california_schools",
+      "difficulty": "simple",
+      "question": "Which state special schools have the highest number of enrollees from grades 1 through 12?"
+    },
+    {
+      "index": 464,
+      "question_id": 82,
+      "db_id": "california_schools",
+      "difficulty": "simple",
+      "question": "What is the grade span offered in the school with the highest longitude?"
+    },
+    {
+      "index": 470,
+      "question_id": 93,
+      "db_id": "financial",
+      "difficulty": "moderate",
+      "question": "How many male customers who are living in North Bohemia have average salary greater than 8000?"
+    },
+    {
+      "index": 478,
+      "question_id": 116,
+      "db_id": "financial",
+      "difficulty": "challenging",
+      "question": "For the client whose loan was approved first in 1993/7/5, what is the increase rate of his/her account balance from 1993/3/22 to 1998/12/27?"
+    },
+    {
+      "index": 480,
+      "question_id": 118,
+      "db_id": "financial",
+      "difficulty": "moderate",
+      "question": "For loan amount less than USD100,000, what is the percentage of accounts that is still running with no issue."
+    },
+    {
+      "index": 483,
+      "question_id": 136,
+      "db_id": "financial",
+      "difficulty": "moderate",
+      "question": "Between 1/1/1995 and 12/31/1997, how many loans in the amount of at least 250,000 per account that chose monthly statement issuance were approved?"
+    },
+    {
+      "index": 486,
+      "question_id": 129,
+      "db_id": "financial",
+      "difficulty": "moderate",
+      "question": "Which are the top ten withdrawals (non-credit card) by district names for the month of January 1996?"
+    },
+    {
+      "index": 490,
+      "question_id": 149,
+      "db_id": "financial",
+      "difficulty": "challenging",
+      "question": "Please list the account types that are not eligible for loans, and the average income of residents in the district where the account is located exceeds $8000 but is no more than $9000."
+    },
+    {
+      "index": 496,
+      "question_id": 186,
+      "db_id": "financial",
+      "difficulty": "moderate",
+      "question": "What percentage of male clients request for weekly statements to be issued?"
+    }
+  ]
+}
