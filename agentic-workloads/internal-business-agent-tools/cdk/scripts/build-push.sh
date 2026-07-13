@@ -7,6 +7,10 @@ REPO_NAME="internalagent/internal-mcp-server"
 REPO_URI="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${REPO_NAME}"
 CONTEXT_DIR="$(dirname "$0")/../../mcp-server"
 
+echo "==> Ensuring ECR repository exists..."
+aws ecr describe-repositories --repository-names "${REPO_NAME}" --region "${REGION}" ${AWS_PROFILE:+--profile "${AWS_PROFILE}"} >/dev/null 2>&1 \
+  || aws ecr create-repository --repository-name "${REPO_NAME}" --image-scanning-configuration scanOnPush=true --region "${REGION}" ${AWS_PROFILE:+--profile "${AWS_PROFILE}"} >/dev/null
+
 echo "==> Logging into ECR..."
 aws ecr get-login-password --region "${REGION}" ${AWS_PROFILE:+--profile "${AWS_PROFILE}"} \
   | docker login --username AWS --password-stdin "${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"

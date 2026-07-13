@@ -1,4 +1,4 @@
-import { Stack, StackProps, CfnOutput, Fn, RemovalPolicy } from 'aws-cdk-lib';
+import { Stack, StackProps, CfnOutput, Fn } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as bedrockagentcore from 'aws-cdk-lib/aws-bedrockagentcore';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -18,27 +18,14 @@ export class AgentCoreStack extends Stack {
     const region = this.region;
 
     // --- ECR Repositories ---
-    const mcpRepo = new ecr.Repository(this, 'McpRepo', {
-      repositoryName: 'internalagent/internal-mcp-server',
-      removalPolicy: RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-      imageScanOnPush: true,
-    });
-    // CKV_AWS_136: ECR default AES256 encryption is sufficient for sample images; CMK adds cost.
-    (mcpRepo.node.defaultChild as ecr.CfnRepository).addMetadata('checkov', {
-      skip: [{ id: 'CKV_AWS_136', comment: 'ECR default AES256 encryption is sufficient for sample images; CMK adds cost.' }],
-    });
-
-    const a2aRepo = new ecr.Repository(this, 'A2aRepo', {
-      repositoryName: 'internalagent/data-analyst-agent',
-      removalPolicy: RemovalPolicy.DESTROY,
-      emptyOnDelete: true,
-      imageScanOnPush: true,
-    });
-    // CKV_AWS_136: ECR default AES256 encryption is sufficient for sample images; CMK adds cost.
-    (a2aRepo.node.defaultChild as ecr.CfnRepository).addMetadata('checkov', {
-      skip: [{ id: 'CKV_AWS_136', comment: 'ECR default AES256 encryption is sufficient for sample images; CMK adds cost.' }],
-    });
+    // Created by cdk/scripts/build-push*.sh before `cdk deploy` (images must exist
+    // before the Runtimes are created), so they are referenced here, not owned.
+    const mcpRepo = ecr.Repository.fromRepositoryName(
+      this, 'McpRepo', 'internalagent/internal-mcp-server'
+    );
+    const a2aRepo = ecr.Repository.fromRepositoryName(
+      this, 'A2aRepo', 'internalagent/data-analyst-agent'
+    );
 
     // --- A2A Agent (Runtime B) ---
     const a2aRole = new iam.Role(this, 'A2aRole', {
