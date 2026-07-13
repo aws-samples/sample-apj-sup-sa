@@ -2697,7 +2697,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests-aws4auth", specifier = ">=1.2.0" },
     { name = "strands-agents", extras = ["otel"], specifier = ">=1.15.0" },
-    { name = "strands-agents-tools" },
+    { name = "strands-agents-tools", specifier = ">=0.2.12,<0.3.0" },
     { name = "streamlit", specifier = ">=1.50.0" },
     { name = "valkey", specifier = ">=6.1.1" },
 ]

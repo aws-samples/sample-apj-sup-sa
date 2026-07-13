@@ -9,7 +9,7 @@ dependencies = [
     "strands-agents[otel]>=1.15.0",
     "streamlit>=1.50.0",
     "awslabs.aws-dataprocessing-mcp-server>=0.1.13,<0.2.0",
-    "strands-agents-tools",
+    "strands-agents-tools>=0.2.12,<0.3.0",
     "python-dotenv>=1.0.0",
     "opensearch-py>=2.4.0",
     "requests-aws4auth>=1.2.0",
