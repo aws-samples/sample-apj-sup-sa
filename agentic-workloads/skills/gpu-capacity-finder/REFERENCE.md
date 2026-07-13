@@ -1,5 +1,10 @@
 # Reference: GPU Capacity Finder
 
+AWS offers self-service, short-term GPU reservations (1–182 days) via EC2 Capacity
+Blocks and SageMaker Training Plans. No long-term commitment, no sales process —
+just API calls. This reference covers the instance types, regions, and API details
+needed to find and reserve capacity.
+
 ## Instance type lookup
 
 Users often refer to GPUs by NVIDIA product name, VRAM amount, or architecture

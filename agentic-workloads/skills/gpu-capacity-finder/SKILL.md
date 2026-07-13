@@ -8,6 +8,20 @@ description: Find short-term GPU reservations on AWS. Searches EC2 Capacity Bloc
 Find available short-term GPU reservations on AWS by searching EC2 Capacity Blocks
 and SageMaker Training Plans across regions using the AWS CLI.
 
+## Why this skill exists
+
+AWS offers **self-service, short-term GPU reservations** (days to weeks) with no
+long-term commitment — but many startups don't know about them because the
+capability is buried within EC2 (Capacity Blocks) and SageMaker (Training Plans)
+rather than being a standalone product.
+
+This means you can reserve H100s, A100s, or Trainium chips for exactly the
+duration you need (even just a few days), pay a fixed upfront fee, and get
+**guaranteed capacity** — no spot interruptions, no waiting for on-demand
+availability. It's like booking a hotel room for GPUs.
+
+This skill helps users discover and compare these options across all AWS regions.
+
 ## Prerequisites check
 
 Before searching, verify the user has AWS CLI access:
@@ -130,10 +144,14 @@ After gathering results:
 
 ## Key context
 
-- **EC2 Capacity Blocks**: Reserved GPU instances in your VPC. Pay upfront, no
-  hourly charges during the block. Best for custom frameworks, multi-node.
-- **SageMaker Training Plans**: Reserved ML training capacity. Pay upfront, covers
-  training job hours. Best for SageMaker-native workflows.
+- **EC2 Capacity Blocks**: Self-service, short-term reserved GPU instances in
+  your VPC. Pay a fixed upfront fee, no hourly charges during the block.
+  No long-term commitment — reserve for as few as 1 day.
+  Best for custom frameworks, multi-node training, or any GPU workload.
+- **SageMaker Training Plans**: Same concept but for SageMaker-native workflows.
+  Pay upfront, get guaranteed capacity for your training jobs.
+- Both are **self-service** — no sales calls, no capacity requests to file.
+  Just call the API and reserve if capacity is available.
 - Both offer the same GPU hardware — the difference is the access model.
 - Capacity is limited and first-come-first-served — results change frequently.
 - Capacity Blocks and Training Plans support **P-series and Trainium only**.
