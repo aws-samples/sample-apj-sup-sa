@@ -28,6 +28,7 @@ rather than AWS instance type. Use this table to translate.
 |---------------|------|-----------|--------------|------------|--------------|----------|
 | `g6.xlarge` – `g6.48xlarge` | 1–8 | L4 | 24 GB GDDR6 | 24–192 GB | Ada Lovelace | Inference, fine-tuning |
 | `g6e.xlarge` – `g6e.48xlarge` | 1–8 | L40S | 48 GB GDDR6 | 48–384 GB | Ada Lovelace | Inference + training hybrid |
+| `g7e.xlarge` – `g7e.48xlarge` | 1–8 | RTX Pro 6000 | 96 GB GDDR7 | 96–768 GB | Blackwell | AI inference, spatial computing |
 | `g5.xlarge` – `g5.48xlarge` | 1–8 | A10G | 24 GB GDDR6X | 24–192 GB | Ampere | Inference, rendering |
 
 ### Trainium (AWS custom silicon)
@@ -49,6 +50,7 @@ rather than AWS instance type. Use this table to translate.
 | "B300" | `p6-b300.48xlarge` |
 | "L4", "inference GPU", "24GB" | `g6.*` (not available as capacity blocks) |
 | "L40S", "48GB", "Ada Lovelace" | `g6e.*` (not available as capacity blocks) |
+| "RTX Pro 6000", "RTX 6000", "96GB GDDR7", "G7e" | `g7e.*` (not available as capacity blocks) |
 | "A10G", "rendering" | `g5.*` (not available as capacity blocks) |
 | "Trainium", "custom silicon", "cheapest" | `trn1.32xlarge` / `trn2.48xlarge` |
 | "640GB VRAM", "need 640GB" | `p5.48xlarge` or `p4de.24xlarge` |
