@@ -166,7 +166,7 @@ curl -s -X POST "${GATEWAY_URL}" \
 | Gateway → Runtime | IAM SigV4 |
 | Runtime → Aurora | RDS Data API (IAM 認証) |
 | Runtime → S3 | IAM ロール (デプロイされたバケットにスコープ限定) |
-| DB アクセス制御 | SELECT 文のみ許可 + 危険キーワードブロック |
+| DB アクセス制御 | READ-ONLY DB ユーザー (アプリテーブルへの SELECT のみ) + キーワードブロック |
 | ネットワーク | Private Isolated Subnet + VPC Endpoints |
 
 ### 本番利用に向けたセキュリティ上の考慮事項
@@ -175,8 +175,8 @@ curl -s -X POST "${GATEWAY_URL}" \
 
 **データベースアクセス**
 
-- `query_database` ツールは文字列ベースの拒否リストで危険な SQL キーワードをブロックしていますが、エンコードやネストクエリ等で回避される可能性があります。本番ではデータベースレベルのアクセス制御を実装してください。具体的には、PostgreSQL の READ-ONLY ユーザーを作成し、`GRANT SELECT` を特定テーブルのみに限定し、管理系テーブルを除外します。
-- エンドユーザーごとのアクセスレベルの区別はありません。すべてのリクエストが同一の DB 認証情報を共有します。
+- MCP サーバーは専用の READ-ONLY PostgreSQL ユーザー (`readonly_user`) で接続し、アプリケーションテーブル (`customers`, `internal_projects`) への `SELECT` のみが許可されています。LLM が生成する SQL に関わらず、DDL や DML 操作はデータベースレベルで防止されます。`query_database` ツールは多層防御としてキーワード拒否リストも適用していますが、これ単体ではバイパス可能です。
+- エンドユーザーごとのアクセスレベルの区別はありません。すべてのリクエストが同一の read-only 認証情報を共有します。
 - LLM エージェントと DB の間にセマンティックレイヤー (クエリテンプレート、パラメータ化クエリ等) を導入し、実行可能なクエリを制約することを検討してください。
 - LLM ガードレールやロジックベースのガードレールによる、生成 SQL の検証・制限を検討してください。
 

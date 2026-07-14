@@ -23,12 +23,14 @@ export class DataStack extends Stack {
 
     new McpRuntime(this, 'McpRuntime', {
       cluster: this.database.cluster,
+      readOnlySecret: this.database.readOnlySecret,
       bucket: this.storage.bucket,
       ssmPrefix: '/internalagent/',
     });
 
     new SeedDatabase(this, 'SeedDatabase', {
       cluster: this.database.cluster,
+      readOnlySecret: this.database.readOnlySecret,
     });
 
     new CfnOutput(this, 'VpcId', { value: this.network.vpc.vpcId });

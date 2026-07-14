@@ -2,19 +2,22 @@ import { Construct } from 'constructs';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { CustomResource, Duration, Stack } from 'aws-cdk-lib';
 import * as path from 'path';
 
 export interface SeedDatabaseProps {
   cluster: rds.DatabaseCluster;
+  readOnlySecret: secretsmanager.ISecret;
 }
 
 export class SeedDatabase extends Construct {
   constructor(scope: Construct, id: string, props: SeedDatabaseProps) {
     super(scope, id);
 
-    const { cluster } = props;
+    const { cluster, readOnlySecret } = props;
+    const readOnlyPassword = readOnlySecret.secretValueFromJson('password').unsafeUnwrap();
 
     const statements = [
       `CREATE TABLE IF NOT EXISTS customers (
@@ -46,6 +49,11 @@ export class SeedDatabase extends Construct {
       `INSERT INTO internal_projects (project_name, owner, department, status, budget, start_date, end_date, description) SELECT '顧客管理システム刷新', '木村美穂', 'IT部門', 'planning', 30000000, '2024-10-01', '2025-09-30', 'レガシーCRMから新システムへの移行' WHERE NOT EXISTS (SELECT 1 FROM internal_projects WHERE project_name = '顧客管理システム刷新')`,
       `INSERT INTO internal_projects (project_name, owner, department, status, budget, start_date, end_date, description) SELECT 'データ分析基盤', '中村拓也', 'データサイエンス', 'in_progress', 20000000, '2024-01-01', '2024-12-31', 'S3 + Athena によるデータレイク構築' WHERE NOT EXISTS (SELECT 1 FROM internal_projects WHERE project_name = 'データ分析基盤')`,
       `INSERT INTO internal_projects (project_name, owner, department, status, budget, start_date, end_date, description) SELECT 'セキュリティ強化施策', '渡辺由美', '情報セキュリティ', 'completed', 8000000, '2023-07-01', '2024-06-30', 'ゼロトラスト導入と監査体制整備' WHERE NOT EXISTS (SELECT 1 FROM internal_projects WHERE project_name = 'セキュリティ強化施策')`,
+      // Create a READ-ONLY database user for the MCP server (least privilege)
+      `DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly_user') THEN CREATE USER readonly_user WITH PASSWORD '${readOnlyPassword}'; END IF; END $$`,
+      `GRANT CONNECT ON DATABASE internal_db TO readonly_user`,
+      `GRANT USAGE ON SCHEMA public TO readonly_user`,
+      `GRANT SELECT ON customers, internal_projects TO readonly_user`,
     ];
 
     let previous: cr.AwsCustomResource | undefined;
