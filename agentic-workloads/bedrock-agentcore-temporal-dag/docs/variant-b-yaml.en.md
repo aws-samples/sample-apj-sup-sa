@@ -1,8 +1,8 @@
-# Variant B: YAML版
+# Variant B: YAML-Based DAG Engine
 
-外部依存なしで動作する軽量版。フロー定義はYAML（GitHub Actions風）で記述し、自前DAGエンジンで実行する。
+A lightweight variant with no external dependencies. Flow definitions are written in YAML (GitHub Actions-style) and executed by a built-in DAG engine.
 
-## アーキテクチャ
+## Architecture
 
 ```mermaid
 graph TD
@@ -14,7 +14,7 @@ graph TD
             YAML --> DAG --> A2AClient
         end
 
-        DDB["DynamoDB<br/>(ステータス管理)"]
+        DDB["DynamoDB<br/>(Status Management)"]
 
         subgraph AC["AgentCore Runtimes"]
             Gather["Gather Agent"]
@@ -43,7 +43,7 @@ graph TD
     A2AClient -->|GetParameter| SSM
 ```
 
-## フロー定義 (YAML)
+## Flow Definition (YAML)
 
 ```yaml
 # orchestrator/flows/research-pipeline.yaml
@@ -98,35 +98,35 @@ output: $.steps.synthesize.output
 timeout_sec: 3600
 ```
 
-### YAML仕様
+### YAML Specification
 
 #### steps
 
-| フィールド | 必須 | 説明 |
+| Field | Required | Description |
 |---|---|---|
-| `id` | yes | ステップの一意識別子 |
-| `agent` | yes | `agents` セクションで定義したエージェント名 |
-| `input` | yes | JSONPathによる入力マッピング |
-| `depends_on` | no | 依存するステップID。全完了後に実行 |
-| `condition` | no | 条件式。falseならスキップ（output = null） |
-| `retry` | no | リトライ設定 |
+| `id` | yes | Unique identifier for the step |
+| `agent` | yes | Agent name defined in the `agents` section |
+| `input` | yes | Input mapping via JSONPath |
+| `depends_on` | no | Step IDs this step depends on. Executes after all complete |
+| `condition` | no | Condition expression. Step is skipped (output = null) if false |
+| `retry` | no | Retry configuration |
 
-#### input マッピング
+#### Input Mapping
 
 ```yaml
-# スカラー参照
+# Scalar reference
 input: $.input.query
 
-# オブジェクト構築
+# Object construction
 input:
   analysis: $.steps.analyze.output
   evaluation: $.steps.evaluate.output
 
-# フォールバック（左がnullなら右）
+# Fallback (use right side if left is null)
 input: $.steps.re_analyze.output ?? $.steps.analyze.output
 ```
 
-state構造:
+State structure:
 ```json
 {
   "input": { ... },
@@ -140,10 +140,10 @@ state構造:
 #### condition
 
 ```yaml
-# 比較演算子: <, >, <=, >=, ==, !=
+# Comparison operators: <, >, <=, >=, ==, !=
 condition: $.steps.evaluate.output.score < 0.7
 
-# 論理演算子: AND, OR, NOT
+# Logical operators: AND, OR, NOT
 condition: $.steps.a.output.ready AND $.steps.b.output.count > 0
 ```
 
@@ -151,12 +151,12 @@ condition: $.steps.a.output.ready AND $.steps.b.output.count > 0
 
 ```yaml
 retry:
-  max_attempts: 3           # 最大試行回数（デフォルト: 1 = リトライなし）
+  max_attempts: 3           # Maximum attempts (default: 1 = no retry)
   backoff: exponential      # exponential | fixed
-  initial_delay_sec: 2      # 初回待機秒数
+  initial_delay_sec: 2      # Initial wait in seconds
 ```
 
-#### GitHub Actions との対比
+#### Comparison with GitHub Actions
 
 | GitHub Actions | DAF YAML |
 |---|---|
@@ -166,7 +166,7 @@ retry:
 | `with:` | `input:` |
 | `${{ steps.x.outputs.y }}` | `$.steps.x.output.y` |
 
-## 実行モデル
+## Execution Model
 
 ```python
 # orchestrator/main.py
@@ -319,14 +319,14 @@ class StatusStore:
         table.put_item(Item={"pk": self.pk, "sk": sk, **data})
 ```
 
-## クライアント操作
+## Client Operations
 
 ```bash
-# 方法1: SSEストリーム（リアルタイム）
+# Option 1: SSE stream (real-time)
 POST /invocations
 {"flow": "research-pipeline", "input": {"query": "..."}}
 
-# レスポンス
+# Response
 data: {"event": "flow_started", "flow_execution_id": "abc123"}
 data: {"event": "step_completed", "step": "gather"}
 data: {"event": "step_completed", "step": "analyze"}
@@ -335,9 +335,9 @@ data: {"event": "step_skipped", "step": "re_analyze"}
 data: {"event": "step_completed", "step": "synthesize"}
 data: {"event": "flow_completed", "output": {...}}
 
-# 方法2: ステータスAPI（SSE切断後）
+# Option 2: Status API (after SSE disconnection)
 GET /flows/abc123/status
-→ {
+-> {
     "flow_execution_id": "abc123",
     "status": "running",
     "steps": {
@@ -348,23 +348,23 @@ GET /flows/abc123/status
     }
   }
 
-# 方法3: 結果取得
+# Option 3: Retrieve result
 GET /flows/abc123/output
-→ {"output": {...}}
+-> {"output": {...}}
 ```
 
-## ステータス管理 (DynamoDB)
+## Status Management (DynamoDB)
 
 ```
 Table: daf-flow-executions
 Billing: PAY_PER_REQUEST
-TTL: 30日で自動削除
+TTL: Auto-delete after 30 days
 
 PK: flow#{flow_execution_id}
 SK: META | step#{step_id}
 ```
 
-ステータス遷移:
+State transitions:
 
 ```mermaid
 stateDiagram-v2
@@ -385,12 +385,12 @@ stateDiagram-v2
     }
 ```
 
-## インフラ仕様
+## Infrastructure Specifications
 
-リポジトリ構成、デプロイ、IAM、ネットワーク、スケーリング、コストについては [specs-yaml.md](specs-yaml.md) を参照。
+For repository structure, deployment, IAM, networking, scaling, and cost details, see [specs-yaml.md](specs-yaml.md).
 
-## 制約
+## Constraints
 
-- AgentCore Runtimeのセッションタイムアウト: アイドル15分（`add_async_task`で延命）
-- フロー全体のタイムアウト: 最大8時間
-- VM障害時のフロー再開: 不可（再実行で対応）
+- AgentCore Runtime session timeout: 15 minutes idle (extend with `add_async_task`)
+- Flow-level timeout: 8 hours maximum
+- Flow resumption on VM failure: Not supported (re-execute the flow)

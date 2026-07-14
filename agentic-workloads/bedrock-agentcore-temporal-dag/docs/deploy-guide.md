@@ -71,6 +71,16 @@ done
 
 AgentCore Runtime has no CDK L2 support, so it is created via the AWS CLI.
 
+> **Note on network mode**: This sample uses `PUBLIC` mode for AgentCore Runtimes. Although
+> the CDK stack provisions private subnets, AgentCore Runtimes in `VPC` mode are only
+> reachable from within the attached VPC — the Orchestrator (ECS Fargate) invokes Agents
+> via the AgentCore control-plane endpoint (`bedrock-agentcore.<region>.amazonaws.com`),
+> which routes traffic externally. `PUBLIC` mode is therefore required for this
+> architecture. All agent endpoints remain IAM-authenticated (SigV4); there is no
+> unauthenticated network path. If your security requirements mandate VPC-only traffic,
+> consider co-locating the Orchestrator and Agents in the same VPC and switching to
+> direct HTTP invocation instead of the AgentCore control-plane route.
+
 ```bash
 AGENT_ROLE_ARN=$(aws cloudformation describe-stacks \
   --stack-name DafAgents --region ${REGION} \

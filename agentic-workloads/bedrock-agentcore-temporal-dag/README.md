@@ -188,7 +188,8 @@ docs/                          — Documentation
 ## Documentation
 
 - [Temporal Variant](docs/variant-a-temporal.md) — Production-ready with Temporal Cloud
-- [YAML Variant](docs/variant-b-yaml.md) — Lightweight, no external dependencies
+- [YAML Variant (EN)](docs/variant-b-yaml.en.md) — Lightweight, no external dependencies
+- [YAML Variant (JA)](docs/variant-b-yaml.md) — 軽量版（日本語）
 - [Code Walkthrough](docs/code-walkthrough.md) — Detailed code explanation
 
 ## License
