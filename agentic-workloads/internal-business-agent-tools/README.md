@@ -168,9 +168,31 @@ curl -s -X POST "${GATEWAY_URL}" \
 | Client → Gateway | Cognito JWT (OAuth 2.0) |
 | Gateway → Runtime | IAM SigV4 |
 | Runtime → Aurora | RDS Data API (IAM auth) |
-| Runtime → S3 | IAM role |
+| Runtime → S3 | IAM role (scoped to the deployed bucket) |
 | DB access guardrail | SELECT-only + destructive-keyword denylist |
 | Network | Private isolated subnets + VPC Endpoints |
+
+### Security considerations for production use
+
+This sample demonstrates agentic access to data and is **not intended for production use as-is**. When adapting it for production, consider the following:
+
+**Database access**
+
+- The `query_database` tool uses a string-based denylist to reject dangerous SQL keywords. This approach can be bypassed (e.g., using encoded characters or nested queries). In production, implement database-level access controls: create a dedicated READ-ONLY PostgreSQL user with `GRANT SELECT` limited to specific tables, excluding administrative and system tables.
+- There is currently no differentiation of access levels by end user — all requests share the same database credentials.
+- Consider adding a semantic layer (e.g., query templates, parameterized queries) between the LLM-powered agent and the database to constrain what queries are possible.
+- Consider LLM guardrails or logic-based guardrails to validate and limit generated SQL before execution.
+
+**S3 access**
+
+- IAM permissions are scoped to the specific bucket deployed by this stack. However, the agent can access any object key within that bucket. In production, consider further restricting access to specific key prefixes via IAM conditions or S3 access points.
+
+**General recommendations**
+
+- Implement user-level data access segregation (row-level security, per-user IAM policies, or per-tenant buckets).
+- Add audit logging for all tool invocations.
+- Use Amazon Bedrock Guardrails to filter and validate agent inputs/outputs.
+- Regularly review and rotate credentials.
 
 ## Notes
 

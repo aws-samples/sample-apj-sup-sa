@@ -8,13 +8,16 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 export interface AgentCoreStackProps extends StackProps {
   userPoolId: string;
   userPoolClientId: string;
+  bucketArn: string;
+  clusterArn: string;
+  secretArn: string;
 }
 
 export class AgentCoreStack extends Stack {
   constructor(scope: Construct, id: string, props: AgentCoreStackProps) {
     super(scope, id, props);
 
-    const { userPoolId, userPoolClientId } = props;
+    const { userPoolId, userPoolClientId, bucketArn, clusterArn, secretArn } = props;
     const region = this.region;
 
     // --- ECR Repositories ---
@@ -97,15 +100,15 @@ export class AgentCoreStack extends Stack {
             }),
             new iam.PolicyStatement({
               actions: ['rds-data:ExecuteStatement', 'rds-data:BatchExecuteStatement'],
-              resources: [`arn:aws:rds:${this.region}:${this.account}:cluster:*`],
+              resources: [clusterArn],
             }),
             new iam.PolicyStatement({
               actions: ['secretsmanager:GetSecretValue'],
-              resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`],
+              resources: [secretArn],
             }),
             new iam.PolicyStatement({
               actions: ['s3:GetObject', 's3:ListBucket'],
-              resources: ['*'],
+              resources: [bucketArn, `${bucketArn}/*`],
             }),
             new iam.PolicyStatement({
               actions: ['bedrock-agentcore:InvokeAgentRuntime', 'bedrock-agentcore:InvokeAgentRuntimeForUser'],

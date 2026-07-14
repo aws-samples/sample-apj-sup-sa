@@ -1,4 +1,4 @@
-import { Stack, StackProps, CfnOutput, RemovalPolicy } from 'aws-cdk-lib';
+import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { Network } from './constructs/network';
 import { Database } from './constructs/database';
@@ -12,7 +12,6 @@ export class DataStack extends Stack {
   public readonly database: Database;
   public readonly storage: Storage;
   public readonly auth: Auth;
-  public readonly mcpRuntime: McpRuntime;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -22,7 +21,7 @@ export class DataStack extends Stack {
     this.storage = new Storage(this, 'Storage');
     this.auth = new Auth(this, 'Auth');
 
-    this.mcpRuntime = new McpRuntime(this, 'McpRuntime', {
+    new McpRuntime(this, 'McpRuntime', {
       cluster: this.database.cluster,
       bucket: this.storage.bucket,
       ssmPrefix: '/internalagent/',
