@@ -61,6 +61,17 @@ def query_database(sql: str) -> str:
 
     try:
         rds_data = boto3.client("rds-data", region_name=REGION)
+
+        # Switch to the read-only role before executing the user query.
+        # This ensures DB-level enforcement of SELECT-only access on
+        # application tables, regardless of the generated SQL.
+        rds_data.execute_statement(
+            resourceArn=CLUSTER_ARN,
+            secretArn=SECRET_ARN,
+            database=DATABASE,
+            sql="SET ROLE readonly_user",
+        )
+
         response = rds_data.execute_statement(
             resourceArn=CLUSTER_ARN,
             secretArn=SECRET_ARN,
