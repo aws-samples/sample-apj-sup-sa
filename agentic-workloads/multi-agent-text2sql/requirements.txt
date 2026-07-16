@@ -1,3 +1,3 @@
-streamlit>=1.28.0
+streamlit>=1.54.0
 strands-agents
 awslabs.aws-dataprocessing-mcp-server
