@@ -18,7 +18,7 @@ MODELS_DIR = REPO / "models"
 # (package, nb_filename, hf_repo, expected_experiment_count)
 _MODELS: list[tuple[str, str, str, int]] = [
     ("medgemma_27b",          "medgemma-27b-vllm-ec2-benchmark.ipynb",
-     "google/medgemma-27b-text-it", 7),
+     "google/medgemma-27b-text-it", 8),
     ("qwen3_8b",              "qwen3-8b-vllm-ec2-benchmark.ipynb",
      "Qwen/Qwen3-8B", 7),
     ("mistral_small_3_2_24b", "mistral-small-3-2-24b-vllm-ec2-benchmark.ipynb",

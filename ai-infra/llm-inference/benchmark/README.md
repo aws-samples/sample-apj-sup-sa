@@ -21,7 +21,7 @@ The project is split into two layers:
 | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` | [`models/mistral_small_3_2_24b/`](./models/mistral_small_3_2_24b/) | 7 |
 | `Qwen/Qwen3-30B-A3B-Instruct-2507` | [`models/qwen3_30b_a3b/`](./models/qwen3_30b_a3b/) | 7 |
 | `google/gemma-4-31B-it` | [`models/gemma_4_31b/`](./models/gemma_4_31b/) | 7 |
-| `google/medgemma-27b-text-it` | [`models/medgemma_27b/`](./models/medgemma_27b/) | 7 |
+| `google/medgemma-27b-text-it` | [`models/medgemma_27b/`](./models/medgemma_27b/) | 8 |
 | `meta-llama/Llama-4-Scout-17B-16E-Instruct` | [`models/llama_4_scout_17b/`](./models/llama_4_scout_17b/) | 2 |
 
 ## Quick start

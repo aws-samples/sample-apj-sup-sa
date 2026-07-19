@@ -3,7 +3,7 @@
 End-to-end AWS code samples for deploying open-source LLMs with vLLM:
 
 * **`batch/`** — high-throughput, cost-optimized inference on **AWS Batch + EC2 spot**. Submit a JSONL of prompts, get back a JSONL of completions. Best when you don't need a low-latency endpoint and want to minimize $ / 1M output tokens. You would go to this folder if you need samples on how to deploy LLMs for bulk inference that can benefit from the cost-savings of spot instances. The notebook also generates a report on the throughput and estimated $/tokens.
-* **`benchmark/`** — reproducible single-instance vLLM benchmarks across `g5`, `g6`, `g6e`, `g7e`, `p4d`, `p4de`. Helps you pick the right instance family for your model + workload. You would go to this folder if you need samples on running inference benchmark for LLM across several GPU instances in AWS. The notebook generates report that compares throughput and $/tokens across the instance types.
+* **`benchmark/`** — reproducible single-instance vLLM benchmarks across `g5`, `g6`, `g6e`, `g7e`, `p4d`, `p4de`, and `p6-b200` (8× NVIDIA B200, MedGemma only for now). Helps you pick the right instance family for your model + workload. You would go to this folder if you need samples on running inference benchmark for LLM across several GPU instances in AWS. The notebook generates report that compares throughput and $/tokens across the instance types.
 
 ## Models
 
@@ -97,7 +97,8 @@ Example: for **batch on Llama-4-Scout**, open
 
 | What you want to change | Where to edit |
 |---|---|
-| **Spot/on-demand/ODCR/Capacity-Block** strategy | `batch/models/<model>/batch_plans.py` (`capacity_mode=...` on each `ComputeEnvironment`); `benchmark/models/<model>/experiments.py` (`capacity_strategy=...`) |
+| **Spot/on-demand/ODCR/Capacity-Block** strategy | `batch/models/<model>/batch_plans.py` (`capacity_mode=...` on each `ComputeEnvironment`); `benchmark/models/<model>/experiments.py` (`capacity_preference=[...]`) |
+| **Persistent spot wait** (scarce GPUs like p4d/p5/p6-B200 whose spot pools flicker) | `benchmark/models/<model>/experiments.py` — set `spot_wait_timeout_s=1800` (+ optional `spot_poll_interval_s`) on the plan so the spot strategy keeps polling for a slot before falling through to on-demand. The wait is capacity-acquisition time and is reported separately from benchmark run time. Batch: rely on the job sitting in `RUNNABLE` bounded by the waiter's `max_wait_s`, optionally with an on-demand-failover compute environment |
 | **Instance type / family** | Same files above (`instance_types=[...]`) |
 | **Tensor / data / pipeline parallelism** | `<scenario>/models/<model>/model_spec.py` for batch+benchmark |
 | **vLLM serve flags** (e.g. `--kv-cache-dtype fp8`, `--max-model-len`) | Same files as the strategy row above (`extra_serve_flags=[...]`) |

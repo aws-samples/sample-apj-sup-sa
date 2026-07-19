@@ -55,6 +55,13 @@ class TestInstanceResourcesTable:
     def test_p5_has_192_vcpus_reserved_to_188(self) -> None:
         assert INSTANCE_RESOURCES["p5.48xlarge"]["vcpus"] == 188
 
+    def test_p6_b200_has_8_gpus_reserved_to_188_vcpus(self) -> None:
+        # p6-b200.48xlarge: 8× B200, 192 vCPU. Must resolve to 8 GPUs so the
+        # container gets all of them — the 1-GPU fallback would waste 7 B200s.
+        entry = INSTANCE_RESOURCES["p6-b200.48xlarge"]
+        assert entry["gpus"] == 8
+        assert entry["vcpus"] == 188   # 192 - 4 headroom, mirrors p5
+
     def test_g7e_2xlarge_is_single_gpu(self) -> None:
         entry = INSTANCE_RESOURCES["g7e.2xlarge"]
         assert entry["gpus"] == 1
@@ -100,6 +107,7 @@ class TestJobDefinitionShape:
     @pytest.mark.parametrize("instance_type,expected_gpus,expected_vcpus", [
         ("p4d.24xlarge", "8", "92"),
         ("p5.48xlarge", "8", "188"),
+        ("p6-b200.48xlarge", "8", "188"),
         ("g5.12xlarge", "4", "46"),
         ("g7e.2xlarge", "1", "7"),
     ])

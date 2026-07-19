@@ -12,7 +12,7 @@ at task-start time.
 batch/models/medgemma_27b/
 ├── __init__.py
 ├── model_spec.py      # MEDGEMMA_27B: ModelSpec(gated=True)
-└── batch_plans.py     # 4 BatchDeploymentPlan factories
+└── batch_plans.py     # 6 BatchDeploymentPlan factories
 ```
 
 ## Plan factories
@@ -23,6 +23,8 @@ batch/models/medgemma_27b/
 | `g7e_family_spot_with_od_failover()` | `g7e.{2x,4x,12x}large` spot + on-demand failover | Tighter SLA: spot-first across the g7e family with an on-demand queue when spot is exhausted. |
 | `p4d_spot_single_queue()` | `p4d.24xlarge` spot (8x A100-40GB) | When you need 8-GPU TP for higher throughput, or g7e is unavailable in your region. |
 | `p4d_spot_and_on_demand_failover()` | `p4d.24xlarge` spot + on-demand fallback queue | Production-style: keeps long-running jobs alive through capacity churn. |
+| `p6_spot_single_queue()` | `p6-b200.48xlarge` spot (8x B200) | Newest Blackwell datacenter GPU. **All 8 GPUs used** (TP=1, DP=8 → one replica/GPU). Defaults to `us-east-2`. Batch keeps the job in `RUNNABLE` until a scarce B200 spot slot opens (bounded by the waiter's `max_wait_s`). |
+| `p6_spot_and_on_demand_failover()` | `p6-b200.48xlarge` spot + on-demand fallback | Same all-8-GPU packing with an on-demand p6 pool as insurance when you can't risk an unbounded spot wait (~$113/hr on-demand). |
 
 ## Task
 

@@ -166,17 +166,31 @@ class DeploymentRunner:
             hf_secret_name=self.hf_secret_name, vllm_api_key=self.state.api_key,
         )
 
-        # 3. Try each capacity strategy in order
+        # 3. Try each capacity strategy in order. Time the acquisition
+        #    separately: for scarce GPUs (p4d/p5/p6) the spot strategy may
+        #    poll for many minutes, and that wait must be excluded from the
+        #    benchmark's measured run time (see DeploymentState.capacity_wait_s).
         ctx = self._build_launch_context(user_data_b64)
+        _t_capacity_start = time.time()
         result = self._try_strategies(ctx)
+        self.state.capacity_wait_s = round(time.time() - _t_capacity_start, 3)
         self._record_result(result)
 
-        # 4. Wait for public IP + vLLM ready
+        # 4. Wait for public IP + vLLM ready (boot + image pull + weight
+        #    download + warmup). Also excluded from benchmark run time.
         self._wait_for_public_ip()
+        _t_ready_start = time.time()
         self._wait_for_vllm_ready()
+        self.state.vllm_ready_wait_s = round(time.time() - _t_ready_start, 3)
 
         self.state.base_url = f"http://{self.state.public_ip}:8000/v1"
         self.state.mark_launched()
+        LOG.info(
+            "[%s] launch overhead: capacity_wait=%.0fs vllm_ready_wait=%.0fs "
+            "(excluded from benchmark run time)",
+            cfg.experiment_id, self.state.capacity_wait_s or 0.0,
+            self.state.vllm_ready_wait_s or 0.0,
+        )
         LOG.info(
             "[%s] ready at %s (api key prefix: %s)",
             cfg.experiment_id, self.state.base_url, self.state.api_key[:8],
