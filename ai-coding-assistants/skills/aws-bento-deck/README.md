@@ -9,6 +9,8 @@ opens and presents anywhere with no external assets.
 > **Bento**, not PPTX. This skill produces `.bento.html` only. If you want a
 > `.pptx`, use a PowerPoint skill instead (e.g. `aws-slides` / `aws-pptx-skills`).
 
+![A Claude Managed Agents on AWS deck open in the Bento Slides editor, showing an AWS-branded cover slide with a gradient background and the AWS logo](docs/screenshot.png)
+
 ---
 
 ## What it does
