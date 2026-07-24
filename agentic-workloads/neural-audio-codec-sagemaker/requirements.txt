@@ -1,0 +1,5 @@
+# Client-side dependencies for deploying and invoking the endpoint (src/ and examples/).
+# The SageMaker Python SDK must be v2 (v3 removed HuggingFaceModel).
+# Container-side dependencies are in src/requirements.txt.
+boto3
+sagemaker>=2,<3
