@@ -9,20 +9,6 @@
   Both codecs here operate at 24 kHz and download from the Hugging Face Hub at container
   start, pinned to a fixed commit.
 
-  ## Table of contents
-  
-  - [How it works](#how-it-works)
-  - [Prerequisites](#prerequisites)
-  - [Setup](#setup)
-  - [Deploy](#deploy)
-  - [Usage](#usage)
-  - [Cost](#cost)
-  - [Cleanup](#cleanup)
-  - [Security](#security)
-  - [Project structure](#project-structure)
-  - [Limitations](#limitations)
-  - [References](#references)
-  
   ## How it works
 
   One inference handler (`src/inference.py`) loads both codecs once at container start
