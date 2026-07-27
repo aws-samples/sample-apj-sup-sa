@@ -76,7 +76,7 @@ The :link[SaaS Lens]{href="https://docs.aws.amazon.com/wellarchitected/latest/sa
 
 ### Learn More
 - :link[Amazon Bedrock AgentCore Documentation]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/"}
-- :link[Strands Agents SDK]{href="https://strandsagents.com/latest/" external=true}
+- :link[Strands Agents SDK]{href="https://strandsagents.com/docs/" external=true}
 - :link[AI Agents in Enterprises: Best Practices]{href="https://aws.amazon.com/blogs/machine-learning/ai-agents-in-enterprises-best-practices-with-amazon-bedrock-agentcore/" external=true}
 - :link[Dynamic Text-to-SQL for Enterprise Workloads]{href="https://aws.amazon.com/blogs/machine-learning/dynamic-text-to-sql-for-enterprise-workloads-with-amazon-bedrock-agents/" external=true}
 - :link[Cedar Policy Language]{href="https://www.cedarpolicy.com/" external=true}

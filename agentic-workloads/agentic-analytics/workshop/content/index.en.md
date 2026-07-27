@@ -9,7 +9,7 @@ Welcome! In this workshop, you'll build an AI assistant that lets business users
 
 This is **agentic data access** — an AI agent that understands your business context, selects the right database query, enforces security policies, and returns formatted insights. You'll build it step by step, starting with a simple local agent and progressively adding enterprise capabilities: centralized tool management, role-based access control, tenant data isolation for multi-tenant environment, content safety, and custom SQL with human approval.
 
-::alert[This workshop uses :link[Amazon Bedrock AgentCore]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html"} and :link[Strands Agents SDK]{href="https://strandsagents.com/latest/"} — but the focus is on the **data access patterns**, not the tools The techniques you learn here apply to agentic analytics system in general.]{type="info"}
+::alert[This workshop uses :link[Amazon Bedrock AgentCore]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html"} and :link[Strands Agents SDK]{href="https://strandsagents.com/docs/"} — but the focus is on the **data access patterns**, not the tools The techniques you learn here apply to agentic analytics system in general.]{type="info"}
 
 ## The Scenario: Timely-Unicorn
 

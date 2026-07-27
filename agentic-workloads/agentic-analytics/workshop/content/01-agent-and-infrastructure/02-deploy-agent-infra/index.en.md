@@ -86,7 +86,7 @@ SYSTEM_PROMPT = load_system_prompt()
 
 #### TODO 2.3.2: Create the Agent
 
-Wire the components together. Find `TODO 2.3.2` — replace `None` with an :link[Agent]{href="https://strandsagents.com/latest/user-guide/concepts/agents/agent-loop/" external=true} constructor. Pass it `system_prompt` (the SOP you loaded in TODO 2.3.1) and `agent_tools` — both assembled for you just above. `agent_tools` includes the `mcp_client`, which is what connects the agent to the Gateway's MCP tools; the Gateway has no toolsets yet (you'll add them in later steps), but the wiring is in place. Leave `hooks=[]` for now — you'll switch it on in the next TODO.
+Wire the components together. Find `TODO 2.3.2` — replace `None` with an :link[Agent]{href="https://strandsagents.com/docs/user-guide/concepts/agents/agent-loop/" external=true} constructor. Pass it `system_prompt` (the SOP you loaded in TODO 2.3.1) and `agent_tools` — both assembled for you just above. `agent_tools` includes the `mcp_client`, which is what connects the agent to the Gateway's MCP tools; the Gateway has no toolsets yet (you'll add them in later steps), but the wiring is in place. Leave `hooks=[]` for now — you'll switch it on in the next TODO.
 
 ::::expand{header="💡 Need help with TODO 2.3.2? Click to see the solution"}
 :::code{language=python showCopyAction=true}
@@ -201,4 +201,4 @@ Next → [Step 3: Connect the Chat UI](../03-connect-ui/)
 - :link[AgentCore Gateway]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html"}
 - :link[AgentCore Runtime]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agents-tools-runtime.html"}
 - :link[MCP Protocol]{href="https://modelcontextprotocol.io/docs/getting-started/intro" external=true}
-- :link[Strands Agents — MCP Client]{href="https://strandsagents.com/latest/user-guide/concepts/tools/mcp-tools/" external=true}
+- :link[Strands Agents — MCP Client]{href="https://strandsagents.com/docs/user-guide/concepts/tools/mcp-tools/" external=true}

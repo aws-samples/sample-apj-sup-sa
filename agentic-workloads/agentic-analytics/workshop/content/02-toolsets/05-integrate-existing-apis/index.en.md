@@ -161,4 +161,4 @@ But right now, any user can create bookings. We'll fix this with AgentCore Polic
 ## Reference Materials
 
 - [AgentCore Gateway — Creating Targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-targets.html)
-- [Strands Agents — Tool Chaining](https://strandsagents.com/latest/user-guide/concepts/tools/tools-overview/)
+- [Strands Agents — Tool Chaining](https://strandsagents.com/docs/user-guide/concepts/tools/)
