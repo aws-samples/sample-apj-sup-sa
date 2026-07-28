@@ -8,7 +8,7 @@ strands-agents[otel]==1.44.0
 strands-agents-tools==0.8.1
 mcp==1.28.0
 requests
-bedrock-agentcore==1.14.1
+bedrock-agentcore==1.18.1
 requests-aws4auth
 opensearch-py
 bedrock-agentcore-starter-toolkit==0.2.1
