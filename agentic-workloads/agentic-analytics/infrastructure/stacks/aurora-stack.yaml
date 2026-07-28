@@ -426,7 +426,12 @@ Resources:
     Properties:
       DBClusterIdentifier: !Sub ${EnvironmentName}-cluster
       Engine: aurora-postgresql
-      EngineVersion: '15.8'
+      # NOTE: pin to a currently-available Aurora PostgreSQL 15.x minor. AWS
+      # periodically retires minor versions; when 15.8 was retired, fresh
+      # CreateDBCluster calls failed with "Cannot find version 15.8". If this
+      # recurs, bump to a current 15.x from: aws rds describe-db-engine-versions
+      # --engine aurora-postgresql --query "DBEngineVersions[?starts_with(EngineVersion,'15.')].EngineVersion"
+      EngineVersion: '15.14'
       EngineMode: provisioned
       DatabaseName: !Ref DatabaseName
       MasterUsername: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}'
