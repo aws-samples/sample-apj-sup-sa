@@ -149,4 +149,4 @@ Next, you'll learn to leverage observability to monitor your agent → [Step 9: 
 - [Amazon Bedrock Guardrails](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html)
 - [Bedrock Guardrails — Topic Filters](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-topic-filters.html)
 - [Bedrock Guardrails — Content Filters](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-content-filters.html)
-- [Strands Agents — Hooks](https://strandsagents.com/latest/user-guide/concepts/agents/hooks/)
+- [Strands Agents — Hooks](https://strandsagents.com/docs/user-guide/concepts/agents/hooks/)

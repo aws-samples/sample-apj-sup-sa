@@ -184,4 +184,4 @@ Next, you'll connect the agent to existing business APIs → [Step 5: Integrate 
 
 - :link[AgentCore Gateway — Adding Targets]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-building-adding-targets.html"}
 - :link[AgentCore Gateway — Tool Naming]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-tool-naming.html"}
-- :link[Strands Agents — Tools]{href="https://strandsagents.com/latest/user-guide/concepts/tools/tools-overview/" external=true}
+- :link[Strands Agents — Tools]{href="https://strandsagents.com/docs/user-guide/concepts/tools/" external=true}

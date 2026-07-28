@@ -132,5 +132,5 @@ Next, you'll build your first AI agent → [Step 1: Build Your First Strands Age
 ## Reference Materials
 
 - [Amazon Bedrock AgentCore Documentation](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/)
-- [Strands Agents SDK](https://strandsagents.com/latest/)
+- [Strands Agents SDK](https://strandsagents.com/docs/)
 - [Workshop Studio User Guide](https://catalog.workshops.aws/docs/en-US/)

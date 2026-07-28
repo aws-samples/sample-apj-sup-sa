@@ -117,5 +117,5 @@ Next → [Summary & Next Steps](../../summary/)
 - :link[Built-in Evaluators]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/built-in-evaluators-overview.html"}
 - :link[On-Demand Evaluation Guide]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/getting-started-on-demand.html"}
 - :link[Online Evaluation Guide]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/create-online-evaluations.html"}
-- :link[Strands Agents Evals SDK]{href="https://strandsagents.com/latest/documentation/docs/user-guide/evals-sdk/quickstart/" external=true} (for test-dataset evaluation)
-- :link[Strands Evals — Output Evaluator]{href="https://strandsagents.com/latest/documentation/docs/user-guide/evals-sdk/evaluators/output_evaluator/" external=true}
+- :link[Strands Agents Evals SDK]{href="https://strandsagents.com/docs/user-guide/evals-sdk/quickstart/" external=true} (for test-dataset evaluation)
+- :link[Strands Evals — Output Evaluator]{href="https://strandsagents.com/docs/user-guide/evals-sdk/evaluators/output_evaluator/" external=true}

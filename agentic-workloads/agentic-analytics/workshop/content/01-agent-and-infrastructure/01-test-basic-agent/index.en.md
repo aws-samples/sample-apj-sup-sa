@@ -16,7 +16,7 @@ By the end of this step, you will:
 
 Your tenants need answers. Lyra Starwhisper at Mythical Unicorns wants to know her top customers by revenue — but she'd have to email the data team and wait half a day. As the Timely-Unicorn SaaS platform team, let's build something better for her and all of the future tenants with the same need.
 
-Before deploying to the cloud, it's important to understand how an AI agent works at its core. :link[Strands Agents]{href="https://strandsagents.com/latest/" external=true} is an open-source SDK from AWS that takes a :link[model-driven approach]{href="https://aws.amazon.com/blogs/opensource/strands-agents-and-the-model-driven-approach/" external=true} — instead of writing complex routing logic, you define tools and a prompt, and the LLM decides which tools to call and in what order.
+Before deploying to the cloud, it's important to understand how an AI agent works at its core. :link[Strands Agents]{href="https://strandsagents.com/docs/" external=true} is an open-source SDK from AWS that takes a :link[model-driven approach]{href="https://aws.amazon.com/blogs/opensource/strands-agents-and-the-model-driven-approach/" external=true} — instead of writing complex routing logic, you define tools and a prompt, and the LLM decides which tools to call and in what order.
 
 An agent has three components:
 
@@ -38,7 +38,7 @@ Open :code[exercises/basic_agent.py]{showCopyAction=true} in the Code Editor. Th
 
 ### Step 1.2: Configure the Bedrock Model (TODO 1.2)
 
-The agent needs a foundation model. Find `TODO 1.2` in `exercises/basic_agent.py` — replace `None` with a :link[BedrockModel]{href="https://strandsagents.com/latest/user-guide/concepts/model-providers/amazon-bedrock/" external=true} using the model ID and region already shown in the hint.
+The agent needs a foundation model. Find `TODO 1.2` in `exercises/basic_agent.py` — replace `None` with a :link[BedrockModel]{href="https://strandsagents.com/docs/user-guide/concepts/model-providers/amazon-bedrock/" external=true} using the model ID and region already shown in the hint.
 
 ::::expand{header="💡 Need help with TODO 1.2? Click to see the solution"}
 :::code{language=python showCopyAction=true}
@@ -65,7 +65,7 @@ One line. The docstring `"""Get the top customers by revenue..."""` already tell
 
 ### Step 1.4: Create the Agent (TODO 1.4)
 
-Wire the three components together. Find `TODO 1.4` — replace `None` with an :link[Agent]{href="https://strandsagents.com/latest/user-guide/concepts/agents/agent-loop/" external=true} using `bedrock_model`, a system prompt string, and `tools=[get_top_customers]`.
+Wire the three components together. Find `TODO 1.4` — replace `None` with an :link[Agent]{href="https://strandsagents.com/docs/user-guide/concepts/agents/agent-loop/" external=true} using `bedrock_model`, a system prompt string, and `tools=[get_top_customers]`.
 
 ::::expand{header="💡 Need help with TODO 1.4? Click to see the solution"}
 :::code{language=python showCopyAction=true}
@@ -151,7 +151,7 @@ Next, you'll move from a single machine deployment to a highly available deploym
 
 ## Reference Materials
 
-- [Strands Agents SDK Documentation](https://strandsagents.com/latest/)
-- [Strands Agents — Tools](https://strandsagents.com/latest/user-guide/concepts/tools/tools-overview/)
+- [Strands Agents SDK Documentation](https://strandsagents.com/docs/)
+- [Strands Agents — Tools](https://strandsagents.com/docs/user-guide/concepts/tools/)
 - [Amazon Bedrock Model Access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)
-- [BedrockModel Configuration](https://strandsagents.com/latest/user-guide/concepts/model-providers/amazon-bedrock/)
+- [BedrockModel Configuration](https://strandsagents.com/docs/user-guide/concepts/model-providers/amazon-bedrock/)
