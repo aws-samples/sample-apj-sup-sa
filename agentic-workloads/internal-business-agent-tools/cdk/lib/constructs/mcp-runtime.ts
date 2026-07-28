@@ -1,12 +1,10 @@
 import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as rds from 'aws-cdk-lib/aws-rds';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 
 export interface McpRuntimeProps {
   cluster: rds.DatabaseCluster;
-  readOnlySecret: secretsmanager.ISecret;
   bucket: s3.IBucket;
   ssmPrefix: string;
 }
@@ -21,7 +19,7 @@ export class McpRuntime extends Construct {
   constructor(scope: Construct, id: string, props: McpRuntimeProps) {
     super(scope, id);
 
-    const { cluster, readOnlySecret, bucket, ssmPrefix } = props;
+    const { cluster, bucket, ssmPrefix } = props;
 
     new ssm.StringParameter(this, 'ClusterArn', {
       parameterName: `${ssmPrefix}CLUSTER_ARN`,
@@ -30,7 +28,7 @@ export class McpRuntime extends Construct {
 
     new ssm.StringParameter(this, 'SecretArn', {
       parameterName: `${ssmPrefix}SECRET_ARN`,
-      stringValue: readOnlySecret.secretArn,
+      stringValue: cluster.secret!.secretArn,
     });
 
     new ssm.StringParameter(this, 'Database', {

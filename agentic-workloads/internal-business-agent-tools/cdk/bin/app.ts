@@ -30,7 +30,7 @@ new AgentCoreStack(app, 'InternalAgent-AgentCore', {
   userPoolClientId: dataStack.auth.client.userPoolClientId,
   bucketArn: dataStack.storage.bucket.bucketArn,
   clusterArn: dataStack.database.cluster.clusterArn,
-  secretArn: dataStack.database.readOnlySecret.secretArn,
+  secretArn: dataStack.database.cluster.secret!.secretArn,
   description: 'AgentCore Runtime (PUBLIC) + Gateway',
 });
 
