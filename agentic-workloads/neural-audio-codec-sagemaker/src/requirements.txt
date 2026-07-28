@@ -1,2 +1,2 @@
-soundfile
-librosa
+soundfile==0.14.0
+librosa==0.11.0
