@@ -153,6 +153,123 @@ class TestSpotFleetStrategy:
             SpotFleetStrategy().launch(ctx)
 
 
+class TestSpotFleetPersistentWait:
+    """spot_wait_timeout_s > 0 makes the strategy poll for a scarce-GPU slot."""
+
+    def _config_with_wait(
+        self, *, wait_s: int, poll_s: int = 30,
+    ) -> ExperimentConfig:
+        return ExperimentConfig(
+            model_spec=_model_spec(),
+            deployment=DeploymentPlan(
+                experiment_id="exp_p6",
+                instance_type="p5.48xlarge",  # 8-GPU scarce accelerator
+                tensor_parallel=1,
+                data_parallel=8,
+                pipeline_parallel=1,
+                region="us-east-2",
+                capacity_preference=["spot"],
+                spot_wait_timeout_s=wait_s,
+                spot_poll_interval_s=poll_s,
+            ),
+        )
+
+    @staticmethod
+    def _empty_fleet_response() -> dict:
+        return {
+            "FleetId": "fleet-empty",
+            "Instances": [],
+            "Errors": [{
+                "ErrorCode": "InsufficientInstanceCapacity",
+                "ErrorMessage": "no capacity for p5.48xlarge",
+            }],
+        }
+
+    @staticmethod
+    def _full_fleet_response() -> dict:
+        return {
+            "FleetId": "fleet-ok",
+            "Instances": [{
+                "InstanceIds": ["i-late"],
+                "LaunchTemplateAndOverrides": {
+                    "Overrides": {
+                        "AvailabilityZone": "us-east-2b",
+                        "SubnetId": "subnet-bbb",
+                    },
+                },
+            }],
+            "Errors": [],
+        }
+
+    def test_polls_until_capacity_appears(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Fake clock so the wait loop is deterministic and instant.
+        clock = {"t": 1000.0}
+        monkeypatch.setattr(
+            "vllm_ec2_bench.deployer.capacity.spot.time.monotonic",
+            lambda: clock["t"],
+        )
+
+        def fake_sleep(secs: float) -> None:
+            clock["t"] += secs
+
+        monkeypatch.setattr(
+            "vllm_ec2_bench.deployer.capacity.spot.time.sleep", fake_sleep,
+        )
+
+        ec2 = MagicMock()
+        ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-1"}
+        }
+        # Two empty rounds, then capacity appears on the third attempt.
+        ec2.create_fleet.side_effect = [
+            self._empty_fleet_response(),
+            self._empty_fleet_response(),
+            self._full_fleet_response(),
+        ]
+        ctx = _make_ctx(self._config_with_wait(wait_s=1800, poll_s=30), ec2=ec2)
+        result = SpotFleetStrategy().launch(ctx)
+
+        assert result.instance_id == "i-late"
+        assert result.capacity_mode == "spot"
+        assert ec2.create_fleet.call_count == 3
+        # Empty fleets were cleaned up (2 of them); launch template NOT deleted.
+        assert ec2.delete_fleets.call_count == 2
+        ec2.delete_launch_template.assert_not_called()
+
+    def test_gives_up_when_budget_elapses(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        clock = {"t": 0.0}
+        monkeypatch.setattr(
+            "vllm_ec2_bench.deployer.capacity.spot.time.monotonic",
+            lambda: clock["t"],
+        )
+
+        def fake_sleep(secs: float) -> None:
+            clock["t"] += secs
+
+        monkeypatch.setattr(
+            "vllm_ec2_bench.deployer.capacity.spot.time.sleep", fake_sleep,
+        )
+
+        ec2 = MagicMock()
+        ec2.create_launch_template.return_value = {
+            "LaunchTemplate": {"LaunchTemplateId": "lt-1"}
+        }
+        # Never any capacity.
+        ec2.create_fleet.return_value = self._empty_fleet_response()
+
+        ctx = _make_ctx(self._config_with_wait(wait_s=90, poll_s=30), ec2=ec2)
+        with pytest.raises(CapacityExhausted, match="wait budget"):
+            SpotFleetStrategy().launch(ctx)
+        # Bounded wait: 90s / 30s cadence → a handful of attempts, not infinite.
+        assert 2 <= ec2.create_fleet.call_count <= 6
+        # Launch template cleaned up on give-up so the runner can fall through.
+        ec2.delete_launch_template.assert_called_once()
+
+
 # ---------------------------------------------------------------------------
 # OnDemandStrategy
 # ---------------------------------------------------------------------------

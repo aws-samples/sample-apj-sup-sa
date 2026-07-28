@@ -63,6 +63,7 @@ class ResourceManager:
         self.security_group_id: str | None = None
         self.ami_id: str | None = None
         self.vpc_id: str | None = None
+        self.caller_ip_cidr: str | None = None
 
         # Caches
         self._offered_azs_cache: set[str] | None = None
@@ -79,8 +80,53 @@ class ResourceManager:
         self._ensure_instance_profile()
         if not caller_ip_cidr:
             caller_ip_cidr = f"{self._discover_public_ip()}/32"
+        self.caller_ip_cidr = caller_ip_cidr
         self.security_group_id = self._create_security_group(caller_ip_cidr)
         self.ami_id = self._pick_ami()
+
+    def refresh_caller_ingress(self) -> bool:
+        """Re-check the caller's egress IP and add an SG rule if it rotated.
+
+        Corp NAT egress IPs rotate mid-run (observed in practice): the SG
+        holds the /32 captured at creation time, so a rotation silently blocks
+        the vLLM ready-poll for the full timeout while the endpoint is healthy.
+        Called from inside the ready-poll loop; additive and idempotent.
+        Returns True if a new rule was added.
+        """
+        if not self.security_group_id:
+            return False
+        try:
+            current = f"{self._discover_public_ip()}/32"
+        except Exception as exc:  # noqa: BLE001 — discovery hiccups must not kill the poll
+            LOG.debug("caller-IP re-check failed (non-fatal): %s", exc)
+            return False
+        if current == self.caller_ip_cidr:
+            return False
+        try:
+            self.ec2.authorize_security_group_ingress(
+                GroupId=self.security_group_id,
+                IpPermissions=[{
+                    "IpProtocol": "tcp",
+                    "FromPort": 8000,
+                    "ToPort": 8001,
+                    "IpRanges": [{
+                        "CidrIp": current,
+                        "Description": "caller egress rotated mid-run (self-heal)",
+                    }],
+                }],
+            )
+            LOG.warning(
+                "Caller egress IP rotated %s -> %s; SG %s ingress updated",
+                self.caller_ip_cidr, current, self.security_group_id,
+            )
+            self.caller_ip_cidr = current
+            return True
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "InvalidPermission.Duplicate":
+                self.caller_ip_cidr = current
+                return False
+            LOG.warning("SG ingress self-heal failed: %s", exc)
+            return False
 
     def teardown(self) -> None:
         """Delete the per-experiment SG. IAM profile is left in place (shared)."""
@@ -213,16 +259,18 @@ class ResourceManager:
         )
         sg_id = resp["GroupId"]
 
-        # Inbound: vLLM port 8000 from caller only
+        # Inbound: vLLM port 8000 + diagnostic log-server port 8001, from caller only.
+        # 8001 serves the vLLM startup log so we can watch progress/errors live
+        # (this account has no SSM RunShellCommand document). (throwaway branch)
         self.ec2.authorize_security_group_ingress(
             GroupId=sg_id,
             IpPermissions=[{
                 "IpProtocol": "tcp",
                 "FromPort": 8000,
-                "ToPort": 8000,
+                "ToPort": 8001,
                 "IpRanges": [{
                     "CidrIp": caller_ip_cidr,
-                    "Description": "vLLM HTTP from notebook",
+                    "Description": "vLLM HTTP (8000) + diag log server (8001) from notebook",
                 }],
             }],
         )
