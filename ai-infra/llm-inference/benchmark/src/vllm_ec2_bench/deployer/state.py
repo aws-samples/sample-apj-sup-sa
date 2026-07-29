@@ -50,6 +50,30 @@ class DeploymentState(BaseModel):
     launched_at: float | None = None
     terminated_at: float | None = None
 
+    # Timing breakdown (seconds). These isolate *capacity-acquisition + boot*
+    # latency from the benchmark's own run time. They matter for scarce
+    # accelerators (p4d/p5/p6) where the deployer may spend many minutes
+    # waiting for a spot slot: that wait must NOT be charged against the
+    # model's measured throughput. LLMeter separately measures the benchmark
+    # window (from first request), so these two never overlap.
+    capacity_wait_s: float | None = None
+    """Wall-clock spent inside the capacity strategy acquiring an instance
+    (spot polling, ICE retries, ODCR creation). Excludes vLLM warmup."""
+    vllm_ready_wait_s: float | None = None
+    """Wall-clock from instance-acquired to vLLM answering /v1/models 200
+    (boot + image pull + HF weight download + warmup)."""
+
+    @property
+    def launch_overhead_s(self) -> float | None:
+        """Total non-benchmark setup latency = capacity wait + vLLM warmup.
+
+        This is the amount of wall-clock that must be *excluded* when
+        reasoning about the model's steady-state benchmark performance.
+        """
+        if self.capacity_wait_s is None and self.vllm_ready_wait_s is None:
+            return None
+        return (self.capacity_wait_s or 0.0) + (self.vllm_ready_wait_s or 0.0)
+
     def mark_launched(self) -> None:
         self.launched_at = time.time()
 

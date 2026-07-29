@@ -55,6 +55,12 @@ _EXPERIMENTS_FULL: list[tuple[str, str, str]] = [
     ("exp_7",  "Experiment 7 — p4de.24xlarge (8× A100 80GB / Ampere)", "standard"),
 ]
 
+# MedGemma additionally gets a p6-B200 experiment (exp_8): all 8 Blackwell
+# GPUs, one replica per GPU (TP=1, DP=8), with a persistent spot wait.
+_EXPERIMENTS_MEDGEMMA: list[tuple[str, str, str]] = _EXPERIMENTS_FULL + [
+    ("exp_8", "Experiment 8 — p6-b200.48xlarge (8× B200 / Blackwell) — TP=1 DP=8, persistent spot wait", "standard"),
+]
+
 # Llama-4-Scout's 218 GiB BF16 weights only fit on p4d/p4de.
 _EXPERIMENTS_LLAMA4_SCOUT: list[tuple[str, str, str]] = [
     ("exp_6",  "Experiment 6 — p4d.24xlarge (8× A100 40GB / Ampere) — TP=8, kv-cache fp8", "standard"),
@@ -93,7 +99,7 @@ MODEL_CONFIGS: dict[str, ModelNotebookConfig] = {
         weight_note="MedGemma-27B (BF16) weights are ~55 GiB. g6.12xl is limited to 1 replica via TP=4; g6e.12xl fits 2 replicas (each 2× L40S = 96 GiB).",
         gated=True,
         architecture_note="MedGemma-27B is built on the Gemma 3 architecture. vLLM's Neuron backend does not currently support Gemma 3, so inf2/trn1 are out of scope.",
-        experiments=list(_EXPERIMENTS_FULL),
+        experiments=list(_EXPERIMENTS_MEDGEMMA),
     ),
     "qwen3_8b": ModelNotebookConfig(
         package="qwen3_8b",
@@ -524,7 +530,21 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                     min_requests_per_run=BENCH_TOTAL_REQUESTS_PER_TIER,
                     min_requests_per_client=max(1, BENCH_TOTAL_REQUESTS_PER_TIER // max(concurrency_tiers)),
                 )
+                # Time ONLY the load test — this is the benchmark run window.
+                # Capacity acquisition (state.capacity_wait_s) and vLLM warmup
+                # (state.vllm_ready_wait_s) already happened during
+                # runner.launch() above and are deliberately excluded here, so
+                # a long spot wait for a scarce GPU never inflates the measured
+                # benchmark duration.
+                import time as _time
+                _bench_start = _time.time()
                 results = await load_test.run()
+                benchmark_wall_s = _time.time() - _bench_start
+
+                print(f"[{{exp_id}}] launch overhead (excluded): "
+                      f"spot_wait={{state.capacity_wait_s or 0:.0f}}s "
+                      f"vllm_warmup={{state.vllm_ready_wait_s or 0:.0f}}s")
+                print(f"[{{exp_id}}] benchmark run (measured): {{benchmark_wall_s:.0f}}s")
 
                 EXPERIMENTS_STATE[exp_id] = {{
                     "spec": cfg,
@@ -534,6 +554,9 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                     "load_test": load_test,
                     "results": results,
                     "concurrency_tiers": concurrency_tiers,
+                    "benchmark_wall_s": benchmark_wall_s,
+                    "capacity_wait_s": state.capacity_wait_s,
+                    "vllm_ready_wait_s": state.vllm_ready_wait_s,
                     "completed_at": datetime.utcnow().isoformat(),
                 }}
                 return EXPERIMENTS_STATE[exp_id]
@@ -620,6 +643,18 @@ def cells_analysis() -> list[dict]:
                         actual_hourly = CATALOG.estimated_spot(dep.instance_type, dep.region) or od_price
                         price_source = "spot (estimated, 0.7×OD)*"
 
+                    # Launch overhead (capacity acquisition + vLLM warmup) is
+                    # tracked on the deployment state and is EXCLUDED from the
+                    # throughput/cost figures below: LLMeter measures tok/min
+                    # from the first request, after the endpoint is ready. For
+                    # scarce GPUs (p6-B200) the spot wait can be many minutes;
+                    # surfacing it here keeps it visible without contaminating
+                    # the per-token economics.
+                    dep_state = entry.get("state")
+                    cap_wait = getattr(dep_state, "capacity_wait_s", None)
+                    ready_wait = getattr(dep_state, "vllm_ready_wait_s", None)
+                    bench_wall = entry.get("benchmark_wall_s")
+
                     row = {
                         "Experiment": exp_id,
                         "Instance": dep.instance_type,
@@ -632,6 +667,9 @@ def cells_analysis() -> list[dict]:
                         "$/hr": round(actual_hourly, 4) if actual_hourly else None,
                         "$/hr source": price_source,
                         "Capacity": capacity_mode,
+                        "Spot wait (s)": round(cap_wait, 1) if cap_wait is not None else None,
+                        "vLLM warmup (s)": round(ready_wait, 1) if ready_wait is not None else None,
+                        "Benchmark run (s)": round(bench_wall, 1) if bench_wall is not None else None,
                     }
                     per_tier = _get_per_tier_stats(entry)
                     for tier in all_tiers_sorted:

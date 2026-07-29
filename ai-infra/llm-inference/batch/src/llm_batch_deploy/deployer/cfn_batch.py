@@ -275,6 +275,8 @@ INSTANCE_RESOURCES: dict[str, dict[str, int]] = {
     "p4de.24xlarge":  {"vcpus": 92,  "memory_mib": 1_048_576, "gpus": 8},
     "p5.48xlarge":    {"vcpus": 188, "memory_mib": 2_048_000, "gpus": 8},   # 192 vCPU, 2048 GiB
     "p5e.48xlarge":   {"vcpus": 188, "memory_mib": 2_048_000, "gpus": 8},
+    "p6-b200.48xlarge": {"vcpus": 188, "memory_mib": 2_048_000, "gpus": 8}, # 192 vCPU, 2048 GiB, 8× B200
+
     "g5.12xlarge":    {"vcpus": 46,  "memory_mib":   180_000, "gpus": 4},   # 48 vCPU, 192 GiB
     "g6.12xlarge":    {"vcpus": 46,  "memory_mib":   180_000, "gpus": 4},
     "g6e.12xlarge":   {"vcpus": 46,  "memory_mib":   360_000, "gpus": 4},   # 48 vCPU, 384 GiB
