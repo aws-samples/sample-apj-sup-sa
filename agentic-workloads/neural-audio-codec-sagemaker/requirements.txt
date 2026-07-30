@@ -2,4 +2,4 @@
 # The SageMaker Python SDK must be v2 (v3 removed HuggingFaceModel).
 # Container-side dependencies are in src/requirements.txt.
 boto3==1.43.29
-sagemaker==2.257.3
+sagemaker==3.8.0
