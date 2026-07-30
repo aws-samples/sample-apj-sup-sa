@@ -302,13 +302,19 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                 DeploymentRunner,
                 ExperimentConfig,
                 catalog_meta,
+                scrape_vllm_metrics,
                 upsert_hf_token,
+                verify_tier,
             )
             from vllm_ec2_bench.cleanup import (
                 terminate_all_tagged_instances,
                 cleanup_tagged_security_groups,
             )
-            from vllm_ec2_bench.endpoint import VLLMEndpoint
+            from vllm_ec2_bench.endpoint import (
+                UniquePayloadEndpoint,
+                VLLMEndpoint,
+                make_http_client,
+            )
             from models.{c.package} import (
                 {c.var_name},
                 EXPERIMENTS,
@@ -448,9 +454,35 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
             BENCH_TOTAL_REQUESTS_PER_TIER = N_BENCHMARK_SAMPLES
             MAX_NEW_TOKENS = 512
             CONCURRENCY_TIERS = [1, 10, 30, 50, 100]
+
+            # Client-side connection ceiling. The OpenAI SDK defaults to 1,000,
+            # which silently caps any tier above that and flattens the curve for
+            # a reason that has nothing to do with the GPU.
+            HTTP_MAX_CONNECTIONS = 4096
+
+            # Verification thresholds applied to every tier (see
+            # vllm_ec2_bench.verify). MAX_PREEMPTIONS=0 is the strict setting
+            # appropriate when you intend to quote the result: a tier where the
+            # engine evicted running sequences is not reproducible.
+            MIN_COMPLETENESS = 0.98
+            MAX_DIVERGENCE = 0.05
+            MAX_PREEMPTIONS = 0
+
+            # UniquePayloadEndpoint consumes one input per request and refuses to
+            # recycle, so the pool must cover the largest tier.
+            assert N_BENCHMARK_SAMPLES >= BENCH_TOTAL_REQUESTS_PER_TIER, (
+                "input pool smaller than a tier's request budget"
+            )
+            assert HTTP_MAX_CONNECTIONS >= max(CONCURRENCY_TIERS), (
+                "HTTP_MAX_CONNECTIONS below the top concurrency tier"
+            )
+
             print(f"Per-tier request budget: {BENCH_TOTAL_REQUESTS_PER_TIER}")
             print(f"Concurrency tiers:       {CONCURRENCY_TIERS}")
             print(f"Warmup requests:         {N_WARMUP_SAMPLES} at c=1 (discarded)")
+            print(f"Client conn ceiling:     {HTTP_MAX_CONNECTIONS}")
+            print(f"Gates: completeness>={MIN_COMPLETENESS:.0%} "
+                  f"divergence<={MAX_DIVERGENCE:.0%} preemptions<={MAX_PREEMPTIONS}")
             """)),
         md("### 0.7 Shared helper to run one experiment end-to-end"),
         code(dedent(f"""\
@@ -486,10 +518,26 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                 )
                 state = runner.launch()
 
-                endpoint = VLLMEndpoint(
+                # UniquePayloadEndpoint guarantees every request carries a
+                # distinct input. Without it, LLMeter's constant-seeded shuffle
+                # makes all clients replay the same handful of prompts, and
+                # prefix caching turns those repeats into near-free cache hits
+                # that inflate throughput. make_http_client lifts the OpenAI
+                # SDK's 1,000-connection cap so tiers above c=1000 measure the
+                # server rather than the client's connection pool.
+                endpoint = UniquePayloadEndpoint(
                     base_url=state.base_url,
                     api_key=state.api_key,
                     model_id=cfg.model_spec.served_model_name,
+                    inputs=INPUTS,
+                    system_prompt=SYSTEM_PROMPT,
+                    max_tokens=MAX_NEW_TOKENS,
+                    http_client=make_http_client(HTTP_MAX_CONNECTIONS),
+                )
+                _pool = endpoint._client._client._transport._pool
+                assert _pool._max_connections >= max(concurrency_tiers), (
+                    f"client pool {{_pool._max_connections}} < c="
+                    f"{{max(concurrency_tiers)}}; the sweep would be client-bound"
                 )
 
                 # Smoke test
@@ -502,6 +550,9 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                       f"output_tokens={{smoke.num_tokens_output}} "
                       f"latency_s={{smoke.time_to_last_token:.2f}}")
 
+                # These payloads are placeholders: prepare_payload() replaces
+                # the message body with a fresh input on every request. Only the
+                # LIST LENGTH matters, since it sets LLMeter's request budget.
                 payloads = [
                     VLLMEndpoint.create_payload(SYSTEM_PROMPT, x, max_tokens=MAX_NEW_TOKENS)
                     for x in INPUTS[:BENCH_TOTAL_REQUESTS_PER_TIER]
@@ -537,14 +588,62 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                 # a long spot wait for a scarce GPU never inflates the measured
                 # benchmark duration.
                 import time as _time
+                # Bracket the run with /metrics scrapes: the counters are
+                # cumulative for the life of the server, so only deltas are
+                # meaningful. This is the only way to see prefix-cache behaviour
+                # and preemptions — vLLM leaves usage.cached_tokens at 0 even
+                # with --enable-prefix-caching enabled.
+                metrics_before = scrape_vllm_metrics(state.base_url, state.api_key)
+                endpoint.reset_pool()
                 _bench_start = _time.time()
                 results = await load_test.run()
                 benchmark_wall_s = _time.time() - _bench_start
+                metrics_after = scrape_vllm_metrics(state.base_url, state.api_key)
 
                 print(f"[{{exp_id}}] launch overhead (excluded): "
                       f"spot_wait={{state.capacity_wait_s or 0:.0f}}s "
                       f"vllm_warmup={{state.vllm_ready_wait_s or 0:.0f}}s")
                 print(f"[{{exp_id}}] benchmark run (measured): {{benchmark_wall_s:.0f}}s")
+                print(f"[{{exp_id}}] unique inputs served: {{endpoint.served:,}}")
+
+                # Verify each tier. A tier that fails a gate is still recorded —
+                # you want to see it and why — but it is flagged so it never
+                # silently becomes a quoted number.
+                verdicts = {{}}
+                _results_dict = getattr(results, "results", None) or {{}}
+                for _clients, _result in _results_dict.items():
+                    _stats = getattr(_result, "stats", None)
+                    if _stats is None:
+                        continue
+                    _in_tok = _stats.get("total_input_tokens") or 0
+                    _out_tok = _stats.get("total_output_tokens") or 0
+                    _tpm = (
+                        (_stats.get("average_input_tokens_per_minute") or 0)
+                        + (_stats.get("average_output_tokens_per_minute") or 0)
+                    )
+                    _v = verify_tier(
+                        concurrency=int(_clients),
+                        output_dir=OUTPUT_BASE / exp_id / "load_test",
+                        n_expected=_stats.get("total_requests") or 0,
+                        stats_tokens_per_min=_tpm,
+                        total_tokens=_in_tok + _out_tok,
+                        wall_clock_s=_stats.get("total_test_time") or 0.0,
+                        metrics_before=metrics_before,
+                        metrics_after=metrics_after,
+                        min_completeness=MIN_COMPLETENESS,
+                        max_divergence=MAX_DIVERGENCE,
+                        max_preemptions=MAX_PREEMPTIONS,
+                    )
+                    verdicts[int(_clients)] = _v
+                    _flag = "VALID" if _v.valid else "INVALID"
+                    print(f"[{{exp_id}}] c={{_clients}}: {{_flag}}"
+                          + (f" — {{'; '.join(_v.reasons)}}" if _v.reasons else ""))
+                if verdicts:
+                    _hit = [v.prefix_cache_hit_rate for v in verdicts.values()
+                            if v.prefix_cache_hit_rate is not None]
+                    if _hit:
+                        print(f"[{{exp_id}}] prefix-cache hit rate: {{max(_hit):.1%}} "
+                              "(high values mean payload reuse, not a fast engine)")
 
                 EXPERIMENTS_STATE[exp_id] = {{
                     "spec": cfg,
@@ -557,6 +656,10 @@ def cells_preamble(c: ModelNotebookConfig) -> list[dict]:
                     "benchmark_wall_s": benchmark_wall_s,
                     "capacity_wait_s": state.capacity_wait_s,
                     "vllm_ready_wait_s": state.vllm_ready_wait_s,
+                    "verdicts": {{k: v.as_dict() for k, v in verdicts.items()}},
+                    "metrics_before": metrics_before,
+                    "metrics_after": metrics_after,
+                    "unique_inputs_served": endpoint.served,
                     "completed_at": datetime.utcnow().isoformat(),
                 }}
                 return EXPERIMENTS_STATE[exp_id]
@@ -640,8 +743,19 @@ def cells_analysis() -> list[dict]:
                     actual_hourly = od_price
                     price_source = "OD"
                     if capacity_mode == "spot":
-                        actual_hourly = CATALOG.estimated_spot(dep.instance_type, dep.region) or od_price
-                        price_source = "spot (estimated, 0.7×OD)*"
+                        # Prefer the LIVE spot price. The 0.7×OD heuristic can be
+                        # wildly wrong for scarce accelerators — on p6-b200 it
+                        # reads $79.75/hr against an actual ~$40/hr, which
+                        # doubles every $/token figure derived from it. Fall back
+                        # to the heuristic only if the API call fails, and label
+                        # which one was used so the table never hides the basis.
+                        live = CATALOG.live_spot(dep.instance_type, dep.region)
+                        if live:
+                            actual_hourly = live
+                            price_source = "spot (live)"
+                        else:
+                            actual_hourly = CATALOG.estimated_spot(dep.instance_type, dep.region) or od_price
+                            price_source = "spot (estimated, 0.7×OD)*"
 
                     # Launch overhead (capacity acquisition + vLLM warmup) is
                     # tracked on the deployment state and is EXCLUDED from the

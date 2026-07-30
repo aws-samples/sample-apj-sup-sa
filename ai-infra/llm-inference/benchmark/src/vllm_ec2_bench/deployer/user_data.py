@@ -125,7 +125,10 @@ class UserDataRenderer:
         }
 
         if facts.family == "gpu":
-            ctx["vllm_image"] = ms.vllm_gpu_image
+            # Per-experiment override wins over the model-level default, so a
+            # measured per-SKU image win stays scoped to the plan that measured
+            # it (see DeploymentPlan.vllm_image_override).
+            ctx["vllm_image"] = dp.vllm_image_override or ms.vllm_gpu_image
             if dp.mig_profile is not None:
                 assert dp.mig_profile_ids is not None, "validator guarantees this"
                 ctx["mig_profile"] = dp.mig_profile

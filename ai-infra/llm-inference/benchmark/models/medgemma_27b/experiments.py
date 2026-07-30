@@ -158,22 +158,38 @@ _PLANS: dict[str, DeploymentPlan] = {
         data_parallel=8,
         pipeline_parallel=1,
         max_model_len=16384,
-        # p6-B200 is currently offered only in us-east-1/us-east-2 (+ Mumbai,
-        # GovCloud). Default this plan to us-east-2 (CMH), which had the best
-        # commercial B200 spot signal, rather than the project-wide us-west-2.
-        region="us-east-2",
+        # p6-B200 is offered in us-east-1/us-east-2/us-west-2 (+ Mumbai,
+        # GovCloud). us-west-2 measured the cheapest B200 spot and acquired
+        # capacity on the first attempt every time across a multi-day campaign,
+        # so it is the default here; us-east-2 remains a reasonable fallback via
+        # region_override.
+        region="us-west-2",
         capacity_preference=_SCARCE_GPU,
         # Persistently poll for a scarce B200 spot slot (see preset docstring).
         spot_wait_timeout_s=_P6_SPOT_WAIT_S,
         spot_poll_interval_s=30,
-        concurrency_high=100,
+        # 8× B200 needs far more in-flight work than the g-family to saturate.
+        # A measured sweep on this exact plan found throughput still climbing
+        # through c=400 and flat-and-clean at c=800; past that the engine starts
+        # preempting (evicting running sequences and recomputing their prefill),
+        # which makes throughput unstable and irreproducible rather than faster.
+        # c=100 — the old value — measures roughly a fifth of what this box can
+        # do. See vllm_image_override below for the paired engine version.
+        concurrency_high=800,
+        # A/B-measured on this model+SKU: v0.26.0-cu129 beat v0.25.1 by ~4.7%
+        # with identical flags. Scoped to this plan rather than raised to a
+        # model- or repo-wide default because it has only been validated for
+        # Gemma-3-architecture weights on Blackwell.
+        vllm_image_override="vllm/vllm-openai:v0.26.0-cu129-ubuntu2404",
         notes=(
             "8 replicas on 8× NVIDIA B200 (180 GiB each); one replica per GPU "
             "(TP=1, DP=8) so all 8 GPUs are utilised. 55 GiB weights fit "
             "comfortably per GPU with a large KV-cache budget. Newest Blackwell "
             "datacenter GPU in the set. Spot is scarce, so this plan waits "
             "(persistently, up to 30 min) for a spot opening before falling "
-            "back to on-demand — the wait is excluded from benchmark run time."
+            "back to on-demand — the wait is excluded from benchmark run time. "
+            "Measured stable ceiling is c=800; do not raise it without checking "
+            "the /metrics preemption counter."
         ),
     ),
 }

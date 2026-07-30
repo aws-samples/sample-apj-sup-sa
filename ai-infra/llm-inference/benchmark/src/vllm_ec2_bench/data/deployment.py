@@ -132,6 +132,17 @@ class DeploymentPlan(BaseModel):
             "user input."
         ),
     )
+    vllm_image_override: str | None = Field(
+        default=None,
+        description=(
+            "Optional per-experiment container image, overriding "
+            "``ModelSpec.vllm_gpu_image``. Use this when a newer vLLM has been "
+            "A/B-measured as better for one specific model+GPU pairing but not "
+            "validated across the whole matrix — a version that helps one "
+            "architecture can regress another, so the win stays scoped to the "
+            "plan that measured it rather than becoming a global default."
+        ),
+    )
     extra_env_vars: dict[str, str] = Field(
         default_factory=dict,
         description=(
