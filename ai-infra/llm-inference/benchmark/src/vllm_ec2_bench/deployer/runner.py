@@ -345,14 +345,13 @@ class DeploymentRunner:
         start = time.time()
         deadline = start + self.ready_timeout_s
         last_error = "<no attempt>"
-        # Re-check the caller's egress IP every N polls. A NAT rotation mid-
+        # Re-check the caller's egress IP once a minute. A NAT rotation mid-
         # launch is indistinguishable from "vLLM still starting" from here —
         # both look like a connection timeout — and it used to burn the whole
         # readiness budget. Checking inside the loop turns a wedged launch into
-        # a ~1-minute hiccup. Every 3rd poll (~60s) keeps the extra HTTPS
-        # lookups negligible next to a multi-minute model load.
-        sg_recheck_every = 3
-        poll = 0
+        # a ~1-minute hiccup, and the extra HTTPS lookups are negligible next
+        # to a multi-minute model load.
+        last_ip_check = 0.0
         while time.time() < deadline:
             try:
                 req = urllib.request.Request(
@@ -370,9 +369,10 @@ class DeploymentRunner:
                 last_error = str(exc)
             except Exception as exc:  # noqa: BLE001
                 last_error = repr(exc)
-            poll += 1
-            if poll % sg_recheck_every == 0:
-                self._resources.refresh_caller_ingress()
+            if time.time() - last_ip_check >= 60:
+                last_ip_check = time.time()
+                if self._resources.refresh_caller_ingress():
+                    self.state.caller_ip_cidr = self._resources.caller_ip_cidr
             time.sleep(20)
         raise TimeoutError(
             f"vLLM did not become ready on {url} within {self.ready_timeout_s}s. "
