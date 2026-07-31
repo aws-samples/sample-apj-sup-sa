@@ -19,14 +19,21 @@ from vllm_ec2_bench.verify import (
 )
 
 
-def _write_responses(directory, prompts: list[str], filename="responses.jsonl") -> None:
+def _write_responses(
+    directory, prompts: list[str], filename="responses.jsonl", key="input_payload"
+) -> None:
+    """Write LLMeter-shaped response records.
+
+    ``key`` defaults to ``input_payload``, which is what
+    ``llmeter.endpoints.base.InvocationResponse`` actually serialises.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / filename).open("w") as fh:
         for p in prompts:
             fh.write(
                 json.dumps(
                     {
-                        "payload": {
+                        key: {
                             "messages": [
                                 {"role": "system", "content": "sys"},
                                 {"role": "user", "content": p},
@@ -59,6 +66,24 @@ class TestCountResponses:
 
     def test_missing_directory_is_zero_not_an_error(self, tmp_path) -> None:
         assert count_responses(tmp_path / "nope") == (0, 0)
+
+    def test_reads_llmeters_input_payload_field(self, tmp_path) -> None:
+        """Regression: the field is ``input_payload``, not ``payload``.
+
+        Validated against real run output — reading the wrong key silently
+        returned 0 distinct prompts for every file, which would have disabled
+        replay detection exactly when it mattered.
+        """
+        _write_responses(tmp_path / "t", ["a", "b", "c"], key="input_payload")
+        assert count_responses(tmp_path) == (3, 3)
+
+    def test_falls_back_to_flattened_input_prompt(self, tmp_path) -> None:
+        d = tmp_path / "t"
+        d.mkdir(parents=True)
+        with (d / "responses.jsonl").open("w") as fh:
+            for p in ("note-one", "note-two"):
+                fh.write(json.dumps({"input_prompt": f"system preamble {p}"}) + "\n")
+        assert count_responses(tmp_path) == (2, 2)
 
     def test_malformed_lines_are_skipped_but_counted(self, tmp_path) -> None:
         d = tmp_path / "load_test"

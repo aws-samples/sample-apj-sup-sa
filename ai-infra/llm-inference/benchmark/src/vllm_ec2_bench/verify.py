@@ -105,12 +105,21 @@ def count_responses(output_dir: Path) -> tuple[int, int]:
                         rec = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    # LLMeter records the payload it sent alongside the
-                    # response; the user message is the per-request input.
-                    payload = rec.get("payload") or {}
+                    # LLMeter's InvocationResponse stores the request it sent as
+                    # ``input_payload`` (and a flattened ``input_prompt``). Read
+                    # the user message from the payload, falling back to the
+                    # flattened form, so a distinct-prompt count is always
+                    # available to detect payload replay.
+                    payload = rec.get("input_payload") or rec.get("payload") or {}
+                    found = False
                     for msg in payload.get("messages", []) or []:
                         if msg.get("role") == "user":
                             prompts.add(str(msg.get("content"))[:512])
+                            found = True
+                    if not found and rec.get("input_prompt"):
+                        # The flattened form concatenates system + user, so trim
+                        # from the END where the per-request note actually differs.
+                        prompts.add(str(rec["input_prompt"])[-512:])
         except OSError:
             continue
     return n_responses, len(prompts)

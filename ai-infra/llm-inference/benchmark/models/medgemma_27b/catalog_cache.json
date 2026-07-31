@@ -6,8 +6,8 @@
       "us-east-2",
       "us-east-1"
     ],
-    "hardware_refreshed_at": "2026-05-05T08:48:28+00:00",
-    "prices_refreshed_at": "2026-05-16T01:05:38+00:00"
+    "hardware_refreshed_at": "2026-07-30T14:35:51+00:00",
+    "prices_refreshed_at": "2026-07-30T14:35:51+00:00"
   },
   "hardware": {
     "g5.12xlarge": {
@@ -177,9 +177,9 @@
       "us-west-2": 55.04
     },
     "p6-b200.48xlarge": {
-      "us-east-1": 113.926,
-      "us-east-2": 113.926,
-      "us-west-2": 113.926
+      "us-east-1": 113.9328,
+      "us-east-2": 113.9328,
+      "us-west-2": 113.9328
     },
     "trn1.32xlarge": {
       "us-east-1": 21.5,
