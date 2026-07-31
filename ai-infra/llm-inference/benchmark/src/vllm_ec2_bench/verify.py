@@ -51,6 +51,12 @@ _METRIC_KEYS = (
 DEFAULT_MIN_COMPLETENESS = 0.98
 DEFAULT_MAX_DIVERGENCE = 0.05
 
+# Below this request count the divergence check is not meaningful: the
+# first-to-last-request window covers only N-1 of N request durations, a ~1/N
+# error that swamps the threshold at small N (27% at N=3). Tiers smaller than
+# this are latency probes; their divergence is reported but not gated.
+MIN_REQUESTS_FOR_DIVERGENCE = 30
+
 
 @dataclass
 class TierVerdict:
@@ -263,7 +269,18 @@ def verify_tier(
         maximum_divergence=max_divergence,
     )
     verdict.divergence = divergence
-    if not ok:
+    # The cross-check compares two rates over the first-request-to-last-request
+    # window. That window spans only N-1 of a tier's N request durations, so at
+    # tiny N it under-measures by ~1/N no matter how healthy the run is: a
+    # 3-request tier diverges 27% by construction. Only apply the gate once N is
+    # large enough for that edge effect to be negligible.
+    if n_expected < MIN_REQUESTS_FOR_DIVERGENCE:
+        verdict.reasons.append(
+            f"divergence {divergence:.1%} not gated: only {n_expected} requests "
+            f"(<{MIN_REQUESTS_FOR_DIVERGENCE}); this tier is a latency probe, "
+            "not a throughput measurement"
+        )
+    elif not ok:
         verdict.valid = False
         verdict.reasons.append(
             f"timing divergence {divergence:.1%} > {max_divergence:.0%} "
@@ -302,4 +319,5 @@ __all__ = [
     "verify_tier",
     "DEFAULT_MIN_COMPLETENESS",
     "DEFAULT_MAX_DIVERGENCE",
+    "MIN_REQUESTS_FOR_DIVERGENCE",
 ]

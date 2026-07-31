@@ -261,3 +261,39 @@ class TestVerifyTier:
     def test_as_dict_is_json_serialisable(self, tmp_path) -> None:
         verdict = verify_tier(**self._healthy_kwargs(tmp_path))
         json.dumps(verdict.as_dict())
+
+    def test_tiny_tier_divergence_reported_but_not_gated(self, tmp_path) -> None:
+        """A 3-request c=1 probe diverges ~27% by construction, not by fault.
+
+        The first-to-last-request window spans N-1 of N request durations, so at
+        N=3 it under-measures by a third however healthy the run is. Gating it
+        would mark every latency probe INVALID and teach us to ignore the gate.
+        """
+        # Measured on a real g7e.2xl c=1 tier: LLMeter reported 8,215 tok/min
+        # over its own window while total_test_time (124.8s) covers all three
+        # request durations — a 27% gap produced purely by the N-1 edge effect.
+        _write_responses(tmp_path / "load_test", ["a", "b", "c"])
+        verdict = verify_tier(
+            concurrency=1,
+            output_dir=tmp_path,
+            n_expected=3,
+            stats_tokens_per_min=8215,
+            total_tokens=12354,
+            wall_clock_s=124.8,
+        )
+        assert verdict.valid, "a healthy latency probe must not be INVALID"
+        assert verdict.divergence is not None and verdict.divergence > 0.2
+        assert any("not gated" in r for r in verdict.reasons)
+
+    def test_large_tier_still_gated_on_divergence(self, tmp_path) -> None:
+        _write_responses(tmp_path / "load_test", [f"n{i}" for i in range(128)])
+        verdict = verify_tier(
+            concurrency=16,
+            output_dir=tmp_path,
+            n_expected=128,
+            stats_tokens_per_min=1_000_000,
+            total_tokens=8_000_000,
+            wall_clock_s=900.0,
+        )
+        assert not verdict.valid
+        assert any("timing divergence" in r for r in verdict.reasons)
