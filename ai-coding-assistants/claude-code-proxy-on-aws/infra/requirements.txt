@@ -20,7 +20,7 @@ aws-cdk-asset-node-proxy-agent-v6==2.1.1
     # via aws-cdk-lib
 aws-cdk-cloud-assembly-schema==53.11.0
     # via aws-cdk-lib
-aws-cdk-lib==2.246.0
+aws-cdk-lib==2.253.0
     # via claude-code-proxy-on-aws
 boto3==1.42.80
     # via claude-code-proxy-on-aws
