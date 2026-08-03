@@ -6,9 +6,18 @@ thinly extend :class:`llmeter.endpoints.OpenAICompletionEndpoint`.
 The model_id / endpoint_name are parameters; callers pass whatever
 ``served_model_name`` they configured in the user-data (see
 :class:`vllm_ec2_bench.ModelSpec.served_model_name`).
+
+Two measurement-correctness helpers live here alongside the plain endpoint.
+Both are model- and GPU-agnostic, so every benchmark in this repo gets them:
+
+* :class:`UniquePayloadEndpoint` — guarantees each request carries a distinct
+  prompt, so ``--enable-prefix-caching`` can't inflate throughput.
+* :func:`make_http_client` — lifts the OpenAI SDK's 1,000-connection default
+  so a high-concurrency tier measures the server rather than the client.
 """
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 # Imports are lazy to avoid a hard runtime dep on llmeter for users who only
@@ -128,4 +137,156 @@ class VLLMStreamEndpoint(OpenAICompletionStreamEndpoint):  # type: ignore[misc]
     create_payload = VLLMEndpoint.create_payload  # inherit the helper
 
 
-__all__ = ["VLLMEndpoint", "VLLMStreamEndpoint"]
+# -----------------------------------------------------------------------------
+# Measurement correctness: unique payloads + an unthrottled HTTP client
+# -----------------------------------------------------------------------------
+class PayloadPoolExhausted(RuntimeError):
+    """More requests were issued than unique inputs supplied.
+
+    Raised by :class:`UniquePayloadEndpoint` rather than silently recycling an
+    input, because recycling is the very bug this class exists to prevent.
+    """
+
+
+def make_http_client(max_connections: int = 4096, timeout_s: float = 900.0):
+    """Build an httpx client whose pool can't throttle a concurrency sweep.
+
+    The OpenAI SDK defaults to ``max_connections=1000``. Above that, requests
+    queue **client-side**, so a tier at c=1200 or c=1600 actually measures
+    ~1,000 requests in flight and the throughput curve flattens for a reason
+    that has nothing to do with the GPU.
+
+    Pass the result as ``http_client=`` when constructing an endpoint, and
+    assert it took effect before trusting a high-concurrency measurement::
+
+        ep = VLLMEndpoint(..., http_client=make_http_client(4096))
+        pool = ep._client._client._transport._pool
+        assert pool._max_connections >= max(concurrency_tiers)
+
+    Only relevant above c=1000; harmless below it.
+    """
+    import httpx
+
+    return httpx.Client(
+        limits=httpx.Limits(
+            max_connections=max_connections,
+            max_keepalive_connections=max_connections,
+        ),
+        timeout=httpx.Timeout(timeout_s),
+    )
+
+
+class UniquePayloadEndpoint(VLLMEndpoint):
+    """vLLM endpoint that serves every request a distinct input from a pool.
+
+    **Why this exists.** LLMeter seeds its per-client payload shuffle with a
+    constant (``random.seed(0)`` in ``runner.py::_invoke_n_no_wait``), so every
+    client derives the *identical* permutation and walks it from the start via
+    ``itertools.cycle``. With ``min_requests_per_client = K``, all C clients
+    therefore send the same first K payloads. Observed consequence: a 40,000-
+    request tier served only 49 distinct prompts (~816 repeats each), and with
+    ``--enable-prefix-caching`` on, those repeats are near-free cache hits —
+    a measured 96% prefix-cache hit rate that no real workload reproduces.
+
+    Relative comparisons (A/B of two engine versions) survive the bias because
+    both arms share it. Absolute throughput does not, so any number quoted
+    outside this repo should come from a run that used this endpoint.
+
+    ``prepare_payload`` is called by LLMeter's ``llmeter_invoke`` decorator
+    *before* the response timer starts (see ``llmeter/endpoints/base.py``), so
+    substituting the input there costs nothing in the measured latency.
+
+    The pool must be at least as large as the tier's total request count
+    (``c * K``); otherwise :class:`PayloadPoolExhausted` is raised. Call
+    :meth:`reset_pool` between tiers to reuse the pool from the top.
+
+    Parameters
+    ----------
+    inputs
+        Pool of user-message texts. Each is consumed at most once per pass.
+    system_prompt
+        Sent as the system message on every request. This is deliberately the
+        *only* shared prefix, so the prefix-cache hit rate reflects reality.
+    max_tokens, temperature, top_p
+        Sampling params applied to every generated payload.
+    kwargs
+        Forwarded to :class:`VLLMEndpoint` — notably ``http_client``
+        (see :func:`make_http_client`).
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        inputs: list[str],
+        system_prompt: str,
+        max_tokens: int = 512,
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        if not inputs:
+            raise ValueError("inputs pool must be non-empty")
+        # object.__setattr__ bypasses any dataclass/pydantic __setattr__
+        # machinery in the LLMeter parent classes.
+        object.__setattr__(self, "_inputs", list(inputs))
+        object.__setattr__(self, "_system_prompt", system_prompt)
+        object.__setattr__(self, "_max_tokens", max_tokens)
+        object.__setattr__(self, "_temperature", temperature)
+        object.__setattr__(self, "_top_p", top_p)
+        object.__setattr__(self, "_lock", threading.Lock())
+        object.__setattr__(self, "_iter", iter(range(len(inputs))))
+        object.__setattr__(self, "_served", 0)
+
+    # -- pool plumbing -----------------------------------------------------
+    def reset_pool(self, offset: int = 0) -> None:
+        """Restart consumption at ``offset``. Call between concurrency tiers."""
+        with self._lock:
+            object.__setattr__(self, "_iter", iter(range(offset, len(self._inputs))))
+            object.__setattr__(self, "_served", 0)
+
+    @property
+    def served(self) -> int:
+        """Inputs consumed since construction or the last :meth:`reset_pool`."""
+        return self._served
+
+    def remaining(self) -> int:
+        """Inputs still available in the current pass."""
+        return len(self._inputs) - self._served
+
+    def _next_input(self) -> str:
+        """Thread-safe pop. LLMeter drives clients via ``asyncio.to_thread``."""
+        with self._lock:
+            try:
+                idx = next(self._iter)
+            except StopIteration:
+                raise PayloadPoolExhausted(
+                    f"payload pool of {len(self._inputs)} inputs exhausted after "
+                    f"{self._served} requests — supply a pool larger than c*K"
+                ) from None
+            object.__setattr__(self, "_served", self._served + 1)
+        return self._inputs[idx]
+
+    # -- the hook ----------------------------------------------------------
+    def prepare_payload(self, payload: dict) -> dict:
+        """Substitute a fresh input. Runs OUTSIDE the measured response timer."""
+        prepared = super().prepare_payload(payload)
+        return {
+            **prepared,
+            "messages": [
+                {"role": "system", "content": self._system_prompt},
+                {"role": "user", "content": self._next_input()},
+            ],
+            "max_tokens": self._max_tokens,
+            "temperature": self._temperature,
+            "top_p": self._top_p,
+        }
+
+
+__all__ = [
+    "VLLMEndpoint",
+    "VLLMStreamEndpoint",
+    "UniquePayloadEndpoint",
+    "PayloadPoolExhausted",
+    "make_http_client",
+]

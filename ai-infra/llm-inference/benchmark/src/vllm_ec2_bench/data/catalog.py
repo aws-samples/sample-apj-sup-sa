@@ -375,8 +375,18 @@ class Catalog:
             return None
         return round(od * (1 - discount), 4)
 
-    def live_spot(self, instance_type: str, region: str) -> float | None:
+    def live_spot(
+        self,
+        instance_type: str,
+        region: str,
+        availability_zone: str | None = None,
+    ) -> float | None:
         """Hit ``DescribeSpotPriceHistory`` for the most recent spot price.
+
+        When ``availability_zone`` is given, returns the price in that exact AZ
+        (the one the instance actually ran in) rather than whichever AZ the API
+        happens to sort first — important because spot prices vary per-AZ and
+        the economics should reflect what was really paid.
 
         Not cached — every call is a live API roundtrip. Use sparingly.
         Returns None on any API error or empty history.
@@ -384,16 +394,20 @@ class Catalog:
         import boto3
         try:
             ec2 = boto3.client("ec2", region_name=region)
-            resp = ec2.describe_spot_price_history(
-                InstanceTypes=[instance_type],
-                ProductDescriptions=["Linux/UNIX"],
-                MaxResults=1,
-            )
+            kwargs = {
+                "InstanceTypes": [instance_type],
+                "ProductDescriptions": ["Linux/UNIX"],
+                "MaxResults": 1,
+            }
+            if availability_zone:
+                kwargs["AvailabilityZone"] = availability_zone
+            resp = ec2.describe_spot_price_history(**kwargs)
             hist = resp.get("SpotPriceHistory", [])
             return float(hist[0]["SpotPrice"]) if hist else None
         except Exception as exc:  # noqa: BLE001
             LOG.warning(
-                "live_spot(%s, %s) failed: %s", instance_type, region, exc,
+                "live_spot(%s, %s, az=%s) failed: %s",
+                instance_type, region, availability_zone, exc,
             )
             return None
 

@@ -251,6 +251,11 @@ class SpotFleetStrategy(CapacityStrategy):
             "IamInstanceProfile": {"Name": ctx.iam_instance_profile_name},
             "UserData": ctx.user_data_b64,
             "SecurityGroupIds": [ctx.security_group_id],
+            # NOTE: InstanceInitiatedShutdownBehavior=terminate is NOT valid for
+            # spot instances — EC2 Fleet rejects the whole request with
+            # UnfulfillableCapacity. The self-terminate backstop is instead done
+            # entirely in-guest (user-data schedules a delayed self-terminate via
+            # the EC2 API using the instance's own id from IMDS). (throwaway branch)
             "MetadataOptions": {
                 "HttpTokens": "required",
                 "HttpPutResponseHopLimit": 2,
@@ -261,6 +266,11 @@ class SpotFleetStrategy(CapacityStrategy):
                 "Ebs": {
                     "VolumeSize": cfg.root_ebs_gib,
                     "VolumeType": "gp3",
+                    # Max gp3 throughput/IOPS so DP=8 (8 vLLM engines each reading
+                    # a ~50 GiB weight copy off this root volume) isn't I/O-bound.
+                    # Default gp3 is 125 MB/s — the bottleneck that wedged p6 DP=8.
+                    "Throughput": 1000,
+                    "Iops": 16000,
                     "DeleteOnTermination": True,
                     "Encrypted": True,
                 },
