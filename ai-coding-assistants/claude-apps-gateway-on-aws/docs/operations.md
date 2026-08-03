@@ -87,7 +87,9 @@ gateway URL, open the Cognito login flow, and complete the gateway session.
 
 **`/readyz` fails but `/healthz` works**
 - The gateway process is alive, but a dependency such as PostgreSQL, OIDC discovery,
-  or migrations is not ready.
+  or migrations is not ready. The ALB target group checks `/healthz` (liveness), so
+  the task stays in rotation and keeps serving requests that don't need the
+  unready dependency — this alone won't trigger the `UnhealthyHostAlarm`.
 - Check ECS task logs in the `LogGroupName` stack output.
 
 **Bedrock calls fail with authorization errors**

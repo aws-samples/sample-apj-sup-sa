@@ -52,6 +52,23 @@ upstreams:
 auto_include_builtin_models: true
 YAML
 
+if [ -n "${GATEWAY_AVAILABLE_MODELS:-}" ]; then
+  # Constrain the model picker to the models actually enabled in Bedrock, so
+  # developers can't select one that fails with AccessDenied mid-conversation.
+  # enforceAvailableModels is also applied server-side at /v1/messages, so a
+  # patched client can't bypass the allowlist. Comma-joined list -> YAML flow
+  # sequence; YAML trims whitespace around items.
+  cat >> "$GATEWAY_CONFIG_PATH" <<POLICY
+
+managed:
+  policies:
+    - match: {}
+      cli:
+        availableModels: [${GATEWAY_AVAILABLE_MODELS}]
+        enforceAvailableModels: true
+POLICY
+fi
+
 if [ "${1:-}" = "--render-only" ]; then
   cat "$GATEWAY_CONFIG_PATH"
   exit 0

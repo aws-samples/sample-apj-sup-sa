@@ -57,6 +57,10 @@ describe("GatewayStack", () => {
               Value: "us-east-1"
             }),
             Match.objectLike({
+              Name: "GATEWAY_AVAILABLE_MODELS",
+              Value: testConfig.availableModels.join(",")
+            }),
+            Match.objectLike({
               Name: "GATEWAY_PUBLIC_URL",
               Value: `https://${testConfig.gatewayHost}`
             })
@@ -108,6 +112,42 @@ describe("GatewayStack", () => {
     template.hasResourceProperties("AWS::Route53::RecordSet", {
       Name: `${testConfig.gatewayHost}.`,
       Type: "A"
+    });
+  });
+
+  test("creates interface endpoints and an S3 gateway endpoint for AWS-service traffic", () => {
+    // 6 interface endpoints (Bedrock Runtime, Secrets Manager, ECR api+dkr,
+    // Logs, Monitoring) + 1 S3 gateway endpoint.
+    template.resourceCountIs("AWS::EC2::VPCEndpoint", 7);
+    template.hasResourceProperties("AWS::EC2::VPCEndpoint", {
+      ServiceName: "com.amazonaws.us-east-1.bedrock-runtime",
+      VpcEndpointType: "Interface",
+      PrivateDnsEnabled: true
+    });
+    template.hasResourceProperties("AWS::EC2::VPCEndpoint", {
+      VpcEndpointType: "Gateway"
+    });
+  });
+
+  test("omits VPC endpoints when createVpcEndpoints is false", () => {
+    const app = new cdk.App();
+    const stack = new GatewayStack(app, "TestGatewayStackNoEndpoints", {
+      env: {
+        account: "123456789012",
+        region: "us-east-1"
+      },
+      config: { ...testConfig, createVpcEndpoints: false }
+    });
+    Template.fromStack(stack).resourceCountIs("AWS::EC2::VPCEndpoint", 0);
+  });
+
+  test("alarms on unhealthy target hosts", () => {
+    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      MetricName: "UnHealthyHostCount",
+      Namespace: "AWS/ApplicationELB",
+      ComparisonOperator: "GreaterThanOrEqualToThreshold",
+      Threshold: 1,
+      EvaluationPeriods: 3
     });
   });
 

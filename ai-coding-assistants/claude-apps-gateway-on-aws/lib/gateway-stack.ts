@@ -3,6 +3,7 @@ import * as cdk from "aws-cdk-lib";
 import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as certificatemanager from "aws-cdk-lib/aws-certificatemanager";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
@@ -74,6 +75,52 @@ export class GatewayStack extends Stack {
       ec2.Port.tcp(GATEWAY_CONTAINER_PORT),
       "ALB to gateway HTTP"
     );
+
+    // Interface + S3 gateway endpoints keep AWS-service traffic (Bedrock
+    // inference, secrets reads, image pulls, log delivery) on the AWS backbone
+    // instead of the NAT-to-internet path. The S3 gateway is required for ECR:
+    // the ecr.api/ecr.dkr endpoints serve auth and manifests, but layer blobs
+    // are fetched from S3. NAT stays for the Cognito OIDC leg, which has no
+    // VPC endpoint. Endpoints are regional: the bedrock-runtime endpoint only
+    // covers inference when bedrockRegion matches the stack region; cross-
+    // region Bedrock calls still egress via NAT. Opt out with
+    // createVpcEndpoints=false to trade the per-AZ-hour endpoint cost for NAT
+    // data charges.
+    if (config.createVpcEndpoints) {
+      const endpointSecurityGroup = new ec2.SecurityGroup(this, "VpcEndpointSecurityGroup", {
+        vpc,
+        description: "Allow only gateway tasks to reach VPC interface endpoints",
+        allowAllOutbound: true
+      });
+      endpointSecurityGroup.addIngressRule(
+        taskSecurityGroup,
+        ec2.Port.tcp(443),
+        "Gateway tasks to VPC endpoints"
+      );
+
+      const interfaceEndpoints: Array<[string, ec2.InterfaceVpcEndpointAwsService]> = [
+        ["BedrockRuntimeEndpoint", ec2.InterfaceVpcEndpointAwsService.BEDROCK_RUNTIME],
+        ["SecretsManagerEndpoint", ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER],
+        ["EcrApiEndpoint", ec2.InterfaceVpcEndpointAwsService.ECR],
+        ["EcrDockerEndpoint", ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER],
+        ["CloudWatchLogsEndpoint", ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS],
+        ["CloudWatchMonitoringEndpoint", ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_MONITORING]
+      ];
+      for (const [id, service] of interfaceEndpoints) {
+        vpc.addInterfaceEndpoint(id, {
+          service,
+          securityGroups: [endpointSecurityGroup],
+          privateDnsEnabled: true,
+          // Suppress the default allow-from-VPC-CIDR ingress rule; only the
+          // task SG rule added above should reach the endpoints.
+          open: false
+        });
+      }
+
+      vpc.addGatewayEndpoint("S3Endpoint", {
+        service: ec2.GatewayVpcEndpointAwsService.S3
+      });
+    }
 
     const databaseSecurityGroup = new ec2.SecurityGroup(this, "DatabaseSecurityGroup", {
       vpc,
@@ -205,6 +252,7 @@ export class GatewayStack extends Stack {
         BEDROCK_REGION: config.bedrockRegion,
         CLAUDE_GATEWAY_LOG_LEVEL: "info",
         CLAUDE_VERSION: config.claudeVersion,
+        GATEWAY_AVAILABLE_MODELS: config.availableModels.join(","),
         GATEWAY_DB_HOST: database.clusterEndpoint.hostname,
         GATEWAY_DB_NAME: config.databaseName,
         GATEWAY_DB_PORT: cdk.Token.asString(database.clusterEndpoint.port),
@@ -248,7 +296,11 @@ export class GatewayStack extends Stack {
       },
       circuitBreaker: {
         rollback: true
-      }
+      },
+      // Boot runs Postgres migrations before /healthz answers; without a grace
+      // period a slow cold start fails ALB health checks mid-rolling-deploy and
+      // trips the circuit breaker into a spurious rollback.
+      healthCheckGracePeriod: Duration.seconds(120)
     });
     // The gateway runs Postgres migrations at boot, so tasks crash-loop (and trip
     // the circuit breaker) if they start before the Aurora writer is available.
@@ -274,7 +326,10 @@ export class GatewayStack extends Stack {
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS
       },
-      idleTimeout: Duration.minutes(5)
+      // Long-running streaming responses go quiet between tokens; the 60s default
+      // (and anything short) drops them mid-stream. 3600s matches the upstream
+      // deployment guidance.
+      idleTimeout: Duration.seconds(3600)
     });
 
     const listener = loadBalancer.addListener("HttpsListener", {
@@ -290,7 +345,11 @@ export class GatewayStack extends Stack {
       targets: [service],
       healthCheck: {
         enabled: true,
-        path: "/readyz",
+        // Liveness, not readiness: /readyz checks Postgres, so a transient DB
+        // blip would drain every replica from rotation at once even though
+        // bearer tokens still validate locally. /healthz only asserts the
+        // process is alive; the container health check covers the same path.
+        path: "/healthz",
         healthyHttpCodes: "200",
         interval: Duration.seconds(30),
         timeout: Duration.seconds(5),
@@ -298,6 +357,18 @@ export class GatewayStack extends Stack {
         unhealthyThresholdCount: 3
       },
       deregistrationDelay: Duration.seconds(30)
+    });
+
+    new cloudwatch.Alarm(this, "UnhealthyHostAlarm", {
+      alarmDescription: "One or more gateway tasks are failing the ALB /healthz check",
+      metric: targetGroup.metrics.unhealthyHostCount({
+        period: Duration.minutes(1),
+        statistic: "max"
+      }),
+      threshold: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      evaluationPeriods: 3,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING
     });
 
     // The private zone is scoped to the gateway FQDN itself (alias record at the

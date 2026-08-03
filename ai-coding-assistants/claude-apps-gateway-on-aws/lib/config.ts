@@ -7,6 +7,7 @@ export interface GatewayConfig {
   readonly hostedZoneName: string;
   readonly allowedClientCidrs: string[];
   readonly allowedEmailDomains: string[];
+  readonly availableModels: string[];
   readonly claudeVersion: string;
   readonly cognitoDomainPrefix: string;
   readonly bedrockRegion: string;
@@ -16,6 +17,7 @@ export interface GatewayConfig {
   readonly desiredCount: number;
   readonly maxAzs: number;
   readonly natGateways: number;
+  readonly createVpcEndpoints: boolean;
 }
 
 // Placeholder defaults — set your real deployment values in cdk.context.json
@@ -25,6 +27,10 @@ export const defaultGatewayConfig: GatewayConfig = {
   hostedZoneName: "corp.example.com",
   allowedClientCidrs: ["10.0.0.0/8"],
   allowedEmailDomains: ["corp.example.com"],
+  // Model allowlist rendered into managed.policies — keep in sync with the
+  // models you have actually enabled access for in Bedrock, or the picker
+  // offers models that fail with AccessDenied mid-conversation.
+  availableModels: ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5", "claude-fable-5"],
   claudeVersion: "2.1.195",
   cognitoDomainPrefix: "claude-gateway-example",
   bedrockRegion: "us-east-1",
@@ -33,7 +39,10 @@ export const defaultGatewayConfig: GatewayConfig = {
   databaseName: "claude_gateway",
   desiredCount: 2,
   maxAzs: 2,
-  natGateways: 1
+  natGateways: 1,
+  // Interface endpoints cost ~$0.01/AZ/hour each; set false to opt out and
+  // send AWS-service traffic through the NAT gateway instead.
+  createVpcEndpoints: true
 };
 
 type ConfigKeys<V> = {
@@ -57,6 +66,17 @@ export function loadGatewayConfig(app: cdk.App): GatewayConfig {
     return defaultGatewayConfig[key];
   };
 
+  const readBoolean = (key: ConfigKeys<boolean>): boolean => {
+    const value = app.node.tryGetContext(key);
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value.trim().toLowerCase() === "true";
+    }
+    return defaultGatewayConfig[key];
+  };
+
   const readStringArray = (key: ConfigKeys<string[]>): string[] => {
     const value = app.node.tryGetContext(key);
     if (Array.isArray(value)) {
@@ -76,6 +96,7 @@ export function loadGatewayConfig(app: cdk.App): GatewayConfig {
     hostedZoneName: readString("hostedZoneName"),
     allowedClientCidrs: readStringArray("allowedClientCidrs"),
     allowedEmailDomains: readStringArray("allowedEmailDomains"),
+    availableModels: readStringArray("availableModels"),
     claudeVersion: readString("claudeVersion"),
     cognitoDomainPrefix: readString("cognitoDomainPrefix"),
     bedrockRegion: readString("bedrockRegion"),
@@ -84,6 +105,7 @@ export function loadGatewayConfig(app: cdk.App): GatewayConfig {
     databaseName: readString("databaseName"),
     desiredCount: readNumber("desiredCount"),
     maxAzs: readNumber("maxAzs"),
-    natGateways: readNumber("natGateways")
+    natGateways: readNumber("natGateways"),
+    createVpcEndpoints: readBoolean("createVpcEndpoints")
   };
 }

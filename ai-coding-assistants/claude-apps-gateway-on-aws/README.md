@@ -75,7 +75,8 @@ Full diagram, request path, network isolation, and the security-group matrix:
 | Resource | Purpose |
 |---|---|
 | VPC (2 AZs, 1 NAT) | Public / application / isolated-database subnet tiers |
-| Internal ALB (HTTPS 443) | TLS termination (ACM); 443 only from `allowedClientCidrs` |
+| VPC endpoints (6 interface + S3 gateway) | Bedrock Runtime, Secrets Manager, ECR (api + dkr), CloudWatch Logs/Monitoring, S3 — AWS-service traffic stays on the AWS backbone instead of the NAT path (`createVpcEndpoints: false` to opt out) |
+| Internal ALB (HTTPS 443) | TLS termination (ACM); 443 only from `allowedClientCidrs`; 3600s idle timeout for streaming; target group health check on `/healthz` |
 | ECS Fargate service | Runs `claude gateway`; task role limited to Bedrock `InvokeModel*` |
 | Aurora PostgreSQL Serverless v2 | Device flow, sessions, rate-limit state (isolated) |
 | Cognito User Pool + client | OIDC identity provider (email sign-in, confidential client) |
@@ -126,7 +127,8 @@ Create it from the template and edit the key values:
 
 ```bash
 cp cdk.context.json.example cdk.context.json
-# edit at least: gatewayHost, hostedZoneName, awsAccount, allowedEmailDomains, cognitoDomainPrefix
+# edit at least: gatewayHost, hostedZoneName, awsAccount, allowedEmailDomains,
+#                cognitoDomainPrefix, availableModels
 ```
 
 | Context key | Meaning |
@@ -136,10 +138,12 @@ cp cdk.context.json.example cdk.context.json
 | `awsAccount` / `awsRegion` | Deployment target (needed for the hosted-zone lookup) |
 | `allowedClientCidrs` | CIDRs allowed to reach the internal ALB on 443 (VPN/corporate/devbox) |
 | `allowedEmailDomains` | Cognito ID-token email domains the gateway accepts |
+| `availableModels` | Model allowlist shown in the Claude Code model picker and enforced server-side (`managed.policies` + `enforceAvailableModels`). **List only the Claude models you have enabled access for in Bedrock** — models outside the allowlist can't be selected, and without one the picker offers every built-in model, including ones that fail with `AccessDenied` mid-conversation |
 | `cognitoDomainPrefix` | Cognito hosted-domain prefix (globally unique per region) |
 | `bedrockRegion` | Region for Bedrock inference |
 | `claudeVersion` | Pinned Claude Code version baked into the image |
 | `desiredCount` / `natGateways` | Fargate task count / NAT Gateway count |
+| `createVpcEndpoints` | Create the interface + S3 gateway VPC endpoints (default `true`). Interface endpoints cost ~$0.01/AZ/hour each; set `false` to route AWS-service traffic through NAT instead |
 
 Defaults in [`lib/config.ts`](lib/config.ts) are placeholders; context always
 overrides them, and any value can also be passed per-command with `cdk -c key=value`.

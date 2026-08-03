@@ -19,6 +19,7 @@ const rendered = execFileSync(
       GATEWAY_DB_HOST: "gateway-db.example.internal",
       GATEWAY_DB_NAME: "claude_gateway",
       GATEWAY_DB_PORT: "5432",
+      GATEWAY_AVAILABLE_MODELS: "claude-opus-4-8,claude-sonnet-5",
       GATEWAY_PUBLIC_URL: "https://claude-gateway.corp.example.com",
       OIDC_ALLOWED_EMAIL_DOMAINS: "corp.example.com",
       OIDC_CLIENT_ID: "example-client-id",
@@ -35,7 +36,8 @@ const requiredPaths = [
   ["oidc", "client_secret"],
   ["session", "jwt_secret"],
   ["store", "postgres_url"],
-  ["upstreams", 0, "provider"]
+  ["upstreams", 0, "provider"],
+  ["managed", "policies", 0, "cli", "enforceAvailableModels"]
 ];
 
 for (const parts of requiredPaths) {
@@ -46,6 +48,11 @@ for (const parts of requiredPaths) {
   if (!cursor) {
     throw new Error(`Rendered gateway config is missing ${parts.join(".")}`);
   }
+}
+
+const availableModels = parsed.managed.policies[0].cli.availableModels;
+if (!Array.isArray(availableModels) || availableModels.length !== 2 || availableModels[0] !== "claude-opus-4-8") {
+  throw new Error(`managed.policies availableModels did not render as a list: ${JSON.stringify(availableModels)}`);
 }
 
 console.log("Rendered gateway.yaml is valid YAML.");
