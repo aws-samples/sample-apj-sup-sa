@@ -245,7 +245,29 @@ def parse_json_lenient(text: str) -> dict:
             depth -= 1
             if depth == 0:
                 return json.loads(text[start : idx + 1])
+    # Unclosed object - some models truncate tool-call arguments mid-object
+    # (qwen3-coder does this reproducibly). Close the open braces and retry
+    # once; that recovers the fields that did arrive.
+    if depth > 0:
+        patched = text[start:] + ('"' if in_string else "") + ("}" * depth)
+        try:
+            return json.loads(patched)
+        except json.JSONDecodeError:
+            pass
     raise ValueError(f"unbalanced JSON in: {text[:120]!r}")
+
+
+def repair_tool_arguments(raw: str) -> str:
+    """Return a JSON string that is safe to echo back to the API.
+
+    Some models emit truncated tool-call arguments (e.g. `{"path": "x.py"` with no
+    closing brace). Echoing that verbatim into the next request is rejected with a
+    400. This re-serialises whatever parsed successfully.
+    """
+    try:
+        return json.dumps(parse_json_lenient(raw or "{}"))
+    except ValueError:
+        return "{}"
 
 
 def ttft(path: str, body: dict, *, region: str = DEFAULT_REGION,
