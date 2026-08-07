@@ -1,0 +1,9 @@
+# Amazon Bedrock Mantle samples
+openai>=1.60.0                     # Responses + Chat Completions APIs
+anthropic>=0.40.0                  # Anthropic Messages API
+aws-bedrock-token-generator>=1.1.0 # short-term Bedrock API keys from IAM
+boto3>=1.35.0                      # SigV4 signing, CloudWatch, STS, Service Quotas
+
+# to run the notebooks
+jupyter>=1.1.0
+notebook>=7.0.0
