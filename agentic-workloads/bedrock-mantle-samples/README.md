@@ -118,7 +118,9 @@ These are all demonstrated live in the notebooks, not asserted.
 | No boto3 client | There is **no** `boto3.client("bedrock-mantle")`. Use the SDK to *sign*, or use the OpenAI/Anthropic SDKs |
 | Signing name | `bedrock` (not `bedrock-mantle`) for SigV4 |
 | `max_output_tokens` | Minimum **16** on the Responses API; Chat Completions accepts 1 |
-| No universal sampling config | Gemma 4 takes `temperature`, rejects `top_p`. Grok is the **exact inverse**. Frontier Claude rejects `temperature` |
+| Reasoning eats the budget | Grok spends ~400 output tokens thinking before any text — a small budget returns HTTP 200 with `status: "incomplete"` and an **empty string**. Budget ≥1000 and check `status` |
+| Transient 5xx | mantle returns 500/503 under load and the SDKs do **not** retry by default — set `max_retries` |
+| Sampling params are per model | On **Responses**, a model accepts `temperature` **only at its own documented default** — Gemma 4/gpt-5.6 want `1.0`, Grok wants `0.7`; every other value is a 400. `top_p` is rejected by Gemma 4/gpt-5.6 and accepted by Grok. Frontier Claude rejects `temperature` outright. Chat Completions is permissive. **Safest: omit both** |
 | `service_tier` | `gpt-5.x` accepts `default` **only**; `reserved` is rejected everywhere as a parameter |
 | `reasoning.effort` | `none`/`low`/`medium`/`high` — **`minimal` is rejected** |
 | `store` defaults to `true` | 30-day retention unless you opt out per request |
