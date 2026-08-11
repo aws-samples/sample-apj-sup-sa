@@ -10,12 +10,21 @@ teaching material, this file only removes repetition.
 
 See 00-foundations/01-endpoints-auth-and-the-three-paths.ipynb for the full
 explanation of auth, the three URL path families, and model discovery.
+
+Style note: the SDK imports in token(), client() and anthropic_client() are
+function-local on purpose, against the usual imports-at-top rule (PEP 8). This
+module is imported by every notebook, including ones that never touch the OpenAI
+or Anthropic SDK, and a function-local import keeps `import mantle` working when
+only a subset of the optional SDKs is installed. The stdlib imports below follow
+the normal convention.
 """
 
 from __future__ import annotations
 
+import ast
 import json
-import random
+import random  # retry jitter only -- never for tokens, keys, or nonces
+import re
 import time
 import urllib.error
 import urllib.request
@@ -45,6 +54,7 @@ def api_prefix(model_id: str) -> str:
 
 
 def host(region: str = DEFAULT_REGION) -> str:
+    """Return the regional bedrock-mantle endpoint origin (scheme + host)."""
     return f"https://bedrock-mantle.{region}.api.aws"
 
 
@@ -89,6 +99,41 @@ def anthropic_client(region: str = DEFAULT_REGION):
 # ---------------------------------------------------------------------------
 _TRANSIENT = {429, 500, 502, 503, 504}
 
+# Observed behaviour: mantle sometimes reports a SERVER fault with a 4xx status and
+# the body "Internal server error". Status alone therefore misclassifies it as a
+# permanent client error, and a status-only retry policy gives up on a blip that
+# succeeds immediately afterwards. Reproduced against a request that returned
+# `400 Internal server error` once and then 200 on the next three attempts.
+#
+# So: retry a 4xx ONLY when the body says the server failed. Never widen this to
+# all 400s -- a genuine "unsupported parameter" 400 must fail fast (S15-C17).
+_SERVER_FAULT_TEXT = ("internal server error", "internal failure", "internal error")
+
+
+def _is_retryable(status: int, payload: dict) -> bool:
+    """True when this response is worth another attempt."""
+    if status in _TRANSIENT:
+        return True
+    if 400 <= status < 500:
+        message = str((payload.get("error") or {}).get("message") or "").lower()
+        return any(marker in message for marker in _SERVER_FAULT_TEXT)
+    return False
+
+
+def _open_https(req: urllib.request.Request, timeout: int):
+    """urlopen restricted to HTTPS.
+
+    urllib honours file://, ftp:// and other schemes, so a URL that ever comes
+    from data rather than from code could read a local file. Every call here is
+    built from host() + a literal path, but the guard is cheap and keeps the
+    property locally checkable (CWE-22 / Bandit B310).
+    """
+    if req.full_url.split("://", 1)[0] != "https":
+        raise ValueError(f"refusing non-HTTPS URL: {req.full_url[:60]}")
+    # Scheme verified https above; urllib's other schemes cannot be reached.
+    # nosemgrep: dynamic-urllib-use-detected - scheme verified https above
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310  # noqa: S310
+
 
 def post(
     path: str,
@@ -104,8 +149,11 @@ def post(
 
     Never raises on HTTP errors: 4xx/5xx come back as (code, error_body) so the
     notebooks can *show* the error rather than blowing up the kernel.
+
     Retries 429 and 5xx with exponential backoff + jitter, because mantle has no
-    RPM quota and sheds load under regional pressure.
+    RPM quota and sheds load under regional pressure. Also retries a 4xx whose body
+    reports an internal server error - see _is_retryable. A genuine client error
+    (unsupported parameter, unknown model) still fails on the first attempt.
     """
     url = host(region) + path
     data = json.dumps(body).encode() if body is not None else None
@@ -118,7 +166,7 @@ def post(
             hdrs.update(headers)
         req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with _open_https(req, timeout) as resp:
                 raw = resp.read().decode("utf-8", "replace")
                 return resp.status, (json.loads(raw) if raw.strip() else {})
         except urllib.error.HTTPError as e:
@@ -127,13 +175,19 @@ def post(
                 parsed = json.loads(raw) if raw.strip() else {}
             except json.JSONDecodeError:
                 parsed = {"raw": raw[:500]}
-            if e.code in _TRANSIENT and attempt < attempts - 1:
-                time.sleep(min(2**attempt, 16) + random.random())
+            if _is_retryable(e.code, parsed) and attempt < attempts - 1:
+                # Retry jitter, not a security decision.
+                time.sleep(
+                    min(2**attempt, 16) + random.random()  # nosec B311  # noqa: S311
+                )
                 continue
             return e.code, parsed
         except Exception as e:  # timeouts, connection resets
             if attempt < attempts - 1:
-                time.sleep(min(2**attempt, 16) + random.random())
+                # Retry jitter, not a security decision.
+                time.sleep(
+                    min(2**attempt, 16) + random.random()  # nosec B311  # noqa: S311
+                )
                 continue
             return -1, {"error": {"message": f"{type(e).__name__}: {e}"}}
     return -1, {"error": {"message": "retries exhausted"}}
@@ -151,18 +205,75 @@ def stream_lines(path: str, body: dict, *, region: str = DEFAULT_REGION,
     req = urllib.request.Request(
         host(region) + path, data=json.dumps(body).encode(), headers=hdrs, method="POST"
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with _open_https(req, timeout) as resp:
         for raw in resp:
             line = raw.decode("utf-8", "replace").rstrip("\n")
             if line:
                 yield line
 
 
+# Opaque service identifiers that appear in error text. They are not credentials,
+# but they are long, high-entropy, and account-scoped: printing them in full adds
+# nothing for a reader and trips secret scanners on committed notebook output.
+_OPAQUE_ID = re.compile(r"\b((?:resp|msg|file|ft|proj|batch)[_-][A-Za-z0-9]{12,})\b")
+
+
+def redact_ids(text: str, keep: int = 8) -> str:
+    """Shorten opaque service IDs in a string, keeping enough to correlate a log.
+
+    `resp_7jn3u5e6th46bypynamj6dc7rdoptjtjvmqf5bdlpe45e26phlfa`
+        -> `resp_7jn3u5e6...`
+    """
+
+    def _shorten(m: re.Match) -> str:
+        """Keep the type prefix and the first `keep` characters of the body."""
+        token = m.group(1)
+        prefix, _, body = token.partition("_")
+        if not body:
+            prefix, _, body = token.partition("-")
+        return f"{prefix}_{body[:keep]}..." if body else token
+
+    return _OPAQUE_ID.sub(_shorten, text or "")
+
+
+# A 12-digit AWS account ID. 123456789012 is the documentation placeholder.
+_ACCOUNT_ID = re.compile(r"(?<!\d)(?!123456789012)\d{12}(?!\d)")
+_IAM_PRINCIPAL = re.compile(r"(:(?:user|role|assumed-role)/)[^\s\"',]+")
+
+
+def redact_account(text: str) -> str:
+    """Replace real account IDs and IAM principal names with placeholders.
+
+    Notebook output is committed to a public repository, so anything printed here
+    is published. An account ID is not a secret, but it identifies a real AWS
+    account to anyone reading the samples and it trips content scanners. Call this
+    on any string that may carry an ARN or a caller identity.
+
+        arn:aws:iam::<your-account-id>:user/alice
+            -> arn:aws:iam::123456789012:user/sample-user
+    """
+    out = _ACCOUNT_ID.sub("123456789012", text or "")
+    return _IAM_PRINCIPAL.sub(r"\1sample-user", out)
+
+
+def safe_print(*parts: object) -> None:
+    """print() with account IDs and IAM principals redacted.
+
+    Use it for anything derived from STS, an ARN, or a control-plane response.
+    """
+    print(*(redact_account(str(p)) for p in parts))
+
+
 def err(payload: dict, limit: int = 160) -> str:
-    """Pull the human-readable message out of an error body."""
+    """Pull the human-readable message out of an error body.
+
+    Service error text often echoes back the ARN or ID you sent, so this redacts
+    account IDs, IAM principals, and opaque IDs before returning. Notebook output is
+    committed to a public repository; anything printed there is published.
+    """
     e = payload.get("error") or {}
     msg = e.get("message") or e.get("code") or payload.get("raw") or json.dumps(payload)
-    return str(msg)[:limit]
+    return redact_account(redact_ids(str(msg)))[:limit]
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +288,7 @@ def list_models(region: str = DEFAULT_REGION) -> list[str]:
 
 
 def families(region: str = DEFAULT_REGION) -> dict[str, list[str]]:
+    """Group the model inventory by provider prefix, e.g. {"google": [...]}."""
     out: dict[str, list[str]] = {}
     for mid in list_models(region):
         out.setdefault(mid.split(".")[0], []).append(mid)
@@ -202,7 +314,8 @@ def response_text(payload: dict) -> str:
 
 def function_calls(payload: dict) -> list[dict]:
     """Function-call items from a Responses payload."""
-    return [i for i in (payload.get("output") or []) if i.get("type") == "function_call"]
+    items = payload.get("output") or []
+    return [i for i in items if i.get("type") == "function_call"]
 
 
 def parse_json_lenient(text: str) -> dict:
@@ -268,6 +381,108 @@ def repair_tool_arguments(raw: str) -> str:
         return json.dumps(parse_json_lenient(raw or "{}"))
     except ValueError:
         return "{}"
+
+
+# ---------------------------------------------------------------------------
+# Inspecting model-generated code SAFELY
+#
+# A coding model returns source text. It is tempting to exec() it to prove it
+# works - do not. Model output is untrusted input (OWASP LLM05), and a notebook
+# kernel holds your live AWS credentials, so exec() there is arbitrary code
+# execution against your own account. It is also unnecessary: everything worth
+# checking about generated code can be checked statically.
+#
+# To actually RUN generated code you need real isolation - a container or
+# microVM with no credentials, no network, and a CPU/memory cap. AWS Lambda in a
+# dedicated account, or Bedrock AgentCore's code-interpreter tool, both give you
+# that. Running it in this kernel does not.
+# ---------------------------------------------------------------------------
+def extract_code_block(markdown: str) -> str:
+    """Return the first fenced code block from a model response.
+
+    Falls back to the whole string when the model answered without fences.
+    """
+    text = markdown or ""
+    if "```" not in text:
+        return text.strip()
+    block = text.split("```")[1]
+    first_newline = block.find("\n")
+    if first_newline != -1 and " " not in block[:first_newline].strip():
+        block = block[first_newline + 1:]  # drop the language tag
+    return block.strip()
+
+
+def inspect_code(source: str) -> dict:
+    """Statically analyse generated Python. Never executes it.
+
+    Returns a dict describing what the code declares:
+
+        parses     bool  - is it syntactically valid Python?
+        error      str   - the SyntaxError message when it is not
+        functions  dict  - {name: [parameter names]} for each top-level def
+        classes    list  - top-level class names
+        imports    list  - modules the code would import
+        raises     list  - exception type names in `raise` statements
+        calls      list  - names of functions the code calls
+
+    Use it to assert that the model met a specification - the right function
+    name, the right parameters, the required guard clause - without ever
+    handing control to the generated text.
+    """
+    out: dict = {"parses": False, "error": "", "functions": {}, "classes": [],
+                 "imports": [], "raises": [], "calls": []}
+    try:
+        tree = ast.parse(source or "")
+    except SyntaxError as exc:
+        out["error"] = f"line {exc.lineno}: {exc.msg}"
+        return out
+
+    out["parses"] = True
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            args = [a.arg for a in node.args.args]
+            args += [a.arg for a in node.args.kwonlyargs]
+            out["functions"][node.name] = args
+        elif isinstance(node, ast.ClassDef):
+            out["classes"].append(node.name)
+        elif isinstance(node, ast.Import):
+            out["imports"] += [a.name.split(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            out["imports"].append((node.module or "").split(".")[0])
+        elif isinstance(node, ast.Raise):
+            exc_node = node.exc
+            name = getattr(exc_node, "id", None) or getattr(
+                getattr(exc_node, "func", None), "id", None
+            )
+            if name:
+                out["raises"].append(name)
+        elif isinstance(node, ast.Call):
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name:
+                out["calls"].append(name)
+    return out
+
+
+def check_spec(source: str, *, function: str, params: list[str] | None = None,
+               raises: str | None = None) -> dict:
+    """Score generated code against a specification, statically.
+
+    Returns {"parses", "defines", "signature", "guard", "ok"} - each a bool
+    except the reason string. `params` is the expected parameter-name list;
+    `raises` an exception type the code must raise somewhere.
+    """
+    info = inspect_code(source)
+    defines = function in info["functions"]
+    signature = defines and (params is None or info["functions"][function] == params)
+    guard = raises is None or raises in info["raises"]
+    return {
+        "parses": info["parses"],
+        "defines": defines,
+        "signature": signature,
+        "guard": guard,
+        "ok": info["parses"] and defines and signature and guard,
+        "reason": info["error"] or ("" if defines else f"no def {function}"),
+    }
 
 
 def ttft(path: str, body: dict, *, region: str = DEFAULT_REGION,
