@@ -5,14 +5,9 @@ speaks the **OpenAI Responses API**, **OpenAI Chat Completions API**, and the
 **Anthropic Messages API**. One folder per model family: Claude, GPT-5.x, gpt-oss,
 Gemma 4, Qwen3, DeepSeek, GLM, Mistral, Kimi, MiniMax, Nemotron, Grok, Palmyra.
 
-Every code cell was executed against the live endpoint. The committed outputs are
-real API responses, so the tables and error messages below are measurements, not
-illustrations.
-
 ## Find your model family
 
-Open one folder. Each notebook is self-contained — you do not need to read the
-others.
+Open one folder. Each notebook is self-contained.
 
 | Folder | Models | API to use | What the notebooks cover |
 |---|---|---|---|
