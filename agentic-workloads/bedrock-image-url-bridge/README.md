@@ -17,6 +17,39 @@ the `http(s)://` image URLs into inline `data:` URIs. `s3://` and `data:` URIs
 pass through untouched. One function, no server, no cache -- copy it into your
 own code.
 
+## How this is hosted / how you use it
+
+**The bridge is not a service you deploy.** `resolve_image_urls()` is a plain
+Python function with no state and no listening port. You call it inline,
+wherever your code already builds a Bedrock request, right before sending
+that request. There is nothing to run continuously and nothing to keep
+alive -- copy `bridge/core.py` into your project (or `pip install -e .`
+this directory as a local editable dependency) and import it.
+
+What you host is *your own calling code* -- and that can be anything that
+runs Python:
+
+- **Already-running service** (existing API, worker, notebook, CLI) --
+  just call `resolve_image_urls(payload)` before your existing Bedrock
+  call. No new infrastructure at all. This is the expected case for most
+  readers.
+- **AWS Lambda** -- see `examples/lambda_handler.py`: a complete handler
+  that accepts `{"image_url", "prompt", "model"}` (directly, or via an API
+  Gateway proxy `body`) and returns the model's answer. Deploy it with
+  whatever you already use for Lambda (SAM, CDK, Terraform, console zip) --
+  package `bridge/`, `requests`, and `Pillow` into the deployment artifact
+  (`boto3` ships with the Python runtime already), and grant the
+  function's execution role `bedrock:InvokeModel` for the model(s) you
+  call.
+- **Container / ECS / EC2** -- same idea, just a normal Python process;
+  `examples/mantle_chat_completions.py` and the other example scripts are
+  runnable as-is and show the exact call shape to wrap in your own
+  service.
+
+In every case the guards in `bridge/core.py` run in the same process as
+the caller -- there's no separate bridge process to secure, scale, or
+monitor independently of your own application.
+
 ## Quick start
 
 ```python
@@ -62,13 +95,14 @@ payload = resolve_image_urls(payload)  # http(s) url -> inline data: URI
 
 ## Examples
 
-Three example endpoints, all using the same `resolve_image_urls()` bridge:
+Four example entry points, all using the same `resolve_image_urls()` bridge:
 
-| Example | Endpoint | Image URL handling before the bridge |
+| Example | Endpoint / hosting shape | Image URL handling before the bridge |
 |---|---|---|
-| `examples/mantle_chat_completions.py` | `bedrock-mantle` `/v1/chat/completions` | rejects https, accepts s3/data |
-| `examples/mantle_responses_api.py` | `bedrock-mantle` `/v1/responses` | rejects https, accepts s3/data |
-| `examples/runtime_converse.py` | `bedrock-runtime` Converse | no URL support at all -- bytes only |
+| `examples/mantle_chat_completions.py` | `bedrock-mantle` `/v1/chat/completions`, runnable CLI script | rejects https, accepts s3/data |
+| `examples/mantle_responses_api.py` | `bedrock-mantle` `/v1/responses`, runnable CLI script | rejects https, accepts s3/data |
+| `examples/runtime_converse.py` | `bedrock-runtime` Converse, runnable CLI script | no URL support at all -- bytes only |
+| `examples/lambda_handler.py` | AWS Lambda handler (same Chat Completions call, wrapped for `event`/`context`) | rejects https, accepts s3/data |
 
 **Live-verified status** (region us-east-1):
 - `mantle_chat_completions.py` -- verified end to end with a real vision
@@ -109,13 +143,34 @@ python -m examples.runtime_converse \
   --model anthropic.claude-haiku-4-5
 ```
 
+### Try the Lambda handler locally (no deployment needed)
+
+```bash
+export AWS_PROFILE=your-aws-profile
+export AWS_REGION=us-east-1
+
+python -c "
+from examples.lambda_handler import handler
+print(handler({
+    'image_url': 'https://placehold.co/64x64.jpg',
+    'prompt': 'Describe this image in one sentence.',
+}, None))
+"
+```
+
+To actually deploy it, zip up `bridge/`, `examples/lambda_handler.py`,
+`examples/mantle_chat_completions.py`, `requests`, and `Pillow` (boto3 is
+already in the Lambda Python runtime) and create a Lambda function with
+`examples.lambda_handler.handler` as the entry point. Grant its execution
+role `bedrock:InvokeModel`.
+
 ## Run tests
 
 ```bash
 pip install -e ".[dev]"
 
 # unit tests -- no network, no AWS calls
-pytest tests/test_bridge_unit.py -v
+pytest tests/test_bridge_unit.py tests/test_lambda_handler.py -v
 
 # live tests -- real calls against bedrock-mantle and bedrock-runtime
 AWS_PROFILE=your-aws-profile AWS_REGION=us-east-1 BRIDGE_LIVE_TEST=1 \
