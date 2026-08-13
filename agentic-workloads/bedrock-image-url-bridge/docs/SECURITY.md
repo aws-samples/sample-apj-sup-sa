@@ -62,3 +62,28 @@ the model call.
   auth (a signed URL, a bearer token), that's outside this function's
   concern; pass an already-authenticated URL, or a custom `session=`
   with the auth baked in via headers.
+
+## Shared responsibility
+
+This sample follows the [AWS Shared Responsibility
+Model](https://aws.amazon.com/compliance/shared-responsibility-model/).
+AWS is responsible for security **of** the cloud -- the Bedrock service,
+its underlying infrastructure, and hardware. You are responsible for
+security **in** the cloud once you copy this code into your own service,
+including:
+
+- The IAM role/policy your process runs under (least-privilege access
+  to Bedrock and any other AWS APIs it calls).
+- Network placement -- if this runs in a VPC, its security groups and
+  egress rules are an additional layer alongside the SSRF guard above,
+  not a replacement for it.
+- Encryption in transit for anything you build around this bridge (the
+  guards here already enforce HTTPS-only by default; see above).
+- Monitoring, logging, and incident response for your deployment.
+
+The guards documented above (SSRF blocklist, size cap, redirect
+revalidation, format verification) are this sample's contribution to
+*your* side of that line. They are a reference implementation for one
+specific risk (fetching attacker-influenced URLs), not a complete
+security posture -- review and harden this code for your own threat
+model before running it against production traffic.
