@@ -70,7 +70,7 @@ Three example endpoints, all using the same `resolve_image_urls()` bridge:
 | `examples/mantle_responses_api.py` | `bedrock-mantle` `/v1/responses` | rejects https, accepts s3/data |
 | `examples/runtime_converse.py` | `bedrock-runtime` Converse | no URL support at all -- bytes only |
 
-**Live-verified status** (region us-east-1, profile `agentcore-deploy`):
+**Live-verified status** (region us-east-1):
 - `mantle_chat_completions.py` -- verified end to end with a real vision
   model (`qwen.qwen3-vl-235b-a22b-instruct`).
 - `runtime_converse.py` -- verified end to end with
@@ -91,7 +91,7 @@ Three example endpoints, all using the same `resolve_image_urls()` bridge:
 ### Run a demo
 
 ```bash
-export AWS_PROFILE=agentcore-deploy
+export AWS_PROFILE=your-aws-profile
 export AWS_REGION=us-east-1
 
 python -m examples.mantle_chat_completions \
@@ -118,7 +118,7 @@ pip install -e ".[dev]"
 pytest tests/test_bridge_unit.py -v
 
 # live tests -- real calls against bedrock-mantle and bedrock-runtime
-AWS_PROFILE=agentcore-deploy AWS_REGION=us-east-1 BRIDGE_LIVE_TEST=1 \
+AWS_PROFILE=your-aws-profile AWS_REGION=us-east-1 BRIDGE_LIVE_TEST=1 \
   pytest tests/test_bridge_live.py -v
 ```
 

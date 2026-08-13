@@ -2,8 +2,8 @@
 bedrock-runtime. Skipped by default; set BRIDGE_LIVE_TEST=1 to enable.
 
 Requires AWS_PROFILE and AWS_REGION env vars pointing at an account with
-Bedrock Mantle + Runtime access (verified against profile
-agentcore-deploy, region us-east-1).
+Bedrock Mantle + Runtime access (verified live against a real account,
+region us-east-1).
 """
 from __future__ import annotations
 
