@@ -24,11 +24,11 @@ def _make_jpeg_bytes() -> bytes:
 class _FakeResponse:
     """Minimal stand-in for requests.Response covering what core.py uses."""
 
-    def __init__(self, content: bytes, status_code: int = 200, headers: dict | None = None):
+    def __init__(self, content: bytes, status_code: int = 200, headers: dict | None = None, is_redirect: bool = False):
         self._content = content
         self.status_code = status_code
         self.headers = headers or {}
-        self.is_redirect = False
+        self.is_redirect = is_redirect
         self._closed = False
 
     def iter_content(self, chunk_size: int = 65536):
@@ -233,6 +233,142 @@ class InvalidImageTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "not a valid image"):
             resolve_image_urls(payload)
+
+
+class RedirectTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_redirect_follows_absolute_url(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        # First response: redirect
+        redirect_response = _FakeResponse(b"", status_code=302, headers={"Location": "https://example.com/new.jpg"}, is_redirect=True)
+        # Second response: actual image
+        final_response = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        mock_get.side_effect = [redirect_response, final_response]
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/old.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+        # Should call both URLs
+        self.assertEqual(mock_get.call_count, 2)
+        mock_get.assert_any_call("https://example.com/old.jpg", stream=True, timeout=10.0, allow_redirects=False)
+        mock_get.assert_any_call("https://example.com/new.jpg", stream=True, timeout=10.0, allow_redirects=False)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_redirect_resolves_relative_url(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        # First response: relative redirect
+        redirect_response = _FakeResponse(b"", status_code=302, headers={"Location": "../images/new.jpg"}, is_redirect=True)
+        # Second response: actual image
+        final_response = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        mock_get.side_effect = [redirect_response, final_response]
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/old/cat.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+        # Should resolve relative URL correctly
+        self.assertEqual(mock_get.call_count, 2)
+        mock_get.assert_any_call("https://example.com/old/cat.jpg", stream=True, timeout=10.0, allow_redirects=False)
+        mock_get.assert_any_call("https://example.com/images/new.jpg", stream=True, timeout=10.0, allow_redirects=False)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_redirect_validates_each_hop(self, mock_get, mock_getaddrinfo):
+        # First URL resolves to safe IP, second to blocked IP
+        def side_effect_getaddrinfo(hostname, port):
+            if hostname == "safe.example":
+                return [(None, None, None, None, ("93.184.216.34", 0))]
+            elif hostname == "evil.example":
+                return [(None, None, None, None, ("127.0.0.1", 0))]
+
+        mock_getaddrinfo.side_effect = side_effect_getaddrinfo
+
+        # Redirect to blocked host
+        redirect_response = _FakeResponse(b"", status_code=302, headers={"Location": "https://evil.example/hack.jpg"}, is_redirect=True)
+        mock_get.return_value = redirect_response
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://safe.example/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "blocked address"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_redirect_missing_location_header(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        # Redirect without Location header
+        redirect_response = _FakeResponse(b"", status_code=302, headers={}, is_redirect=True)
+        mock_get.return_value = redirect_response
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "no Location header"):
+            resolve_image_urls(payload)
+
+
+class MalformedHeaderTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_malformed_content_length_raises(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        # Content-Length with non-numeric value
+        mock_get.return_value = _FakeResponse(b"x" * 10, headers={"Content-Length": "not-a-number"})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "Malformed Content-Length header"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_empty_content_length_raises(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        # Empty Content-Length header
+        mock_get.return_value = _FakeResponse(b"x" * 10, headers={"Content-Length": ""})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "Malformed Content-Length header"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.get")
+    def test_negative_content_length_accepted(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        # Negative Content-Length (weird but technically valid integer)
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": "-1"})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        # Should not raise - negative is less than max_bytes, so check is bypassed
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
 
 
 class MixedShapeTests(unittest.TestCase):

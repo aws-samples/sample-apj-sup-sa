@@ -24,7 +24,7 @@ import io
 import ipaddress
 import socket
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 import requests
 from PIL import Image, UnidentifiedImageError
@@ -93,17 +93,25 @@ def _download_image_bytes(
             resp.close()
             if not location:
                 raise ValueError(f"Redirect from {current_url!r} had no Location header")
-            current_url = location
+            current_url = urljoin(current_url, location)
             continue
 
         resp.raise_for_status()
 
         content_length = resp.headers.get("Content-Length")
-        if content_length is not None and int(content_length) > max_bytes:
-            resp.close()
-            raise ValueError(
-                f"Refusing download from {current_url!r}: "
-                f"Content-Length {content_length} exceeds max_bytes={max_bytes}"
+        if content_length is not None:
+            try:
+                content_length_int = int(content_length)
+            except ValueError:
+                resp.close()
+                raise ValueError(
+                    f"Malformed Content-Length header from {current_url!r}: {content_length!r}"
+                )
+            if content_length_int > max_bytes:
+                resp.close()
+                raise ValueError(
+                    f"Refusing download from {current_url!r}: "
+                    f"Content-Length {content_length_int} exceeds max_bytes={max_bytes}"
             )
 
         chunks: list[bytes] = []
