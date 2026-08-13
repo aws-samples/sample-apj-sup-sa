@@ -23,13 +23,33 @@ import copy
 import io
 import ipaddress
 import socket
-from typing import Any
+import threading
+from typing import Any, MutableMapping
 from urllib.parse import urlparse, urljoin
 
 import requests
 from PIL import Image, UnidentifiedImageError
 
 _METADATA_IP = ipaddress.ip_address("169.254.169.254")
+
+# Lazily-created, module-level requests.Session reused across calls in
+# this process. requests.Session already pools TCP/TLS connections per
+# host -- we just need to reuse one instance instead of opening a fresh
+# connection on every requests.get() call. Callers never need to touch
+# this: it's an invisible default. A caller with its own session
+# requirements (custom retries, a proxy, mTLS) can pass `session=...`
+# to resolve_image_urls() to override it.
+_default_session: requests.Session | None = None
+_default_session_lock = threading.Lock()
+
+
+def _get_default_session() -> requests.Session:
+    global _default_session
+    if _default_session is None:
+        with _default_session_lock:
+            if _default_session is None:
+                _default_session = requests.Session()
+    return _default_session
 
 
 def _is_blocked_ip(ip_str: str) -> bool:
@@ -75,6 +95,7 @@ def _download_image_bytes(
     max_bytes: int,
     timeout_seconds: float,
     allow_insecure_http: bool,
+    session: requests.Session,
     max_redirects: int = 2,
 ) -> bytes:
     """Stream-download url with SSRF guard, size cap, and a bounded,
@@ -82,7 +103,7 @@ def _download_image_bytes(
     current_url = url
     for _hop in range(max_redirects + 1):
         _validate_fetch_target(current_url, allow_insecure_http=allow_insecure_http)
-        resp = requests.get(
+        resp = session.get(
             current_url,
             stream=True,
             timeout=timeout_seconds,
@@ -156,19 +177,28 @@ def _resolve_url(
     max_bytes: int,
     timeout_seconds: float,
     allow_insecure_http: bool,
+    session: requests.Session,
+    cache: MutableMapping[str, str] | None,
 ) -> str:
     """Resolve a single image_url string: pass through s3:// and data:,
-    convert http(s):// to a data: URI, reject anything else."""
+    convert http(s):// to a data: URI (via cache when provided), reject
+    anything else."""
     if url.startswith("s3://") or url.startswith("data:"):
         return url
     if url.startswith("http://") or url.startswith("https://"):
+        if cache is not None and url in cache:
+            return cache[url]
         raw = _download_image_bytes(
             url,
             max_bytes=max_bytes,
             timeout_seconds=timeout_seconds,
             allow_insecure_http=allow_insecure_http,
+            session=session,
         )
-        return _bytes_to_data_uri(raw)
+        data_uri = _bytes_to_data_uri(raw)
+        if cache is not None:
+            cache[url] = data_uri
+        return data_uri
 
     scheme = url.split(":", 1)[0] if ":" in url else "(none)"
     raise ValueError(f"Unsupported image_url scheme {scheme!r} in {url!r}")
@@ -180,6 +210,8 @@ def resolve_image_urls(
     max_bytes: int = 20 * 1024 * 1024,
     timeout_seconds: float = 10.0,
     allow_insecure_http: bool = False,
+    session: requests.Session | None = None,
+    cache: MutableMapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Rewrite plain http(s):// image_url values in a Bedrock-mantle
     request payload into inline data: URIs, leaving s3:// and data: URIs
@@ -201,6 +233,21 @@ def resolve_image_urls(
         allow_insecure_http: If True, permit fetching plain http:// URLs
             (default False -- only https:// is fetched by default). Only
             enable this for local/offline testing against non-TLS hosts.
+        session: Optional requests.Session to use for downloads. Defaults
+            to a lazily-created, module-level session shared across calls
+            in this process, so connections to the same host are pooled
+            and reused automatically with no caller action required. Pass
+            your own session for custom retry/proxy/TLS configuration.
+        cache: Optional mutable mapping (e.g. a plain dict, an
+            functools-backed LRU store, or a Redis/DynamoDB-backed object
+            implementing __contains__/__getitem__/__setitem__) from image
+            URL to the resolved data: URI. When provided, a URL already
+            in the cache skips the download entirely; a newly-resolved
+            URL is written back for next time. Not provided by default --
+            no caching happens unless the caller opts in by passing one.
+            The bridge does not manage eviction, TTL, or size limits on
+            the cache; that is the caller's responsibility, same as
+            constructing and owning the object passed in.
 
     Returns:
         A new dict with any http(s):// image_url values replaced by
@@ -211,6 +258,7 @@ def resolve_image_urls(
             an oversized download, or content that is not a valid image.
     """
     result = copy.deepcopy(payload)
+    active_session = session if session is not None else _get_default_session()
 
     def _walk_content(content: Any) -> None:
         if not isinstance(content, list):
@@ -227,6 +275,8 @@ def resolve_image_urls(
                         max_bytes=max_bytes,
                         timeout_seconds=timeout_seconds,
                         allow_insecure_http=allow_insecure_http,
+                        session=active_session,
+                        cache=cache,
                     )
                 elif isinstance(image_url, dict) and "url" in image_url:
                     image_url["url"] = _resolve_url(
@@ -234,6 +284,8 @@ def resolve_image_urls(
                         max_bytes=max_bytes,
                         timeout_seconds=timeout_seconds,
                         allow_insecure_http=allow_insecure_http,
+                        session=active_session,
+                        cache=cache,
                     )
             elif block_type == "input_image":
                 image_url = block.get("image_url")
@@ -243,6 +295,8 @@ def resolve_image_urls(
                         max_bytes=max_bytes,
                         timeout_seconds=timeout_seconds,
                         allow_insecure_http=allow_insecure_http,
+                        session=active_session,
+                        cache=cache,
                     )
 
     for message in result.get("messages", []) if isinstance(result.get("messages"), list) else []:
