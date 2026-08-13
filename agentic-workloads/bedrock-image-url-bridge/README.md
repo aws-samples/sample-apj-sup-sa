@@ -33,12 +33,17 @@ runs Python:
   just call `resolve_image_urls(payload)` before your existing Bedrock
   call. No new infrastructure at all. This is the expected case for most
   readers.
-- **AWS Lambda** -- see `examples/lambda_handler.py`: a complete handler
-  that accepts `{"image_url", "prompt", "model"}` (directly, or via an API
-  Gateway proxy `body`) and returns the model's answer. Deploy it with
-  whatever you already use for Lambda (SAM, CDK, Terraform, console zip) --
-  package `bridge/`, `requests`, and `Pillow` into the deployment artifact
-  (`boto3` ships with the Python runtime already), and grant the
+- **AWS Lambda** -- see `examples/lambda_handler.py`: a handler that
+  accepts the *exact* Chat Completions request schema
+  (`{"model": ..., "messages": [...]}`) and returns the *exact* Chat
+  Completions response JSON, unmodified. Point an existing OpenAI Chat
+  Completions client at this Lambda's Function URL / API Gateway
+  endpoint instead of at `bedrock-mantle` directly, and it works with no
+  request/response adaptation -- the only behavior added is resolving
+  `http(s)://` image URLs before the request reaches Bedrock. Deploy it
+  with whatever you already use for Lambda (SAM, CDK, Terraform, console
+  zip) -- package `bridge/`, `requests`, and `Pillow` into the deployment
+  artifact (`boto3` ships with the Python runtime already), and grant the
   function's execution role `bedrock:InvokeModel` for the model(s) you
   call.
 - **Container / ECS / EC2** -- same idea, just a normal Python process;
@@ -49,6 +54,17 @@ runs Python:
 In every case the guards in `bridge/core.py` run in the same process as
 the caller -- there's no separate bridge process to secure, scale, or
 monitor independently of your own application.
+
+### Why schema fidelity matters
+
+Every example in this repo -- including the Lambda handler -- takes and
+returns the *exact* request/response shape of the API it's fronting
+(Chat Completions in, Chat Completions out; Responses API in, Responses
+API out). The bridge never introduces a custom envelope. That's what
+makes migration a drop-in change: swap the base URL your client points
+at, keep the client code and its request/response parsing exactly as
+is, and image URLs that would otherwise 400 against `bedrock-mantle`
+just work.
 
 ## Quick start
 
@@ -152,11 +168,22 @@ export AWS_REGION=us-east-1
 python -c "
 from examples.lambda_handler import handler
 print(handler({
-    'image_url': 'https://placehold.co/64x64.jpg',
-    'prompt': 'Describe this image in one sentence.',
+    'model': 'qwen.qwen3-vl-235b-a22b-instruct',
+    'messages': [
+        {'role': 'user', 'content': [
+            {'type': 'text', 'text': 'Describe this image in one sentence.'},
+            {'type': 'image_url', 'image_url': {'url': 'https://placehold.co/64x64.jpg'}},
+        ]}
+    ],
 }, None))
 "
 ```
+
+The input is a standard Chat Completions request body; the output is a
+standard Chat Completions response body wrapped in an API-Gateway-proxy
+envelope (`statusCode`/`headers`/`body`). Errors follow the OpenAI error
+shape (`{"error": {"message", "type"}}`) so client-side error handling
+needs no changes either.
 
 To actually deploy it, zip up `bridge/`, `examples/lambda_handler.py`,
 `examples/mantle_chat_completions.py`, `requests`, and `Pillow` (boto3 is

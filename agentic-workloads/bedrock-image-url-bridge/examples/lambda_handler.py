@@ -1,25 +1,39 @@
-"""AWS Lambda handler example: hosting the bridge behind a Lambda function.
+"""AWS Lambda handler example: hosting the bridge behind a Lambda function,
+using the *exact* Chat Completions request/response schema.
 
-This is the "how do I actually host this" answer for the sample: the
-bridge itself (`bridge/core.py`) is not a service -- it's a function you
-call from wherever your application already builds a Bedrock request.
-This file shows one common hosting shape: a Lambda function that accepts
-{"image_url", "prompt", "model"} (e.g. from API Gateway or a direct
-Lambda invoke) and returns the model's answer.
+This is deliberately schema-faithful, not a custom API: the handler
+accepts the same body you'd POST to `bedrock-mantle`'s
+`/v1/chat/completions` (or to OpenAI's `/v1/chat/completions`) --
+`{"model": ..., "messages": [...]}` -- and returns the same response
+shape a Chat Completions call returns. The only behavior added is that
+`http(s)://` image URLs in the request are resolved to inline `data:`
+URIs before the request reaches Bedrock.
+
+Why schema parity matters for migration: point an existing OpenAI Chat
+Completions client (or anything speaking that wire format) at this
+Lambda's Function URL or API Gateway endpoint instead of directly at
+`bedrock-mantle`, and it works unmodified -- including with `https://`
+image URLs that `bedrock-mantle` would otherwise reject. No custom
+request/response shape to adapt to.
 
 Deploy this however you deploy any Lambda function (SAM, CDK, Terraform,
 console zip upload) -- there is nothing bridge-specific about the
-deployment mechanics. Package `bridge/`, `requests`, `Pillow`, and
-`boto3` (or use the boto3 already bundled in the Lambda Python runtime)
-into your function's deployment artifact, and grant the function's
-execution role `bedrock:InvokeModel` for the model(s) you call.
+deployment mechanics. Package `bridge/`, `requests`, and `Pillow` (boto3
+ships with the Lambda Python runtime already) into your function's
+deployment artifact, and grant the function's execution role
+`bedrock:InvokeModel` for the model(s) you call.
 
 Local smoke test (no deployment needed):
     python -c "
 from examples.lambda_handler import handler
 print(handler({
-    'image_url': 'https://placehold.co/64x64.jpg',
-    'prompt': 'Describe this image in one sentence.',
+    'model': 'qwen.qwen3-vl-235b-a22b-instruct',
+    'messages': [
+        {'role': 'user', 'content': [
+            {'type': 'text', 'text': 'Describe this image in one sentence.'},
+            {'type': 'image_url', 'image_url': {'url': 'https://placehold.co/64x64.jpg'}},
+        ]}
+    ],
 }, None))
 "
 """
@@ -29,46 +43,44 @@ import json
 from typing import Any
 
 from bridge import resolve_image_urls
-from examples.mantle_chat_completions import DEFAULT_MODEL, call_mantle_chat_completions
+from examples.mantle_chat_completions import call_mantle_chat_completions
+
+_DEFAULT_REGION = "us-east-1"
+
+
+def _openai_error(status_code: int, message: str, error_type: str) -> dict[str, Any]:
+    """Build an OpenAI-style error envelope so error handling is also
+    drop-in compatible with an OpenAI Chat Completions client."""
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps({"error": {"message": message, "type": error_type}}),
+    }
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Lambda entry point.
+    """Lambda entry point. `event` is the exact Chat Completions request
+    body (`{"model": ..., "messages": [...]}`), passed either directly
+    (a raw Lambda invoke) or as a JSON-encoded API Gateway proxy `body`.
 
-    Expects `event` to contain (either directly, or under a JSON-encoded
-    "body" key as API Gateway proxy integrations send it):
-      - image_url (required): https://, s3://, or data: image URL
-      - prompt (optional): defaults to a generic description prompt
-      - model (optional): defaults to DEFAULT_MODEL
-      - region (optional): defaults to AWS_REGION / us-east-1
+    An optional top-level `region` key overrides the AWS region used to
+    call `bedrock-mantle` (defaults to `us-east-1`); it is stripped
+    before the request is forwarded, since it is not part of the Chat
+    Completions schema.
 
-    Returns an API-Gateway-proxy-compatible response dict. Direct Lambda
-    invokes can ignore statusCode/headers and read body themselves.
+    Returns an API-Gateway-proxy-compatible response dict whose `body`
+    is the *exact* Chat Completions response JSON on success, or an
+    OpenAI-style `{"error": {...}}` envelope on failure -- both are
+    what an unmodified OpenAI client already expects.
     """
-    body = event
+    payload = event
     if isinstance(event.get("body"), str):
-        body = json.loads(event["body"])
+        payload = json.loads(event["body"])
 
-    image_url = body.get("image_url")
-    if not image_url:
-        return {"statusCode": 400, "body": json.dumps({"error": "image_url is required"})}
+    if "messages" not in payload:
+        return _openai_error(400, "'messages' is a required property", "invalid_request_error")
 
-    prompt = body.get("prompt", "Describe this image in one sentence.")
-    model = body.get("model", DEFAULT_MODEL)
-    region = body.get("region", "us-east-1")
-
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": image_url}},
-                ],
-            }
-        ],
-    }
+    region = payload.pop("region", _DEFAULT_REGION)
 
     try:
         resolved = resolve_image_urls(payload)
@@ -77,11 +89,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # resolve_image_urls() raises ValueError for every rejection case
         # (bad scheme, SSRF block, oversized download, invalid image) --
         # these are caller errors, not server errors.
-        return {"statusCode": 400, "body": json.dumps({"error": str(exc)})}
+        return _openai_error(400, str(exc), "invalid_request_error")
     except RuntimeError as exc:
         # call_mantle_chat_completions() raises RuntimeError on a non-200
         # response from bedrock-mantle.
-        return {"statusCode": 502, "body": json.dumps({"error": str(exc)})}
+        return _openai_error(502, str(exc), "upstream_error")
 
-    answer = response["choices"][0]["message"]["content"]
-    return {"statusCode": 200, "body": json.dumps({"answer": answer})}
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(response),
+    }
