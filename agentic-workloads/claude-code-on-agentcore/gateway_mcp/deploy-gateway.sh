@@ -107,8 +107,21 @@ if [[ -z "$EXISTING_GW" ]]; then
 fi
 
 if [[ -n "$EXISTING_GW" ]]; then
-  echo "Gateway '${GATEWAY_NAME}' already exists (${GATEWAY_ID})."
-  GATEWAY_URL=$(echo "$EXISTING_GW" | jq -r '.gatewayUrl // empty')
+  echo "Gateway '${GATEWAY_NAME}' already exists (${GATEWAY_ID}). Updating..."
+  GW_RESPONSE=$(aws bedrock-agentcore-control update-gateway \
+    --gateway-identifier "$GATEWAY_ID" \
+    --name "$GATEWAY_NAME" \
+    --region "$AWS_REGION" \
+    --description "MCP Gateway for GitHub tools (IAM auth)" \
+    --role-arn "$GW_ROLE_ARN" \
+    --protocol-type "MCP" \
+    --authorizer-type "AWS_IAM" \
+    --exception-level "DEBUG" \
+    --output json)
+  GATEWAY_URL=$(echo "$GW_RESPONSE" | jq -r '.gatewayUrl // empty')
+  if [[ -z "$GATEWAY_URL" ]]; then
+    GATEWAY_URL=$(echo "$EXISTING_GW" | jq -r '.gatewayUrl // empty')
+  fi
 else
   echo "Creating gateway '${GATEWAY_NAME}'..."
   GW_RESPONSE=$(aws bedrock-agentcore-control create-gateway \
