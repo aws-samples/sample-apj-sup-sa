@@ -96,7 +96,7 @@ class TokenMiddleware(Middleware):
         if GITHUB_TOKEN is None or now >= GITHUB_TOKEN_EXP - 300:
             GITHUB_TOKEN, GITHUB_TOKEN_EXP = _mint_installation_token()
             print(
-                f"[TokenMiddleware] minted token prefix={GITHUB_TOKEN[:8]}... expires_in={GITHUB_TOKEN_EXP - now}s",
+                f"[TokenMiddleware] minted token expires_in={GITHUB_TOKEN_EXP - now}s",
                 flush=True,
             )
         return await call_next(context)

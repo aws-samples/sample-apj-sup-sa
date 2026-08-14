@@ -202,7 +202,7 @@ def create_execution_role() -> str:
                 "Resource": [f"arn:aws:bedrock-agentcore:{REGION}:{ACCOUNT_ID}:gateway/*"],
             },
             {
-                "Sid": "EventBridge",
+                "Sid": "EventBridgeManage",
                 "Effect": "Allow",
                 "Action": [
                     "events:DeleteRule",
@@ -211,11 +211,22 @@ def create_execution_role() -> str:
                     "events:PutRule",
                     "events:PutTargets",
                     "events:RemoveTargets",
+                ],
+                "Condition": {
+                    "StringEquals": {"events:ManagedBy": "elasticfilesystem.amazonaws.com"}
+                },
+                "Resource": [f"arn:aws:events:{REGION}:{ACCOUNT_ID}:rule/DO-NOT-DELETE-S3-Files*"],
+            },
+            {
+                "Sid": "EventBridgeRead",
+                "Effect": "Allow",
+                "Action": [
                     "events:DescribeRule",
+                    "events:ListRuleNamesByTarget",
                     "events:ListRules",
                     "events:ListTargetsByRule",
                 ],
-                "Resource": ["arn:aws:events:*:*:rule/*"],
+                "Resource": [f"arn:aws:events:{REGION}:{ACCOUNT_ID}:rule/*"],
             },
         ],
     }

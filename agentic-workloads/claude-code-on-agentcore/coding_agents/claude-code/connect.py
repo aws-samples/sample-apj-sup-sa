@@ -32,7 +32,6 @@ from bedrock_agentcore.runtime.shell import ShellChannel, ShellSession
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REGION = os.environ.get("AWS_REGION", "us-west-2")
 
 
 def load_config() -> dict:
@@ -109,11 +108,12 @@ async def stream_output(shell: ShellSession, initial_cmd: str):
 async def run(args):
     config = load_config()
     runtime_arn = config["runtime_arn"]
+    region = os.environ.get("AWS_REGION") or config.get("region", "us-west-2")
 
     session_id = args.session or str(uuid.uuid4())
     shell_id = str(uuid.uuid4())
 
-    client = AgentCoreRuntimeClient(region=REGION)
+    client = AgentCoreRuntimeClient(region=region)
 
     print("Connecting to AgentCore Runtime...")
     print(f"  Runtime: {runtime_arn}")
