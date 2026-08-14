@@ -1,3 +1,15 @@
+> ## ⚠️ Superseded
+>
+> These notebooks now live in
+> [`../sample-per-model-for-amazon-bedrock/`](../sample-per-model-for-amazon-bedrock/),
+> which covers the same model families **plus** the `bedrock-runtime` endpoint and
+> several families that are only served there.
+>
+> This folder is kept, unchanged, so that links already shared to it keep working. It
+> is **frozen** — it is not updated and it does not carry the 12 August 2026 Gemma 4
+> and Grok parameter changes, so some cells here no longer reflect the live API. Use
+> the new folder for anything current.
+
 # Amazon Bedrock Mantle samples — OpenAI and Anthropic compatible APIs
 
 Runnable Jupyter notebooks for **`bedrock-mantle`**, the Amazon Bedrock endpoint that
