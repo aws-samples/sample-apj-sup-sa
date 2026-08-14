@@ -24,7 +24,7 @@ import io
 import ipaddress
 import socket
 import threading
-from typing import Any, MutableMapping
+from typing import Any, Callable, MutableMapping
 from urllib.parse import urlparse, urljoin
 
 import requests
@@ -179,6 +179,7 @@ def _resolve_url(
     allow_insecure_http: bool,
     session: requests.Session,
     cache: MutableMapping[str, str] | None,
+    preprocess: Callable[[bytes], bytes] | None,
 ) -> str:
     """Resolve a single image_url string: pass through s3:// and data:,
     convert http(s):// to a data: URI (via cache when provided), reject
@@ -195,6 +196,8 @@ def _resolve_url(
             allow_insecure_http=allow_insecure_http,
             session=session,
         )
+        if preprocess is not None:
+            raw = preprocess(raw)
         data_uri = _bytes_to_data_uri(raw)
         if cache is not None:
             cache[url] = data_uri
@@ -212,6 +215,7 @@ def resolve_image_urls(
     allow_insecure_http: bool = False,
     session: requests.Session | None = None,
     cache: MutableMapping[str, str] | None = None,
+    preprocess: Callable[[bytes], bytes] | None = None,
 ) -> dict[str, Any]:
     """Rewrite plain http(s):// image_url values in a Bedrock-mantle
     request payload into inline data: URIs, leaving s3:// and data: URIs
@@ -248,6 +252,22 @@ def resolve_image_urls(
             The bridge does not manage eviction, TTL, or size limits on
             the cache; that is the caller's responsibility, same as
             constructing and owning the object passed in.
+        preprocess: Optional callable applied to the raw downloaded image
+            bytes after the existing SSRF guard, size cap, and redirect
+            re-validation have already run, and before the bytes are
+            turned into a data: URI. Use this to plug in
+            bridge.preprocess.preprocess_patch_mode /
+            preprocess_tile_mode (or your own bytes-in/bytes-out
+            function) to shrink images before they're inlined --
+            typical use: `preprocess=lambda b: preprocess_tile_mode(b).to_bytes()`.
+            Not provided by default -- no preprocessing happens unless
+            the caller opts in by passing one. The callable's output is
+            still re-verified as a real image by the same Pillow check
+            used on unprocessed downloads (_bytes_to_data_uri); that
+            verification is never skipped, preprocessed or not. Only
+            applied to freshly-downloaded http(s):// bytes -- it does
+            not run on cache hits (nothing was downloaded) or on
+            passed-through s3:// / data: URIs.
 
     Returns:
         A new dict with any http(s):// image_url values replaced by
@@ -277,6 +297,7 @@ def resolve_image_urls(
                         allow_insecure_http=allow_insecure_http,
                         session=active_session,
                         cache=cache,
+                        preprocess=preprocess,
                     )
                 elif isinstance(image_url, dict) and "url" in image_url:
                     image_url["url"] = _resolve_url(
@@ -286,6 +307,7 @@ def resolve_image_urls(
                         allow_insecure_http=allow_insecure_http,
                         session=active_session,
                         cache=cache,
+                        preprocess=preprocess,
                     )
             elif block_type == "input_image":
                 image_url = block.get("image_url")
@@ -297,6 +319,7 @@ def resolve_image_urls(
                         allow_insecure_http=allow_insecure_http,
                         session=active_session,
                         cache=cache,
+                        preprocess=preprocess,
                     )
 
     for message in result.get("messages", []) if isinstance(result.get("messages"), list) else []:

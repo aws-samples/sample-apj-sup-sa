@@ -89,6 +89,10 @@ AWS_PROFILE=your-aws-profile AWS_REGION=us-east-1 BRIDGE_LIVE_TEST=1 \
 - **[docs/CACHING.md](./docs/CACHING.md)** -- the optional `session=`
   and `cache=` kwargs: connection pooling and URL-keyed result caching,
   both opt-in and no-ops when unused, both live-verified.
+- **[docs/PREPROCESSING.md](./docs/PREPROCESSING.md)** -- optional
+  client-side image resizing (OpenAI patch-mode / Anthropic tile-mode)
+  that cuts vision-token cost 88-96% on large images, via the
+  `preprocess=` hook, live-verified with a real Bedrock call.
 - **[docs/HOSTING.md](./docs/HOSTING.md)** -- where this runs: inline in
   an existing service, AWS Lambda, or a container/EC2 process.
 - **[docs/SCALING.md](./docs/SCALING.md)** -- concurrency patterns and a

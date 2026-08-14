@@ -471,6 +471,91 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(mock_get.call_count, 2)
 
 
+class PreprocessHookTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_hook_receives_downloaded_bytes(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        received: list[bytes] = []
+
+        def _preprocess(raw: bytes) -> bytes:
+            received.append(raw)
+            return raw
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        resolve_image_urls(payload, preprocess=_preprocess)
+
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0], jpeg_bytes)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_hook_output_reflected_in_data_uri(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        # A real preprocess step: re-encode a smaller version of the same
+        # image via bridge.preprocess so the output is still a valid,
+        # independently-verifiable image (not just a byte transform).
+        from bridge.preprocess import preprocess_patch_mode
+
+        def _preprocess(raw: bytes) -> bytes:
+            return preprocess_patch_mode(raw, detail="low").to_bytes()
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload, preprocess=_preprocess)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+        b64_part = resolved_url.split(",", 1)[1]
+        decoded = base64.b64decode(b64_part)
+        # The preprocessed output differs from the raw download (it was
+        # resized to 512x512 by 'low' detail) but is still re-verified as
+        # a valid image by _bytes_to_data_uri.
+        self.assertNotEqual(decoded, jpeg_bytes)
+        with Image.open(io.BytesIO(decoded)) as img:
+            img.verify()
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_none_is_unchanged_default_behavior(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload)  # preprocess not passed -- default None
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        b64_part = resolved_url.split(",", 1)[1]
+        self.assertEqual(base64.b64decode(b64_part), jpeg_bytes)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_invalid_output_still_rejected(self, mock_get, mock_getaddrinfo):
+        """Preprocessed output that isn't a real image must still be
+        rejected by the existing Pillow verification -- the hook cannot
+        bypass that check."""
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "not a valid image"):
+            resolve_image_urls(payload, preprocess=lambda raw: b"not an image anymore")
+
+
 class SessionReuseTests(unittest.TestCase):
     @mock.patch("bridge.core.socket.getaddrinfo")
     def test_default_session_is_reused_across_calls(self, mock_getaddrinfo):
