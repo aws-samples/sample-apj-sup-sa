@@ -196,6 +196,16 @@ def resolve_runtime_id(
     versioned = f"{candidate}:0"
     if versioned in profiles:
         return versioned
+    # No profile. Converse is strict about the version suffix where the catalogue
+    # has one: `qwen.qwen3-32b-v1` is rejected as an invalid identifier while
+    # `qwen.qwen3-32b-v1:0` succeeds. The catalogue key drops that suffix, so
+    # recover the full ID rather than handing Converse a form it will refuse.
+    try:
+        entry = runtime_models(region).get(model_id.split(":")[0])
+    except Exception:
+        entry = None
+    if entry and entry.get("id"):
+        return entry["id"]
     return model_id
 
 
@@ -266,6 +276,76 @@ def converse_tool_uses(response: dict) -> list[dict]:
     return [b["toolUse"] for b in blocks if "toolUse" in b]
 
 
+def bands_png(
+    bands: list[tuple[int, int, int]], width: int = 120, band_height: int = 40
+) -> bytes:
+    """A PNG of solid horizontal colour bands, built with the standard library.
+
+    Vision samples need an input image, and every obvious way of getting one is
+    worse than generating it:
+
+        committing a binary   adds an image to a repository that otherwise has
+                              none, and the reader cannot tell what it depicts
+        fetching a URL        breaks offline, and the image can change under you
+        generating with a
+        text-to-image model   costs money per run and couples this notebook to a
+                              second model being available
+
+    Generating it here costs nothing, adds no dependency and no committed
+    binary, and - the real point - gives the cell a KNOWN ANSWER. Ask a model to
+    name the bands and you can check whether it actually looked at the image
+    rather than produced something plausible.
+
+        png = bands_png([(220, 30, 30), (30, 140, 60), (40, 70, 200)])
+        # -> 308 bytes; ground truth is "red, green, blue", top to bottom
+
+    Returns raw PNG bytes. Converse takes them directly; the OpenAI-shaped APIs
+    want base64 in a data URL (see the vision cells for both forms).
+    """
+    import binascii
+    import struct
+    import zlib
+
+    rows: list[bytes] = []
+    for red, green, blue in bands:
+        # PNG filter byte 0 (None) then RGB triples, one row at a time.
+        rows += [b"\x00" + bytes([red, green, blue]) * width] * band_height
+    raw = b"".join(rows)
+
+    def _chunk(tag: bytes, data: bytes) -> bytes:
+        crc = binascii.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
+
+    height = band_height * len(bands)
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)  # 8-bit RGB
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", ihdr)
+        + _chunk(b"IDAT", zlib.compress(raw))
+        + _chunk(b"IEND", b"")
+    )
+
+
+def converse_reasoning(response: dict) -> str:
+    """Reasoning text from a Converse response, or "" if the model returned none.
+
+    Reasoning models put their trace in a `reasoningContent` block that sits
+    BEFORE the text block. With a small token budget you can get a response that
+    is reasoning-only, with no text block at all - moonshot.kimi-k2-thinking does
+    this below roughly 100 output tokens. So an empty converse_text() does not
+    mean the call failed; check this and the stopReason before concluding anything.
+    """
+    blocks = (response.get("output") or {}).get("message", {}).get("content") or []
+    parts = []
+    for block in blocks:
+        reasoning = block.get("reasoningContent")
+        if isinstance(reasoning, dict):
+            text = (reasoning.get("reasoningText") or {}).get("text")
+            if text:
+                parts.append(text)
+    return "".join(parts)
+
+
 def runtime_models(region: str = DEFAULT_REGION) -> dict[str, dict]:
     """Serverless bedrock-runtime catalogue, keyed by model ID without the version.
 
@@ -287,6 +367,9 @@ def runtime_models(region: str = DEFAULT_REGION) -> dict[str, dict]:
                 "in": set(),
                 "out": set(),
                 "infer": set(),
+                # The full ID including any ":0" suffix. Converse needs it; the
+                # key above deliberately drops it so lookups stay readable.
+                "id": summary["modelId"],
                 "provider": summary.get("providerName", "?"),
             },
         )
@@ -574,7 +657,7 @@ def parse_json_lenient(text: str) -> dict:
         pass
     start = text.find("{")
     if start == -1:
-        raise ValueError(f"no JSON object found in: {text[:120]!r}")
+        raise ValueError(f"no JSON object found in {len(text)} chars: {text[:300]!r}")
     depth, in_string, escaped = 0, False, False
     for idx in range(start, len(text)):
         ch = text[idx]
@@ -603,7 +686,10 @@ def parse_json_lenient(text: str) -> dict:
             return json.loads(patched)
         except json.JSONDecodeError:
             pass
-    raise ValueError(f"unbalanced JSON in: {text[:120]!r}")
+    raise ValueError(
+        f"unbalanced JSON after {len(text)} chars: {text[:300]!r}"
+        + ("..." if len(text) > 300 else "")
+    )
 
 
 def repair_tool_arguments(raw: str) -> str:
