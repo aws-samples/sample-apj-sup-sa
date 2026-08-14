@@ -576,11 +576,18 @@ def redact_account(text: str) -> str:
 
 
 def safe_print(*parts: object) -> None:
-    """print() with account IDs and IAM principals redacted.
+    """print() with account IDs, IAM principals AND opaque service IDs redacted.
 
     Use it for anything derived from STS, an ARN, or a control-plane response.
+
+    This applies BOTH redactions. An earlier version applied only
+    redact_account(), which meant a caller who reached for the "safe" printer
+    still committed full `proj_*` and `resp_*` identifiers to a public
+    repository - the exact thing redact_ids() exists to prevent. Splitting the
+    two made the safe path incomplete, so they are combined here rather than
+    left to the call site to remember.
     """
-    print(*(redact_account(str(p)) for p in parts))
+    print(*(redact_account(redact_ids(str(p))) for p in parts))
 
 
 def err(payload: dict, limit: int = 160) -> str:
