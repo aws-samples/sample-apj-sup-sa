@@ -57,7 +57,7 @@ onnxruntime==1.24.4
 openai==2.41.0
 opencv-python==4.13.0.92
 packaging==26.2
-pillow==12.2.0
+pillow==12.3.0
 pipecat-ai==1.4.0
 propcache==0.5.2
 protobuf==6.33.6
