@@ -83,6 +83,36 @@ Choosing between families, or already have OpenAI code?
 [`99-cross-cutting/`](99-cross-cutting/) has a live capability survey, a migration
 guide, and a pre-launch checklist.
 
+## The one shared file
+
+Each folder is meant to answer "how do I use this model" on its own, so the only
+thing shared across them is [`_shared/bedrock.py`](_shared/bedrock.py).
+
+`bedrock` is **not** a PyPI package — it is this collection's own helper module.
+Notebooks reach it with:
+
+```python
+import sys
+sys.path.insert(0, "../_shared")
+from bedrock import post, converse, safe_print
+```
+
+It exists only to remove repetition. **Nothing in it is required to call Bedrock
+yourself** — it wraps `boto3` and the OpenAI and Anthropic SDKs, and every
+notebook shows the underlying call. Each notebook opens with a table of exactly
+the helpers it uses and what they do, so you never have to guess where a name
+came from.
+
+Two behaviours are worth knowing before reading any committed output:
+
+- **`post()` and `converse()` never raise on a service error.** They return the
+  status and body, so a cell can *show* a 400 instead of stopping the notebook.
+  Many cells deliberately provoke an error to demonstrate a limit — a 400 in the
+  output is usually the lesson, not a bug.
+- **Anything printed from a control-plane response is redacted.** Account IDs, IAM
+  principals and opaque service IDs (`proj_…`, `resp_…`) are shortened or replaced,
+  because this output is committed to a public repository.
+
 ## Quickstart
 
 ```bash
