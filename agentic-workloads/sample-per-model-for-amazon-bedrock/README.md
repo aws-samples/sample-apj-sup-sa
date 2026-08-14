@@ -43,24 +43,31 @@ Open one folder. Each notebook is self-contained.
 
 | Folder | Models | Endpoint | API | What the notebooks cover |
 |---|---|---|---|---|
-| [`01-openai-gpt/`](01-openai-gpt/) | gpt-5.6 sol/terra/luna, gpt-5.5, gpt-5.4 · gpt-oss 20b/120b · gpt-oss-safeguard | gpt-5.x **mantle only** · gpt-oss both | Responses | Core inference · **web search** · tools & strict JSON · prompt caching · server-side Lambda tools & fine-tuning |
+| [`01-openai-gpt/`](01-openai-gpt/) | gpt-5.6 sol/terra/luna, gpt-5.5, gpt-5.4 · gpt-oss 20b/120b · gpt-oss-safeguard | gpt-5.x **mantle** · gpt-oss both | Responses | Core inference · **web search** · tools & strict JSON · prompt caching · server-side Lambda tools & fine-tuning |
 | [`02-anthropic-claude/`](02-anthropic-claude/) | opus-5, sonnet-5, opus-4-8, opus-4-7, haiku-4-5, fable-5 | both | Messages | Core inference · adaptive thinking, tool loops, caching · computer use, memory, compaction |
-| [`03-google-gemma/`](03-google-gemma/) | gemma-4 31b · 26b-a4b · e2b · gemma-3 4b · 12b · 27b | gemma 4 **mantle only** · gemma 3 both | gemma 4 Responses · gemma 3 Chat Completions | Gemma 4 end to end · Gemma 3 on both endpoints, and why the two generations share almost nothing |
+| [`03-google-gemma/`](03-google-gemma/) | gemma-4 31b · 26b-a4b · e2b · gemma-3 4b · 12b · 27b | gemma 4 **mantle** · gemma 3 both | gemma 4 Responses · gemma 3 Chat Completions | Gemma 4 end to end · Gemma 3 on both endpoints, and why the two generations share almost nothing |
 | [`04-qwen/`](04-qwen/) | qwen3 32b/235b/next-80b, coder 30b/480b/next, vl-235b | both | Chat Completions | Core inference & tools · coding models & vision |
-| [`05-deepseek/`](05-deepseek/) | v3.2, v3.1 | both (v3.1 mantle only) | Chat Completions | Core inference, reasoning effort, tools, structured output |
-| [`06-zai-glm/`](06-zai-glm/) | glm-5, glm-4.7, glm-4.7-flash, glm-4.6 | both (4.6 mantle only) | Chat Completions | Core inference plus cost-aware routing across the size ladder |
+| [`05-deepseek/`](05-deepseek/) | v3.2, v3.1 | both · v3.1 **mantle** | Chat Completions | Core inference, reasoning effort, tools, structured output |
+| [`06-zai-glm/`](06-zai-glm/) | glm-5, glm-4.7, glm-4.7-flash, glm-4.6 | both · 4.6 **mantle** | Chat Completions | Core inference plus cost-aware routing across the size ladder |
 | [`07-mistral/`](07-mistral/) | mistral-large-3, ministral 3b/8b/14b, magistral, devstral-2, voxtral | both | Chat Completions | Size ladder & routing · Devstral coding, Voxtral |
 | [`08-moonshot-kimi/`](08-moonshot-kimi/) | kimi-k2.5, kimi-k2-thinking | both | Chat Completions | Core inference, long context, agentic patterns |
 | [`09-minimax/`](09-minimax/) | minimax-m2.5, m2.1, m2 | both | Chat Completions | Core inference plus a version-migration test across three generations |
 | [`10-nvidia-nemotron/`](10-nvidia-nemotron/) | nemotron-super-3-120b, nano 9b/12b/30b | both | Chat Completions | Core inference across the cost/quality curve |
-| [`11-xai-grok/`](11-xai-grok/) | grok-4.3 | **mantle only** | Responses | Core inference, always-on reasoning, encrypted reasoning content |
-| [`12-writer-palmyra/`](12-writer-palmyra/) | palmyra-vision-7b · palmyra-x4 · palmyra-x5 | vision both · x4/x5 **runtime only** | Chat Completions · Converse | Vision, and working around a model with no tool support · the text models, which need an inference profile |
-| [`13-amazon-nova/`](13-amazon-nova/) | nova-micro · nova-lite · nova-pro | **runtime only** | Converse | Tier selection graded on a checkable task · vision on lite/pro · what a provider-deprecated model looks like |
+| [`11-xai-grok/`](11-xai-grok/) | grok-4.3 | **mantle** | Responses | Core inference, always-on reasoning, encrypted reasoning content |
+| [`12-writer-palmyra/`](12-writer-palmyra/) | palmyra-vision-7b · palmyra-x4 · palmyra-x5 | vision both · x4/x5 **runtime** | Chat Completions · Converse | Vision, and working around a model with no tool support · the text models, which need an inference profile |
+| [`13-amazon-nova/`](13-amazon-nova/) | nova-micro · nova-lite · nova-pro | **runtime** | Converse | Tier selection graded on a checkable task · vision on lite/pro · what a provider-deprecated model looks like |
 | [`14-openai-gpt-oss/`](14-openai-gpt-oss/) | gpt-oss 20b/120b · gpt-oss-safeguard 20b/120b | both | Chat Completions · Converse | Where the reasoning trace lives on each endpoint · policy classification graded on a labelled set |
-| [`15-meta-llama/`](15-meta-llama/) | llama4-scout · llama4-maverick | **runtime only** | Converse | Mixture-of-experts sizing · inference-profile-only access · vision · validating tool calls |
+| [`15-meta-llama/`](15-meta-llama/) | llama4-scout · llama4-maverick | **runtime** | Converse | Mixture-of-experts sizing · inference-profile-only access · vision · validating tool calls |
 
-Endpoint availability was read from the live catalogues, not hand-maintained. Check it
-yourself for any model with `endpoints_for()` from [`_shared/bedrock.py`](_shared/bedrock.py).
+The Endpoint column says where each family was served when this was written, read
+from the live catalogues rather than hand-maintained. **Treat it as a snapshot.**
+Models arrive, move between endpoints, and are retired, so check the current answer
+for any model with `endpoints_for()` from [`_shared/bedrock.py`](_shared/bedrock.py)
+— every family notebook runs that check in its own endpoint section.
+
+For the same reason the notebooks state which models, Regions and features they
+*cover*, and probe anything that varies rather than asserting what is unavailable
+where. A committed table is evidence of one run, not a specification.
 
 **Read [`00-foundations/`](00-foundations/) first if you are new to Bedrock** — auth,
 endpoints, quotas and governance apply to every family:
