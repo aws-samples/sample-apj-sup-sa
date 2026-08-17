@@ -1,7 +1,7 @@
 > ## ⚠️ Superseded
 >
 > These notebooks now live in
-> [`../sample-per-model-for-amazon-bedrock/`](../sample-per-model-for-amazon-bedrock/),
+> [`sample-per-model-bedrock`](https://github.com/aws-samples/sample-per-model-bedrock),
 > which covers the same model families **plus** the `bedrock-runtime` endpoint and
 > several families that are only served there.
 >

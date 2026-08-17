@@ -6,6 +6,21 @@ We hope this repository helps you navigate the available options and maximize th
 https://aws.amazon.com/startups/contact-us
 
 
+## Cloning
+
+One sample is mounted as a git submodule, so clone with `--recurse-submodules` to get
+its content:
+
+```bash
+git clone --recurse-submodules https://github.com/aws-samples/sample-apj-sup-sa.git
+
+# already cloned without it?
+git submodule update --init --recursive
+```
+
+Without this the submodule directory is present but empty. Everything else in the
+repository is checked out normally.
+
 ## What's Inside
 
 The repository is organized by domain. Below is a summary of the areas covered:
@@ -40,7 +55,7 @@ find what you need without opening each folder.
 | [ambient-voice-qa](./agentic-workloads/ambient-voice-qa) | Hands-free voice agent that walks factory and warehouse workers through quality-inspection checklists, for jobs where both hands stay on the equipment. It reads each step aloud, captures the spoken measurement, validates it against the engineering threshold in real time, and flags anomalies as they occur. |
 | [bedrock-agentcore-temporal-dag](./agentic-workloads/bedrock-agentcore-temporal-dag) | Runs multi-agent workflows as a dependency-ordered DAG across independently deployed AgentCore Runtimes. The orchestrator uses **no LLM** — it is a deterministic runner, with Temporal Cloud providing retries, timeouts, and workflow visibility, so failures are debuggable rather than probabilistic. |
 | [bedrock-image-url-bridge](./agentic-workloads/bedrock-image-url-bridge) | Makes plain `http(s)` image URLs work with Amazon Bedrock, which accepts only `s3://` or inline `data:` URIs on the OpenAI-compatible `bedrock-mantle` endpoint and raw bytes on Converse. Rewrites URLs to inline data URIs behind an SSRF guard, with an optional client-side resize that cuts vision-token cost on large photos. |
-| [bedrock-mantle-samples](./agentic-workloads/bedrock-mantle-samples) | Superseded and frozen — use [sample-per-model-for-amazon-bedrock](./agentic-workloads/sample-per-model-for-amazon-bedrock) instead, which covers these model families plus the `bedrock-runtime` endpoint. Kept unchanged so previously shared links keep resolving. |
+| [bedrock-mantle-samples](./agentic-workloads/bedrock-mantle-samples) | Superseded and frozen — use [sample-per-model-bedrock](https://github.com/aws-samples/sample-per-model-bedrock) instead, which covers these model families plus the `bedrock-runtime` endpoint. Kept unchanged so previously shared links keep resolving. |
 | [bedrock-ramp-testing](./agentic-workloads/bedrock-ramp-testing) | Finds the throughput your Amazon Bedrock account can actually sustain, by following AWS's documented TPM/RPM ramp-up procedure instead of discovering the ceiling as 503 errors in production. Includes a dry-run mode and a hard request cap, because the test spends real inference money. |
 | [bedrock-service-tier-benchmark](./agentic-workloads/bedrock-service-tier-benchmark) | Measures what Amazon Bedrock's **service tiers** cost or save in latency for a given model, comparing `default`, `flex`, and `priority` head to head. Built on AWS Labs LLMeter with a request-paced scheduler that stays inside account limits, and outputs a self-contained HTML report. |
 | [claude-code-on-agentcore](./agentic-workloads/claude-code-on-agentcore) | Hosts Claude Code on Amazon Bedrock AgentCore Runtime instead of your laptop, so closing the lid doesn't kill the run and the workspace survives between sessions. Each session gets an isolated microVM with a reconnectable WebSocket terminal, and GitHub credentials stay in Secrets Manager behind an IAM-authenticated MCP Gateway so the agent never handles raw tokens. |
@@ -51,7 +66,7 @@ find what you need without opening each folder.
 | [nemoclaw-on-aws](./agentic-workloads/nemoclaw-on-aws) | Terraform module deploying NVIDIA NemoClaw on Amazon EC2 with Amazon Bedrock as the inference backend, bridged by a LiteLLM proxy because NemoClaw has no native Bedrock support. Access is over SSM Session Manager, with no inbound SSH. |
 | [neural-audio-codec-sagemaker](./agentic-workloads/neural-audio-codec-sagemaker) | Deploys and compares neural audio codecs on Amazon SageMaker AI — the tokenisation layer that speech language models are built on. Mimi and EnCodec sit behind a **single** endpoint so the codec is the only variable, and the sample benchmarks frame rate, bitrate, and latency, with reconstructed audio at increasing codebook counts to hear the trade-off. |
 | [restaurant-order-agent](./agentic-workloads/restaurant-order-agent) | Voice-first food ordering, where customers browse menus, order, and track delivery by speaking instead of tapping through an app. Low-latency voice-to-voice with preferences remembered across sessions, and it ships the whole system — customer app, FastAPI backend, and a real-time kitchen dashboard — not just the agent. |
-| [sample-per-model-for-amazon-bedrock](./agentic-workloads/sample-per-model-for-amazon-bedrock) | Runnable notebooks for Amazon Bedrock with **one folder per model family**, because model behaviour is not uniform and the differences cost time: Gemma rejects `top_p`, Grok wants `max_completion_tokens`, and most Claude models must be called through a cross-Region inference profile. Each folder names the endpoint, API, and parameters for that family across both `bedrock-runtime` and `bedrock-mantle`. |
+| [sample-per-model-bedrock](./agentic-workloads/sample-per-model-bedrock) | **Git submodule** → [aws-samples/sample-per-model-bedrock](https://github.com/aws-samples/sample-per-model-bedrock). Runnable notebooks for Amazon Bedrock with **one folder per model family**, because model behaviour is not uniform and the differences cost time: Gemma rejects `top_p`, Grok wants `max_completion_tokens`, and most Claude models must be called through a cross-Region inference profile. Each folder names the endpoint, API, and parameters for that family across both `bedrock-runtime` and `bedrock-mantle`. |
 | [semantic-prompt-routing](./agentic-workloads/semantic-prompt-routing) | Routes each prompt to the cheapest Amazon Bedrock model capable of answering it, instead of paying premium prices for simple queries. Classifies complexity, task type, and language across 15 models in 4 cost tiers, and the classifier itself can run locally on Ollama so routing does not add inference cost. |
 | [unicorn-rental-dataset](./agentic-workloads/unicorn-rental-dataset) | **Dataset (CC0-1.0), not a runnable sample.** Synthetic multi-tenant SaaS data — roughly 14,000 bookings and 30,000 availability records across three tenant accounts — with `account_id` on most tables so it can back row-level-security and tenant-isolation demos. |
 | [virtual-interview-coach-using-deepgram](./agentic-workloads/virtual-interview-coach-using-deepgram) | Voice-first AI mock interviews for students preparing to enter the workforce, held as a spoken conversation with questions grounded in the candidate's own resume and target job description. Produces a scored report where every competency score is anchored to a verbatim quote from the interview, plus coaching notes that track recurring strengths and weaknesses across sessions. |
