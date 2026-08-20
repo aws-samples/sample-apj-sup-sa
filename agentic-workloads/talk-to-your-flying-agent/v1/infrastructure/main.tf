@@ -71,12 +71,14 @@ resource "aws_iam_instance_profile" "robotics_profile" {
 # Bedrock Invocation Logging
 # -----------------------------------------------------------------------------
 resource "aws_cloudwatch_log_group" "bedrock_invocations" {
+  count             = var.enable_bedrock_invocation_logging ? 1 : 0
   name              = var.bedrock_log_group_name
   retention_in_days = 365
 }
 
 resource "aws_iam_role" "bedrock_logging_role" {
-  name = local.bedrock_logging_role_name
+  count = var.enable_bedrock_invocation_logging ? 1 : 0
+  name  = local.bedrock_logging_role_name
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -91,8 +93,9 @@ resource "aws_iam_role" "bedrock_logging_role" {
 }
 
 resource "aws_iam_role_policy" "bedrock_logging_policy" {
-  name = "${var.project_name}-bedrock-logging-cloudwatch"
-  role = aws_iam_role.bedrock_logging_role.id
+  count = var.enable_bedrock_invocation_logging ? 1 : 0
+  name  = "${var.project_name}-bedrock-logging-cloudwatch"
+  role  = aws_iam_role.bedrock_logging_role[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -102,16 +105,18 @@ resource "aws_iam_role_policy" "bedrock_logging_policy" {
         "logs:CreateLogStream",
         "logs:PutLogEvents",
       ]
-      Resource = "${aws_cloudwatch_log_group.bedrock_invocations.arn}:*"
+      Resource = "${aws_cloudwatch_log_group.bedrock_invocations[0].arn}:*"
     }]
   })
 }
 
 resource "aws_bedrock_model_invocation_logging_configuration" "main" {
+  count = var.enable_bedrock_invocation_logging ? 1 : 0
+
   logging_config {
     cloudwatch_config {
-      log_group_name = aws_cloudwatch_log_group.bedrock_invocations.name
-      role_arn       = aws_iam_role.bedrock_logging_role.arn
+      log_group_name = aws_cloudwatch_log_group.bedrock_invocations[0].name
+      role_arn       = aws_iam_role.bedrock_logging_role[0].arn
     }
     text_data_delivery_enabled      = true
     image_data_delivery_enabled     = true
@@ -122,8 +127,9 @@ resource "aws_bedrock_model_invocation_logging_configuration" "main" {
 }
 
 resource "aws_iam_role_policy" "ec2_read_bedrock_logs" {
-  name = local.bedrock_read_policy_name
-  role = aws_iam_role.robotics_role.id
+  count = var.enable_bedrock_invocation_logging ? 1 : 0
+  name  = local.bedrock_read_policy_name
+  role  = aws_iam_role.robotics_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -136,8 +142,8 @@ resource "aws_iam_role_policy" "ec2_read_bedrock_logs" {
         "logs:DescribeLogGroups",
       ]
       Resource = [
-        aws_cloudwatch_log_group.bedrock_invocations.arn,
-        "${aws_cloudwatch_log_group.bedrock_invocations.arn}:*",
+        aws_cloudwatch_log_group.bedrock_invocations[0].arn,
+        "${aws_cloudwatch_log_group.bedrock_invocations[0].arn}:*",
       ]
     }]
   })

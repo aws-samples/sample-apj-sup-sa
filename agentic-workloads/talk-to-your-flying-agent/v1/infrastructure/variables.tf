@@ -87,3 +87,9 @@ variable "bedrock_log_group_name" {
   type        = string
   default     = "/aws/bedrock/modelinvocations"
 }
+
+variable "enable_bedrock_invocation_logging" {
+  description = "Whether to configure Bedrock model invocation logging for the target AWS account and region."
+  type        = bool
+  default     = false
+}

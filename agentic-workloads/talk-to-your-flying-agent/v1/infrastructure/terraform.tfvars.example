@@ -24,4 +24,7 @@ ssh_port = 22
 dcv_port = 8443
 api_port = 8888
 
+# Optional. Disabled by default because this updates the account/region-level
+# Bedrock invocation logging configuration.
+enable_bedrock_invocation_logging = false
 bedrock_log_group_name = "/aws/bedrock/modelinvocations"

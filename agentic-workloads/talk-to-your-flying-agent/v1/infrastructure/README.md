@@ -70,6 +70,11 @@ terraform apply
 `terraform.tfvars` and `backend.tfbackend` are local-only and gitignored. Do not
 commit them; `terraform.tfvars` contains the DCV `instance_password`.
 
+`enable_bedrock_invocation_logging` defaults to `false`. If you set it to
+`true`, Terraform will update the target account/region's Bedrock invocation
+logging configuration. Leave it disabled if Bedrock logging is already managed
+elsewhere or if you do not want this sample to make an account-level change.
+
 Useful outputs:
 
 ```bash
@@ -116,6 +121,7 @@ git clone <your-repo-url>
 - `instance_password`: required, used for DCV login
 - `project_home`: folder created on the instance
 - `ssh_port`, `dcv_port`, `api_port`
+- `enable_bedrock_invocation_logging`: opt-in switch for account/region-level Bedrock invocation logging
 - `bedrock_log_group_name`
 
 ## What gets provisioned
@@ -123,7 +129,7 @@ git clone <your-repo-url>
 - Isaac Sim marketplace EC2
 - security group with SSH, DCV, backend API ingress
 - IAM role + instance profile for Bedrock
-- Bedrock invocation logging to CloudWatch with 365-day retention
+- optional Bedrock invocation logging to CloudWatch with 365-day retention
 - optional Elastic IP
 
 ## What this does not automate
