@@ -1,0 +1,43 @@
+# Minimal: drone spawned in the warehouse, NO PX4 SITL, NO ROS 2 bridge.
+# Use this to smoke-test the config plumbing without booting the full stack.
+# For actual flight with MAVSDK, switch to warehouse_shelves.yaml.
+# Both configs launch with the same script:
+#   ./scripts/run_simulation.sh --config warehouse_noflight
+#   ./scripts/run_simulation.sh --config warehouse_shelves
+name: warehouse_noflight
+description: "Iris parked in Pegasus warehouse; no backends. Good for perception-only tests."
+
+scene:
+  environment: "Warehouse with Shelves"
+
+spawn:
+  position: [0.0, 0.0, 0.5]
+  rotation_deg: [0.0, 0.0, 0.0]
+
+sensors:
+  camera:
+    enabled: true
+    update_rate: 30.0
+    depth: false       # avoid the Pegasus depth-patch dependency for smoke test
+  lidar:
+    enabled: false     # nothing listens; skip
+
+backends:
+  px4:
+    enabled: false
+  ros2:
+    enabled: false
+
+cameras:
+  follow:
+    enabled: true
+    distance: 5.0
+    height: 2.5
+    smoothing: 0.15
+    collision_avoid: true
+  pov:
+    enabled: true
+    width: 640
+    height: 360
+  topdown:
+    enabled: false

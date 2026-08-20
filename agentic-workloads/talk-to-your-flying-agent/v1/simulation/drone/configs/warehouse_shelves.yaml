@@ -1,0 +1,51 @@
+# Warehouse with Shelves — mirrors the original flying-agent-dev scenario.
+# Pegasus Iris + PX4 SITL + ROS2 publisher, follow cam + top-down cam.
+name: warehouse_shelves
+description: "Pegasus warehouse with shelves; drone spawns near -Y wall facing north. PX4 on."
+
+scene:
+  # Shipped Pegasus environment. See params.SIMULATION_ENVIRONMENTS for the full list.
+  environment: "Warehouse with Shelves"
+
+spawn:
+  position: [0.0, -10.0, 0.5]    # metres; Z-up. Near the south wall.
+  rotation_deg: [0.0, 0.0, 0.0]   # facing +X (north-ish for Pegasus warehouse).
+
+sensors:
+  camera:
+    enabled: true
+    update_rate: 60.0
+    depth: true                   # needs Pegasus depth patch (see flying-agent-dev scripts/apply_pegasus_depth_patch.sh)
+  lidar:
+    enabled: true
+
+backends:
+  px4:
+    enabled: true
+    px4_dir: ~/workspace/PX4-Autopilot
+    vehicle_id: 0
+    autolaunch: true              # Pegasus spawns PX4 SITL for us
+  ros2:
+    enabled: true
+    namespace: drone              # → /drone1/camera/color/image_raw, /drone1/lidar/...
+    vehicle_id: 1
+    pub_sensors: false
+    pub_graphical_sensors: true
+    pub_state: false
+    sub_control: false
+
+cameras:
+  follow:
+    enabled: true
+    distance: 6.0                  # metres behind the drone along its heading
+    height: 3.0                    # metres above the drone
+    focal_length: 24.0
+    smoothing: 0.15                # 0 = snappy/jittery, 0.15 = cinematic ease
+    collision_avoid: true          # don't park behind walls — pull in if blocked
+    min_dist_from_target: 1.5      # never clip into the drone
+  pov:
+    enabled: true                  # secondary viewport = drone's onboard camera
+    width: 640
+    height: 360
+  topdown:
+    enabled: false                 # opt-in; drone POV is usually more useful

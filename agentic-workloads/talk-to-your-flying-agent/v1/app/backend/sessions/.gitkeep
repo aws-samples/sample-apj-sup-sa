@@ -1,0 +1,11 @@
+# This folder holds session recordings.
+# See v1/app/backend/api/session.py for the recorder.
+# POST /session/start to begin, POST /session/end to finalise.
+#
+# Each run creates <timestamp>_<id>/ with:
+#   events.jsonl  — full event firehose, one JSON per line
+#   summary.md    — human-readable wrap-up
+#
+# The folder itself is gitignored. To commit a specific run as a
+# regression reference:
+#   git add -f v1/app/backend/sessions/<session-id>/

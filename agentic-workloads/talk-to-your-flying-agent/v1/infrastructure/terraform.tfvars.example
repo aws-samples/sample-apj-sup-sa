@@ -1,0 +1,27 @@
+# Copy this file to terraform.tfvars and fill in your values
+# cp terraform.tfvars.example terraform.tfvars
+
+aws_region = "ap-northeast-1"
+instance_type = "g6e.8xlarge"
+root_volume_size = 512
+
+# Your SSH key pair name (must exist in the region above)
+key_name = "your-key-name"
+
+# CIDR blocks allowed SSH / DCV / API access
+allowed_ips = [
+  "YOUR_IP_HERE/32",
+]
+
+project_name = "flying-agent-v1"
+enable_elastic_ip = true
+
+instance_user = "ubuntu"
+instance_password = "CHANGE_ME"
+project_home = "/home/ubuntu/flying-agent-v1"
+
+ssh_port = 22
+dcv_port = 8443
+api_port = 8888
+
+bedrock_log_group_name = "/aws/bedrock/modelinvocations"
