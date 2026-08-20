@@ -52,6 +52,8 @@ cd v1/infrastructure
 cp .env.dev.example .env.dev
 ```
 
+`.env.dev` is local-only and gitignored.
+
 ## Deploy
 
 ```bash
@@ -64,6 +66,9 @@ terraform init -backend-config=backend.tfbackend
 terraform plan
 terraform apply
 ```
+
+`terraform.tfvars` and `backend.tfbackend` are local-only and gitignored. Do not
+commit them; `terraform.tfvars` contains the DCV `instance_password`.
 
 Useful outputs:
 

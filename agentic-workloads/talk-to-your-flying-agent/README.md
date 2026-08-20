@@ -35,4 +35,5 @@ Read these in order:
 
 ## License
 
-See [LICENSE.txt](LICENSE.txt).
+This sample is licensed under the repository's MIT-0 license. See the
+[root LICENSE](../../LICENSE).
