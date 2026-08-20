@@ -1,0 +1,25 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Captured images
+captures/
+
+# Test directories
+test-*/
+
+# Session recordings
+sessions/*
+!sessions/.gitkeep
+
+# Environment files
+.env
+.env.*
+
+# OS
+.DS_Store

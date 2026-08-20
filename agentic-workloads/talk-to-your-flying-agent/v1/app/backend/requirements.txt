@@ -1,0 +1,15 @@
+# Python deps for the extracted backend runtime path
+# Install: pip install -r requirements.txt
+#
+# NOTE:
+# - ROS 2 Python bindings (`rclpy`, `sensor_msgs`) are not pip-installed here.
+#   They come from the system ROS 2 install that `run-api.sh` sources.
+
+fastapi
+uvicorn[standard]
+pydantic
+numpy
+Pillow
+mavsdk
+strands-agents
+boto3
