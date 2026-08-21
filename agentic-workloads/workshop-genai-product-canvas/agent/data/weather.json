@@ -1,0 +1,352 @@
+{
+  "metadata": {
+    "source": "Malaysian Meteorological Department (MetMalaysia) - interpolated for station locations",
+    "region": "Desaru, Kota Tinggi, Johor",
+    "period": "2026-01 to 2026-07",
+    "notes": "Monthly aggregated weather data. Flood events recorded from JPS (Department of Irrigation and Drainage) alerts."
+  },
+  "weather_records": [
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "temperature_celsius": 26.2,
+      "rainfall_mm": 284,
+      "relative_humidity_pct": 88,
+      "flood_event": false
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "temperature_celsius": 26.3,
+      "rainfall_mm": 296,
+      "relative_humidity_pct": 89,
+      "flood_event": false
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "temperature_celsius": 26.4,
+      "rainfall_mm": 260,
+      "relative_humidity_pct": 89,
+      "flood_event": false
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "temperature_celsius": 26.6,
+      "rainfall_mm": 279,
+      "relative_humidity_pct": 87,
+      "flood_event": true,
+      "flood_severity": "minor",
+      "flood_duration_days": 3
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "temperature_celsius": 26.5,
+      "rainfall_mm": 262,
+      "relative_humidity_pct": 88,
+      "flood_event": true,
+      "flood_severity": "minor",
+      "flood_duration_days": 3
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "temperature_celsius": 25.9,
+      "rainfall_mm": 247,
+      "relative_humidity_pct": 89,
+      "flood_event": true,
+      "flood_severity": "minor",
+      "flood_duration_days": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "temperature_celsius": 26.4,
+      "rainfall_mm": 127,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "temperature_celsius": 26.4,
+      "rainfall_mm": 141,
+      "relative_humidity_pct": 84,
+      "flood_event": false
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "temperature_celsius": 26.1,
+      "rainfall_mm": 182,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "temperature_celsius": 26.9,
+      "rainfall_mm": 117,
+      "relative_humidity_pct": 86,
+      "flood_event": false
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "temperature_celsius": 26.5,
+      "rainfall_mm": 190,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "temperature_celsius": 26.4,
+      "rainfall_mm": 186,
+      "relative_humidity_pct": 86,
+      "flood_event": false
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 194,
+      "relative_humidity_pct": 85,
+      "flood_event": false
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "temperature_celsius": 27.4,
+      "rainfall_mm": 174,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 166,
+      "relative_humidity_pct": 84,
+      "flood_event": false
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "temperature_celsius": 27.3,
+      "rainfall_mm": 193,
+      "relative_humidity_pct": 85,
+      "flood_event": false
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "temperature_celsius": 27.4,
+      "rainfall_mm": 213,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "temperature_celsius": 27.4,
+      "rainfall_mm": 182,
+      "relative_humidity_pct": 84,
+      "flood_event": false
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 184,
+      "relative_humidity_pct": 86,
+      "flood_event": false
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "temperature_celsius": 27.1,
+      "rainfall_mm": 171,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "temperature_celsius": 27.4,
+      "rainfall_mm": 177,
+      "relative_humidity_pct": 86,
+      "flood_event": false
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "temperature_celsius": 27.2,
+      "rainfall_mm": 226,
+      "relative_humidity_pct": 84,
+      "flood_event": false
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "temperature_celsius": 27.7,
+      "rainfall_mm": 188,
+      "relative_humidity_pct": 85,
+      "flood_event": false
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 226,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "temperature_celsius": 27.2,
+      "rainfall_mm": 212,
+      "relative_humidity_pct": 80,
+      "flood_event": false
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "temperature_celsius": 27.1,
+      "rainfall_mm": 155,
+      "relative_humidity_pct": 85,
+      "flood_event": false
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "temperature_celsius": 27.7,
+      "rainfall_mm": 154,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "temperature_celsius": 27.2,
+      "rainfall_mm": 211,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "temperature_celsius": 27.4,
+      "rainfall_mm": 165,
+      "relative_humidity_pct": 84,
+      "flood_event": false
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "temperature_celsius": 28.1,
+      "rainfall_mm": 192,
+      "relative_humidity_pct": 85,
+      "flood_event": false
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 140,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "temperature_celsius": 27.7,
+      "rainfall_mm": 161,
+      "relative_humidity_pct": 84,
+      "flood_event": false
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "temperature_celsius": 27.2,
+      "rainfall_mm": 190,
+      "relative_humidity_pct": 80,
+      "flood_event": false
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "temperature_celsius": 27.4,
+      "rainfall_mm": 181,
+      "relative_humidity_pct": 80,
+      "flood_event": false
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "temperature_celsius": 27.5,
+      "rainfall_mm": 139,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "temperature_celsius": 27.6,
+      "rainfall_mm": 179,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "temperature_celsius": 26.6,
+      "rainfall_mm": 163,
+      "relative_humidity_pct": 83,
+      "flood_event": false
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "temperature_celsius": 26.7,
+      "rainfall_mm": 172,
+      "relative_humidity_pct": 79,
+      "flood_event": false
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 159,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "temperature_celsius": 27.0,
+      "rainfall_mm": 191,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "temperature_celsius": 26.8,
+      "rainfall_mm": 134,
+      "relative_humidity_pct": 82,
+      "flood_event": false
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "temperature_celsius": 27.3,
+      "rainfall_mm": 169,
+      "relative_humidity_pct": 85,
+      "flood_event": false
+    }
+  ]
+}

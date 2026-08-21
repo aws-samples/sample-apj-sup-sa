@@ -1,0 +1,439 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Touch Grass Workshop - single-stack backend for the Biodiversity Anomaly
+  Detection Agent. One stack provisions everything the participant needs:
+  the data + audit S3 buckets, the tools Lambda (with real code injected), the
+  seeded datasets, AND the AgentCore Gateway + Cognito auth. All assets (handler
+  code, tool contract, datasets) are embedded in this template as gzip+base64
+  blobs - there is NO external repo, no pre-upload, and no provisioning scripts.
+  Deploy with a single `aws cloudformation deploy`. The gateway connection
+  details are written to an SSM SecureString parameter. Regenerate the embedded
+  blobs with infra/bundle_assets.py whenever the source files change.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: biodiversity-anomaly
+    Description: Prefix for resource names.
+
+  SsmParamName:
+    Type: String
+    Default: /touch-grass/gateway-env
+    Description: SSM SecureString parameter that will hold the gateway.env contents.
+
+Resources:
+  # Server access log destination for the data + audit buckets. To satisfy the
+  # "S3 access logging enabled" control on every bucket, this bucket also logs
+  # its own access to itself under a separate prefix (log-bucket-access-logs/).
+  # Self-logging to a distinct prefix is a supported S3 pattern and keeps the
+  # log bucket from being an unlogged blind spot. ACLs are disabled
+  # (BucketOwnerEnforced); the S3 logging service principal is granted write
+  # access for the data, audit, and log buckets through LogBucketPolicy below.
+  LogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucket
+        LogFilePrefix: log-bucket-access-logs/
+
+  LogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LogBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: S3ServerAccessLogsWrite
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}/*"
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn:
+                  - !Sub "arn:aws:s3:::${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:aws:s3:::${ProjectName}-data-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:aws:s3:::${ProjectName}-audit-${AWS::AccountId}-${AWS::Region}"
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-data-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucket
+        LogFilePrefix: data-access-logs/
+
+  AuditBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-audit-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LogBucket
+        LogFilePrefix: audit-access-logs/
+
+  ToolsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-tools-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: tool-data-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt DataBucket.Arn
+                  - !Sub "${DataBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - !Sub "${AuditBucket.Arn}/*"
+
+  ToolsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-tools"
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt ToolsFunctionRole.Arn
+      Environment:
+        Variables:
+          DATA_BUCKET: !Ref DataBucket
+          AUDIT_BUCKET: !Ref AuditBucket
+      Code:
+        # Placeholder. The Provisioner injects the real code from ToolsCodePath.
+        ZipFile: |
+          def handler(event, context):
+              return {"error": "tools not yet provisioned"}
+
+  GatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ToolsFunction
+      Action: lambda:InvokeFunction
+      Principal: bedrock-agentcore.amazonaws.com
+
+  # --- Gateway setup Lambda (backs the GatewaySetup custom resource) ---------
+  GatewaySetupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-gwsetup-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: gateway-setup
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # CreateUserPool generates the pool ID server-side, so it cannot
+              # be bound to a specific userpool ARN. Constrain it to this region
+              # instead of leaving it fully unconstrained on "*".
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPool
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              # The remaining actions operate on an existing pool, so scope them
+              # to user pools in this account + region.
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DeleteUserPool
+                  - cognito-idp:CreateUserPoolDomain
+                  - cognito-idp:DeleteUserPoolDomain
+                  - cognito-idp:CreateResourceServer
+                  - cognito-idp:CreateUserPoolClient
+                  - cognito-idp:DescribeUserPool
+                Resource: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:*
+                # Scoped to AgentCore resources in this account + region.
+                Resource: !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-gateway-role"
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-gateway-role"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: bedrock-agentcore.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:GetParameter
+                  - ssm:DeleteParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmParamName}*"
+
+  GatewaySetupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-gwsetup"
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 600
+      MemorySize: 256
+      Role: !GetAtt GatewaySetupRole.Arn
+      Code:
+        # Placeholder. The Provisioner injects the real handler from GatewayCodePath
+        # (plus tool_definition.json) before the GatewaySetup resource runs.
+        ZipFile: |
+          def handler(event, context):
+              return {"error": "gateway setup not yet provisioned"}
+
+  # --- Provisioner: seeds data + injects both Lambda code bundles ------------
+  ProvisionerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-provisioner-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: provision
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt DataBucket.Arn
+                  - !Sub "${DataBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:GetFunction
+                Resource:
+                  - !GetAtt ToolsFunction.Arn
+                  - !GetAtt GatewaySetupFunction.Arn
+
+  ProvisionerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-provisioner"
+      Description: Seeds datasets to S3 and injects the tools + gateway Lambda code (all embedded, no external source).
+      Runtime: python3.12
+      Handler: index.handler
+      # Writes embedded (gzip+base64) assets to S3 and injects code into two
+      # Lambdas, waiting for each (_wait polls up to ~120s each). 900s (Lambda
+      # max) gives ample headroom.
+      Timeout: 900
+      MemorySize: 512
+      Role: !GetAtt ProvisionerRole.Arn
+      Code:
+        ZipFile: |
+          import io, json, time, gzip, base64, zipfile, urllib.request, boto3
+          s3 = boto3.client("s3"); lam = boto3.client("lambda")
+
+          # Self-contained CloudFormation responder. We do NOT rely on the
+          # auto-injected `cfnresponse` module (it is not always present for
+          # inline ZipFile functions, which caused ImportModuleError here).
+          def _send(event, context, status, data=None, physical_id=None, reason=None):
+              body = json.dumps({
+                  "Status": status,
+                  "Reason": reason or f"See CloudWatch log stream: {context.log_stream_name}",
+                  "PhysicalResourceId": physical_id or context.log_stream_name,
+                  "StackId": event["StackId"], "RequestId": event["RequestId"],
+                  "LogicalResourceId": event["LogicalResourceId"],
+                  "NoEcho": False, "Data": data or {},
+              }).encode()
+              req = urllib.request.Request(
+                  event["ResponseURL"], data=body, method="PUT",
+                  headers={"content-type": "", "content-length": str(len(body))})
+              urllib.request.urlopen(req, timeout=30)
+
+          def _wait(fn):
+              for _ in range(60):
+                  c = lam.get_function(FunctionName=fn)["Configuration"]
+                  if c.get("LastUpdateStatus") != "InProgress":
+                      return
+                  time.sleep(2)
+
+          def _zip(files):
+              b = io.BytesIO()
+              with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+                  for n, data in files.items():
+                      z.writestr(n, data)
+              return b.getvalue()
+
+          def _un(b64):  # gzip+base64 blob -> raw bytes
+              return gzip.decompress(base64.b64decode(b64))
+
+          def handler(event, context):
+              rt = event.get("RequestType", "")
+              p = event.get("ResourceProperties", {})
+              bucket = p["DataBucket"]; tools_fn = p["ToolsFunction"]
+              gw_fn = p["GatewayFunction"]
+              try:
+                  if rt in ("Create", "Update"):
+                      # All assets are embedded in the template (gzip+base64) and
+                      # passed via ResourceProperties - no external repo or S3 stage.
+                      n = 0
+                      for name, b64 in p.get("DataFiles", {}).items():
+                          s3.put_object(Bucket=bucket, Key="data/" + name,
+                                        Body=_un(b64),
+                                        ContentType="application/json")
+                          n += 1
+                      lam.update_function_code(
+                          FunctionName=tools_fn,
+                          ZipFile=_zip({"index.py": _un(p["ToolsCodeB64"])}))
+                      _wait(tools_fn)
+                      lam.update_function_code(
+                          FunctionName=gw_fn,
+                          ZipFile=_zip({"index.py": _un(p["GatewayCodeB64"]),
+                                        "tool_definition.json": _un(p["ToolDefB64"])}))
+                      _wait(gw_fn)
+                      _send(event, context, "SUCCESS",
+                            {"FilesUploaded": str(n)}, "provisioner")
+                  elif rt == "Delete":
+                      # Empty the bucket so DataBucket can be deleted on teardown.
+                      pag = s3.get_paginator("list_objects_v2"); d = 0
+                      for page in pag.paginate(Bucket=bucket):
+                          objs = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+                          if objs:
+                              s3.delete_objects(Bucket=bucket, Delete={"Objects": objs})
+                              d += len(objs)
+                      _send(event, context, "SUCCESS",
+                            {"FilesDeleted": str(d)}, "provisioner")
+                  else:
+                      _send(event, context, "SUCCESS", {}, "provisioner")
+              except Exception as e:
+                  _send(event, context, "FAILED", {"Error": str(e)}, "provisioner",
+                        reason=str(e))
+
+  Provisioner:
+    Type: Custom::ToolsProvisioner
+    DependsOn:
+      - DataBucket
+      - ToolsFunction
+      - GatewaySetupFunction
+    Properties:
+      ServiceToken: !GetAtt ProvisionerFunction.Arn
+      DataBucket: !Ref DataBucket
+      ToolsFunction: !Ref ToolsFunction
+      GatewayFunction: !Ref GatewaySetupFunction
+      # ----------------------------------------------------------------------
+      # Embedded assets (gzip + base64). GENERATED by infra/bundle_assets.py -
+      # do not edit by hand. Re-run that script whenever the tools handler,
+      # gateway handler, tool_definition.json, or agent/data/*.json change.
+      # ----------------------------------------------------------------------
+      ToolsCodeB64: "H4sIAKfmh2oC/61Y+28buRH+XX8FwUOQ3dx6nVzugEKIAjhO2qTXpkHj4FAIxh61S1mM96EuuVZUQ/97v+FjRSnKo8XZgL0kh8N5fDOcIef84ka25rLrJfuLMHIjtuxvollUghnR30gzZWYlmVaf2EbVVa2W8ky1d1IbdSOM6lpmuq7W+WRy0Yj/YPhCVn1X3rLP2ZqhbzW4KQ127U0tw0GqNR0TrJdNZyT7++W7iZb9nexz9ttKtvZ8QdxYKepag5KOzEa+EKe7lZ7zcmhLK9ZGmdV0MmHsEZN3tJmxmWVFmx9q7FoPhkHFocGqZgmt/fX9P96y39d9t5a9UVL/nloGZdca+cnkZa1AW4zDQZuumT9cOJVHja9wwlvRyIfX0ZGsxUwGdvGPzG9yxk8b9swatiiKfw+y3xaVNNJqpvlk8hs8Ynq1dtytn9i6l0t4SbQVq5ReC1OucLClaGgAk4/WydkVpuvuRpVM6YmqILmCdWmDNfW5O7zuMJmvt0x3bCFX4k51Q+/YweCblQT3PnJQP7R6Im6EarVhdrODB+sslZbByV0rCTMvhRFawvqipyVRsWXfNez9U5YshvIWWqmWvby4uihefLj89dUVk+0duxN9xm7lVlZsaCucX4HLeZpPXgEzWwsSKMU2vTKG4ONsIIZKGea5LiFP2TXrWom2lPmEcxhVNeuuN+yj7trw3enwNQyqmljhcJo0qpHMr4RxxugvQkCOrBad6Z5OJvopcGC/PYISrp/yFOpHms1wWA71VN+1cx6t8OvJxYeXb65OEeZwfMLjZbAtLi8uX7+aAgWlmQMmGesWH4EdQuP9bjKZVHLJ4FpRJYTJKUEpnVpkqqWFKWs7a3nPaQQt+ICHfkrHFo5p8sJadBYJnLFf5Xa25NYt98Rvx9ORh+M5p2kSiKydkyw6AcM5f9FVW36dExaS1O3qJWWOg41Q4gd2dnbGKNTIEbWkKLZxo2nhf/xxNjkOtESvZYkskMFCojdFg7hfZcBgFT61O7JQ1ewtHO+tSIpDNWdivueXk7I8KFV2faVBNh9NU1lcVmR5YjGPtgIEgQo+qubci8ZhQ3jEDWzsR6KyZzMitd8gxGgU3XK7Dj7fq7H3dSRgJFeY9UKM+7wc49ixLruBUiuxiJQp7DR2HHN1m0xnkDbAbGgSx8BZrJGixXSPqSpxROeslm0gytiTlOTyh8oa2eZx0DCiY89n7Oe9nkvVawNPQgRYLz52Pj3Ydn7OfrrGKRHB8TKbXu+BbnppGUJxRH2L9Mutrd1Bz9zBuFwe5784YblqS+BeH1E+HymfjJQw9KKW3J5FM9PPT0UKHpZLVdobi+DE42C6HzeMSJoGGGXRmnfoUtVG9kQyephSOkeqLfyU5tE+71Bs8F8xz6FpRL/F2j23boyvtqlzf8Y4udthtSZaGmLWqkdU9P/4Ng0n2F0aMMN9IIma/HQfRcIx8HbpzvEK2ZHy20YKut2s7ZK93l9KBidj3/P4VuBvrESbfeCHs4MdD6J/87XAO5UDNt/MAcu666xMBO4nVpr+KNx7d9dYysJWVNznZ3F3M8Yl7e/nvEcFsCRwNI03d8wu9YEbhiFyw2lR6Aa4xhrHKMy+ijWLhkhiInKqYh/ELmI5p6RIAADqm/K2qGHMYtDyhPvp1nfed1+9qNSgi9tm9kv++CQWArOiXIn2Rh7cBn7qABSlq1L2oPBEh2AovxMMJCV5H/T0uYcCjUaGRE8UCptQGBVU8IQAh25u16hqBKDv8VPYRp4K35gPak2DFY7853IECkRRiOUSiUJWxUoQkxFxENmuw2lQ1t6Ko+08Uwuy4F0tRV+uilZudIJCcmNRc9KxJz1J+yAQKub60I2hMIYbfVxBCrH3YNjDr6exD6naSg7dJE65KZ0eWIbaENUOe++t0AzNWIK9K5RPuHNo/4+M4/dH4qhbtV5LE03ib/6xU20iXHQHY/AMGqRpispsI/skjaUV7Ta53YQVUo7OJU1vbQYLPI6k9bbJBUSA20R6iJvRNNNAmQXX+7HP436UxqnaX1zFAs0EqR0Kt5PeOyY+KsusPC3auyTRVisd/Gfv5NOVF9B1z2Xfd3RHLvl7X4+RY5eEUtx1nnLHd+koeSt7uLUQbdeIeotsT13DvuoM82a7llSh4DpTZpuhHmgrFAlBPbeNivv4AqY5F4VL/s93V2f31MHk9OfnJM1X8tN8+qfrfIA34MVdfHkHuapCGGwP/U3edpsktDj5YMo0V7qDheCRJM2+VlAg2UaqUKY90IwH1WhL0HLPL6hLqvjPzJUmA83x9bColV7hps+o2KoVtYG0oKn0MV2Ba4FaXQ17tIvuEw93vQd03D7tMYsuZz2MXc4BlH3LE+87zFmu/3E+0Of37mP+cHTKw+udA93hNup9ZrYhqoZmrRNHnwF/1J/PfkrR9pVdJWNr088lvUe05grGnHHEV41WnvLu+dEZBxB3zAHFl2/ev7u4unw9Aoh/9uAw/aw1ckz5cZ0EyuMpT3l4odpkH094qigxWyyMo+i84/j1Zx5PjztOBpnddHIlm+zG7vI1pKtl/380lCe6y4JeQgpqX9216l+REv8/ZWfPqRP3MS02VMS7mt29M2EMPYUxfRL++610iR68TCEQbDtKC3ZvmKCi/X4XneCWXfL/0jMWhZVPjz+Mj27utYkegRSKzOgZyj0p8Gdu+Lwoimek+POD9gOH5xo4xakg4On87Mk1haId2UoR0tkyEB/hxcK+4CSjFe27RUYveNq9dWSsu52yBdaj1wxk4NPx7SRxHSfd2F9Oc67Lak1Ptyt6Fqwh+TRrakP0QQ6kG6urbRPjhaTUF54YKe/1LncNZSk1TXS3zhtg/kemHmuq83ujpw/+df6gOX9Q7TAKQu1OXwbflZOsHf6YRCQ/lXJt2Cv7D1RTwpeVnJ4qGyAT9zByOVugtrv1z772eW9ktBZae3isXKwmttDPwpOtR8KoOpUB34hD19PAUaB1L8fAkdL0pEk1cTiAEJc6jPqIWtLzRMimNqTGk9KAR9AobWNx7+5jYNvOemhvAUQYzWPmzwInpUfoPSg6PrgdVlfUG3tvU/zaJau5raNwFyZB0vQEAlFDDzWVFMs2efSIJEi/KG6Q8KofPhfQMYrdTeB4RUIzgU5v+k2231b8TXsnamp2xrd8KtsiA8AasMJu8l9bYDzp7RgAAA=="
+      GatewayCodeB64: "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"
+      ToolDefB64: "H4sIAKfmh2oC/9VYbWvbSBD+3l8xmIPYoJiD4770W5uUUmh7HEk/HCGoK2lk7UXaVXdX9pmS/37PrCS/xWmdK+VICEZezcvOM8/MzvrrC6LJL7ltGjZh8pImF8pYo3NVU7C2ptya4FQeqLSOQsX0WttCL9l5Hdb0ythG1Wu65MB50NbQqwXszOmT5wIGaKpmlDtWgaNyfHthHdNbLK3Umt6rJisUBeUWHGgaffq84kb5WULKFDTNZqR8VHdcsmOTM7XKBZ3rVpngsawKWlVsqNR1rc1ChLWjXJml8nO6huq+n0L7VgW48YQ9i+no+LNRDX+GFa6L+SQRaBb9Pq+j3ke8FoxWui5qXfK5Nkv2QUMIsZ+LDd+r9Y8v6QZfiL7GTyybwcCXjt06LUbUeqUoUbDPnW5lVQT/FEEE0rDD5p1qaaOE1HQSvSRGkW851whH5c56Tz7ELfmIYNANz+kN1rJaewk6U54BFPuEdIGU6FJ0A7AtfI868l5q14gB/PdZlnUNjz63LdPUGh790BKCdb1xO5tvI9Km7cJVTCkiGqEQjNZtBMNmfyOijQLetA4OkGD2exp4M4Qpyxt9HxxyPkkegHc1YCLsxh4F/IR4vpjT2QdVqzVCu1atdmeT+2TPCVgSUqiE6kRHokBRgbTJ686jQhL6C3/nHz4cWAfGT7H9BqCfaHlAP9XFaab/iE9qkzYpn8BuxOjq+uP5r78BnI2PHXcTx1867Vhc3WzSkuyDl+xGezvo9uYGUw8qA1WWrtAvKnZpoYJ6tDLe8oA4iDko0NQpbUoQMaHADSikQucAV9U1ukC/SqisrS2Il+C8n42l00e/bVquq5lsF4jNUjtrpDUCpVx1HmzyXV5JQ4qm0D8c8T+onAbtafD+08j/xPxeDWl9d/kgpc+V7ydQcQvSj7MRicvv0hqNL0XuH+Vif/yRyBHkKK+UWYAq09ouFggzkXaKiLvYuNFgF07nXS3knJFhtcNCWulQafRcsKnQnd+ycmjU0oZDBY5YnKU6H1lpSxpPpXi61Spn4e3z5CIqn59CRZE/wpfzy8sjZDzduHDxZNN9vtK7Zs+26ZqM3bGNI+1oJL0WHNBdQ9OCSwVe0O+z/0r1GFyyE+hpRPdxN6nh1eOzyLDj2spwKJIUh7Ba5ok13fF6ZV3RTxwRNCdFsOVvbp2zmXXySlG1bi16ttc+Mh4AFNxi06As5rnWwrJZ/Czyjnvdy5RyTq0FOo2z4+iEcf9oFnFqNn4g9s3ZUPVnydlVZxZK03vOVHN2+5yp/n02bkD9US7KCDAMFOk4qH5zDODcAvJ4Zxnl96fil/Tu08XH2GI7pAlgROHtKB2pmtCdsSu5DsiFBXKVyjRUekZrj3adKbl8eDa4/eglJornNueePsqdmisjUxanwx0h7Wv3G+nq5SOmbRfvI/H+VWoZRMebxt69augHc7qQK8b7V1fXpEpUHMY4OROREDSRRZwAufgfErJfdiMQg9Cx9DEOhR7rrkAAuAfmPceBJ86DTtW7S2Cealv0GeGeLHSm8yKDSgVRfVyLBE59pcswuT1oM5h2Haj6vc0gTUHKQhYrvYjzUsM4nRp5qu3q0DBSVsDIIVTfAvgYJcaSTYcitJlnt+QiXaq6w3fkJMPFldN+0rm5TUCI/geLAlKqv0HLMuyC7vFINMx4eej50fTGt/sb+W6mo87+Zk/TOQjo1ENoAPP+ocEjcDz1ZHto9CGYu3qZtTUrs9NQtr3i8PmUW+Ne1SQ7pE12eHbQkvB5++L+xb93aP0uwhIAAA=="
+      DataFiles:
+        detections.json: "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"
+        land_use_changes.json: "H4sIAKfmh2oC/62XTY/bNhCG7/kVA59aZCVIsr3Z9JZu0rTNRxfdBD0UhTGWaIlZihRIyrtKkP72vpTkXTWxDQfIxZYpkjOceeYd+tMjolktPBfsefYTfcJvjDjT2lzg9+ylMmtW9Iuxwnn6i31e0cvXz54TK2G9o8f0u6mMpWvPXozTbEfPRcPW10J7Kvmj8HinjZe5CCscpiolMSZrLgWms2bVOelmZ4N9K0ppdLD/XDi27Rm9Mp7pndRlKc8Gk7u5jbDSFGFulmTLKDknbwiP51HyZDcHtoUbtvMi96Igxbqg1gnKK9Yl3LqVvpKa0uSmJrOh2mjpjYVBcjgavHHxDJt9DjvOxkXY8e/ewBC2+xcr2fvz+v1llCTp6EQI67DT+Pr63dsomT+8RQrEeAz4vojS7OHduK/vmn6KVEqUrFbKIB66nOwhXG5l48fovdfcesRKfsSRvazXwpK485bzMIOKXTS2koesFmLTp7D3c8hxTJcVSx05vqW89QhHWzeOQvzcjcS2lqVy2MLJtUJK9df5jemtoS0rzB49JmStlp5gxIrc2KKP/8jSHoriyREl3NO5WG2sqVe7kN7UOG8SX9xPYyt4VeF4eAiJWsTZQx7EFtD4LoSokmU1ibOBL1LzgMsurXih2GMgjZeLxfJsMtzHOU2wezJfjuOfJ+kIAQ7+ocaqgdKH6kEplNa0CGRwZyPzIerrjq6ErSQiyPr/8LQ9xFgh7ErqLaIky37R7NHE8DEas6M0podozKL04iCNOYrD27Y/6EEUn+UofkfWcMh1IXSgIEAkkOLq1tgbR2CPVHvXIvVImkGExF3D2g0sGix4x/pDi++fWXFLuWHnldQipl8FbzuqOUcRg7gzyI104qy3oJFiTyp8BqOFydvAlChiuoLxUO6DzNBl2JCuKoYwzFEMW6FM0/NHL357Rtw01mxRL2vUwa1UhZIbKIixVhZwHUCP6QhiR53wKIBGidHYiQgvDiKcZvHyuzB8cb4f4eXi4iSEr78S8Mc0hWBX3UNpu30M70K5mgT5ZIjnRyE+PwTxPEqWByHm0sq8Vb61YnVP3UGa/5CKGlY1jtiglfRcQViFLsJTliQ1hBB9yCECumBEaNBVkLPZCBt4tWuZow4CVGpX+veCjOdxgShK4H1p6jrEtVfuXFDR9q1pYj3vciVOYyydSOGXjM3jdC9iytx+A2GLp08PqORifhJhf5oWpxLTNgxZ7BsTBnFdAHXh9NCIfXQNb0CXN6vN2E1OpmtxlK7FIbqWUZYdkUgICxo2KkJxzUeV8rpmpSKXo0cM15TJol4iN9JVISIfcK/qqG1Ky4EjT6+4btovVTKmN3AlFBttQiAFhaYqYaMjIIO8F/TDv0k8p4p/jMeL3FjA0rn2VOXKJuR8SRV2/w5ULZ+k+6G6eHoSVKGIWvDUjeRAtQprQJlr7VZ0+0Aa4gCSTqZneZSe5V56llGaRulhbeqvWKs+Wcduey/ukJ0ARiVvwle/bGi2yHEgCaRAbcN5N5xjLNAEhYo87vvS1cRDk4ZwvWx1IOgqqAvm14gCQJIagq8oZ22ajgIMrV0HHh466XCFe9ufHFMxfHOPKCT/A7JyGk/zSbP7mqeLvTzVg4PfwlS2F6n0SXYSUv3xBj3q/+wc6Xi5CXeBB5Tw+c+jz/8BFWtQeYENAAA="
+        news_articles.json: "H4sIAKfmh2oC/61ZXXPbxg5976/Y8cttZ0xJlu00zX1y3eu2adJ66tzpw53OHYhciWuRXM5+WFE7/e89AJcSacuxk+bFkpZLLBbAwQHgP79Q6qjWgQoKdPRK/YnfWPE2ulx7LPxPFrD0rtTqJjgywat3psbD4/7RjWnIqR/IGWr2q1dOa/WWKtp6Q+qdLWi7f3jhg7PqYkON2S/+rDf3jpAnv3cbjpxeGdtAp6PXtrTueCc8SThqtTO24A3z2fw8O5mpYBW+vshmX/d7GhvkXkdvbE6VoqZQDQXIxY9Gb7wiF0xeaa+crvQdNYGFbExVVGapZb9u7oyzTa3xzDQqwDDfaU8uTn+yATc1zWplIEfThC/wF5981IvdmfTP/tbpyf+NaP7zf367yWazk71V4Bmd7oSLnGXzl/tnnZ/46QetXWqC+o1s/LGq9AqXrSy0bFaK8mDuTNiqQgedBw17aHjzJjYrMuqNXlCtltZpH2ARr92dPlaDew50aUzb6rDzj7qSt9wW1mlxSbFXbpulcTVOiQ3FgG3mD/wIpl5op/R7eD9nb7BhSa3oDx2Cvnf+QwWPFbWts+9NDVtVW3W+hs7O1gPfqEtLEFHoO13ZVnT5wzZ6om74lcrgFLy90lBX3vy+sgtYqbuD+o1CXqplRasVtD2bzFUJW8HFXtkl9MrlbtTYdgvDej9R19qVBmKpwY6lybXj0MIhzR0EmhVijo2PcCoJV/I6qNiqHGLXrTUNEAAj9D5ylgrI7EIWJmQzSNCqlbN47TVsUekNVRUpwMezRXFzRIOrFS0DTJtTrR0p2Lf1fdRyiLLy1hXikOgj5BfGh+gW1ORatQTzu8ZP9m5e6+0GLwxzA1aTprttnBUGDhquHwoeLI99PHxS6O6Z3Pgorf++Uyi6imOuDKH1r6bTzWYzWQIMdcJCYChMcltPc3h6Zd122gF+yoCazs6m85dT04EiS9fIeixkXi6RVXyJaXf2X8fPwO/8MfwiLZ0fwu/hHDoE7rWuEZG0RkSV5Kh+BSOuSFUaawZeC1TiUWGeROfwtQ05/Ai6hqfl7U7Ka1rIb47iiC+8JJheI4ga4hjZ8usIjspgqyqgGUJtLbnEqPaergroLqluDd5WP7BEdWNwZjOCMcAYfavXEI9UntMWD4DU1Qq5gkXdAmUcxBCGI2MT4lqe6yqS4w1r2kYlB/OexlQQELp0jBdr8vICdICKBe/XLuLxRP2C88izFdfIFg02VVRFozywoHGvmlhxz6nCBPX9m4vvnkTEfRMMI9qMc/Az0PEYmMgxMvyzUOE5xEqJMMbDpN5OU+wmKJxPT86ne70z0TtbQ6Oss+JHAOD0MQCcZKezQwD4QH0xRMFbpExcoVG/OINw4HylFxHvICJGmZ68quL7iHwecIbxNRKnc6awTDOIvMIfBgfUcHoBdxeceZHdRTHj9JZY5oPzj8fHIlLWXrJrhWvzggHrB1BNn3W7MuZfnnNx45HaakqMh0KDVOt0bWK907pguugy1kR0OZm/zCgHlYDxELZgbs8225hQMmk2OevFNNB0afMYp9q4Kod1C8wmzOE79kmcAWbJOdsrWtgYRNk81hEXMXdMjy24mS1yXZLX6nREprgAFMehbLVdudSb3LPsBimVn+ZsqFR7mabij07Tp2lmaOohDPC2dWFMGjvdhssP3Dd8+EDt58GqC9rAMSs8g0RCU68z+azTgZlNB4Jb+A6ZWCGT4P0IWJ09BqvT7GR+CFYHC+37tIL4Qppakid4dWjjV+rn739RC1RnBMdxTuR0ZorIqbsyYCzk1TaGeBhMP8W6Rfgg0aaaxZs919RapK5NkNSt0yn4vgAHbYiz8y1l8lcIZaDlWnMJxWQ3Ah/SM5UsmDViqUljwASVneTiFd1iCyf/QKAjBCHKOBpz0vWeIKAH80HL28xEfRubrYE9PMfxmI4KOQ73VbVwYQH2aa3QknAYMY+NbQf1+wMgyHMooBC8BXtdIQOB04x0L5+MioTTD4f44CEanhbsP5IhVhoucPkZXJQqfbjeWOSQZwGGOCSJI1LgAvOh6sj6em26c/UYKez37DTrPJolO2Zsx4+Az/lj8Jlns4Nt1cOW9DCI4F1bcYJ3xNX+muPDb8EhXHSqRfTcWJlURf1bzU8ReOg3Km4zfR51cRA/h5oI+H/d5dhQSorum75GXSBss0s4NrbCKJe2ro33/PXLtxeXl19x3YaEFCooQ/ssPVTaCetxOdQ1KLlDO5OKP87U11wfomJ6t0H0b7NQct9ZMT+gRClI9ZaAotpp6S7u8KXouiriglODjrzQ4aDYQQtX2f5aZ+drod4CObNQHl0PGq2OCLWQBVM4Er66Q697zV+Yp6m5RZWEmhVhTGiXrlgrzxVlzvWBVEq6OMbBeRWF3QnsXBQVeKtJ9jQ4SGhYyHk3Gdi7EvR8Z6A/ukxTwARmySouturdrxdXVz9ePl0XJgONQLZ3wHB5d+ozCkTx0Aj8u9gZ8R/C4FkgBcj7IpHHItPcIfoBxeiCT+XifNrfJdtpmt2KHs9H5IvHBx3DGvITBh03CD0EbK+jai3l5S7EsbLmNtkmBsmkGU51yDGHaTPqtA1X2Ycw+luPImbKFATyOleB4AVCShdFhihrdGAcK+MHWEv1YdIBtBI2Wo9AIgjs9EVVh9ZNy4v3kccAYUk4EQ1dF8G1hoNgGVnksUfD0wi2lRepLfqabjgguF1ayOSaGuVfMG2FrTYXQwBYl/tZguK5YYfta2dvgTT1q+bE0hOzL+1Gqj9ppRqewOR8Kt9255qu3WbhfcKhCqAz71UNywcrHksDAI91Hk1ocsAgx8qxkJld2GRHvvrO2cCr9xE3KretxROo8UkQ7QUO17orjhDLVvXDlRQR49JULPAYqD//gGN2Ou1iMNsB1nVTDplafgRav34MrS+yk2/+UVeX8Oy5poJ7/UN20o7RejJXW7i+C/JdAAlFKF/H1aoaOmkI1IvEYt9Sibi80UKMHiSJlLY7l3nxbJ7xEZlFFDMzDE9FgYiuLA1/GTe/vj2fzY5ns5laclSLVghglp7me0Pcn77siG2M2MRwXXsHP92ZNAP1gzTFUb2noQGR4/1ULm4nDEK4OgZuuTyZbg7YZ5uSwFScUmTmKxCEp7AD9RX6vmSfDl4gxoyn6Mc4lGcgiCgoCcQhJkjwOEisrfSIbE3JBGmU1/LQFJ6UcW2Hlc/KjsllD1iw8/C4Zo3j7nDPrJ+jw+tiN9vF7h5m+9hFeyZR5T8CbS8fn6GcnH1Ss/ctaiQ0PWv0JuHeqPAVcukMnVJTxCLKCM4gRsv1cBw5QNMP8ZbbGM3DP1TwiJ/IfUzXvqC4r+D+lYzvttizWEtbNz58oblzamnXBDnNJ0IGekKEzJD4duO7d8SQTOTy34Bfk8G0kodkPKnjZuyGKvn+5evrm6/Gc8I0z2vxF1Rj7v23o+4KSJOecze6xSk3ULYm86iZ0JSqFkYI3KzKothDxi0u9aob1ku7BfFIE3HKswFWGwZwT2JjWVlb/INZob6jPNL9vg0M6+0z5+pPdG6dgzNx8HBsmCFUOJm8+IjY/+ZxppnNP22AfsUNxB0i87vIm/ogYrFcTJm1OjmXTA7vwj/STJRRPmoj3TuP2xADBwHxiPQtD05gqAqf/M8EjoOx3zk05XSAyZQHdGgJXHFQkQk7Ge/MZ6qIkI6/cragDjuMWvZaiR61FhABTlTGpp+iGLizww7OE3VueS4j45Lz2X1tPLAhG/ayRUrSjIU9FcidlqN//iRRH66u0kh0uDQ25ecZg0tr02uUdcqmWikFMP7+/sVffwP41D+BPB8AAA=="
+        species_baselines.json: "H4sIAKfmh2oC/91aW4/bthJ+768g9uXsArZrO9kiOA8H2GySpj1xscimyUNRLGiJtpilRJWk7LjFOb/9fENSstZXOVecPuRiUeJlZr6Zb4bz23eM/YU/jJ3ZUiRS2LN/srMJV3zFC/aGl9Kc9eI4RgsnZzK5K3gu6D0/Xlkmi1Qmla3flFVS3FnHXeVne16kvJgLI9IHLzgjipTGn4nECG5lMa/H3aqUCVd3qXAicVIXd4ZmwMthr3gllwV+jnvNb/4Bvy+b31UhHU3eTGG/z3Xhsu9pX/h55l/8T1ww41OJ53elETNstEhord/quV7ppeJFylJZOmF0wk3JZtoI686a9V7LkhsJmW0O3IpEQwBmxeZGL13GCsENW3LMFPbwe9wDxzYX0q3uSu4wSMc7uzairGxSKXziNCt04ipTcFULKtO5CLK5u8/H+GI0HlzW+hKFlXFKp+9SafHtlIeznb2U84z1GV9omVrGSQFsKWl7WlrRYwrjzvYYnTurchys3l+99n2hl9Bihk+dbYvrZRAmmxk+z2EyQd5rSWmeslwbx9V6Njz/SSkx5wqrwcqKOTs32NXFevyVns/pefsgDwRocQYN4dwtSBN+URz01p8EJuqNTLC0MjTLzFTSLxO+YucTbvoTvroYsNcirRJBe1wI2n/9SSb4YsVmSuuUiQUG7KCWRalL6MhbKpQvc2j37r3OtKEdjMbD/ujJ0KNkIdOKK8vOx8PxI3YjTCYhBUjXVmYhVvVxzwrtAhRJT2rFamUKMoNorW1JDFgtnlpNXpuyYKP++D5nCa+ssPRFqXgSjhVfGPcfs6UQ93bA/i1WAcvcacOiQyCLjlaNQSfmBrMPSPQePdveA/JjP1fFXIkZgHPAffzIlYL3mPt/9jiPV1CPY9caZzTFZ/cflxv+Y/T4iziQF0F6IsUe9jqG9chTnk+1ZtBOci+AraNu4pk87BWGHZ0CHB18gtNK4GvH9AwYSPF/J6IPwPGsP9xRH7CaGpnKP72ogmNJsStgI2GJP1dhW6IoOCGsC5wJD8KwtVZqdE6NEGkb0C/EtH9VmotuIL2aVhSmXA8O0LE/Ku5tdR2yGkC+FhaQJfxEkx8wGKCShQA62PvG7lk0QtVAClCy8BtGNABW2loGdBGsoBdCt+FliVMcwtcrYS1EMNGAdP+ZEAcjNHxwRSC7h47haz4eZbeOT5U4GWGjrxKhn0F8gkGDwmyCqQnMhD7bDichqMd4fRRjvxyNvcPB8EknmE1qUPWZEYpcLOw19UfA7nEKliD0mKMgq2HT24y8iRJ+hBC8UygvsL4CIue2C+ZeC4LNQlAc8lbAVpi/77faDV3XOoduj2LrNgdeGAmWecGyXHAgXIFyKfknwkoUAsIZ9KkkTIzE6MfZegNYAh5GHQxSt7pycCQFRXs2AeV4z5MDOKI3JAfHZbl/9/6rA2m4AaTxFwHSSwkFbFLYA+iKkS3nBuTDnkRoD+Doh5NgdDwYBUa50/y3sEM+uTuvBCRAZUVgXfvIZTeM/FokHiUURlRwTuDffvaZEX9UFHIwBCeu7BZyKHI3+mfGBxsc5pmw3FQsGoLn+cCgAczge2p+FyzB+plXDJoyXBaHsFOnhzfaJBWilTgAnJcr64z8gPDMk2xVGf7VgbOZI46GXwQ5Vw1wKPK3I81O9ncFGg0YwJ6hi87wuYUsEzK6okM0enQC58tCmsFTXj6Q8l5M7cviYkxi55Q1TCubwYW7ixOYXZO/wNZTI/HEqwTZaSZ8ds19mhPiQ53V2VPC0BZ43gqQcFPzugGbwP4d/tiG7/p8z+8I6Q9PETKiMbTY31JXKm24XqR6PXDfVFjMw9MH+doBeL2TmOep5od43S0ikU2MnvG/aSCKoKFs2+wgc75gsQdNMzJAcQKjY+e+JhPLHDTzRY9pogdLSRWDI9nV5WDYCWnezFRIsTKDcGFZe92u5ZXrSilCQGk0bDG37Bx2UDK4HNeqllxBCsSSbpdkmy/IGE8Aod+XliBVXOWbUe3UhApprgUIDFBThiIC4219tXW5L6LtiGXSgpJUtuLe70KkoolofXhUQvRM4XMv8gS4MdyT7Ohb8L40MfbR1pagnnrpKyi0nx7lZYFYYv/OaEVk1FaGfM2B3EwX8z58hyJWyROOsH2IVeKNhLMZx5jnRHJfGeRtpQocoIXXz1YDGW0B+svkaBMsb5DXtGB7reGk+Dbh3BkxfzmhbnqsIDIajE+FbIyQxNHwCTbtixoeu/YoZp9K7IACg6IMPxVtERQzhZi+Y7qPIKVbmdqA1WGVSHpQQAOh04BMoEmiwihx9mLqB2e7B8MTDS0GVosdBSMCMJrCSYhA2JgHSiuDs+s4OqsKb3neA63tgolEW3BLkXdhqteQiTsAxLcYB+1lDiLiqsJff9NCyY2BdmHTpEDbFCD3XmYk2hiZamM/R31k1LEK2Tmv26p/7COlXv04zGwmYFDc+KAJplvRBUMHWE1kISlnah52Q05T52mFnSBqgGA3Yn70RZV+uhQhyCe08wH7ke4c1pV5Pauh4PlRt7L8lSWN3lBAPwaHGw4npT9UdLcH55HzMjM6le5TqvSfCRaPv3byRqQHXCDJuElbz38N3m99LWJmPDmFdPZgAVN8fjCFe/wJKRzdFOXQGlXamnTlOLtsQwUWVyF9X7XQsg9rJ5TuW2zypALJnuztKooxYKXHrK7ZHhXTWxxSUiVxKYgqBr5N1JGH6EY3aD7YN+I7mKFl0on+lBBMUH5HpATZ6QFEXeW8MtoU2EOZaVGA7plvgKat+64vE2XeCefLV2trqcnfZhW+iTQLMRebN8Uv6Kq1cZVdSZ+PbUmnOuOoK7yOwiaemKVUO+Nt2nqjlarWAjwFIktRAyQWP6I86usj8aEkKZ+CHgpBy7jXTZ/QIOqnnVfAzWfAmssisYSdtpkljZtapWuaeSwoPVeiBCYPhaTwisVSH2T+LVpNNgPRo2/WahKzo/qSx34ab7vmyIRzXxA/r6vYPBDEgircF3vxM748oe6RPeg3oZKAM1Xwy7HjxK8W+k5wqtB5YijIwI3PYAqf2nfyknKrvoimRlvwiVcH9hiFGUp6XftOJnX3SJS1ZTaTs5jnzYjP8QWXCnum1ajouPIdJxS2mzTLt+VEb5BCikCOUl3bTi6H/fHwYdsJWaSgiqRvQHncbkDhAptXdR8KcjN/F0f6psXpXrJk5/990h+NL5jvJXnDC7rtZk+RY1X9G7rUa+xusOVTfqZtweWkMJtHIc/d1gUCN81MTSnY3aDxC+27DKzNOAPzN1TWqVUzFW4pBNFb2kZEyGthhYleKXlQahiwq4ISUmTKuvRaAidwbKp0cm+p8cKup46tMzKnDN6z+VYTzYDC9IYpM650AQn/64dh+vQC5ivnc7pf8bZP5vOwNQdUW1YHneQtURQ62lwjKThYTyKC8R6GBYKxL4W9RqIQGxP+791lt3R29wUMrBsGuAg3xoH1f5YmgNFpWS47j0e8YNOKYjqkn1MBZ9GU/MglOG5AkKiEqnmStTSy1x3exBd98LZQGoz4nKpPkk5Mt05UkaLqsC9Jtaj9m+Bw7/0N5qpuXtlu1/noMlWdTxc8VIDXeTW71eSOokoTsyphq13vT70oEGR2WnjvQXkpFaXy4uSJoSacYMWbTuudNir9B0gH1bFiGLqnzkCeY/vksxVfeQbTnttflMeeHuGvkKhsjLCkcySSc2DTtzK0hFzAe2kDz2OrslQrenQN1QkbfNdbKRxB3AZVbekPEKA+sfVVVLTY+nB5pZzEede1cyvpGS+Eriw1KNGTudeGoOJCKKxxataqzY2dI/bZqt2MsaMNETxVJhnDyQBtmpS6oZplEVWe0z0a/B7bRD8DYfeXbfiMuj7w5ax60NSBlThmdDEz++73/wELdBPRvCwAAA=="
+        weather.json: "H4sIAKfmh2oC/82YQWvbMBSA7/0VIqcW0mDJsmzvXAbr6Bi0tzGMiBVHYFtBljtK6X+fbLdZN1Aj+mp5lxBHivW9l6fPyns8Q2jVCMNLbvjqE3q01/aTTvV6K+z16obX/KGTvEU3wgilVa0queU1uhIHrk0jWoPO7dDLvAt0iWRrhD6omhtRop3SqDPcSNWiWm3HN91qPa2jRWUvh3WuRMd1v0ZfleHoTrZVJdfoWu2Vfpl7EFqqcphLIsIuI4yMQtPb9GVOq4zoRmzVmn39gHhV2TVGkF+Cm73QaIh0gz7XSpVI3Fv+DmmxVbocYLVq0PX3W3T+Kjy1Q1+0ltUUA29LdKW5bHklLhCvhTbdZmWXfxoYVs+rFNMtB5YfI9qU2CHZA9mrKJ7Rh6RPWSrkGOTt3be/Ro1obAa46bUotqLuZD/cnLANOU4ZqHa8roumGYYy+mdE2B9D3oti3zeylOahOGyNnZNlxym7ISHFmBA7YG/TiXHoaQ3gJx78sYs/Z6f583n5Yw9+6uJn0eL81IOfufjT/DR/6uA3uhf/DHV2TNuvDnCNbI8b+zih7PUUQGlNYmfF8PgTj/gT5+9H3r9//pP42cn4k03uip+m76/fj4if+MRPwP507V9MPOIn0P1LwP508lN8mp/Oy+/jT+zizzz2Xzwvv48/XfsHY4/6YfPyQ/yH82jx/DNI/WcsQP5joH/STeTMv8f5LZmXn3jwO/Of0gD+jIH+eSP/jAXwZwz0T+o8P+M8Xrx+EkD9EBwH8E8M9M8b9e/z/ALXD53PPz7/H9m8/D7+cZ4fUhygfijYP25/povn38c/zv4DYYvXv49/Umf9ZwH8ScH+iSD5Bz9/E7B/nPWDPfwZzcsP8k+SBKifBOwfZ/0nNIA/k/n8g/Hi/JDzD2ZJAH8mQP9k7vrPSYD6Z/Odf2gUwJ8M7B/n/mUh+j8M7B8C6T9E8/JT0PkfL87v4x9n/yfOA/iTgc8/zHl+zgPs3xTcf3bysxD/f1Nw/9npn/S0/9N8Xn5Q/ydZvn4oqH+IF+f36T9nTv/QxfkZpP/G8g85/9jXn2dPvwG45yP6qSEAAA=="
+      Version: "1"
+
+  # Creates Cognito + AgentCore Gateway + target, writes gateway.env to SSM.
+  # Runs after Provisioner has injected its real code.
+  GatewaySetup:
+    Type: Custom::GatewaySetup
+    DependsOn:
+      - Provisioner
+    Properties:
+      ServiceToken: !GetAtt GatewaySetupFunction.Arn
+      ProjectName: !Ref ProjectName
+      ToolsFunctionArn: !GetAtt ToolsFunction.Arn
+      SsmParamName: !Ref SsmParamName
+
+Outputs:
+  DataBucketName:
+    Description: S3 bucket holding the wildlife datasets (seeded under data/).
+    Value: !Ref DataBucket
+  AuditBucketName:
+    Description: S3 bucket holding audit logs and published reports.
+    Value: !Ref AuditBucket
+  LogBucketName:
+    Description: >-
+      S3 bucket holding server access logs for the data + audit buckets. Not
+      auto-emptied on delete - empty it before deleting the stack.
+    Value: !Ref LogBucket
+  ToolsFunctionArn:
+    Description: Lambda ARN registered as the AgentCore Gateway target.
+    Value: !GetAtt ToolsFunction.Arn
+  GatewayUrl:
+    Description: The AgentCore Gateway MCP endpoint.
+    Value: !GetAtt GatewaySetup.GatewayUrl
+  GatewayEnvParameter:
+    Description: >-
+      SSM SecureString parameter holding the full gateway.env (endpoints +
+      Cognito client secret). Fetch it with:
+      aws ssm get-parameter --name <value> --with-decryption
+      --query Parameter.Value --output text > gateway.env
+    Value: !Ref SsmParamName

@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "sources": [
+      "The Straits Times",
+      "Sinar Harian",
+      "Free Malaysia Today",
+      "Astro Awani",
+      "New Straits Times"
+    ],
+    "region": "Johor, Malaysia",
+    "period": "2025-10 to 2026-07",
+    "notes": "Local and national news articles relevant to wildlife and environment in the Desaru/Kota Tinggi area."
+  },
+  "articles": [
+    {
+      "article_id": "NEWS-001",
+      "date": "2026-04-28",
+      "source": "Free Malaysia Today",
+      "headline": "Illegal logging activity detected near Sungai Lebam forest reserve, Kota Tinggi",
+      "snippet": "Johor Forestry Department confirmed unauthorized timber extraction in a gazette forest reserve near Sungai Lebam, approximately 5km from the Desaru Coast development zone. Satellite imagery from Global Forest Watch flagged 4.2 hectares of recent canopy loss. Perhilitan officers are investigating and have set up checkpoints on logging roads. Local conservation group Junglewalla raised the alarm after camera traps in the area recorded unusual disturbance patterns.",
+      "keywords": [
+        "logging",
+        "Sungai Lebam",
+        "Kota Tinggi",
+        "forest reserve",
+        "deforestation"
+      ],
+      "url": "https://www.freemalaysiatoday.com/category/nation/2026/04/28/illegal-logging-detected-sungai-lebam/"
+    },
+    {
+      "article_id": "NEWS-002",
+      "date": "2026-05-15",
+      "source": "Sinar Harian",
+      "headline": "Pembalakan haram: Tiga lelaki ditahan di Kota Tinggi",
+      "snippet": "Tiga lelaki warga tempatan ditahan Jabatan Perhutanan Johor kerana disyaki terlibat dalam aktiviti pembalakan haram berhampiran Hutan Simpan Sungai Lebam. Suspek dipercayai menggunakan jentera berat untuk mengeluarkan kayu balak bernilai tinggi termasuk meranti dan keruing. Operasi dikesan melalui sistem amaran satelit GLAD.",
+      "keywords": [
+        "pembalakan haram",
+        "illegal logging",
+        "Kota Tinggi",
+        "Sungai Lebam",
+        "arrests"
+      ],
+      "url": "https://www.sinarharian.com.my/article/2026/05/15/pembalakan-haram-kota-tinggi"
+    },
+    {
+      "article_id": "NEWS-003",
+      "date": "2026-01-30",
+      "source": "The Straits Times",
+      "headline": "Mandarin Oriental debuts at Desaru Coast as luxury tourism corridor expands",
+      "snippet": "The rebranding of The Sireya as Mandarin Oriental, Desaru Coast marks the latest milestone in the region's transformation into a premium tourism destination. The 128-acre property sits within ancient rainforest, though environmental groups have raised concerns about the cumulative impact of Phase 3 development on remaining wildlife corridors connecting coastal and inland forests.",
+      "keywords": [
+        "Desaru Coast",
+        "resort",
+        "development",
+        "Mandarin Oriental",
+        "wildlife corridor"
+      ],
+      "url": "https://www.straitstimes.com/asia/se-asia/mandarin-oriental-desaru-coast-debut"
+    },
+    {
+      "article_id": "NEWS-004",
+      "date": "2026-03-12",
+      "source": "Astro Awani",
+      "headline": "Pembinaan fasa 3 Desaru Coast: NGO bimbang laluan hidupan liar terputus",
+      "snippet": "Kumpulan konservasi tempatan membangkitkan kebimbangan bahawa kerja-kerja pembinaan fasa ketiga di Desaru Coast telah memutuskan laluan pergerakan gajah dan tapir antara Hutan Simpan Panti dan kawasan pantai. Bunyi bising jentera berat dan lampu malam dilaporkan mengganggu hidupan liar di kawasan tersebut sejak Februari 2026.",
+      "keywords": [
+        "Desaru Coast",
+        "Phase 3",
+        "wildlife corridor",
+        "elephant",
+        "tapir",
+        "construction",
+        "noise"
+      ],
+      "url": "https://www.astroawani.com/berita-malaysia/pembinaan-desaru-coast-fasa-3-laluan-hidupan-liar"
+    },
+    {
+      "article_id": "NEWS-005",
+      "date": "2026-02-08",
+      "source": "New Straits Times",
+      "headline": "Pangolin trafficking syndicate busted in Johor; 23 animals rescued",
+      "snippet": "Perhilitan officers working with the Malaysian Anti-Corruption Commission (MACC) dismantled a wildlife trafficking ring operating across Johor and Pahang. Twenty-three live Sunda Pangolins were recovered from a warehouse in Kota Tinggi, along with 45kg of dried scales destined for export via Port of Tanjung Pelepas. Five suspects arrested, including a middleman with ties to a transnational syndicate previously identified by TRAFFIC.",
+      "keywords": [
+        "pangolin",
+        "trafficking",
+        "syndicate",
+        "Kota Tinggi",
+        "Johor",
+        "Perhilitan",
+        "MACC"
+      ],
+      "url": "https://www.nst.com.my/news/crime-courts/2026/02/pangolin-syndicate-johor"
+    },
+    {
+      "article_id": "NEWS-006",
+      "date": "2026-04-03",
+      "source": "Free Malaysia Today",
+      "headline": "Second pangolin poaching ring linked to Desaru-area forests, warn conservationists",
+      "snippet": "Wildlife NGO TRAFFIC warns that a second trafficking network is operating in the forests between Kota Tinggi and Desaru, targeting Sunda Pangolins for the traditional medicine trade. Snare lines and pit traps were found at multiple locations. Camera trap data from Project Rewild Desaru shows consistent decline in pangolin detections across all six monitoring stations since early 2026, corroborating the poaching pressure hypothesis.",
+      "keywords": [
+        "pangolin",
+        "poaching",
+        "Desaru",
+        "snares",
+        "TRAFFIC",
+        "decline",
+        "Kota Tinggi"
+      ],
+      "url": "https://www.freemalaysiatoday.com/category/nation/2026/04/03/second-pangolin-ring-desaru/"
+    },
+    {
+      "article_id": "NEWS-007",
+      "date": "2026-06-19",
+      "source": "The Straits Times",
+      "headline": "Malaysia sentences wildlife trafficker to 12 years for pangolin scale smuggling",
+      "snippet": "A Johor Bahru Sessions Court sentenced a 42-year-old man to 12 years imprisonment and RM500,000 fine for possessing and trafficking 38kg of Sunda Pangolin scales. The conviction is linked to the syndicate dismantled in February. Prosecutors said the network had been active in southeastern Johor since mid-2025, systematically clearing pangolin populations from forest patches near Desaru.",
+      "keywords": [
+        "pangolin",
+        "trafficking",
+        "sentence",
+        "Johor Bahru",
+        "court",
+        "syndicate"
+      ],
+      "url": "https://www.straitstimes.com/asia/se-asia/malaysia-sentences-pangolin-trafficker-12-years"
+    },
+    {
+      "article_id": "NEWS-008",
+      "date": "2026-01-14",
+      "source": "Astro Awani",
+      "headline": "Banjir kilat di Kota Tinggi: 200 penduduk dipindahkan",
+      "snippet": "Hujan lebat berterusan sejak awal pagi menyebabkan banjir kilat di beberapa kawasan rendah sekitar Kota Tinggi termasuk Taman Desaru Utama. Jabatan Pengairan dan Saliran (JPS) mengeluarkan amaran paras air Sungai Lebam melepasi paras bahaya. Seramai 200 penduduk dipindahkan ke pusat pemindahan sementara di Dewan Serbaguna Bandar Penawar.",
+      "keywords": [
+        "flood",
+        "Kota Tinggi",
+        "Sungai Lebam",
+        "evacuation",
+        "monsoon"
+      ],
+      "url": "https://www.astroawani.com/berita-malaysia/banjir-kilat-kota-tinggi-jan-2026"
+    },
+    {
+      "article_id": "NEWS-009",
+      "date": "2026-06-02",
+      "source": "Sinar Harian",
+      "headline": "Festival Durian Desaru 2026 tarik 15,000 pengunjung hujung minggu pertama",
+      "snippet": "Festival Durian Desaru yang berlangsung di Bandar Penawar menarik lebih 15,000 pengunjung pada hujung minggu pertama. Lebih 20 dusun durian menyertai festival yang memasuki tahun ketiga ini. Penganjur menjangkakan 50,000 pengunjung sepanjang festival tiga minggu ini.",
+      "keywords": [
+        "durian",
+        "festival",
+        "Desaru",
+        "tourism",
+        "Bandar Penawar"
+      ],
+      "url": "https://www.sinarharian.com.my/article/2026/06/02/festival-durian-desaru"
+    }
+  ]
+}

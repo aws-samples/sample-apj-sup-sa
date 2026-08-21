@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Touch Grass Workshop - async batch path. An EventBridge Scheduler triggers a
+  Lambda nightly that invokes the deployed AgentCore Runtime to scan each station
+  for anomalies. This realizes the "async batch, overnight" canvas decision.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: biodiversity-anomaly
+  AgentRuntimeArn:
+    Type: String
+    Description: ARN of the deployed AgentCore Runtime (from `agentcore status`).
+  DataBucket:
+    Type: String
+    Description: Name of the datasets S3 bucket (from tools.env).
+  AuditBucket:
+    Type: String
+    Description: Name of the audit S3 bucket (from tools.env).
+  ScheduleExpression:
+    Type: String
+    Default: "cron(0 18 * * ? *)"
+    Description: When to run (UTC). Default 18:00 UTC = overnight in Malaysia (UTC+8).
+  Qualifier:
+    Type: String
+    Default: DEFAULT
+    Description: AgentCore Runtime endpoint qualifier.
+
+Resources:
+  InvokerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-batch-invoker-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: batch-invoker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: bedrock-agentcore:InvokeAgentRuntime
+                Resource:
+                  - !Ref AgentRuntimeArn
+                  - !Sub "${AgentRuntimeArn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${DataBucket}"
+                  - !Sub "arn:aws:s3:::${DataBucket}/*"
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${AuditBucket}/*"
+
+  InvokerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-batch-invoker"
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 900
+      MemorySize: 256
+      Role: !GetAtt InvokerRole.Arn
+      Environment:
+        Variables:
+          AGENT_RUNTIME_ARN: !Ref AgentRuntimeArn
+          DATA_BUCKET: !Ref DataBucket
+          AUDIT_BUCKET: !Ref AuditBucket
+          QUALIFIER: !Ref Qualifier
+      Code:
+        # Placeholder. deploy_schedule.sh replaces this with
+        # infra/scheduled/lambda/index.py via update-function-code.
+        ZipFile: |
+          def handler(event, context):
+              return {"error": "not yet deployed - run deploy_schedule.sh"}
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-scheduler-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-batch-lambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt InvokerFunction.Arn
+
+  NightlySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub "${ProjectName}-nightly-scan"
+      Description: Nightly anomaly scan across all monitoring stations.
+      FlexibleTimeWindow:
+        Mode: FLEXIBLE
+        MaximumWindowInMinutes: 30
+      ScheduleExpression: !Ref ScheduleExpression
+      Target:
+        Arn: !GetAtt InvokerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+
+Outputs:
+  InvokerFunctionName:
+    Value: !Ref InvokerFunction
+  ScheduleName:
+    Value: !Ref NightlySchedule

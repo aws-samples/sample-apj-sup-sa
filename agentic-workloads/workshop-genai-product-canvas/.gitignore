@@ -1,0 +1,36 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Generated env files (contain endpoints + secrets - never commit)
+.env
+*.env
+agent/.env
+tools.env
+gateway.env
+# ...but keep the template
+!.env.example
+!agent/.env.example
+
+# AgentCore CLI artifacts
+.bedrock_agentcore/
+.bedrock_agentcore.yaml
+Dockerfile
+.dockerignore
+
+# Build artifacts
+*.zip
+build/
+dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
