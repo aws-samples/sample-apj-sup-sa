@@ -1,4 +1,4 @@
-# LLM Context Files
+# LLM context files
 
 **DO NOT EDIT THESE FILES** - They are read-only reference for AI coding assistants.
 

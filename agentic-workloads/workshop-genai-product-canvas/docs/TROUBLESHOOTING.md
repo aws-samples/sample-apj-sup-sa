@@ -75,7 +75,7 @@ Use `agentcore deploy -v` for verbose output to find the failing resource, and
 The runtime is missing the Gateway env vars. Confirm `TOOL_MODE=gateway` and the
 `COGNITO_*` / `AGENTCORE_GATEWAY_URL` values (from `gateway.env`) are set as the
 agent's runtime environment in `agentcore/agentcore.json`, then re-run
-`agentcore deploy` (see `content/060-deploy`).
+`agentcore deploy` (see `content/040-part-2-design/050-build.md`).
 
 **`RuntimeClientError: Runtime initialization time exceeded`**
 Your entrypoint ran work at import/startup instead of starting the server. The

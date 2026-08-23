@@ -1,4 +1,4 @@
-# Python
+# ---- Python ----
 .venv/
 venv/
 __pycache__/
@@ -7,28 +7,35 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Generated env files (contain endpoints + secrets - never commit)
+# ---- Generated env files (endpoints + secrets - never commit) ----
 .env
 *.env
 agent/.env
 tools.env
 gateway.env
-# ...but keep the template
+# ...but keep the templates
 !.env.example
 !agent/.env.example
 
-# AgentCore CLI artifacts
+# ---- AgentCore CLI artifacts ----
 .bedrock_agentcore/
 .bedrock_agentcore.yaml
+agent/agentcore/.cli/
+agent/agentcore/.cache/
 Dockerfile
 .dockerignore
 
-# Build artifacts
+# ---- CDK (used by the AgentCore CLI deploy) ----
+cdk.out/
+*.cdk.staging/
+
+# ---- Build artifacts ----
 *.zip
 build/
 dist/
+workshop-assets.zip
 
-# OS / editor
+# ---- OS / editor ----
 .DS_Store
 Thumbs.db
 *.swp

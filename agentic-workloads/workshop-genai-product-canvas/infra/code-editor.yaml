@@ -1,0 +1,1501 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Touch Grass Workshop - Part 0 environment. A browser-based Code Editor
+  (VS Code) on EC2, published through CloudFront, pre-loaded with Claude Code
+  wired to Amazon Bedrock in this account's region via the EC2 instance role - no
+  API key, no personal subscription - and the Kiro CLI for participants who
+  prefer to sign in with their own Kiro identity.
+
+  Self-contained: creates its own small VPC, so it does not depend on a default
+  VPC or on the tools stack. Deploy with a single `aws cloudformation deploy`.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Naming
+        Parameters:
+          - ProjectName
+      - Label:
+          default: Code Editor instance
+        Parameters:
+          - InstanceType
+          - VolumeSize
+          - CodeEditorUser
+          - HomeFolder
+          - ToolsProjectName
+          - RepoUrl
+      - Label:
+          default: Bedrock models for Claude Code
+        Parameters:
+          - PrimaryModel
+          - FallbackModel
+          - SmallFastModel
+      - Label:
+          default: Networking
+        Parameters:
+          - VpcCidr
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: touch-grass
+    AllowedPattern: "^[a-z][a-z0-9-]{2,30}$"
+    Description: Lowercase prefix for resource names.
+
+  InstanceType:
+    Type: String
+    # Graviton (arm64) by default, and only the FIRST choice: the Auto Scaling
+    # group below also carries m7g/c8g/c7g.xlarge as overrides, so an
+    # "insufficient <type> capacity in <AZ>" shortfall - which a fresh workshop
+    # account hits regularly on the newest generation - falls through to another
+    # type and another AZ instead of failing the stack. Keep every value in this
+    # list arm64, because the AMI resolves arm64 to match; the AWS CLI and Kiro
+    # CLI downloads in UserData auto-detect the architecture. If you switch to an
+    # x86 family, flip the AMI SSM path from -arm64 to -x86_64 and change the
+    # overrides on CodeEditorAsg too.
+    Default: m8g.xlarge
+    AllowedValues:
+      - m8g.large
+      - m8g.xlarge
+      - m8g.2xlarge
+      - m7g.xlarge
+      - c8g.xlarge
+      - c7g.xlarge
+
+  VolumeSize:
+    Type: Number
+    # The Kiro CLI download alone is ~0.5 GB before extraction, and Claude Code
+    # plus the Python/Node toolchains add a few more. 60 GB leaves comfortable
+    # headroom for whatever a participant builds on top.
+    Default: 60
+    MinValue: 40
+    MaxValue: 200
+
+  CodeEditorUser:
+    Type: String
+    Default: participant
+    AllowedPattern: "^[a-z][a-z0-9-]{2,30}$"
+    Description: Local Linux user that owns the workspace and runs Code Editor.
+
+  HomeFolder:
+    Type: String
+    Default: /workshop
+    Description: Directory Code Editor opens as the workspace root.
+
+  ToolsProjectName:
+    Type: String
+    Default: biodiversity-anomaly
+    AllowedPattern: "^[a-z][a-z0-9-]{2,30}$"
+    Description: >-
+      ProjectName of the tools backend stack, which seeds the baseline agent
+      source, canvas and skills to
+      s3://<ToolsProjectName>-data-<account>-<region>/workspace/. The Code Editor
+      mirrors that into /workshop/repo at boot, so nothing is cloned from a git
+      repository. Must match the tools stack, and that stack must deploy
+      first (contentspec.yaml lists it first for exactly this reason).
+
+  RepoUrl:
+    Type: String
+    Default: ""
+    Description: >-
+      Optional git URL cloned into the workspace in addition to the agent source
+      above. Only needed if you are running a variant from your own repo; leave
+      empty otherwise. A clone failure never fails the stack.
+
+  # ---------------------------------------------------------------------------
+  # Models. These defaults are the ones a Workshop Studio account can actually
+  # invoke. Frontier models (Opus 4.7/4.8/5, Sonnet 5) sit behind an account
+  # trust threshold that a freshly created account does not meet, so defaulting
+  # to them would hand every participant an AccessDeniedException.
+  # If your event's accounts HAVE been elevated, set PrimaryModel to
+  # us.anthropic.claude-opus-5 and FallbackModel to us.anthropic.claude-sonnet-5
+  # - see infra/workshop-studio/SETUP.md.
+  # ---------------------------------------------------------------------------
+  PrimaryModel:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-6
+    Description: >-
+      Bedrock inference profile Claude Code starts on, and what the `sonnet`
+      alias resolves to. Probed at boot; if the account cannot invoke it, the
+      instance falls back to FallbackModel.
+
+  FallbackModel:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    Description: >-
+      Used only if PrimaryModel is not invocable, so the editor still comes up
+      with a working model rather than none.
+
+  SmallFastModel:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: >-
+      Bedrock inference profile for Claude Code background tasks (session
+      titles, summaries). Skipped if the account cannot invoke it.
+
+  VpcCidr:
+    Type: String
+    Default: 10.60.0.0/16
+    AllowedPattern: "^(\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$"
+    Description: CIDR for the small VPC this stack creates.
+
+Conditions:
+  HasRepoUrl: !Not [!Equals [!Ref RepoUrl, ""]]
+
+Resources:
+  # ==========================================================================
+  # Network - a minimal VPC with a public subnet in each of three AZs, so the
+  # stack never depends on the account having a usable default VPC and is not
+  # tied to the capacity of a single Availability Zone.
+  # ==========================================================================
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-vpc"
+
+  # Flow logs to CloudWatch. Not strictly needed in a throwaway account, but
+  # cheap at this scale and it keeps the VPC auditable.
+  FlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    # checkov:skip=CKV_AWS_158: a customer-managed KMS key for a log group that
+    #   holds one day of VPC flow records in a throwaway account adds a key
+    #   policy to get wrong and a key to clean up, for no material gain over the
+    #   AWS-managed encryption that is already applied.
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      # Stack name is part of the path so two copies of this stack can coexist
+      # in one account (useful when validating a template change).
+      LogGroupName: !Sub "/aws/vpc/${ProjectName}-code-editor-${AWS::StackName}"
+      RetentionInDays: 1
+
+  FlowLogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: write-flow-logs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !GetAtt FlowLogGroup.Arn
+
+  FlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceId: !Ref Vpc
+      ResourceType: VPC
+      TrafficType: ALL
+      LogDestinationType: cloud-watch-logs
+      LogGroupName: !Ref FlowLogGroup
+      DeliverLogsPermissionArn: !GetAtt FlowLogRole.Arn
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-igw"
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  # Three subnets in three Availability Zones. Only one instance ever runs, but
+  # it can be placed in any of them: a fresh workshop account regularly hits
+  # "we currently do not have sufficient <type> capacity in the Availability
+  # Zone you requested", and with a single subnet that one AZ took the whole
+  # event down. The Auto Scaling group below spreads its attempts across all
+  # three. The instance needs a public address either way: CloudFront reaches it
+  # over the internet (there is no NAT gateway in this stack) and the boot script
+  # pulls Code Editor, npm, dnf and the Kiro CLI from public endpoints.
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 4, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-public-a"
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 4, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-public-b"
+
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 4, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-public-c"
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-public-rt"
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  # ==========================================================================
+  # Code Editor connection token
+  # ==========================================================================
+  CodeEditorSecret:
+    Type: AWS::SecretsManager::Secret
+    # checkov:skip=CKV_AWS_149: the AWS-managed Secrets Manager key is sufficient
+    #   for a generated token that lives for the length of one event and is
+    #   deleted with the stack. A CMK would outlive it in pending-deletion.
+    # Delete (not Retain): a retained secret of the same name blocks a
+    # redeployment retry into the same account.
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: !Sub "${ProjectName}-code-editor-${AWS::StackName}"
+      Description: Code Editor connection token for this workshop account.
+      GenerateSecretString:
+        PasswordLength: 24
+        SecretStringTemplate: !Sub '{"username":"${CodeEditorUser}"}'
+        GenerateStringKey: password
+        ExcludePunctuation: true
+
+  # ==========================================================================
+  # Security group - inbound only from CloudFront's origin-facing ranges.
+  # CloudFront cannot be referenced by a security group, so the AWS-managed
+  # prefix list is the tightest available boundary; the Code Editor is also
+  # token-gated behind it.
+  # ==========================================================================
+  # CloudFront's origin-facing prefix list has a different id in every region,
+  # so it is looked up by name instead of hardcoded. That keeps this template
+  # deployable in any region without a parameter change.
+  PrefixListLookupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: describe-managed-prefix-lists
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:DescribeManagedPrefixLists
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+
+  PrefixListLookupFunction:
+    Type: AWS::Lambda::Function
+    # checkov:skip=CKV_AWS_115: a lookup that runs twice in a stack lifetime does
+    #   not need reserved concurrency.
+    # checkov:skip=CKV_AWS_116: a DLQ adds nothing - a failure surfaces directly
+    #   as a CloudFormation resource failure.
+    # checkov:skip=CKV_AWS_117: needs the public EC2 and CloudFormation endpoints,
+    #   so it stays out of the VPC.
+    Properties:
+      Description: Resolves the CloudFront origin-facing managed prefix list id.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt PrefixListLookupRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import json
+          import urllib.request
+
+          import boto3
+
+          NAME = "com.amazonaws.global.cloudfront.origin-facing"
+
+
+          def _respond(event, context, status, data=None, reason=None):
+              body = json.dumps({
+                  "Status": status,
+                  "Reason": reason or f"see log stream {context.log_stream_name}",
+                  "PhysicalResourceId": "cloudfront-prefix-list",
+                  "StackId": event["StackId"],
+                  "RequestId": event["RequestId"],
+                  "LogicalResourceId": event["LogicalResourceId"],
+                  "NoEcho": False,
+                  "Data": data or {},
+              }).encode()
+              request = urllib.request.Request(
+                  event["ResponseURL"], data=body, method="PUT",
+                  headers={"content-type": "", "content-length": str(len(body))},
+              )
+              # CloudFormation hands us a presigned HTTPS callback URL. Assert the
+              # scheme before opening it, so a malformed event cannot turn this into
+              # a file:// or custom-scheme fetch.
+              if not event["ResponseURL"].startswith("https://"):
+                  raise ValueError("ResponseURL is not https")
+              urllib.request.urlopen(request, timeout=30)  # nosec B310 - scheme asserted above
+
+
+          def handler(event, context):
+              if event.get("RequestType") == "Delete":
+                  _respond(event, context, "SUCCESS")
+                  return
+              try:
+                  ec2 = boto3.client("ec2")
+                  found = ec2.describe_managed_prefix_lists(Filters=[
+                      {"Name": "prefix-list-name", "Values": [NAME]}])
+                  entries = found.get("PrefixLists") or []
+                  if not entries:
+                      raise RuntimeError(f"managed prefix list {NAME} not found")
+                  _respond(event, context, "SUCCESS",
+                           {"PrefixListId": entries[0]["PrefixListId"]})
+              except Exception as exc:
+                  _respond(event, context, "FAILED", reason=str(exc))
+
+  CloudFrontPrefixList:
+    Type: Custom::CloudFrontPrefixList
+    DependsOn: PrefixListLookupFunction
+    Properties:
+      ServiceToken: !GetAtt PrefixListLookupFunction.Arn
+
+  CodeEditorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Code Editor origin - HTTP from CloudFront edge only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !GetAtt CloudFrontPrefixList.PrefixListId
+          Description: HTTP from CloudFront origin-facing ranges only
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS APIs, Bedrock, npm, GitHub, Kiro CLI
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP for dnf package mirrors
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor-sg"
+
+  # ==========================================================================
+  # Instance role
+  # ==========================================================================
+  CodeEditorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Session Manager, so a facilitator can shell in without SSH or a key
+        # pair when they need to read the boot log.
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: claude-code-on-bedrock
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # The calls that carry prompts, scoped to model and inference
+              # profile ARNs. Region is left as a wildcard on purpose: the
+              # us.* profiles are cross-region, so Bedrock fans the request
+              # out to other US regions on our behalf.
+              - Sid: InvokeClaudeOnBedrock
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:GetInferenceProfile
+                  - bedrock:GetFoundationModel
+                  - bedrock:CountTokens
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/*"
+                  - !Sub "arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:inference-profile/*"
+                  - !Sub "arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:application-inference-profile/*"
+              # Claude Code lists profiles at startup to work out which models
+              # this account can actually invoke. These are account-level calls
+              # that take no resource, so "*" is the only grant that works -
+              # pinned to this workshop's region.
+              - Sid: DiscoverClaudeModels
+                Effect: Allow
+                Action:
+                  - bedrock:ListFoundationModels
+                  - bedrock:ListInferenceProfiles
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              # First invocation of an Anthropic model in a fresh account can
+              # need a Marketplace subscription. Constrained to calls Bedrock
+              # itself makes on our behalf, per the Claude Code Bedrock guide.
+              - Sid: BedrockMarketplaceSubscription
+                Effect: Allow
+                Action:
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:CalledViaLast: bedrock.amazonaws.com
+              # The instance reads its own Code Editor token at boot.
+              - Sid: ReadOwnCodeEditorToken
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref CodeEditorSecret
+              # gateway.env, written by the tools stack in this same account.
+              - Sid: ReadBaselineAgentSource
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ToolsProjectName}-data-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ToolsProjectName}-data-${AWS::AccountId}-${AWS::Region}/*"
+              - Sid: ReadGatewayEnvParameter
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/touch-grass/*"
+        - PolicyName: agentcore-deploy-from-editor
+          # Part 2 is driven from this editor: participants run `agentcore
+          # deploy`, which builds a container with CodeBuild, pushes it to ECR,
+          # creates the runtime's execution role, and deploys a CDK stack. Every
+          # statement below is scoped to an ARN in this account, or to this
+          # region for the handful of account-level calls that take no resource.
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AgentCoreControlAndRuntime
+                Effect: Allow
+                Action: bedrock-agentcore:*
+                Resource: !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*"
+              - Sid: RuntimeImageRepository
+                Effect: Allow
+                Action:
+                  - ecr:CreateRepository
+                  - ecr:DeleteRepository
+                  - ecr:DescribeRepositories
+                  - ecr:DescribeImages
+                  - ecr:ListImages
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                  - ecr:GetRepositoryPolicy
+                  - ecr:SetRepositoryPolicy
+                  - ecr:TagResource
+                  # The four below are what `cdk bootstrap` sets on its
+                  # container-assets repository. Without PutLifecyclePolicy the
+                  # bootstrap stack rolls back on ContainerAssetsRepository and
+                  # `agentcore deploy` fails with the unhelpful "CDK bootstrap
+                  # failed: CloudFormationStack object does not hold a stack".
+                  - ecr:PutLifecyclePolicy
+                  - ecr:GetLifecyclePolicy
+                  - ecr:PutImageScanningConfiguration
+                  - ecr:PutImageTagMutability
+                # The runtime build is CodeZip, so no runtime image is built here.
+                # The only repository in play is the one cdk bootstrap creates.
+                Resource: !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/cdk-*"
+              # Registry-level action with no resource - "*" is the only grant
+              # that works, so it is pinned to this region instead.
+              - Sid: RuntimeImageRegistryAuth
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: BuildRuntimeImage
+                Effect: Allow
+                Action:
+                  - codebuild:CreateProject
+                  - codebuild:UpdateProject
+                  - codebuild:DeleteProject
+                  - codebuild:BatchGetProjects
+                  - codebuild:StartBuild
+                  - codebuild:StopBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
+              - Sid: DeployRuntimeStack
+                Effect: Allow
+                Action: cloudformation:*
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*"
+              # ValidateTemplate and ListStacks take no resource.
+              - Sid: InspectTemplatesAndStackList
+                Effect: Allow
+                Action:
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:ListStacks
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              # `cdk bootstrap` creates a customer-managed key for its file
+              # assets bucket (FileAssetsBucketEncryptionKey). Without this the
+              # bootstrap stack rolls back on "Access denied for operation
+              # 'CreateKey'" and `agentcore deploy` never reaches the runtime.
+              # CreateKey takes no resource, so it is bounded by region; every
+              # other action is scoped to keys and aliases in this account.
+              - Sid: CdkBootstrapCreateKey
+                Effect: Allow
+                Action: kms:CreateKey
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: CdkBootstrapManageOwnKey
+                Effect: Allow
+                Action:
+                  - kms:CreateAlias
+                  - kms:DeleteAlias
+                  - kms:DescribeKey
+                  - kms:GetKeyPolicy
+                  - kms:GetKeyRotationStatus
+                  # Cannot be removed, however much it looks removable. KMS
+                  # refuses CreateKey outright if the resulting key policy would
+                  # leave the calling principal unable to update it - tested:
+                  # "The new key policy will not allow you to update the key
+                  # policy in the future", and cdk bootstrap rolls back. The key
+                  # is created by the bootstrap stack in this account and region
+                  # only.
+                  - kms:PutKeyPolicy
+                  - kms:ScheduleKeyDeletion
+                  - kms:EnableKeyRotation
+                  - kms:TagResource
+                  - kms:ListResourceTags
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+                  - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/*"
+              - Sid: BuildAndAssetBuckets
+                Effect: Allow
+                Action: s3:*
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::bedrock-agentcore-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::bedrock-agentcore-*/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::cdk-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::cdk-*/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::biodiversity-anomaly-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::biodiversity-anomaly-*/*"
+              - Sid: RuntimeExecutionRoles
+                # agentcore deploy and cdk bootstrap both create roles whose
+                # names they choose, so this is scoped to roles in this account
+                # rather than to a name pattern.
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:TagRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:CreateServiceLinkedRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
+              - Sid: PolicyObjects
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/*"
+              - Sid: RuntimeLogsAndTraces
+                Effect: Allow
+                Action: logs:*
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+              # Account-level observability calls that take no resource.
+              - Sid: ObservabilityDiscovery
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetTraceSummaries
+                  - xray:BatchGetTraces
+                  - sts:GetCallerIdentity
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: BootstrapAndWorkshopParameters
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:PutParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cdk-bootstrap/*"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/touch-grass/*"
+
+  CodeEditorInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CodeEditorRole
+
+  # ==========================================================================
+  # EC2 instance
+  #
+  # One instance, but launched through an Auto Scaling group rather than as a
+  # bare AWS::EC2::Instance. A bare instance is pinned to one instance type in
+  # one Availability Zone, and if that pool is short - which happens on fresh
+  # workshop accounts, especially for the newest Graviton generation - the stack
+  # fails and the event is dead. An ASG with a mixed instances policy retries
+  # across three AZs and four instance types until one launches.
+  # ==========================================================================
+  CodeEditorLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "${ProjectName}-code-editor"
+      LaunchTemplateData:
+        # arm64 AMI, matching the Graviton instance types below.
+        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}"
+        IamInstanceProfile:
+          Name: !Ref CodeEditorInstanceProfile
+        SecurityGroupIds:
+          - !Ref CodeEditorSecurityGroup
+        Monitoring:
+          Enabled: true
+        MetadataOptions:
+          # IMDSv2 only.
+          HttpTokens: required
+          HttpPutResponseHopLimit: 2
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: !Ref VolumeSize
+              VolumeType: gp3
+              DeleteOnTermination: true
+              Encrypted: true
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub "${ProjectName}-code-editor"
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Sub "${ProjectName}-code-editor"
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Boot script for the workshop Code Editor. Deliberately NOT `set -e`:
+            # every optional step below is allowed to fail without leaving the
+            # participant without an editor. Read /var/log/user-data.log to see
+            # what happened, and /workshop/ENVIRONMENT.md for the summary the
+            # participant sees.
+            set -uo pipefail
+            exec > >(tee -a /var/log/user-data.log) 2>&1
+            echo "=== Touch Grass Code Editor bootstrap: $(date -Is) ==="
+
+            CE_USER="${CodeEditorUser}"
+            CE_HOME="/home/${CodeEditorUser}"
+            WORKSPACE="${HomeFolder}"
+            REGION="${AWS::Region}"
+            STATUS_FILE="$WORKSPACE/ENVIRONMENT.md"
+
+            # ---- packages ------------------------------------------------------
+            dnf update -y -q || true
+            dnf install -y -q unzip tar gzip nginx jq git wget socat \
+              python3.11 python3.11-pip gcc gcc-c++ make || true
+
+            # Node 20+ is required by Claude Code. AL2023 ships several nodejs
+            # streams and which ones resolve varies by AMI date, so try newest
+            # first and fall back to the official tarball if none is new enough.
+            for pkg in nodejs22 nodejs20 nodejs; do
+              dnf install -y -q "$pkg" && break
+            done
+            NODE_MAJOR="$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1)"
+            if [ -z "$NODE_MAJOR" ] || [ "$NODE_MAJOR" -lt 20 ]; then
+              echo "node is missing or older than 20 (got '${!NODE_MAJOR:-none}'); installing from nodejs.org"
+              NODE_VER="v22.14.0"
+              NODE_ARCH="$([ "$(uname -m)" = "aarch64" ] && echo arm64 || echo x64)"
+              curl -fsSL "https://nodejs.org/dist/$NODE_VER/node-$NODE_VER-linux-$NODE_ARCH.tar.xz" \
+                -o /tmp/node.tar.xz \
+                && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+                && rm -f /tmp/node.tar.xz
+            fi
+            echo "node: $(node -v 2>&1) | npm: $(npm -v 2>&1)"
+
+            # ---- AWS CLI v2 (arch-detected) -----------------------------------
+            CLI_ARCH="$(uname -m)"
+            curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${!CLI_ARCH}.zip" -o /tmp/awscliv2.zip \
+              && unzip -q -o /tmp/awscliv2.zip -d /tmp \
+              && /tmp/aws/install --update \
+              && rm -rf /tmp/awscliv2.zip /tmp/aws
+            echo "aws cli: $(aws --version 2>&1)"
+
+            # ---- connection token ---------------------------------------------
+            CE_TOKEN="$(aws secretsmanager get-secret-value \
+              --secret-id '${CodeEditorSecret}' --region "$REGION" \
+              --query SecretString --output text | jq -r '.password')"
+
+            # ---- user + workspace ---------------------------------------------
+            if ! id "$CE_USER" >/dev/null 2>&1; then
+              adduser -c '' "$CE_USER"
+              echo "$CE_USER:$CE_TOKEN" | chpasswd
+              usermod -aG wheel "$CE_USER"
+            fi
+            mkdir -p "$WORKSPACE"
+            chown -R "$CE_USER:$CE_USER" "$WORKSPACE"
+
+            # ---- baseline agent source ----------------------------------
+            # The tools stack seeds it to S3 (it embeds the files, so there is no
+            # repo to clone and nothing for a facilitator to pre-upload). Sync it
+            # into the workspace so Part 1 has something to open.
+            AGENT_BUCKET="${ToolsProjectName}-data-${AWS::AccountId}-${AWS::Region}"
+            AGENT_DEST="$WORKSPACE/repo"
+            AGENT_OK=no
+            mkdir -p "$AGENT_DEST"
+            for attempt in 1 2 3 4 5 6; do
+              if aws s3 sync "s3://$AGENT_BUCKET/workspace/" "$AGENT_DEST/" --only-show-errors; then
+                # The datasets live under data/ in the same bucket; the agent reads
+                # them from agent/data/ in local mode.
+                aws s3 sync "s3://$AGENT_BUCKET/data/" "$AGENT_DEST/agent/data/" --only-show-errors || true
+                if [ -f "$AGENT_DEST/agent/agent.py" ]; then AGENT_OK=yes; break; fi
+              fi
+              echo "agent source not there yet (attempt $attempt) - the tools stack may still be provisioning"
+              sleep 20
+            done
+            # Point the AgentCore CLI at THIS account and region: the CLI
+            # refuses to deploy when aws-targets.json names a different account
+            # than the caller, which would stop Part 1 Step 3 dead.
+            AT="$AGENT_DEST/agent/agentcore/aws-targets.json"
+            if [ -f "$AT" ]; then
+              python3 -c "import json,sys;p,a,r=sys.argv[1:4];d=json.load(open(p));[t.update(account=a,region=r) for t in d];json.dump(d,open(p,'w'),indent=2)" "$AT" "${AWS::AccountId}" "$REGION" \
+                && echo "aws-targets.json -> ${AWS::AccountId}/$REGION" \
+                || echo "WARN: could not rewrite aws-targets.json"
+            fi
+
+            chown -R "$CE_USER:$CE_USER" "$WORKSPACE/repo"
+            echo "agent source synced: $AGENT_OK"
+
+            REPO_URL="${RepoUrl}"
+            if [ -n "$REPO_URL" ]; then
+              echo "also cloning $REPO_URL"
+              sudo -u "$CE_USER" git clone --depth 1 "$REPO_URL" "$WORKSPACE/repo-git" \
+                || echo "WARN: clone of $REPO_URL failed"
+            fi
+
+            if [ "$AGENT_OK" = no ]; then
+              cat > "$WORKSPACE/AGENT-SOURCE-MISSING.md" << 'AGENTEOF'
+            # The baseline agent source is not in your workspace
+
+            Part 1 expects it at `/workshop/repo/agent`. It is normally synced from
+            the tools backend stack in this same account, so if it is missing that
+            stack either has not finished or did not deploy.
+
+            **Tell your facilitator** - they can check the tools stack in
+            CloudFormation. Part 0 does not depend on this: Claude Code and the
+            Kiro CLI work now.
+            AGENTEOF
+              chown "$CE_USER:$CE_USER" "$WORKSPACE/AGENT-SOURCE-MISSING.md"
+            fi
+
+            # ---- Code Editor server -------------------------------------------
+            export CodeEditorUser="$CE_USER"
+            curl -fsSL https://code-editor.amazonaws.com/content/code-editor-server/dist/aws-workshop-studio/install.sh \
+              | bash -s --
+            CE_CMD="$CE_HOME/.local/bin/code-editor-server"
+
+            sudo -u "$CE_USER" mkdir -p "$CE_HOME/.code-editor-server/data"
+            printf '%s' "$CE_TOKEN" > "$CE_HOME/.code-editor-server/data/token"
+            chown "$CE_USER:$CE_USER" "$CE_HOME/.code-editor-server/data/token"
+            chmod 600 "$CE_HOME/.code-editor-server/data/token"
+
+            # Editor settings, written before first launch. Workspace Trust
+            # off: otherwise a modal blocks the editor on open, and dismissing
+            # it wrong leaves restricted mode, where Claude Code stays disabled.
+            # The folder holds only what this stack put in the participant's own
+            # account. No startup editor: land in the workspace, not the
+            # "Get Started" walkthrough.
+            sudo -u "$CE_USER" mkdir -p "$CE_HOME/.code-editor-server/data/User"
+            cat > "$CE_HOME/.code-editor-server/data/User/settings.json" << 'CESETEOF'
+            {
+              "security.workspace.trust.enabled": false,
+              "security.workspace.trust.startupPrompt": "never",
+              "workbench.startupEditor": "none"
+            }
+            CESETEOF
+            chown -R "$CE_USER:$CE_USER" "$CE_HOME/.code-editor-server/data/User"
+
+            cat > /etc/systemd/system/code-editor.service << SVCEOF
+            [Unit]
+            Description=Code Editor Server
+            After=network-online.target
+            [Service]
+            Type=simple
+            User=$CE_USER
+            Environment=AWS_REGION=$REGION
+            Environment=AWS_DEFAULT_REGION=$REGION
+            Environment=HOME=$CE_HOME
+            ExecStart=$CE_CMD --accept-server-license-terms --host 127.0.0.1 --port 8080 --default-workspace $WORKSPACE --default-folder $WORKSPACE --connection-token $CE_TOKEN
+            Restart=always
+            RestartSec=5
+            [Install]
+            WantedBy=multi-user.target
+            SVCEOF
+
+            # ---- nginx in front of it -----------------------------------------
+            cat > /etc/nginx/conf.d/code-editor.conf << 'NGINXEOF'
+            server {
+                listen 80;
+                server_name _;
+                client_max_body_size 100M;
+                location / {
+                    proxy_pass http://127.0.0.1:8080/;
+                    proxy_http_version 1.1;
+                    proxy_set_header Host $http_host;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection upgrade;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto https;
+                    proxy_read_timeout 86400;
+                }
+            }
+            NGINXEOF
+            # Comment out the stock server block so ours is the only one.
+            sed -i '/^    server {/,/^    }/s/^/#/' /etc/nginx/nginx.conf
+            nginx -t && systemctl enable --now nginx
+
+            systemctl daemon-reload
+            systemctl enable --now code-editor
+            echo "code-editor service: $(systemctl is-active code-editor)"
+
+            # ---- which Claude models can this account actually invoke? --------
+            # A fresh Bedrock account does not necessarily have every Anthropic
+            # model enabled, so probe rather than assume. One tiny Converse call
+            # per candidate; the cost is a fraction of a cent.
+            probe_model() {
+              aws bedrock-runtime converse \
+                --region "$REGION" \
+                --model-id "$1" \
+                --messages '[{"role":"user","content":[{"text":"ping"}]}]' \
+                --inference-config '{"maxTokens":64}' \
+                >/dev/null 2>>/var/log/bedrock-probe.log
+            }
+
+            PRIMARY="${PrimaryModel}"
+            FALLBACK="${FallbackModel}"
+            SMALL="${SmallFastModel}"
+
+            PRIMARY_OK=no; FALLBACK_OK=no; HAIKU_OK=no; CHOSEN=""
+            if probe_model "$PRIMARY"; then
+              PRIMARY_OK=yes; CHOSEN="$PRIMARY"
+            fi
+            # Only worth probing the fallback if the primary did not answer.
+            if [ "$PRIMARY_OK" = no ] && probe_model "$FALLBACK"; then
+              FALLBACK_OK=yes; CHOSEN="$FALLBACK"
+            fi
+            if probe_model "$SMALL"; then HAIKU_OK=yes; fi
+            # Is the chosen model an Opus? Only then is the `opus` alias worth
+            # pinning - see the comment on the model parameters.
+            OPUS_ALIAS=""
+            case "$CHOSEN" in *opus*) OPUS_ALIAS="$CHOSEN" ;; esac
+            echo "bedrock probe -> primary=$PRIMARY_OK fallback=$FALLBACK_OK smallfast=$HAIKU_OK chosen=${!CHOSEN:-none}"
+
+            # ---- Claude Code, pointed at Bedrock via the instance role --------
+            npm install -g @anthropic-ai/claude-code \
+              || echo "WARN: claude-code install failed"
+
+            # ---- a global npm prefix the participant can actually write to ----
+            # Part 1 asks them to `npm install -g @aws/agentcore`, which fails
+            # with EACCES on the root-owned system prefix. Give them their own,
+            # on PATH, and pre-install the CLI so the step is instant either way.
+            NPM_PREFIX="$CE_HOME/.npm-global"
+            sudo -u "$CE_USER" mkdir -p "$NPM_PREFIX"
+            sudo -u "$CE_USER" HOME="$CE_HOME" npm config set prefix "$NPM_PREFIX"
+            {
+              echo "export NPM_CONFIG_PREFIX=\"$NPM_PREFIX\""
+              echo "export PATH=\"$NPM_PREFIX/bin:\$PATH\""
+            } > /etc/profile.d/npm-user-prefix.sh
+            chmod 644 /etc/profile.d/npm-user-prefix.sh
+
+            sudo -u "$CE_USER" HOME="$CE_HOME" \
+              PATH="$NPM_PREFIX/bin:$PATH" NPM_CONFIG_PREFIX="$NPM_PREFIX" \
+              npm install -g @aws/agentcore \
+              || echo "WARN: agentcore CLI pre-install failed - Part 1 Step 3 will install it"
+            echo "agentcore CLI: $(sudo -u "$CE_USER" HOME="$CE_HOME" PATH="$NPM_PREFIX/bin:$PATH" agentcore --version 2>&1 | head -1)"
+
+            # Written as a login-shell profile so it applies to the Code Editor
+            # terminal, to ssh, and to Session Manager alike.
+            {
+              echo '# Claude Code -> Amazon Bedrock. Auth is the EC2 instance role:'
+              echo '# no API key, no Anthropic subscription, nothing to sign in to.'
+              echo "export AWS_REGION=$REGION"
+              echo "export AWS_DEFAULT_REGION=$REGION"
+              echo 'export CLAUDE_CODE_USE_BEDROCK=1'
+              # Only pin an alias to a model this account proved it can invoke.
+              # Pinning an unavailable one would make /model <alias> fail outright,
+              # which is worse than leaving the alias unset.
+              [ -n "$CHOSEN" ]       && echo "export ANTHROPIC_MODEL='$CHOSEN'"
+              [ -n "$CHOSEN" ]       && echo "export ANTHROPIC_DEFAULT_SONNET_MODEL='$CHOSEN'"
+              [ -n "$OPUS_ALIAS" ]   && echo "export ANTHROPIC_DEFAULT_OPUS_MODEL='$OPUS_ALIAS'"
+              [ "$HAIKU_OK" = yes ]  && echo "export ANTHROPIC_DEFAULT_HAIKU_MODEL='$SMALL'"
+            } > /etc/profile.d/claude-code-bedrock.sh
+            chmod 644 /etc/profile.d/claude-code-bedrock.sh
+
+            # A one-liner participants (and facilitators) can run to see what the
+            # probe decided, without digging through boot logs.
+            cat > /usr/local/bin/bedrock-status << 'STATUSEOF'
+            #!/bin/bash
+            echo "region: ${!AWS_REGION:-unset}"
+            echo "CLAUDE_CODE_USE_BEDROCK: ${!CLAUDE_CODE_USE_BEDROCK:-unset}"
+            echo "primary model (ANTHROPIC_MODEL): ${!ANTHROPIC_MODEL:-unset}"
+            echo "opus alias:   ${!ANTHROPIC_DEFAULT_OPUS_MODEL:-built-in default}"
+            echo "sonnet alias: ${!ANTHROPIC_DEFAULT_SONNET_MODEL:-built-in default}"
+            echo "haiku alias:  ${!ANTHROPIC_DEFAULT_HAIKU_MODEL:-built-in default}"
+            echo
+            echo "identity:"
+            aws sts get-caller-identity --output table 2>&1 | sed 's/^/  /'
+            STATUSEOF
+            chmod 755 /usr/local/bin/bedrock-status
+
+            # ---- Kiro CLI, for participants who prefer their own identity -----
+            # ~0.5 GB download, so it runs last and never blocks the editor. Kiro
+            # signs in with a Kiro/AWS Builder ID or an organization identity, not
+            # with this account's credentials, so there is nothing to pre-wire.
+            #
+            # musl build FIRST: AL2023 ships glibc 2.34 and the GNU build needs
+            # 2.39+, aborting with "try installing the musl version". The glibc
+            # build stays as a fallback for a future AMI.
+            KIRO_ARCH="$([ "$(uname -m)" = "aarch64" ] && echo aarch64 || echo x86_64)"
+            KIRO_BASE="https://desktop-release.q.us-east-1.amazonaws.com/latest"
+            KIRO_OK=no
+            for variant in "-musl" ""; do
+              [ "$KIRO_OK" = yes ] && break
+              rm -rf /tmp/kiro /tmp/kirocli.zip
+              if ! curl --proto '=https' --tlsv1.2 -fsS \
+                   "$KIRO_BASE/kirocli-${!KIRO_ARCH}-linux${!variant}.zip" -o /tmp/kirocli.zip; then
+                echo "WARN: kiro-cli${!variant} download failed"
+                continue
+              fi
+              unzip -q -o /tmp/kirocli.zip -d /tmp/kiro
+              chown -R "$CE_USER:$CE_USER" /tmp/kiro
+              sudo -u "$CE_USER" --login bash -c "cd /tmp/kiro/kirocli && ./install.sh --no-confirm" \
+                || echo "WARN: kiro-cli${!variant} install.sh failed"
+              [ -x "$CE_HOME/.local/bin/kiro-cli" ] && KIRO_OK=yes
+            done
+            # The archive is half a gigabyte - do not leave it on the volume.
+            rm -rf /tmp/kirocli.zip /tmp/kiro
+            echo "kiro-cli installed: $KIRO_OK"
+
+            # ---- Python environment for the agent code ------------------------
+            sudo -u "$CE_USER" python3.11 -m venv "$WORKSPACE/.venv" \
+              && sudo -u "$CE_USER" "$WORKSPACE/.venv/bin/pip" install -q --upgrade pip \
+              || echo "WARN: venv creation failed"
+
+            # uv, into /usr/local/bin. The AgentCore CDK resolves the runtime's
+            # Python wheels with it; without uv `agentcore deploy` dies at synth
+            # with "uv install failed on platform aarch64-manylinux2014".
+            curl -LsSf https://astral.sh/uv/install.sh \
+              | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh \
+              || echo "WARN: uv install failed - Part 1 Step 3 will fail at synth"
+            echo "uv: $(uv --version 2>&1 | head -1)"
+
+            cat >> "$CE_HOME/.bashrc" << BASHEOF
+            # Touch Grass workshop conveniences
+            export PATH="\$HOME/.local/bin:\$PATH"
+            alias workshop='cd $WORKSPACE'
+            [ -f "$WORKSPACE/.venv/bin/activate" ] && source "$WORKSPACE/.venv/bin/activate"
+            BASHEOF
+            chown "$CE_USER:$CE_USER" "$CE_HOME/.bashrc"
+
+            # ---- VS Code extensions -------------------------------------------
+            sleep 10
+            for ext in ms-python.python anthropic.claude-code; do
+              sudo -u "$CE_USER" "$CE_CMD" --install-extension "$ext" --force \
+                || echo "WARN: extension $ext not installed"
+            done
+
+            # ---- what the participant sees on first open ----------------------
+            {
+              echo "# Your workshop environment"
+              echo
+              echo "| What | Status |"
+              echo "|------|--------|"
+              echo "| Region | \`$REGION\` |"
+              echo "| Claude Code | $(command -v claude >/dev/null && claude --version 2>/dev/null || echo 'not installed') |"
+              echo "| Claude Code provider | Amazon Bedrock, via this account's EC2 instance role |"
+              echo "| Active model | \`${!CHOSEN:-none - see below}\` |"
+              echo "| Background tasks | $([ "$HAIKU_OK" = yes ] && echo "\`$SMALL\`" || echo 'same as the active model') |"
+              echo "| Kiro CLI | $([ "$KIRO_OK" = yes ] && echo 'installed - run `kiro-cli login --use-device-flow` to use your own identity' || echo 'not installed') |"
+              echo "| Baseline agent source | $([ "$AGENT_OK" = yes ] && echo "\`$WORKSPACE/repo/agent\`" || echo 'MISSING - see AGENT-SOURCE-MISSING.md') |"
+              echo "| Python venv | \`$WORKSPACE/.venv\` |"
+              echo "| AgentCore CLI | \`agentcore\`, pre-installed into \`$NPM_PREFIX\` |"
+              echo
+              echo "Run \`bedrock-status\` in a terminal to re-print the wiring, and \`claude\` to start."
+              if [ -n "$CHOSEN" ]; then
+                echo
+                echo "\`/model sonnet\` is your active model. \`/model opus\` is **not** available:"
+                echo "Claude Opus needs a higher account trust score than a temporary workshop"
+                echo "account carries, so this environment runs on Claude Sonnet. Everything in"
+                echo "this workshop is designed for it."
+              else
+                echo
+                echo "> **No Claude model is invocable from this account yet.** See"
+                echo "> /var/log/bedrock-probe.log for the exact errors, and tell your"
+                echo "> facilitator - this is not something you can fix from the console."
+              fi
+            } > "$STATUS_FILE"
+            chown "$CE_USER:$CE_USER" "$STATUS_FILE"
+
+            echo "=== bootstrap complete: $(date -Is) ==="
+
+  CodeEditorAsg:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: PublicRoute
+    Properties:
+      AutoScalingGroupName: !Sub "${ProjectName}-code-editor"
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: "1"
+      HealthCheckType: EC2
+      HealthCheckGracePeriod: 900
+      # All three AZs are eligible, so a short pool in one of them is not fatal.
+      VPCZoneIdentifier:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+        - !Ref PublicSubnetC
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          # 100% on-demand (the default), tried in the order listed below, so a
+          # capacity shortfall on the newest generation falls through to an
+          # older one instead of failing the stack.
+          OnDemandAllocationStrategy: prioritized
+          OnDemandBaseCapacity: 1
+          OnDemandPercentageAboveBaseCapacity: 100
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref CodeEditorLaunchTemplate
+            Version: !GetAtt CodeEditorLaunchTemplate.LatestVersionNumber
+          Overrides:
+            # The InstanceType parameter is tried first; the rest are equivalent
+            # 4 vCPU / 16 GB Graviton alternatives, so the editor behaves the
+            # same whichever one the account can actually supply.
+            - InstanceType: !Ref InstanceType
+            - InstanceType: m7g.xlarge
+            - InstanceType: c8g.xlarge
+            - InstanceType: c7g.xlarge
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-code-editor"
+          PropagateAtLaunch: false
+
+  # CloudFront needs a resolvable origin hostname, and an ASG does not expose
+  # the instance it launched. This waits for the one instance to come up and
+  # hands back its public DNS name and id, which also keeps
+  # CodeEditorInstanceId working as a stack output for Session Manager.
+  InstanceLookupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: describe-asg-instance
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Neither API accepts a resource ARN, so both are conditioned on
+              # the deploying region instead.
+              - Effect: Allow
+                Action:
+                  - autoscaling:DescribeAutoScalingGroups
+                  - ec2:DescribeInstances
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+
+  InstanceLookupFunction:
+    Type: AWS::Lambda::Function
+    # checkov:skip=CKV_AWS_115: a lookup that runs twice in a stack lifetime does
+    #   not need reserved concurrency.
+    # checkov:skip=CKV_AWS_116: a DLQ adds nothing - a failure surfaces directly
+    #   as a CloudFormation resource failure.
+    # checkov:skip=CKV_AWS_117: needs the public EC2, Auto Scaling and
+    #   CloudFormation endpoints, so it stays out of the VPC.
+    Properties:
+      Description: Returns the public DNS name and id of the Code Editor instance.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt InstanceLookupRole.Arn
+      # The ASG may retry a few launches before one sticks; allow for that.
+      Timeout: 600
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import json
+          import time
+          import urllib.request
+
+          import boto3
+
+
+          def _respond(event, context, status, data=None, reason=None):
+              body = json.dumps({
+                  "Status": status,
+                  "Reason": reason or f"see log stream {context.log_stream_name}",
+                  "PhysicalResourceId": "code-editor-instance-lookup",
+                  "StackId": event["StackId"],
+                  "RequestId": event["RequestId"],
+                  "LogicalResourceId": event["LogicalResourceId"],
+                  "NoEcho": False,
+                  "Data": data or {},
+              }).encode()
+              request = urllib.request.Request(
+                  event["ResponseURL"], data=body, method="PUT",
+                  headers={"content-type": "", "content-length": str(len(body))},
+              )
+              # CloudFormation hands us a presigned HTTPS callback URL. Assert the
+              # scheme before opening it, so a malformed event cannot turn this into
+              # a file:// or custom-scheme fetch.
+              if not event["ResponseURL"].startswith("https://"):
+                  raise ValueError("ResponseURL is not https")
+              urllib.request.urlopen(request, timeout=30)  # nosec B310 - scheme asserted above
+
+
+          def _find(asg_name):
+              asg = boto3.client("autoscaling")
+              ec2 = boto3.client("ec2")
+              groups = asg.describe_auto_scaling_groups(
+                  AutoScalingGroupNames=[asg_name])["AutoScalingGroups"]
+              if not groups:
+                  return None
+              ids = [i["InstanceId"] for i in groups[0]["Instances"]
+                     if i["LifecycleState"] == "InService"]
+              if not ids:
+                  return None
+              for reservation in ec2.describe_instances(
+                      InstanceIds=ids)["Reservations"]:
+                  for inst in reservation["Instances"]:
+                      dns = inst.get("PublicDnsName")
+                      if dns:
+                          return {"PublicDnsName": dns,
+                                  "InstanceId": inst["InstanceId"]}
+              return None
+
+
+          def handler(event, context):
+              if event.get("RequestType") == "Delete":
+                  _respond(event, context, "SUCCESS")
+                  return
+              asg_name = event["ResourceProperties"]["AsgName"]
+              try:
+                  # Poll rather than assume: the ASG reports the group before the
+                  # instance is InService, and DescribeInstances returns an empty
+                  # PublicDnsName for a few seconds after that.
+                  deadline = time.time() + 480
+                  while time.time() < deadline:
+                      found = _find(asg_name)
+                      if found:
+                          _respond(event, context, "SUCCESS", found)
+                          return
+                      time.sleep(10)
+                  raise RuntimeError(
+                      f"no InService instance with a public DNS name in {asg_name} "
+                      "after 8 minutes - check the Auto Scaling group's activity "
+                      "history for capacity errors")
+              except Exception as exc:
+                  _respond(event, context, "FAILED", reason=str(exc))
+
+  CodeEditorInstanceInfo:
+    Type: Custom::CodeEditorInstanceInfo
+    DependsOn: CodeEditorAsg
+    Properties:
+      ServiceToken: !GetAtt InstanceLookupFunction.Arn
+      AsgName: !Ref CodeEditorAsg
+
+  # ==========================================================================
+  # CloudFront in front of the instance
+  # ==========================================================================
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${ProjectName}-code-editor-${AWS::StackName}"
+        Comment: Pass-through caching for the Code Editor websocket app
+        DefaultTTL: 0
+        MinTTL: 0
+        MaxTTL: 86400
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: false
+          CookiesConfig:
+            CookieBehavior: all
+          QueryStringsConfig:
+            QueryStringBehavior: all
+          HeadersConfig:
+            # "whitelist" is CloudFront's own enum value for this field, not a
+            # word choice - the API accepts none | whitelist | allViewer |
+            # allViewerAndWhitelistCloudFront | allExcept. Flagged by inclusive
+            # language checks; it cannot be spelled any other way.
+            HeaderBehavior: whitelist
+            Headers:
+              - Accept
+              - Accept-Charset
+              - Accept-Language
+              - Authorization
+              - Host
+              - Origin
+              - Referer
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: CodeEditorInstanceInfo
+    # checkov:skip=CKV_AWS_174: served on the default *.cloudfront.net
+    #   certificate, which is already TLS 1.2+; MinimumProtocolVersion only
+    #   applies when a custom ACM certificate is attached.
+    # checkov:skip=CKV_AWS_68: a WAF in front of a single-tenant, token-gated,
+    #   few-hour workshop editor adds cost without reducing real risk.
+    # checkov:skip=CKV_AWS_86: no audit requirement for an ephemeral account,
+    #   and access logs would outlive the account they describe.
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${ProjectName} workshop Code Editor"
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Origins:
+          - Id: code-editor-origin
+            DomainName: !GetAtt CodeEditorInstanceInfo.PublicDnsName
+            CustomOriginConfig:
+              # The origin is plain HTTP on purpose: it has no certificate for
+              # its EC2 hostname, and the hop is reachable only from CloudFront
+              # (see the prefix-list-restricted security group above). Viewers
+              # are forced onto HTTPS below.
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 60
+        DefaultCacheBehavior:
+          TargetOriginId: code-editor-origin
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: false
+          CachePolicyId: !Ref CachePolicy
+          # AWS-managed AllViewer origin request policy.
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          # The editor URL carries the connection token, so it must never be
+          # served over plaintext HTTP.
+          ViewerProtocolPolicy: redirect-to-https
+
+  # ==========================================================================
+  # Builds the clickable URL. CloudFront's domain is not known until the
+  # distribution exists, and the token lives in Secrets Manager, so the two are
+  # joined by a custom resource rather than by the participant.
+  # ==========================================================================
+  UrlBuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: read-code-editor-token
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref CodeEditorSecret
+
+  UrlBuilderFunction:
+    Type: AWS::Lambda::Function
+    # checkov:skip=CKV_AWS_115: reserved concurrency is meaningless for a
+    #   custom resource that runs at most twice in the stack's lifetime.
+    # checkov:skip=CKV_AWS_116: a DLQ adds nothing - a failure here surfaces
+    #   directly as a CloudFormation resource failure.
+    # checkov:skip=CKV_AWS_117: must reach Secrets Manager and the CloudFormation
+    #   response endpoint over the public API, so it stays out of the VPC.
+    # checkov:skip=CKV_AWS_173: no secrets in environment variables; the token is
+    #   read from Secrets Manager at invocation time.
+    Properties:
+      Description: Joins the CloudFront domain and the Code Editor token into one URL.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt UrlBuilderRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import json
+          import urllib.parse
+          import urllib.request
+
+          import boto3
+
+
+          def _respond(event, context, status, data=None, reason=None):
+              body = json.dumps({
+                  "Status": status,
+                  "Reason": reason or f"see log stream {context.log_stream_name}",
+                  "PhysicalResourceId": "code-editor-url",
+                  "StackId": event["StackId"],
+                  "RequestId": event["RequestId"],
+                  "LogicalResourceId": event["LogicalResourceId"],
+                  "NoEcho": False,
+                  "Data": data or {},
+              }).encode()
+              request = urllib.request.Request(
+                  event["ResponseURL"], data=body, method="PUT",
+                  headers={"content-type": "", "content-length": str(len(body))},
+              )
+              # CloudFormation hands us a presigned HTTPS callback URL. Assert the
+              # scheme before opening it, so a malformed event cannot turn this into
+              # a file:// or custom-scheme fetch.
+              if not event["ResponseURL"].startswith("https://"):
+                  raise ValueError("ResponseURL is not https")
+              urllib.request.urlopen(request, timeout=30)  # nosec B310 - scheme asserted above
+
+
+          def handler(event, context):
+              if event.get("RequestType") == "Delete":
+                  _respond(event, context, "SUCCESS")
+                  return
+              try:
+                  props = event["ResourceProperties"]
+                  sm = boto3.client("secretsmanager")
+                  stored = sm.get_secret_value(SecretId=props["SecretId"])
+                  tkn = json.loads(stored["SecretString"])["password"]
+                  query = urllib.parse.urlencode(
+                      {"tkn": tkn, "folder": props["Folder"]})
+                  _respond(event, context, "SUCCESS", {
+                      "Url": f"https://{props['Domain']}/?{query}",
+                  })
+              except Exception as exc:  # surface the reason in the stack events
+                  _respond(event, context, "FAILED", reason=str(exc))
+
+  CodeEditorUrlResource:
+    Type: Custom::CodeEditorUrl
+    DependsOn:
+      - UrlBuilderFunction
+      - Distribution
+    Properties:
+      ServiceToken: !GetAtt UrlBuilderFunction.Arn
+      SecretId: !Ref CodeEditorSecret
+      Domain: !GetAtt Distribution.DomainName
+      Folder: !Ref HomeFolder
+
+Outputs:
+  CodeEditorUrl:
+    Description: >-
+      Open this to get VS Code in your browser. The connection token is already
+      in the link, so there is nothing to type.
+    Value: !GetAtt CodeEditorUrlResource.Url
+
+  CodeEditorTokenSecret:
+    Description: >-
+      Secrets Manager secret holding the Code Editor token, in case the link
+      above ever asks for one.
+    Value: !Ref CodeEditorSecret
+
+  CodeEditorInstanceId:
+    Description: EC2 instance id, for Session Manager access when debugging.
+    Value: !GetAtt CodeEditorInstanceInfo.InstanceId
+
+  CloudFrontDomain:
+    Description: CloudFront domain serving the Code Editor.
+    Value: !GetAtt Distribution.DomainName
+
+  ClonedRepo:
+    Condition: HasRepoUrl
+    Description: Git repository cloned into the workspace at boot.
+    Value: !Ref RepoUrl

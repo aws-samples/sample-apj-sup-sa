@@ -1,4 +1,4 @@
-# AgentCore CDK Project
+# AgentCore CDK project
 
 This CDK project is managed by the AgentCore CLI. It deploys your agent infrastructure into AWS using the `@aws/agentcore-cdk` L3 constructs.
 

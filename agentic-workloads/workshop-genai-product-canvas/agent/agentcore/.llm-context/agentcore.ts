@@ -31,8 +31,12 @@ interface AgentCoreProjectSpec {
 
 type Tags = Record<string, string>; // @max 50 entries; keys @min 1 @max 128; values @max 256
 type BuildType = 'CodeZip' | 'Container';
-type PythonRuntime = 'PYTHON_3_10' | 'PYTHON_3_11' | 'PYTHON_3_12' | 'PYTHON_3_13' | 'PYTHON_3_14';
-type NodeRuntime = 'NODE_18' | 'NODE_20' | 'NODE_22';
+// Only runtimes AgentCore Runtime still supports. PYTHON_3_10 and PYTHON_3_11
+// reached their AgentCore deprecation date on 2026-06-30, and NODE_18/NODE_20
+// are no longer listed at all - leaving them here would let the deploy skill
+// pick a value the service rejects.
+type PythonRuntime = 'PYTHON_3_12' | 'PYTHON_3_13' | 'PYTHON_3_14';
+type NodeRuntime = 'NODE_22';
 type RuntimeVersion = PythonRuntime | NodeRuntime;
 type NetworkMode = 'PUBLIC' | 'VPC';
 type ProtocolMode = 'HTTP' | 'MCP' | 'A2A' | 'AGUI';

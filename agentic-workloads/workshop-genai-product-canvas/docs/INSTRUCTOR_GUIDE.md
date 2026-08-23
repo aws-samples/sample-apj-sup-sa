@@ -7,13 +7,13 @@
 
 | Segment | Time | Page |
 |---------|------|------|
-| Frame (pipeline vs loop, AgentCore blocks) | 10 min | `content/020-frame` |
-| Part 1 — see a working agent (live demo) | 10 min | `content/030-see-it-work` |
-| Observability of the demo (cost + traces) | 8 min | `content/035-observability` |
-| Design the canvas | 20 min | `content/040-design` |
-| Build: clone, translate, run local + remote | 25 min | `content/050-build` |
-| Deploy with the skill | 10 min | `content/060-deploy` |
-| Validate + debrief | 7 min | `content/080-validate` |
+| Part 0 — open the Code Editor, Claude Code on Bedrock | 10 min | `content/020-part-0-environment/` |
+| Frame (pipeline vs loop, AgentCore blocks) | 10 min | `content/030-part-1-building-blocks/031-frame.md` |
+| Part 1 — see a working agent (live demo) | 10 min | `content/030-part-1-building-blocks/032-see-working-agent.md` |
+| Observability of the demo (cost + traces) | 8 min | `content/030-part-1-building-blocks/035-observability.md` |
+| Design the canvas | 20 min | `content/040-part-2-design/041-design-canvas.md` |
+| Build: translate the canvas, run local + remote, deploy | 25 min | `content/040-part-2-design/050-build.md` |
+| Validate + debrief | 7 min | `content/040-part-2-design/080-validate.md` |
 
 ## Before the event
 
@@ -34,7 +34,7 @@
 
 - Do **not** show `product-canvas-reference.md` until teams have attempted their
   own. The value is in the struggle to make vague design language enforceable.
-- After the build, reveal the canvas -> config mapping (`content/080-validate`).
+- After the build, reveal the canvas -> config mapping (`content/040-part-2-design/080-validate.md`).
 
 ## Talking points that land
 

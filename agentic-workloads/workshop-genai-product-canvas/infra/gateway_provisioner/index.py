@@ -63,7 +63,12 @@ def _send(event, context, status, data=None, physical_id=None, reason=None):
         method="PUT",
         headers={"content-type": "", "content-length": str(len(body))},
     )
-    urllib.request.urlopen(req, timeout=30)
+    # CloudFormation hands us a presigned HTTPS callback URL. Assert the
+    # scheme before opening it, so a malformed event cannot turn this into
+    # a file:// or custom-scheme fetch.
+    if not event["ResponseURL"].startswith("https://"):
+        raise ValueError("ResponseURL is not https")
+    urllib.request.urlopen(req, timeout=30)  # nosec B310 - scheme asserted above
 
 
 def _sanitize_schema(node):
@@ -233,6 +238,81 @@ def _put_ssm(name, value, secure):
     )
 
 
+def enable_transaction_search():
+    """Turn on CloudWatch Transaction Search so AgentCore traces are ingested.
+
+    Done here, at provisioning time, rather than by the participant in Part 1.
+    Enabling it reaches well past X-Ray - UpdateTraceSegmentDestination calls
+    application-signals:StartDiscovery, which in turn needs
+    cloudtrail:CreateServiceLinkedChannel - and handing a participant that chain
+    of account-level enablement permissions to run a documented one-liner is a
+    poor trade. It is a per-account, one-time setting, so it belongs with the
+    rest of the provisioning.
+
+    Best effort on purpose: if it fails, Parts 1 and 2 still run and only the
+    trace views are empty, which is not worth failing a stack over.
+    """
+    xray = boto3.client("xray", region_name=REGION)
+    logs = boto3.client("logs", region_name=REGION)
+    account = boto3.client("sts").get_caller_identity()["Account"]
+
+    # X-Ray writes indexed spans into aws/spans, and it needs a CloudWatch Logs
+    # RESOURCE policy to do it - an identity policy on us is not enough.
+    # UpdateTraceSegmentDestination fails with "XRay does not have permission to
+    # call PutLogEvents on the aws/spans Log Group" until this exists.
+    try:
+        logs.create_log_group(logGroupName="aws/spans")
+    except logs.exceptions.ResourceAlreadyExistsException:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        print(f"transaction search: aws/spans not created ({exc})")
+    try:
+        logs.put_resource_policy(
+            policyName="TransactionSearchXRayAccess",
+            policyDocument=json.dumps(
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "TransactionSearchXRayAccess",
+                            "Effect": "Allow",
+                            "Principal": {"Service": "xray.amazonaws.com"},
+                            "Action": ["logs:PutLogEvents", "logs:CreateLogStream"],
+                            "Resource": (
+                                f"arn:aws:logs:{REGION}:{account}:"
+                                "log-group:aws/spans:*"
+                            ),
+                            "Condition": {
+                                "StringEquals": {"aws:SourceAccount": account},
+                                "ArnLike": {
+                                    "aws:SourceArn":
+                                        f"arn:aws:xray:{REGION}:{account}:*"
+                                },
+                            },
+                        }
+                    ],
+                }
+            ),
+        )
+        print("transaction search: aws/spans resource policy in place")
+    except Exception as exc:  # noqa: BLE001
+        print(f"transaction search: resource policy not set ({exc})")
+
+    try:
+        xray.update_trace_segment_destination(Destination="CloudWatchLogs")
+        print("transaction search: trace segment destination -> CloudWatchLogs")
+    except Exception as exc:  # noqa: BLE001 - never fail provisioning for this
+        print(f"transaction search: destination not set ({exc})")
+    try:
+        xray.update_indexing_rule(
+            Name="Default",
+            Rule={"Probabilistic": {"DesiredSamplingPercentage": 100}},
+        )
+        print("transaction search: indexing 100% of traces")
+    except Exception as exc:  # noqa: BLE001
+        print(f"transaction search: indexing rule not set ({exc})")
+
+
 def _gateway_env(gateway_url, cognito):
     return "\n".join(
         [
@@ -249,47 +329,77 @@ def _gateway_env(gateway_url, cognito):
 
 # --- Teardown ---------------------------------------------------------------
 
+def _try(label, fn):
+    """Run a teardown step, and SAY SO when it fails.
+
+    Teardown must not fail the stack delete - a half-deleted stack is worse than
+    a leftover resource. But the previous version swallowed every error with a
+    bare `except: pass`, so when the gateway delete failed the stack still
+    reported DELETE_COMPLETE and left an AgentCore Gateway running with no trace
+    of why. Log it, so a leftover is findable in CloudWatch.
+    """
+    try:
+        fn()
+        print(f"teardown: {label} ok")
+        return True
+    except Exception as exc:  # noqa: BLE001 - never fail the stack delete
+        print(f"teardown: {label} FAILED - {exc}")
+        return False
+
+
 def teardown(project, ssm_name, meta_name):
     ssm = boto3.client("ssm", region_name=REGION)
     meta = {}
-    try:
-        meta = json.loads(
-            ssm.get_parameter(Name=meta_name)["Parameter"]["Value"]
-        )
-    except Exception:
-        pass
+    _try("read meta parameter", lambda: meta.update(json.loads(
+        ssm.get_parameter(Name=meta_name)["Parameter"]["Value"])))
+
     control = boto3.client("bedrock-agentcore-control", region_name=REGION)
-    try:
-        if meta.get("gateway_id") and meta.get("target_id"):
-            control.delete_gateway_target(
-                gatewayIdentifier=meta["gateway_id"], targetId=meta["target_id"]
-            )
-        if meta.get("gateway_id"):
-            control.delete_gateway(gatewayIdentifier=meta["gateway_id"])
-    except Exception:
-        pass
-    try:
-        idp = boto3.client("cognito-idp", region_name=REGION)
-        if meta.get("domain") and meta.get("user_pool_id"):
-            idp.delete_user_pool_domain(
-                Domain=meta["domain"], UserPoolId=meta["user_pool_id"]
-            )
-        if meta.get("user_pool_id"):
-            idp.delete_user_pool(UserPoolId=meta["user_pool_id"])
-    except Exception:
-        pass
-    try:
-        iam = boto3.client("iam")
-        role = meta.get("role_name") or f"{project}-gateway-role"
-        iam.delete_role_policy(RoleName=role, PolicyName="invoke-tools")
-        iam.delete_role(RoleName=role)
-    except Exception:
-        pass
+    gw = meta.get("gateway_id")
+
+    if gw and meta.get("target_id"):
+        _try("delete gateway target", lambda: control.delete_gateway_target(
+            gatewayIdentifier=gw, targetId=meta["target_id"]))
+        # The gateway cannot be deleted while a target is still attached or
+        # still deleting, and delete_gateway fails with a conflict rather than
+        # waiting. Poll until the targets are actually gone.
+        for _ in range(30):
+            try:
+                left = control.list_gateway_targets(
+                    gatewayIdentifier=gw).get("items", [])
+            except Exception as exc:  # noqa: BLE001
+                print(f"teardown: list gateway targets failed - {exc}")
+                break
+            if not left:
+                break
+            time.sleep(5)
+        else:
+            print("teardown: gateway targets still present after 150s")
+
+    if gw:
+        # Retry the gateway delete too: even with no targets listed the service
+        # can briefly report a conflict.
+        for attempt in range(1, 7):
+            if _try(f"delete gateway (attempt {attempt})",
+                    lambda: control.delete_gateway(gatewayIdentifier=gw)):
+                break
+            time.sleep(10)
+
+    idp = boto3.client("cognito-idp", region_name=REGION)
+    if meta.get("domain") and meta.get("user_pool_id"):
+        _try("delete cognito domain", lambda: idp.delete_user_pool_domain(
+            Domain=meta["domain"], UserPoolId=meta["user_pool_id"]))
+    if meta.get("user_pool_id"):
+        _try("delete cognito user pool", lambda: idp.delete_user_pool(
+            UserPoolId=meta["user_pool_id"]))
+
+    iam = boto3.client("iam")
+    role = meta.get("role_name") or f"{project}-gateway-role"
+    _try("delete gateway role policy", lambda: iam.delete_role_policy(
+        RoleName=role, PolicyName="invoke-tools"))
+    _try("delete gateway role", lambda: iam.delete_role(RoleName=role))
+
     for n in (ssm_name, meta_name):
-        try:
-            ssm.delete_parameter(Name=n)
-        except Exception:
-            pass
+        _try(f"delete parameter {n}", lambda n=n: ssm.delete_parameter(Name=n))
 
 
 # --- Handler ----------------------------------------------------------------
@@ -303,6 +413,7 @@ def handler(event, context):
     meta_name = ssm_name + "-meta"
     try:
         if rt == "Create":
+            enable_transaction_search()
             cognito = setup_cognito(project)
             role_arn, role_name = ensure_gateway_role(project, tools_arn)
             gateway_id, gateway_url, target_id = create_gateway(
