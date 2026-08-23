@@ -123,6 +123,15 @@ def handler(event, context):
             Body=json.dumps(summary, indent=2).encode(),
             ContentType="application/json",
         )
+    # A run where every station failed must not look like a successful run. Raise
+    # so Lambda records the invocation as an error, the schedule's retry policy
+    # applies, and what is left lands in the batch DLQ instead of disappearing.
+    if stations and summary["errors"] == len(stations):
+        raise RuntimeError(
+            f"nightly scan {run_id}: all {len(stations)} stations failed - "
+            f"first error: {invocations[0].get('error', 'unknown')}"
+        )
+
     return {
         "run_id": run_id,
         "stations_scanned": len(stations),

@@ -17,7 +17,7 @@ for the biodiversity anomaly use case.
 | **3. False negative cost** | A missed population collapse; intervention window closes. | High -> bias toward flagging. |
 | **4. Speed** | Async batch, overnight. Hours budget. Report waiting by morning. | No human is watching the loop run. |
 | **4. UX pattern** | Report delivered to inbox / dashboard. | — |
-| **5. User** | Field ecologist (Junglewalla). | Reads the report, decides on action, coordinates with Perhilitan. |
+| **5. User** | Field ecologist (AnyCompany Conservation Trust). | Reads the report, decides on action, coordinates with Perhilitan. |
 | **Tools** | All six. The agent decides which to call and in what order. | The methodology suggests an order but the agent adapts per anomaly. |
 | **Cost** | ~5 tool calls x ~$0.03 = ~$0.15 / investigation (model tokens dominate). | Validate against real token usage in Observability. |
 

@@ -6,6 +6,9 @@ build-backend = "hatchling.build"
 name = "biodiversity_anomaly_agent"
 version = "0.1.0"
 description = "Biodiversity Anomaly Detection agent for Amazon Bedrock AgentCore Runtime"
+# The floor the package supports. Not the same as what the workshop runs: the
+# Code Editor develops on 3.11 and the AgentCore Runtime deploys on 3.12 - see the
+# note at the top of requirements.txt, whose pins are kept identical to these.
 requires-python = ">=3.10"
 dependencies = [
     "strands-agents>=1.15.0",

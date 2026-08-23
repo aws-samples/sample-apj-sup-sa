@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "program": "Project Rewild Desaru",
-    "operator": "Junglewalla Sdn Bhd",
+    "program": "Desaru Camera Trap Programme",
+    "operator": "AnyCompany Conservation Trust",
     "region": "Desaru, Kota Tinggi, Johor, Malaysia",
     "period": "2026-01 to 2026-07",
     "stations": 6,
@@ -36,7 +36,7 @@
     },
     {
       "station_id": "STN-04",
-      "name": "Desaru Coast Mangrove Buffer",
+      "name": "Tanjung Balau Mangrove Buffer",
       "lat": 1.5689,
       "lon": 104.2845,
       "habitat": "Mangrove ecotone",

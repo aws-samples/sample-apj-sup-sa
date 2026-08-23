@@ -60,6 +60,25 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub "arn:aws:s3:::${AuditBucket}/*"
+              # Somewhere to put an invocation that failed every retry.
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt BatchDlq.Arn
+
+  # A nightly run is asynchronous and unattended: if it fails there is nobody
+  # watching and nothing to return an error to. This is the one Lambda in the
+  # workshop where a dead-letter queue earns its keep, so it has one rather than a
+  # CKV_AWS_116 suppression.
+  BatchDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-batch-dlq"
+      MessageRetentionPeriod: 1209600   # 14 days, the maximum
+      # Encrypted at rest with the AWS-managed key for SQS. A customer-managed key
+      # would outlive the stack in pending-deletion for a queue whose contents are
+      # failed invocations of a workshop, which is the same reasoning the rest of
+      # this workshop applies to keys.
+      KmsMasterKeyId: alias/aws/sqs
 
   InvokerFunction:
     Type: AWS::Lambda::Function
@@ -67,13 +86,13 @@ Resources:
     # workshop. Same reasoning as the other workshop Lambdas:
     # checkov:skip=CKV_AWS_115: a scheduled once-a-night invoker does not need
     #   reserved concurrency.
-    # checkov:skip=CKV_AWS_116: EventBridge Scheduler already retries; a DLQ has
-    #   nothing extra to replay in a workshop.
     # checkov:skip=CKV_AWS_117: calls the public AgentCore endpoint, so a VPC
     #   would need a NAT gateway for no security gain.
     # checkov:skip=CKV_AWS_173: its environment variables are a runtime ARN and
     #   a bucket name - no secrets to encrypt.
     Properties:
+      DeadLetterConfig:
+        TargetArn: !GetAtt BatchDlq.Arn
       FunctionName: !Sub "${ProjectName}-batch-invoker"
       Runtime: python3.12
       Handler: index.handler
@@ -112,6 +131,13 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: !GetAtt InvokerFunction.Arn
+        - PolicyName: schedule-dead-letter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt BatchDlq.Arn
 
   NightlySchedule:
     Type: AWS::Scheduler::Schedule
@@ -125,9 +151,21 @@ Resources:
       Target:
         Arn: !GetAtt InvokerFunction.Arn
         RoleArn: !GetAtt SchedulerRole.Arn
+        # Bound the retries, then hand the invocation to the same queue rather
+        # than dropping it. Without this a night's scan can vanish silently.
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+          MaximumEventAgeInSeconds: 3600
+        DeadLetterConfig:
+          Arn: !GetAtt BatchDlq.Arn
 
 Outputs:
   InvokerFunctionName:
     Value: !Ref InvokerFunction
   ScheduleName:
     Value: !Ref NightlySchedule
+  BatchDlqUrl:
+    Description: >-
+      Failed nightly invocations land here. Empty is the healthy state; anything
+      in it is a run that never happened.
+    Value: !Ref BatchDlq

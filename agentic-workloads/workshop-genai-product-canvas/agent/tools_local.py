@@ -49,13 +49,20 @@ def query_detections(
     if station_id:
         records = [d for d in records if d["station_id"] == station_id]
 
+    records.sort(key=lambda d: d["month"])
     counts = [d["detection_count"] for d in records]
     total = sum(counts)
     mean = round(total / len(counts), 1) if counts else 0
 
     if len(counts) >= 4:
-        first_half = sum(counts[: len(counts) // 2])
-        second_half = sum(counts[len(counts) // 2 :])
+        # Halves of EQUAL length, compared by mean. Summing counts[: n // 2]
+        # against counts[n // 2 :] handed the second bucket an extra month on an
+        # odd-length range: seven months of tapir counts ending 4, 3, 1, 0, 0 came
+        # out as "stable" because 3 months of early data were weighed against 4
+        # months of late data. The middle month is dropped when the count is odd.
+        half = len(counts) // 2
+        first_half = sum(counts[:half]) / half
+        second_half = sum(counts[-half:]) / half
         if second_half < first_half * 0.5:
             trend = "declining"
         elif second_half > first_half * 1.5:
@@ -180,7 +187,11 @@ def get_species_baseline(species: str) -> dict:
 def generate_anomaly_report(
     species: str, anomaly_type: str, severity: str, findings: dict
 ) -> dict:
-    """Generate and publish the final anomaly investigation report. Call this LAST.
+    """Record the final anomaly investigation report. Call this LAST.
+
+    In the workshop this returns the structured report and, in the deployed
+    version, writes it to the audit bucket. There is no mail or ticketing
+    integration behind it - wiring one up is the obvious first extension.
 
     Args:
         species: Affected species name.
@@ -197,8 +208,11 @@ def generate_anomaly_report(
         "anomaly_type": anomaly_type,
         "severity": severity,
         "findings": findings,
-        "status": "published",
-        "delivery": "sent_to_ecologist_inbox",
+        # "recorded", not "published"/"sent": nothing is emailed anywhere, and
+        # telling the agent otherwise had it reporting a delivery that never
+        # happened. Attach a real notifier and change this to match.
+        "status": "recorded",
+        "delivery": "none_configured",
     }
     return report
 

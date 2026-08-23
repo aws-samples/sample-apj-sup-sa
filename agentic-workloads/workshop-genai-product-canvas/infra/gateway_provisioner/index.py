@@ -40,11 +40,26 @@ import boto3
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
+# Keys the Gateway accepts in a tool's inputSchema. This is not a style choice:
+# the bedrock-agentcore-control SchemaDefinition shape has exactly these five
+# members, and anything else is rejected outright.
+#
+# "enum" is therefore impossible to pass through, which used to mean the allowed
+# values simply vanished from the remote contract - the model saw a bare string
+# where the local tool advertises a closed set. _sanitize_schema folds them into
+# the description instead, which the API does accept, so both modes tell the model
+# the same thing.
 _ALLOWED_SCHEMA_KEYS = {"type", "properties", "required", "items", "description"}
 
 
-def _send(event, context, status, data=None, physical_id=None, reason=None):
-    """Send a response to the CloudFormation pre-signed URL."""
+def _send(event, context, status, data=None, physical_id=None, reason=None, no_echo=True):
+    """Send a response to the CloudFormation pre-signed URL.
+
+    NoEcho defaults to true. CloudFormation masks a custom resource's returned
+    values only when asked to, and this resource's Data carries Cognito endpoints
+    and a client id, so there is nothing to gain from having them echoed back in
+    stack events and Fn::GetAtt output.
+    """
     body = json.dumps(
         {
             "Status": status,
@@ -53,7 +68,7 @@ def _send(event, context, status, data=None, physical_id=None, reason=None):
             "StackId": event["StackId"],
             "RequestId": event["RequestId"],
             "LogicalResourceId": event["LogicalResourceId"],
-            "NoEcho": False,
+            "NoEcho": no_echo,
             "Data": data or {},
         }
     ).encode()
@@ -83,6 +98,14 @@ def _sanitize_schema(node):
                 out[k] = _sanitize_schema(v)
             else:
                 out[k] = v
+        # Carry a dropped enum over as prose, so the closed set still reaches the
+        # model through the one field the Gateway will take.
+        allowed = node.get("enum")
+        if allowed:
+            values = ", ".join(str(a) for a in allowed)
+            desc = out.get("description", "").rstrip()
+            sep = " " if desc and not desc.endswith(".") else ("" if not desc else " ")
+            out["description"] = f"{desc}{'.' if desc and not desc.endswith('.') else ''}{sep}One of: {values}.".strip()
         return out
     return node
 
@@ -149,26 +172,36 @@ def ensure_gateway_role(project, tools_arn):
             AssumeRolePolicyDocument=json.dumps(assume),
             Description="AgentCore Gateway -> tool Lambda invocation",
         )["Role"]["Arn"]
-        iam.put_role_policy(
-            RoleName=role_name,
-            PolicyName="invoke-tools",
-            PolicyDocument=json.dumps(
-                {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Effect": "Allow",
-                            "Action": "lambda:InvokeFunction",
-                            "Resource": tools_arn,
-                        }
-                    ],
-                }
-            ),
-        )
-        time.sleep(10)  # let the role propagate
-        return arn, role_name
+        created = True
     except iam.exceptions.EntityAlreadyExistsException:
-        return iam.get_role(RoleName=role_name)["Role"]["Arn"], role_name
+        # Re-run against an account that already has the role, e.g. a stack that
+        # rolled back mid-create. Reuse it, but still attach the policy below:
+        # doing that inside the create try meant the already-exists path returned a
+        # role with no guarantee it could invoke anything.
+        arn = iam.get_role(RoleName=role_name)["Role"]["Arn"]
+        created = False
+
+    # put_role_policy is idempotent - it overwrites an inline policy of the same
+    # name - so this is safe on both paths and converges on the right document.
+    iam.put_role_policy(
+        RoleName=role_name,
+        PolicyName="invoke-tools",
+        PolicyDocument=json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "lambda:InvokeFunction",
+                        "Resource": tools_arn,
+                    }
+                ],
+            }
+        ),
+    )
+    if created:
+        time.sleep(10)  # let a brand-new role propagate
+    return arn, role_name
 
 
 # --- Gateway ---------------------------------------------------------------
@@ -408,10 +441,14 @@ def handler(event, context):
     rt = event.get("RequestType", "")
     p = event.get("ResourceProperties", {})
     project = p.get("ProjectName", "biodiversity-anomaly")
-    tools_arn = p["ToolsFunctionArn"]
     ssm_name = p.get("SsmParamName", "/touch-grass/gateway-env")
     meta_name = ssm_name + "-meta"
+    # Everything that can raise belongs inside the try, including reading required
+    # properties: a KeyError out here would mean _send is never called, and
+    # CloudFormation then waits out the full custom-resource timeout - an hour of
+    # a participant's event - before rolling back with no reason recorded.
     try:
+        tools_arn = p["ToolsFunctionArn"]
         if rt == "Create":
             enable_transaction_search()
             cognito = setup_cognito(project)
@@ -440,12 +477,13 @@ def handler(event, context):
                 {
                     "GatewayUrl": gateway_url,
                     "SsmParamName": ssm_name,
-                    # Exposed as resource attributes so the pre-deployed sample
-                    # AgentCore Runtime (see infra/template.yaml) can consume them
-                    # as environment variables and run in gateway mode.
+                    # Endpoints and the client id only. The client SECRET is
+                    # deliberately NOT returned: a custom resource's Data becomes
+                    # readable through Fn::GetAtt and through DescribeStackEvents,
+                    # and nothing needs it from here - the full gateway.env,
+                    # secret included, is in the SSM SecureString written above.
                     "CognitoTokenUrl": cognito["token_url"],
                     "CognitoClientId": cognito["client_id"],
-                    "CognitoClientSecret": cognito["client_secret"],
                     "CognitoScope": cognito["scope"],
                 },
                 physical_id=gateway_id,

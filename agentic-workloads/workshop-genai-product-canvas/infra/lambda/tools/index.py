@@ -17,6 +17,7 @@ Every call is written to the audit bucket for compliance.
 
 import json
 import os
+import traceback
 import uuid
 from datetime import datetime, timezone
 
@@ -46,11 +47,18 @@ def query_detections(species, start_month, end_month, station_id=None):
     ]
     if station_id:
         records = [d for d in records if d["station_id"] == station_id]
+    records.sort(key=lambda d: d["month"])
     counts = [d["detection_count"] for d in records]
     total = sum(counts)
     mean = round(total / len(counts), 1) if counts else 0
     if len(counts) >= 4:
-        first, second = sum(counts[: len(counts) // 2]), sum(counts[len(counts) // 2 :])
+        # Compare the mean of the first half against the mean of the last half,
+        # over halves of equal length. Summing counts[:n//2] against counts[n//2:]
+        # gave the second bucket an extra month on an odd-length range, which
+        # reported a species that had dropped to zero as "stable".
+        h = len(counts) // 2
+        first = sum(counts[:h]) / h
+        second = sum(counts[-h:]) / h
         trend = "declining" if second < first * 0.5 else "increasing" if second > first * 1.5 else "stable"
     else:
         trend = "insufficient_data"
@@ -108,7 +116,10 @@ def generate_anomaly_report(species, anomaly_type, severity, findings):
         "report_id": f"RPT-{uuid.uuid4().hex[:8].upper()}",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "species": species, "anomaly_type": anomaly_type, "severity": severity,
-        "findings": findings, "status": "published", "delivery": "sent_to_ecologist_inbox",
+        # The report is written to the audit bucket below and nowhere else. It used
+        # to claim "published" / "sent_to_ecologist_inbox", which had the agent
+        # telling the user about an email that no code ever sends.
+        "findings": findings, "status": "recorded", "delivery": "audit_bucket",
     }
     if AUDIT_BUCKET:
         s3.put_object(
@@ -152,8 +163,10 @@ def _audit(tool_name: str, args: dict, ok: bool):
             Body=json.dumps(entry).encode(),
             ContentType="application/json",
         )
-    except Exception:  # auditing must never break a tool call
-        pass
+    except Exception as exc:  # noqa: BLE001 - auditing must never break a tool call
+        # Swallowed on purpose, but not silently: this module promises that every
+        # call is audited, so a gap in the audit trail has to be visible somewhere.
+        print(f"AUDIT WRITE FAILED for {tool_name}: {exc}")
 
 
 def handler(event, context):
@@ -170,3 +183,10 @@ def handler(event, context):
     except TypeError as e:
         _audit(tool_name, args, False)
         return {"error": f"Invalid arguments for {tool_name}: {e}"}
+    except Exception as e:  # noqa: BLE001
+        # Anything else is a real fault. Audit it as a failure and log the
+        # traceback - catching only TypeError above meant a genuine error left no
+        # audit record at all, which is the one thing the audit trail must not do.
+        _audit(tool_name, args, False)
+        traceback.print_exc()
+        return {"error": f"{tool_name} failed: {type(e).__name__}: {e}"}
