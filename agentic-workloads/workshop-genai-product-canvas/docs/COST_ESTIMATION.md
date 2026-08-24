@@ -48,5 +48,10 @@ excluding any Workshop Studio account overhead.
 ## Measure, don't guess
 
 After deploying, compare the **COST ESTIMATE** box on your canvas to the actual
-token totals per session in CloudWatch GenAI Observability. The gap between the two
-is the lesson.
+token totals: **CloudWatch -> Metrics -> `bedrock-agentcore` ->
+`gen_ai.client.token.usage`**, split by the `gen_ai.token.type` dimension into input
+and output, statistic **Sum**. The gap between estimate and measurement is the lesson.
+
+(Not the GenAI Observability console page - that one is built on indexed transaction
+spans and reads "No data" until CloudWatch Transaction Search is enabled, which a
+temporary workshop account cannot do.)

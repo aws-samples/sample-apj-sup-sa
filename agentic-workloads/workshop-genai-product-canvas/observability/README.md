@@ -34,6 +34,8 @@ Observability dashboards.
 
 ## Where to look after invoking the agent
 
+### With Transaction Search on (your own account)
+
 1. Open the **CloudWatch** console in your region.
 2. Left nav -> **GenAI Observability**.
 3. Choose **Bedrock AgentCore** -> your agent (`biodiversity-anomaly-agent`).
@@ -43,6 +45,25 @@ Observability dashboards.
      tools ran, in what order, how long each took).
    - **Metrics**: session count, latency (p50/p90), duration, **token usage**,
      and error rate.
+
+### Without it (a temporary workshop account)
+
+Every panel on that page reads *"No data - Enable Transaction Search"*, because the
+page is built entirely on indexed spans. The telemetry still exists as ordinary
+CloudWatch metrics, so use **CloudWatch -> Metrics** instead:
+
+| Namespace | Metric | Answers |
+|-----------|--------|---------|
+| `bedrock-agentcore` | `gen_ai.client.token.usage`, split by `gen_ai.token.type` into input/output | What the run cost |
+| `bedrock-agentcore` | `gen_ai.client.operation.duration` | How long the model calls took |
+| `bedrock-agentcore` | `strands.tool.call_count`, `strands.tool.duration`, `strands.tool.success_count` | Per-tool behaviour |
+| `bedrock-agentcore` | `strands.event_loop.cycle_count` | How many times round the loop |
+| `AWS/Bedrock-AgentCore` | `Invocations`, dimensioned by tool `Name` | Which tools it chose, by name |
+| `AWS/Bedrock-AgentCore` | `Sessions`, `Latency`, `Duration`, `Errors`, `Throttles` | Sessions, latency, failures |
+
+The `AWS/Bedrock-AgentCore` metrics appear a couple of minutes after the first
+invocation; the `bedrock-agentcore` ones take longer, because they leave the runtime
+as embedded-metric-format records in its log group first.
 
 ## Turning telemetry into a cost number
 

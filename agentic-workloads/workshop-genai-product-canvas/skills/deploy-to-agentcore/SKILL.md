@@ -95,9 +95,14 @@ agentcore invoke "Malayan Tapir dropped to 0 at STN-03 in June 2026. Investigate
 ### 5. Report back to the user
 
 Return the runtime status/endpoint from `agentcore status` and the invocation
-result. Then point them to Observability: CloudWatch console -> GenAI Observability
--> Bedrock AgentCore -> the agent, or `agentcore logs` / `agentcore traces list`
-(see `observability/README.md`).
+result. Then point them at the telemetry: **CloudWatch -> Metrics**, namespace
+`bedrock-agentcore` for `gen_ai.client.token.usage` (split input/output) and
+`strands.*`, and `AWS/Bedrock-AgentCore` for `Invocations` by tool `Name`, `Latency`
+and `Errors`. Or `agentcore logs` / `agentcore traces list`.
+
+Do not send them to CloudWatch -> GenAI Observability: that page needs Transaction
+Search, which cannot be enabled in a temporary workshop account, so every panel on
+it reads "No data". See `observability/README.md`.
 
 ## Notes and safety
 
