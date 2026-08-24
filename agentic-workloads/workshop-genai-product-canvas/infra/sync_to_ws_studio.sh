@@ -59,6 +59,19 @@ done
 #    the same reason the templates are copied rather than symlinked.
 SAMPLE_CONTENT="$(cd "${HERE}/.." && pwd)/content"
 if [ -d "${SAMPLE_CONTENT}" ]; then
+  # This copy is one-way, and that is easy to forget: edit the Workshop Studio copy
+  # by mistake and this would silently overwrite it. So say what is about to be
+  # discarded. (Learned the hard way - an architecture-page fix was made in the
+  # wrong tree and vanished on the next sync.)
+  if [ -d "${WS_STUDIO_ROOT_ABS}/content" ] \
+     && ! diff -rq "${SAMPLE_CONTENT}" "${WS_STUDIO_ROOT_ABS}/content" >/dev/null 2>&1; then
+    echo "NOTE: the Workshop Studio copy of content/ differs and will be overwritten from"
+    echo "      ${SAMPLE_CONTENT} - this direction is one-way. Differing files:"
+    # `|| true`: diff exits 1 when it finds differences, which is the case we are in,
+    # and pipefail would take that as a script failure.
+    { diff -rq "${SAMPLE_CONTENT}" "${WS_STUDIO_ROOT_ABS}/content" 2>/dev/null || true; } | sed 's/^/        /'
+    echo "      If you meant to keep the Workshop Studio version, stop now and copy it back."
+  fi
   rsync -a --delete "${SAMPLE_CONTENT}/" "${WS_STUDIO_ROOT_ABS}/content/"
   echo "Synced content/ -> ${WS_STUDIO_ROOT_ABS}/content/"
 fi
