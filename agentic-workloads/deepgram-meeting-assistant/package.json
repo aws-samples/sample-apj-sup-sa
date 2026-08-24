@@ -42,12 +42,12 @@
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "^5.2.0",
     "dotenv": "^17.2.3",
     "electron": "^39.2.7",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.17"
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.966.0",
