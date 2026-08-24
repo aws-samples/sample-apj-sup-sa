@@ -27,6 +27,13 @@ MODEL_ID = os.environ.get(
 )
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 TOOL_MODE = os.environ.get("TOOL_MODE", "local")  # "local" | "gateway"
+if TOOL_MODE not in ("local", "gateway"):
+    # Anything else used to fall through to local tools silently, so a typo on a
+    # deployed runtime looked like a working agent reading data that is not there.
+    raise SystemExit(
+        f"TOOL_MODE={TOOL_MODE!r} is not a mode. Use 'local' (read ./data directly) "
+        f"or 'gateway' (call the tools through the AgentCore Gateway)."
+    )
 
 SYSTEM_PROMPT = (Path(__file__).parent / "system_prompt.txt").read_text()
 

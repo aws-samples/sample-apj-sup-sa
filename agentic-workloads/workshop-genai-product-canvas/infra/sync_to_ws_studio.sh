@@ -46,14 +46,24 @@ if [ ! -d "${WS_STUDIO_ROOT}" ]; then
   SYNC_DONE=yes
   exit 0
 fi
-WS_STUDIO_INFRA="$(cd "${WS_STUDIO_ROOT}" && pwd)/static/infra"
+WS_STUDIO_ROOT_ABS="$(cd "${WS_STUDIO_ROOT}" && pwd)"
+WS_STUDIO_INFRA="${WS_STUDIO_ROOT_ABS}/static/infra"
 mkdir -p "${WS_STUDIO_INFRA}"
 for tpl in code-editor.yaml template.yaml; do
   cp "${HERE}/${tpl}" "${WS_STUDIO_INFRA}/${tpl}"
   echo "Synced ${tpl} -> ${WS_STUDIO_INFRA}/${tpl}"
 done
 
-# 3. Prove it. Workshop Studio builds from the copies, so a copy that is not
+# 3. Copy the participant pages too. This directory is the source for them, and
+#    Workshop Studio builds from its own copy, so the two have to stay identical -
+#    the same reason the templates are copied rather than symlinked.
+SAMPLE_CONTENT="$(cd "${HERE}/.." && pwd)/content"
+if [ -d "${SAMPLE_CONTENT}" ]; then
+  rsync -a --delete "${SAMPLE_CONTENT}/" "${WS_STUDIO_ROOT_ABS}/content/"
+  echo "Synced content/ -> ${WS_STUDIO_ROOT_ABS}/content/"
+fi
+
+# 4. Prove it. Workshop Studio builds from the copies, so a copy that is not
 #    byte-identical to the source is a stale workshop, not a cosmetic problem.
 for tpl in code-editor.yaml template.yaml; do
   if ! cmp -s "${HERE}/${tpl}" "${WS_STUDIO_INFRA}/${tpl}"; then
@@ -61,5 +71,13 @@ for tpl in code-editor.yaml template.yaml; do
     exit 1
   fi
 done
-echo "Verified: both templates are byte-identical to their sources."
+if [ -d "${SAMPLE_CONTENT}" ]; then
+  if ! diff -rq "${SAMPLE_CONTENT}" "${WS_STUDIO_ROOT_ABS}/content" >/dev/null; then
+    echo "SYNC FAILED: content/ differs from ${WS_STUDIO_ROOT_ABS}/content" >&2
+    exit 1
+  fi
+  echo "Verified: both templates and content/ are identical to their sources."
+else
+  echo "Verified: both templates are byte-identical to their sources."
+fi
 SYNC_DONE=yes
