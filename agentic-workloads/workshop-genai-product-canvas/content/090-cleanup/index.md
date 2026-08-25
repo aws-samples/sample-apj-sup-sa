@@ -10,6 +10,18 @@ every resource below goes with it and you are not billed. The steps in this page
 are for anyone who deployed the workshop into **their own** AWS account.
 :::
 
+:::alert{type="warning"}
+**Steps 2–4 need account-owner credentials, not the workshop participant role.**
+Deleting the Part 0 and tools stacks removes buckets, bucket policies, Lambda
+functions, IAM roles and a KMS key, and the participant role in an event account
+is deliberately not allowed to do any of that — it can deploy an agent, not
+dismantle the workshop. Run these from the account you own. If you try them
+inside an event account you get a half-deleted stack in `DELETE_FAILED`, which is
+harmless (the account is reclaimed regardless) but not worth the confusion.
+Step 1 is different: removing your own agent runtime is part of the workshop and
+works as a participant.
+:::
+
 ## What exists in the account
 
 | Resource | Created by | Removed when… |
@@ -36,10 +48,12 @@ Two things sit outside that, and neither belongs to this workshop's own template
   `cdk-hnb659fds-assets-<account>-<region>` so deleting the stack cannot destroy
   build artefacts. Step 4 below removes it by hand.
 - **A *timer*, not a resource.** Deleting a KMS key or a Secrets Manager secret
-  yourself schedules rather than performs the deletion (7–30 days). The Code
-  Editor token secret is removed immediately with the stack, so there is nothing
-  to wait for; the CDK bootstrap key created by `agentcore deploy` does go to
-  pending-deletion.
+  schedules rather than performs the deletion (7–30 days). The Code Editor token
+  secret itself is removed immediately with the stack, but two KMS keys do go to
+  pending-deletion and then disappear on their own: the key that encrypts that
+  token (7 days, the API minimum) and the CDK bootstrap key created by
+  `agentcore deploy`. Neither is usable while pending, and a key in that state
+  bills as a key — about a dollar a month, prorated — until it is gone.
 
 Verified by deleting both stacks in a live account: no workshop buckets, no
 running instances, no secrets, no SSM parameters, no VPC, no Cognito user pool, no

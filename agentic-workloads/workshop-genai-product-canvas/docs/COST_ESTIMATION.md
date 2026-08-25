@@ -30,7 +30,12 @@ payloads are larger.
 | ~10-20 agent invocations during build/validate | ~$1-4 |
 | Tool backend (Lambda + S3), 90 min | < $0.10 |
 | AgentCore Runtime + Gateway, 90 min | usage-based, low |
+| KMS key for the Code Editor token | < $0.05 | 
 | **Total per participant** | **~$1-5** |
+
+The KMS line is a flat $1/month per key, prorated, and it keeps running for the
+7-day pending-deletion window after the stack is deleted — so it is a few cents
+per participant, not a rounding error you can ignore entirely at 300 accounts.
 
 For a 30-person event, plan roughly **$50-150** of Bedrock + AgentCore usage,
 excluding any Workshop Studio account overhead.

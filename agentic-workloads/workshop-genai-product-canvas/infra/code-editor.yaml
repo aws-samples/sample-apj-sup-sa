@@ -298,11 +298,47 @@ Resources:
   # ==========================================================================
   # Code Editor connection token
   # ==========================================================================
+  # The token is the only credential in the workshop, so it gets a
+  # customer-managed key rather than the AWS-managed aws/secretsmanager one. The
+  # difference that matters is the key policy: with a CMK, every principal that
+  # can decrypt the token is named in one place you can read, and the two that
+  # need it (the instance at boot, the URL builder) are granted it explicitly
+  # below. Nothing else in the account can read the token, even with
+  # secretsmanager:GetSecretValue.
+  #
+  # Only the key policy's account-root statement is here on purpose: naming the
+  # two consuming roles as principals would make the key depend on the roles
+  # while the roles depend on the key, which CloudFormation rejects as a
+  # circular dependency. Same-account access is governed by identity policies
+  # once the root statement delegates to IAM, so the grants live on the roles.
+  CodeEditorSecretKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Description: !Sub "Encrypts the ${ProjectName} Code Editor connection token."
+      EnableKeyRotation: true
+      # 7 days is the API minimum. The key sits in pending-deletion until then;
+      # the workshop account is reclaimed well before it would ever be usable.
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnableIamPoliciesForThisAccount
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+
+  CodeEditorSecretKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${ProjectName}-code-editor-${AWS::StackName}"
+      TargetKeyId: !Ref CodeEditorSecretKey
+
   CodeEditorSecret:
     Type: AWS::SecretsManager::Secret
-    # checkov:skip=CKV_AWS_149: the AWS-managed Secrets Manager key is sufficient
-    #   for a generated token that lives for the length of one event and is
-    #   deleted with the stack. A CMK would outlive it in pending-deletion.
     # Delete (not Retain): a retained secret of the same name blocks a
     # redeployment retry into the same account.
     DeletionPolicy: Delete
@@ -310,6 +346,7 @@ Resources:
     Properties:
       Name: !Sub "${ProjectName}-code-editor-${AWS::StackName}"
       Description: Code Editor connection token for this workshop account.
+      KmsKeyId: !Ref CodeEditorSecretKey
       GenerateSecretString:
         PasswordLength: 24
         SecretStringTemplate: !Sub '{"username":"${CodeEditorUser}"}'
@@ -514,6 +551,18 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref CodeEditorSecret
+              # The token is encrypted with a customer-managed key, so reading it
+              # takes kms:Decrypt as well - and only through Secrets Manager, not
+              # as a general-purpose decrypt grant.
+              - Sid: DecryptOwnCodeEditorToken
+                Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource: !GetAtt CodeEditorSecretKey.Arn
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "secretsmanager.${AWS::Region}.amazonaws.com"
               # gateway.env, written by the tools stack in this same account.
               - Sid: ReadBaselineAgentSource
                 Effect: Allow
@@ -1335,13 +1384,25 @@ Resources:
   Distribution:
     Type: AWS::CloudFront::Distribution
     DependsOn: CodeEditorInstanceInfo
-    # checkov:skip=CKV_AWS_174: served on the default *.cloudfront.net
-    #   certificate, which is already TLS 1.2+; MinimumProtocolVersion only
-    #   applies when a custom ACM certificate is attached.
-    # checkov:skip=CKV_AWS_68: a WAF in front of a single-tenant, token-gated,
-    #   few-hour workshop editor adds cost without reducing real risk.
-    # checkov:skip=CKV_AWS_86: no audit requirement for an ephemeral account,
-    #   and access logs would outlive the account they describe.
+    # Only the text on the same line as a checkov:skip reaches the scanners and
+    # the security-review tooling, so each first line below has to stand on its
+    # own; the indented lines after it are for whoever reads the template.
+    #
+    # checkov:skip=CKV_AWS_86: the editor URL carries the connection token as a query parameter and CloudFront's standard log record includes cs-uri-query, so enabling access logging would write a live credential into S3 on every request.
+    #   Standard logging (legacy) is the only form
+    #   AWS::CloudFront::Distribution can express, and its 33-field record is
+    #   fixed - there is no way to drop that field. Standard logging v2 can
+    #   select fields and would exclude it, but it is configured outside this
+    #   resource so it would not satisfy this check either, and a single-tenant
+    #   distribution that lives for one participant for a few hours has no audit
+    #   consumer to justify the machinery. Fix the URL, not the logging: keep the
+    #   credential out of the query string and this becomes safe to turn on.
+    # checkov:skip=CKV_AWS_174: a workshop account has no domain or ACM certificate, and on the default *.cloudfront.net certificate CloudFront "automatically sets the security policy to TLSv1 regardless of the value that you set here" (ViewerCertificate API reference) - so setting MinimumProtocolVersion would silence this check without changing what the edge accepts.
+    #   Left visible rather than papered over. The real fix is a custom domain
+    #   with an ACM certificate, which is out of reach for a per-participant
+    #   ephemeral account; the exposure is that a viewer speaking only TLS 1.0
+    #   or 1.1 would be accepted.
+    # checkov:skip=CKV_AWS_68: a WAF in front of a single-tenant, token-gated, few-hour workshop editor adds cost without reducing real risk.
     Properties:
       DistributionConfig:
         Enabled: true
@@ -1396,6 +1457,14 @@ Resources:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
                 Resource: !Ref CodeEditorSecret
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource: !GetAtt CodeEditorSecretKey.Arn
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "secretsmanager.${AWS::Region}.amazonaws.com"
 
   UrlBuilderFunction:
     Type: AWS::Lambda::Function

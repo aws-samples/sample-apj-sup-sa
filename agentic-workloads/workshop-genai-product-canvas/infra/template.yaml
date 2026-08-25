@@ -28,8 +28,6 @@ Resources:
   # the accumulated logs cannot block teardown.
   LogBucket:
     Type: AWS::S3::Bucket
-    # checkov:skip=CKV_AWS_21: versioning a log bucket that is deleted with the
-    #   account only doubles what has to be emptied at teardown.
     Properties:
       BucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
       PublicAccessBlockConfiguration:
@@ -47,11 +45,17 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}-${AWS::Region}"
         LogFilePrefix: access-logs/logs/
+      # Versioning is what makes an overwrite recoverable, and an access-log
+      # bucket is exactly where a tamper would land. The Provisioner deletes
+      # every version at teardown, so this cannot strand the stack.
+      VersioningConfiguration:
+        Status: Enabled
       LifecycleConfiguration:
         Rules:
           - Id: expire-access-logs
             Status: Enabled
             ExpirationInDays: 1
+            NoncurrentVersionExpirationInDays: 1
 
   # S3 server access logging delivers through the logging.s3.amazonaws.com
   # service principal, so the destination bucket needs a policy granting it.
@@ -123,8 +127,6 @@ Resources:
 
   DataBucket:
     Type: AWS::S3::Bucket
-    # checkov:skip=CKV_AWS_21: versioning would retain copies of read-only
-    #   sample data for a few hours, then be deleted with the account.
     Properties:
       BucketName: !Sub "${ProjectName}-data-${AWS::AccountId}-${AWS::Region}"
       PublicAccessBlockConfiguration:
@@ -139,11 +141,18 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref LogBucket
         LogFilePrefix: access-logs/data/
+      # The tools have read-only access here, so a version history is what
+      # proves the datasets an agent read were the ones the stack wrote.
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-noncurrent-versions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 1
 
   AuditBucket:
     Type: AWS::S3::Bucket
-    # checkov:skip=CKV_AWS_21: the reports written here are workshop output,
-    #   regenerated on demand and discarded with the account.
     Properties:
       BucketName: !Sub "${ProjectName}-audit-${AWS::AccountId}-${AWS::Region}"
       PublicAccessBlockConfiguration:
@@ -158,6 +167,16 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref LogBucket
         LogFilePrefix: access-logs/audit/
+      # This is the bucket the tools write to and never read. Versioning means a
+      # later write cannot quietly replace an earlier report - the property you
+      # want from anything you would call an audit trail.
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-noncurrent-versions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 1
 
   ToolsFunctionRole:
     Type: AWS::IAM::Role
@@ -399,6 +418,10 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                   - s3:ListBucket
+                  # The buckets are versioned, so emptying them means listing
+                  # and deleting versions, not just current objects.
+                  - s3:ListBucketVersions
+                  - s3:DeleteObjectVersion
                 Resource:
                   - !GetAtt DataBucket.Arn
                   - !Sub "${DataBucket.Arn}/*"
@@ -519,13 +542,24 @@ Resources:
                       # Empty every bucket in the stack so none of them blocks
                       # teardown: datasets, published reports, and the S3 server
                       # access logs that accumulate while the event runs.
-                      pag = s3.get_paginator("list_objects_v2"); d = 0
+                      #
+                      # All three buckets are versioned, so this has to page over
+                      # list_object_versions rather than list_objects_v2 and delete
+                      # each VersionId. A plain delete only adds a delete marker:
+                      # the bucket still holds the old versions, S3 refuses to
+                      # delete a non-empty bucket, and the stack strands in
+                      # DELETE_FAILED with the account still leased.
+                      pag = s3.get_paginator("list_object_versions"); d = 0
                       for b in [bucket, p.get("AuditBucket"), p.get("LogBucket")]:
                           if not b:
                               continue
                           try:
                               for page in pag.paginate(Bucket=b):
-                                  objs = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+                                  objs = [{"Key": o["Key"], "VersionId": o["VersionId"]}
+                                          for o in (page.get("Versions", []) +
+                                                    page.get("DeleteMarkers", []))]
+                                  # 1000 per call is the API limit and also the
+                                  # page size, so a page maps to one request.
                                   if objs:
                                       s3.delete_objects(Bucket=b, Delete={"Objects": objs})
                                       d += len(objs)
