@@ -86,7 +86,7 @@ All account/region-scoped names below carry a unique suffix (`<sfx>`), controlle
 | `SlackOAuthProvider` | `AWS::BedrockAgentCore::OAuth2CredentialProvider` | `slack-mcp-server-provider-<sfx>` (SlackOauth2) |
 | `GatewayRole` | `AWS::IAM::Role` | `agentcore-ac-gateway-mcp-server-slack-role-<sfx>` |
 | `SlackGateway` | `AWS::BedrockAgentCore::Gateway` | `ac-gateway-mcp-server-slack-<sfx>` (MCP, CUSTOM_JWT) |
-| `SlackGatewayTarget` | `AWS::BedrockAgentCore::GatewayTarget` | `slack-integration-target` (OpenAPI + OAuth) |
+| `SlackGatewayTarget` | `AWS::BedrockAgentCore::GatewayTarget` | `slack-integration-target` (inline OpenAPI schema + OAuth) |
 | `RuntimeExecutionRole` | `AWS::IAM::Role` | (auto-named) runtime execution role |
 | `RuntimeImage` | ECR image asset | `cdk-hnb659fds-container-assets-<account>-<region>` (agent container) |
 | `SlackRuntime` | `AWS::BedrockAgentCore::Runtime` | `slack_gateway_agent_<sfx>` (Container, CUSTOM_JWT) |
@@ -106,6 +106,23 @@ password, each user is paired with an `AwsCustomResource` that calls `AdminSetUs
 with `Permanent: true` — using the `TEST_USER_PASSWORD` from `.env` — so the accounts are
 immediately usable with the admin-password auth flow (this is who the `cli/` client signs
 in as).
+
+## Slack OpenAPI schema (inline)
+
+The gateway target's tools come from an OpenAPI schema committed to this repo at
+`schema/slack-open-api.json`. The stack reads it at synth time and passes it to the target
+as an **inline payload** (`TargetConfiguration.Mcp.OpenApiSchema.InlinePayload`), so the
+sample is fully self-contained — it does **not** reference any external or private S3
+bucket, and nothing needs to be uploaded before `cdk deploy`.
+
+The schema describes the Slack Web API operations (`https://slack.com/api`) that mirror the
+AgentCore Gateway **Slack integration template** (`chat.postMessage`, `conversations.*`,
+`users.list`, `search.all`, `files.*`, etc.). That console template flow
+(*MCP Target > Connectors > Other integrations > Slack*) is **console-only** — AWS does not
+expose it through the API/CloudFormation/CDK — so this stack reproduces an equivalent target
+using the standard, IaC-supported OpenAPI target type plus the Slack OAuth2 credential
+provider. To add or remove tools, edit `schema/slack-open-api.json` and redeploy; keep the
+requested Slack `user_scope` in the stack in sync with the operations you expose.
 
 ## AgentCore Runtime (JWT passthrough)
 

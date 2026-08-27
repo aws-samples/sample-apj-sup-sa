@@ -1,4 +1,5 @@
 import { CfnOutput, Duration, RemovalPolicy, Stack, StackProps, Aws } from 'aws-cdk-lib';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
@@ -42,7 +43,7 @@ export interface SlackGatewayStackProps extends StackProps {
  *
  *   - AgentCore Identity : OAuth2 credential provider "slack-mcp-server-provider" (SlackOauth2)
  *   - AgentCore Gateway  : "ac-gateway-mcp-server-slack" (MCP, CUSTOM_JWT)
- *   - Gateway Target     : "slack-integration-target" (OpenAPI schema in S3 + OAuth)
+ *   - Gateway Target     : "slack-integration-target" (inline OpenAPI schema + OAuth)
  *   - IAM Role           : "agentcore-ac-gateway-mcp-server-slack-role"
  *
  * Modelled on a reference AgentCore + Cognito setup and generalized into reusable
@@ -72,9 +73,16 @@ export class SlackGatewayStack extends Stack {
     const USER_POOL_NAME = `agentcore-gateway-pool-slack-${uniqueSuffix}`;
     const USER_POOL_CLIENT_NAME = `agentcore-gateway-client-slack-${uniqueSuffix}`;
 
-    // OpenAPI schema backing the MCP target.
-    const OPENAPI_SCHEMA_S3_URI =
-      's3://amazonbedrockagentcore-built-sampleschemas455e0815-oj7jujcd8xiu/slack-open-api.json';
+    // OpenAPI schema backing the MCP target. The schema is committed alongside this
+    // stack (schema/slack-open-api.json) and inlined into the CloudFormation template
+    // at synth time, so the sample is self-contained — no external/private S3 bucket
+    // is referenced. It mirrors the Slack Web operations exposed by the AgentCore
+    // Gateway "Slack" integration template (that console-only template flow has no
+    // CloudFormation/CDK equivalent, so an equivalent OpenAPI target is used instead).
+    const OPENAPI_SCHEMA_INLINE_PAYLOAD = fs.readFileSync(
+      path.join(__dirname, '..', 'schema', 'slack-open-api.json'),
+      'utf-8'
+    );
 
     // Slack user scopes requested during the 3-legged OAuth flow.
     const SLACK_USER_SCOPE =
@@ -341,7 +349,7 @@ export class SlackGatewayStack extends Stack {
         TargetConfiguration: {
           Mcp: {
             OpenApiSchema: {
-              S3: { Uri: OPENAPI_SCHEMA_S3_URI },
+              InlinePayload: OPENAPI_SCHEMA_INLINE_PAYLOAD,
             },
           },
         },
