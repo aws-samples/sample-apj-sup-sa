@@ -19,8 +19,6 @@ Env vars (set by the CDK stack):
 
 from __future__ import annotations
 
-import os
-
 from bedrock_agentcore import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.context import RequestContext
 from mcp.client.streamable_http import streamablehttp_client
@@ -67,21 +65,9 @@ SYSTEM_PROMPT = (
 # For durability across restarts/instances, back this with AgentCore Memory.
 _SESSIONS: dict[str, list] = {}
 
-# Runtime-only config. Credentials are intentionally left empty: the inbound
-# token is forwarded, so this Runtime never mints tokens from a password.
-SETTINGS = Settings(
-    region=os.environ.get("AWS_REGION", "us-east-1"),
-    user_pool_id="",
-    client_id="",
-    client_secret="",
-    username="",
-    password="",
-    gateway_url=os.environ["GATEWAY_URL"],
-    mcp_protocol_version=os.environ.get("MCP_PROTOCOL_VERSION", "2025-11-25"),
-    model_id=os.environ.get(
-        "BEDROCK_MODEL_ID", "global.anthropic.claude-sonnet-4-6"
-    ),
-)
+# Runtime-only config loaded from environment variables. No credentials: the
+# inbound token is forwarded, so this Runtime never mints tokens from a password.
+SETTINGS = Settings.load()
 
 MODEL = BedrockModel(model_id=SETTINGS.model_id, region_name=SETTINGS.region)
 
