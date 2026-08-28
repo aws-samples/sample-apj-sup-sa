@@ -1,0 +1,545 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Slack Web API (AgentCore Gateway target)",
+    "description": "OpenAPI schema for the subset of Slack Web API methods exposed by the Amazon Bedrock AgentCore Gateway 'Slack' integration template. Modelled on the operations documented under 'Built-in templates from integration providers as targets > Slack Web'. All calls are authenticated with an OAuth2 user token (Authorization: Bearer) vended by the gateway's AgentCore Identity credential provider.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://slack.com/api",
+      "description": "Slack Web API base URL"
+    }
+  ],
+  "security": [
+    {
+      "SlackOAuth": []
+    }
+  ],
+  "paths": {
+    "/chat.postMessage": {
+      "post": {
+        "operationId": "chatPostMessage",
+        "summary": "Send new message",
+        "description": "Sends a message to a channel.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel"],
+                "properties": {
+                  "channel": { "type": "string", "description": "Channel, private group, or IM channel to send the message to. Can be an encoded ID or a name." },
+                  "text": { "type": "string", "description": "The primary text content of the message." },
+                  "blocks": { "type": "string", "description": "A JSON-encoded array of layout blocks." },
+                  "thread_ts": { "type": "string", "description": "Provide the ts value of another message to make this message a reply in that thread." },
+                  "reply_broadcast": { "type": "boolean", "description": "When replying in a thread, also send the reply to the channel." },
+                  "unfurl_links": { "type": "boolean", "description": "Enable unfurling of primarily text-based content." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/chat.postEphemeral": {
+      "post": {
+        "operationId": "chatPostEphemeral",
+        "summary": "Send temporary message",
+        "description": "Sends an ephemeral message to a user in a channel, visible only to the assigned user.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel", "user"],
+                "properties": {
+                  "channel": { "type": "string", "description": "Channel to send the ephemeral message to." },
+                  "user": { "type": "string", "description": "ID of the user who will receive the ephemeral message." },
+                  "text": { "type": "string", "description": "The primary text content of the message." },
+                  "blocks": { "type": "string", "description": "A JSON-encoded array of layout blocks." },
+                  "thread_ts": { "type": "string", "description": "The ts of another message to reply to in a thread." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.create": {
+      "post": {
+        "operationId": "conversationsCreate",
+        "summary": "Start new channel",
+        "description": "Initiates a public or private channel-based conversation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "Name of the public or private channel to create." },
+                  "is_private": { "type": "boolean", "description": "Create a private channel instead of a public one." },
+                  "team_id": { "type": "string", "description": "Encoded team id to create the channel in, required if org token is used." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.history": {
+      "get": {
+        "operationId": "conversationsHistory",
+        "summary": "View message history",
+        "description": "Fetches a conversation's history of messages and events.",
+        "parameters": [
+          { "name": "channel", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Conversation ID to fetch history for." },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Pagination cursor from a previous response's response_metadata.next_cursor." },
+          { "name": "latest", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Only messages before this Unix timestamp will be included." },
+          { "name": "oldest", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Only messages after this Unix timestamp will be included." },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Maximum number of items to return (1-1000)." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.invite": {
+      "post": {
+        "operationId": "conversationsInvite",
+        "summary": "Add users to channel",
+        "description": "Invites users to a channel.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel", "users"],
+                "properties": {
+                  "channel": { "type": "string", "description": "The ID of the public or private channel to invite users to." },
+                  "users": { "type": "string", "description": "A comma separated list of user IDs (up to 1000)." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.join": {
+      "post": {
+        "operationId": "conversationsJoin",
+        "summary": "Enter existing conversation",
+        "description": "Joins an existing conversation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel"],
+                "properties": {
+                  "channel": { "type": "string", "description": "ID of the channel to join." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.kick": {
+      "post": {
+        "operationId": "conversationsKick",
+        "summary": "Remove user from chat",
+        "description": "Removes a user from a conversation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel", "user"],
+                "properties": {
+                  "channel": { "type": "string", "description": "ID of the conversation to remove the user from." },
+                  "user": { "type": "string", "description": "User ID to remove." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.leave": {
+      "post": {
+        "operationId": "conversationsLeave",
+        "summary": "Exit conversation",
+        "description": "Leaves a conversation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel"],
+                "properties": {
+                  "channel": { "type": "string", "description": "Conversation ID to leave." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.list": {
+      "get": {
+        "operationId": "conversationsList",
+        "summary": "View all channels",
+        "description": "Lists all channels in a Slack team.",
+        "parameters": [
+          { "name": "exclude_archived", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Set to true to exclude archived channels from the list." },
+          { "name": "types", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Comma-separated list of channel types: public_channel, private_channel, mpim, im." },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Maximum number of items to return (1-1000)." },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Pagination cursor from a previous response." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.members": {
+      "get": {
+        "operationId": "conversationsMembers",
+        "summary": "View chat participants",
+        "description": "Retrieves members of a conversation.",
+        "parameters": [
+          { "name": "channel", "in": "query", "required": true, "schema": { "type": "string" }, "description": "ID of the conversation to retrieve members for." },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Maximum number of items to return (1-1000)." },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Pagination cursor from a previous response." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.open": {
+      "post": {
+        "operationId": "conversationsOpen",
+        "summary": "Start or resume direct message",
+        "description": "Opens or resumes a direct message or multi-person direct message.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "users": { "type": "string", "description": "Comma separated list of 1-8 user IDs to open a DM/MPIM with." },
+                  "channel": { "type": "string", "description": "Resume a conversation by supplying an im or mpim's ID." },
+                  "return_im": { "type": "boolean", "description": "Boolean, indicates you want the full IM channel definition in the response." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.replies": {
+      "get": {
+        "operationId": "conversationsReplies",
+        "summary": "View message thread",
+        "description": "Retrieves a thread of messages posted to a conversation.",
+        "parameters": [
+          { "name": "channel", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Conversation ID to fetch the thread from." },
+          { "name": "ts", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Unique identifier of either a thread's parent message or a message in the thread." },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Pagination cursor from a previous response." },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Maximum number of items to return (1-1000)." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/conversations.setTopic": {
+      "post": {
+        "operationId": "conversationsSetTopic",
+        "summary": "Set chat topic",
+        "description": "Sets the topic for a conversation.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channel", "topic"],
+                "properties": {
+                  "channel": { "type": "string", "description": "Conversation ID to set the topic of." },
+                  "topic": { "type": "string", "description": "The new topic string. Does not support formatting or linkification." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/files.list": {
+      "get": {
+        "operationId": "filesList",
+        "summary": "List files",
+        "description": "Lists files for a team, in a channel, or from a user with applied filters.",
+        "parameters": [
+          { "name": "channel", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter files appearing in a specific channel, indicated by its ID." },
+          { "name": "user", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter files created by a single user." },
+          { "name": "types", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter files by type, comma-separated: all, spaces, snippets, images, gdocs, zips, pdfs." },
+          { "name": "count", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Number of items to return per page." },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Page number of results to return." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/files.info": {
+      "get": {
+        "operationId": "filesInfo",
+        "summary": "View file details",
+        "description": "Gets information about a file.",
+        "parameters": [
+          { "name": "file", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Specify a file by providing its ID." },
+          { "name": "count", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Number of comments to return per page." },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Page number of comments to return." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/search.all": {
+      "get": {
+        "operationId": "searchAll",
+        "summary": "Search messages and files",
+        "description": "Searches for messages and files matching a query.",
+        "parameters": [
+          { "name": "query", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Search query." },
+          { "name": "sort", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Return matches sorted by either score or timestamp." },
+          { "name": "sort_dir", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Change sort direction to ascending (asc) or descending (desc)." },
+          { "name": "count", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Number of items to return per page." },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Page number of results to return." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/usergroups.create": {
+      "post": {
+        "operationId": "userGroupsCreate",
+        "summary": "Create new user group",
+        "description": "Creates a User Group.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "A name for the User Group. Must be unique among User Groups." },
+                  "handle": { "type": "string", "description": "A mention handle. Must be unique among channels, users and User Groups." },
+                  "description": { "type": "string", "description": "A short description of the User Group." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/usergroups.list": {
+      "get": {
+        "operationId": "userGroupsList",
+        "summary": "View all user groups",
+        "description": "Lists all User Groups for a team.",
+        "parameters": [
+          { "name": "include_disabled", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Include disabled User Groups." },
+          { "name": "include_count", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Include the number of users in each User Group." },
+          { "name": "include_users", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Include the list of users for each User Group." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/usergroups.users.update": {
+      "post": {
+        "operationId": "userGroupsUsersUpdate",
+        "summary": "Edit user group",
+        "description": "Updates the list of users for a User Group.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["usergroup", "users"],
+                "properties": {
+                  "usergroup": { "type": "string", "description": "The encoded ID of the User Group to update." },
+                  "users": { "type": "string", "description": "A comma separated string of encoded user IDs that represent the entire list of users for the User Group." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/users.list": {
+      "get": {
+        "operationId": "usersList",
+        "summary": "View team members",
+        "description": "Lists all users in a Slack team.",
+        "parameters": [
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" }, "description": "Maximum number of items to return (0-1000)." },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Pagination cursor from a previous response." },
+          { "name": "include_locale", "in": "query", "required": false, "schema": { "type": "boolean" }, "description": "Set to true to receive the locale for users." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/reminders.add": {
+      "post": {
+        "operationId": "remindersAdd",
+        "summary": "Set new reminder",
+        "description": "Creates a reminder.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["text", "time"],
+                "properties": {
+                  "text": { "type": "string", "description": "The content of the reminder." },
+                  "time": { "type": "string", "description": "When this reminder should happen: a Unix timestamp, a number of seconds from now, or a natural language description of a time." },
+                  "user": { "type": "string", "description": "The user who will receive the reminder. Defaults to the authenticated user." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/users.profile.set": {
+      "post": {
+        "operationId": "usersProfileSet",
+        "summary": "Update user profile",
+        "description": "Sets the profile information for a user.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile": { "type": "string", "description": "Collection of key:value pairs presented as a URL-encoded JSON hash." },
+                  "name": { "type": "string", "description": "Name of a single profile field to set." },
+                  "value": { "type": "string", "description": "Value to set a single profile field to." },
+                  "user": { "type": "string", "description": "ID of user to change (admin only)." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/files.getUploadURLExternal": {
+      "get": {
+        "operationId": "getUploadURLExternal",
+        "summary": "Get external upload URL",
+        "description": "Gets a URL for an edge external file upload.",
+        "parameters": [
+          { "name": "filename", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Name of the file being uploaded." },
+          { "name": "length", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Size in bytes of the file being uploaded." },
+          { "name": "alt_txt", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Description of image for screen-reader." },
+          { "name": "snippet_type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Syntax type of the snippet being uploaded." }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    },
+    "/files.completeUploadExternal": {
+      "post": {
+        "operationId": "completeUploadExternal",
+        "summary": "Complete external upload",
+        "description": "Finalizes an upload started with files.getUploadURLExternal.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["files"],
+                "properties": {
+                  "files": { "type": "string", "description": "JSON-encoded array of file objects, each with an id and optional title." },
+                  "channel_id": { "type": "string", "description": "Channel ID where the file(s) will be shared." },
+                  "initial_comment": { "type": "string", "description": "The message text introducing the file(s)." },
+                  "thread_ts": { "type": "string", "description": "Provide the ts value of the parent message to upload the file(s) as a thread reply." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/SlackOk" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SlackOAuth": {
+        "type": "oauth2",
+        "description": "Slack 3-legged OAuth. The access token is vended by the AgentCore Identity credential provider and sent as 'Authorization: Bearer <token>'.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://slack.com/oauth/v2/authorize",
+            "tokenUrl": "https://slack.com/api/oauth.v2.access",
+            "scopes": {
+              "chat:write": "Send messages on the user's behalf",
+              "im:write": "Start direct messages with people",
+              "search:read": "Search the user's messages and files",
+              "users:read": "View people in the workspace",
+              "channels:history": "View messages in public channels",
+              "channels:read": "View basic information about public channels",
+              "channels:write": "Manage public channels and create new ones"
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "SlackOk": {
+        "description": "Standard Slack Web API response. Slack returns HTTP 200 even for logical errors; inspect the 'ok' field and, when false, the 'error' field.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/SlackResponse" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "SlackResponse": {
+        "type": "object",
+        "description": "Envelope common to all Slack Web API responses.",
+        "required": ["ok"],
+        "properties": {
+          "ok": { "type": "boolean", "description": "true if the request succeeded, false otherwise." },
+          "error": { "type": "string", "description": "Error code present when ok is false." },
+          "warning": { "type": "string", "description": "Warning code, if any." },
+          "response_metadata": {
+            "type": "object",
+            "description": "Optional metadata, including pagination cursors.",
+            "properties": {
+              "next_cursor": { "type": "string", "description": "Cursor to pass as the 'cursor' parameter to fetch the next page." }
+            }
+          }
+        }
+      }
+    }
+  }
+}
