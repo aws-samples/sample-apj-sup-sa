@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
-import * as cr from 'aws-cdk-lib/custom-resources';
 import * as ecrAssets from 'aws-cdk-lib/aws-ecr-assets';
 import { CfnResource } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
@@ -25,12 +24,6 @@ export interface SlackGatewayStackProps extends StackProps {
    * If omitted, a stable suffix is derived from the construct address.
    */
   readonly resourceNameSuffix?: string;
-  /**
-   * Permanent password assigned to the seeded test users (user1, user2).
-   * From the .env file (TEST_USER_PASSWORD). Must satisfy the user pool's
-   * password policy (8+ chars with upper, lower, digit, and symbol).
-   */
-  readonly testUserPassword: string;
   /**
    * Bedrock model id the runtime agent uses. From the .env file
    * (BEDROCK_MODEL_ID). Defaults to a cross-region Claude Sonnet profile.
@@ -105,8 +98,9 @@ export class SlackGatewayStack extends Stack {
       // Self sign-up is disabled: this pool is the trusted JWT issuer for both the
       // gateway (CUSTOM_JWT) and the internet-facing PUBLIC runtime, and downstream
       // Slack calls act as the signed-in user. Allowing public self-registration
-      // would let anyone mint a valid token and invoke the agent. Users are created
-      // administratively (see the seeded CfnUserPoolUser accounts below).
+      // would let anyone mint a valid token and invoke the agent. Create sign-in
+      // users administratively yourself (AWS console or CLI) after deploy — see the
+      // README ("Create a Cognito sign-in user").
       selfSignUpEnabled: false,
       signInAliases: { username: true },
       autoVerify: { email: false, phone: false },
@@ -160,46 +154,6 @@ export class SlackGatewayStack extends Stack {
 
     // Discovery URL + allowed client wired into the gateway authorizer below.
     const jwtDiscoveryUrl = `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}/.well-known/openid-configuration`;
-
-    // ---------------------------------------------------------------------
-    // 0b. Seed test users
-    // ---------------------------------------------------------------------
-    // Two fictitious users for testing the OAuth/JWT flow. CfnUserPoolUser only
-    // creates the account with a temporary password (FORCE_CHANGE_PASSWORD state),
-    // so each user is paired with an AwsCustomResource that calls
-    // AdminSetUserPassword with Permanent=true to make the password usable
-    // immediately (compatible with the adminUserPassword auth flow). MessageAction
-    // SUPPRESS avoids sending any invitation email — no email verification needed.
-    const TEST_USER_PASSWORD = props.testUserPassword;
-    const testUsernames = ['user1', 'user2'];
-
-    testUsernames.forEach((username, index) => {
-      const cfnUser = new cognito.CfnUserPoolUser(this, `TestUser${index + 1}`, {
-        userPoolId: userPool.userPoolId,
-        username,
-        messageAction: 'SUPPRESS',
-      });
-
-      const setPassword = new cr.AwsCustomResource(this, `TestUser${index + 1}SetPassword`, {
-        onCreate: {
-          service: 'CognitoIdentityServiceProvider',
-          action: 'adminSetUserPassword',
-          parameters: {
-            UserPoolId: userPool.userPoolId,
-            Username: username,
-            Password: TEST_USER_PASSWORD,
-            Permanent: true,
-          },
-          physicalResourceId: cr.PhysicalResourceId.of(`${username}-password`),
-        },
-        policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-          resources: [userPool.userPoolArn],
-        }),
-        installLatestAwsSdk: false,
-      });
-
-      setPassword.node.addDependency(cfnUser);
-    });
 
     // ---------------------------------------------------------------------
     // 1. AgentCore Identity — OAuth2 credential provider (Slack)

@@ -11,7 +11,8 @@ bot token acts as the bot for everyone).
 
 By the end you will have:
 
-- A Cognito user pool with two seeded test users (`user1`, `user2`).
+- A Cognito user pool (you create sign-in users yourself after deploy, via the AWS console
+  or CLI).
 - An AgentCore Gateway wired to a Slack MCP target through an AgentCore Identity OAuth2
   provider.
 - An AgentCore Runtime hosting the agent, forwarding your Cognito JWT to the gateway.
@@ -95,10 +96,6 @@ Edit `.env`:
 - `SLACK_CLIENT_SECRET` — your Slack app's **Client Secret**. AgentCore stores this as a
   MANAGED secret in Secrets Manager, and its plaintext can't be read back from the API — so
   you must supply the real value here.
-- `TEST_USER_PASSWORD` — a password of your choice. The CDK creates a Cognito user pool with
-  two users (`user1`, `user2`) and assigns them this password. It **must satisfy the Cognito
-  password policy: 8+ characters with an uppercase letter, a lowercase letter, a digit, and a
-  symbol.**
 
 Optional overrides (safe to leave commented):
 
@@ -123,12 +120,11 @@ The stack (`SlackGatewayStack`) provisions the following:
 
 | Resource | Type | What it does |
 | --- | --- | --- |
-| Cognito user pool + resource server + domain + app client | `AWS::Cognito::*` | The trusted JWT issuer for both the gateway and the runtime. App client uses auth-code OAuth + admin-password auth, generates a secret, `invoke` scope. |
-| Two seeded users (`user1`, `user2`) | `CfnUserPoolUser` + custom resource | Test identities with your `TEST_USER_PASSWORD` set as a permanent password. |
+| Cognito user pool + resource server + domain + app client | `AWS::Cognito::*` | The trusted JWT issuer for both the gateway and the runtime. App client uses auth-code OAuth + admin-password auth, generates a secret, `invoke` scope. No sign-in users are created — you add them after deploy (Step 3). |
 | Slack OAuth2 credential provider | `AWS::BedrockAgentCore::OAuth2CredentialProvider` | AgentCore Identity provider (`SlackOauth2`) built from your Slack client id/secret; drives the 3LO authorization-code flow. |
 | Gateway IAM role | `AWS::IAM::Role` | Assumed by the gateway; scoped to fetch workload tokens, the OAuth2 token, and the managed Slack secret. |
 | AgentCore Gateway | `AWS::BedrockAgentCore::Gateway` | MCP gateway with a `CUSTOM_JWT` authorizer wired to the Cognito pool/client. |
-| Gateway target | `AWS::BedrockAgentCore::GatewayTarget` | Slack integration from an OpenAPI schema in S3, using the OAuth2 provider with the Slack `user_scope`. |
+| Gateway target | `AWS::BedrockAgentCore::GatewayTarget` | Slack integration from an inline OpenAPI schema (`schema/slack-open-api.json`), using the OAuth2 provider with the Slack `user_scope`. |
 | Runtime execution role | `AWS::IAM::Role` | Grants the runtime Bedrock model invocation, logs/traces, and ECR pull. |
 | Runtime container image | ECR image asset | The Strands agent, built for `linux/arm64` and pushed to the CDK-managed ECR repo. |
 | AgentCore Runtime | `AWS::BedrockAgentCore::Runtime` | Hosts the agent (`PUBLIC` network, `CUSTOM_JWT` inbound auth on the same pool/client), forwards the caller's `Authorization` header to the gateway. |
@@ -137,7 +133,26 @@ When the deploy finishes, note the stack outputs (`RuntimeArn`, `UserPoolId`,
 `UserPoolClientId`, `GatewayUrl`, etc.). The CLI discovers these automatically, so you don't
 need to copy them by hand.
 
-### Step 3 — Invoke the runtime from the CLI
+### Step 3 — Create a Cognito sign-in user
+
+The stack does not create any sign-in users, so add one from the **AWS console**. Use the
+`UserPoolId` from the stack outputs to find the pool.
+
+1. **Create the user.** Go to **Amazon Cognito > User pools > _your pool_ > Users >
+   Create user**. Set **User name** to `user1`, choose **Don't send an invitation**, set a
+   password (must satisfy the pool policy: 8+ chars with upper, lower, digit, and symbol),
+   and create the user. It starts in the **Force change password** state.
+2. **Reset the password once for first login.** A console-created user can't sign in until
+   its temporary password is changed. In the same pool, open **App integration > App clients
+   > _your app client_ > Login pages > View login page** to open the hosted sign-in page.
+   Sign in as `user1` with the password from step 1; you'll be prompted to set a **new
+   password**. Enter it — this moves the user to **Confirmed**, which is what the CLI's
+   admin-password auth needs. (The page then redirects to `http://localhost:8080/callback`;
+   a browser error is expected — the password change has already taken effect.)
+
+Use this final username/password in the CLI step below.
+
+### Step 4 — Invoke the runtime from the CLI
 
 The CLI in `cli/` signs in as a Cognito user, invokes the runtime with that user's JWT, and
 streams the agent's reply. It also runs a local callback server on port 8080 to complete the
@@ -149,8 +164,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Username/password for the CLI (defaults to user1). The password must match the
-# TEST_USER_PASSWORD you set for the CDK.
+# Username/password for the CLI (defaults to user1). These must match the Cognito
+# user you created in Step 3.
 cp .env.example .env   # then edit COGNITO_USERNAME / TEST_USER_PASSWORD if needed
 ```
 
@@ -163,7 +178,7 @@ python invoke_runtime.py
 # Or send an opening prompt, then continue chatting:
 python invoke_runtime.py "list the slack users"
 
-# Chat as the other seeded user:
+# Chat as another user you created:
 python invoke_runtime.py --user user2
 
 # Override stack name / region if you deployed elsewhere:
@@ -335,16 +350,12 @@ This repository is intended as a **sample for development environments**. It opt
 quick, self-contained walkthrough — not for production hardening. Before adapting it for a
 production deployment, make sure the following are in place:
 
-- **Keep secrets out of CloudFormation templates.** The Slack client secret and
-  `TEST_USER_PASSWORD` are injected at synth time and get rendered into the generated
-  template under `cdk.out/` (kept out of source control here via `.gitignore`). For
-  production, pass secrets by reference rather than value — e.g. store them in AWS Secrets
-  Manager / SSM Parameter Store and resolve them at deploy time with dynamic references, or
-  supply them out-of-band — so plaintext never lands in a template, state file, or CI log.
-- **Don't ship seeded users or shared passwords.** The `user1`/`user2` accounts with a single
-  shared `TEST_USER_PASSWORD` exist purely for the demo. Remove them for production; require
-  strong, unique per-user credentials, enable **MFA**, and integrate a real identity provider
-  (federation / SSO) instead of admin-set passwords.
+- **Keep secrets out of CloudFormation templates.** The Slack client secret is injected at
+  synth time and gets rendered into the generated template under `cdk.out/` (kept out of
+  source control here via `.gitignore`). For production, pass it by reference rather than
+  value — e.g. store it in AWS Secrets Manager / SSM Parameter Store and resolve it at deploy
+  time with dynamic references or `ClientSecretSource: EXTERNAL` — so plaintext never lands in
+  a template, state file, or CI log. 
 - **Lock down the runtime's network exposure.** The runtime is deployed with
   `NetworkMode: PUBLIC` (internet-facing, guarded only by the Cognito `CUSTOM_JWT`
   authorizer). For production, restrict inbound access (private networking / VPC, WAF, IP

@@ -32,15 +32,15 @@ Configuration is read from a `.env` file at the project root (loaded via `dotenv
 ```bash
 cp .env.example .env
 # edit .env and set SLACK_CLIENT_SECRET (and SLACK_CLIENT_ID if different)
-# and TEST_USER_PASSWORD
 ```
 
-Two values are **required** — `cdk deploy` fails fast if either is missing:
+The Slack OAuth2 app credentials are **required** — `cdk deploy` fails fast if either is
+missing:
 
 - `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` — the Slack OAuth2 app credentials.
-- `TEST_USER_PASSWORD` — the permanent password assigned to the seeded test users
-  (`user1`, `user2`). Must satisfy the Cognito password policy (8+ chars with upper,
-  lower, digit, and symbol).
+
+This stack does **not** create any Cognito sign-in users. After deploy, create one yourself
+in the AWS console — see [Create a Cognito sign-in user](#create-a-cognito-sign-in-user).
 
 You can also set `COGNITO_DOMAIN_PREFIX` in `.env` (defaults to `agentcore-gateway-slack`).
 The Cognito hosted-UI domain prefix must be **globally unique across all AWS accounts**, so
@@ -81,8 +81,6 @@ All account/region-scoped names below carry a unique suffix (`<sfx>`), controlle
 | `GatewayUserPool/GatewayResourceServer` | `AWS::Cognito::UserPoolResourceServer` | `agentcore-gateway-id-slack` (scope `invoke`) |
 | `GatewayUserPool/GatewayUserPoolDomain` | `AWS::Cognito::UserPoolDomain` | `agentcore-gateway-slack-<sfx>` (hosted UI) |
 | `GatewayUserPool/GatewayUserPoolClient` | `AWS::Cognito::UserPoolClient` | `agentcore-gateway-client-slack-<sfx>` |
-| `TestUser1` / `TestUser2` | `AWS::Cognito::UserPoolUser` | `user1`, `user2` (seeded test users) |
-| `TestUser1SetPassword` / `TestUser2SetPassword` | `Custom::AWS` | sets each user's permanent password |
 | `SlackOAuthProvider` | `AWS::BedrockAgentCore::OAuth2CredentialProvider` | `slack-mcp-server-provider-<sfx>` (SlackOauth2) |
 | `GatewayRole` | `AWS::IAM::Role` | `agentcore-ac-gateway-mcp-server-slack-role-<sfx>` |
 | `SlackGateway` | `AWS::BedrockAgentCore::Gateway` | `ac-gateway-mcp-server-slack-<sfx>` (MCP, CUSTOM_JWT) |
@@ -99,13 +97,30 @@ email+phone recovery, and the `ESSENTIALS` tier; the app client uses the auth-co
 flow, admin-password auth, `email/openid/profile` + `agentcore-gateway-id-slack/invoke`
 scopes, a generated client secret, and a 30-day refresh token.
 
-Self sign-up is disabled, so the stack **seeds two test users** (`user1`, `user2`)
-administratively via `CfnUserPoolUser` (with `MessageAction: SUPPRESS`, so no invitation
-email is sent). Because `CfnUserPoolUser` only creates the account with a temporary
-password, each user is paired with an `AwsCustomResource` that calls `AdminSetUserPassword`
-with `Permanent: true` — using the `TEST_USER_PASSWORD` from `.env` — so the accounts are
-immediately usable with the admin-password auth flow (this is who the `cli/` client signs
-in as).
+Create a user administratively after deploy (see below); the app client's admin-password auth flow
+(`ADMIN_USER_PASSWORD_AUTH`) is what the `cli/` client signs in with.
+
+## Create a Cognito sign-in user
+
+The `cli/` client (and any caller) needs a Cognito user to sign in as. The stack creates no
+users, so add one from the **AWS console** after `cdk deploy`. Use the `UserPoolId` from the
+stack outputs to find the pool.
+
+1. **Create the user.** Go to **Amazon Cognito > User pools > _your pool_ > Users >
+   Create user**. Set **User name** to `user1`, choose **Don't send an invitation**, set a
+   password (must satisfy the pool policy: 8+ chars with upper, lower, digit, and symbol),
+   and create the user. It starts in the **Force change password** state.
+2. **Reset the password once for first login.** A console-created user can't sign in until
+   its temporary password is changed. In the same pool, open **App integration > App clients
+   > _your app client_ > Login pages > View login page** to open the hosted sign-in page.
+   Sign in as `user1` with the password from step 1; you'll be prompted to set a **new
+   password**. Enter it — this moves the user to **Confirmed**, which is what the CLI's
+   admin-password auth needs. (The page then redirects to `http://localhost:8080/callback`;
+   a browser error there is harmless — the password change has already taken effect.)
+3. **Use it in the CLI.** Put the final username/password in `cli/.env`
+   (`COGNITO_USERNAME` / `TEST_USER_PASSWORD`), or pass `--user` / `--password`.
+
+Repeat for any additional users.
 
 ## Slack OpenAPI schema (inline)
 
@@ -170,20 +185,15 @@ The runtime ARN is available in the `RuntimeArn` stack output.
 This is a **sample** optimized for a quick end-to-end demo. Review the following before
 adapting it for a production deployment:
 
-- **Keep secrets out of CDK outputs and synthesized templates.** The Slack client secret
-  and `TEST_USER_PASSWORD` are injected at synth time from `.env`, so they are rendered in
-  cleartext into the generated CloudFormation under `cdk.out/` (the OAuth provider config
-  and the `adminSetUserPassword` custom-resource call both carry them). Never commit
-  `cdk.out/` (it is gitignored) and never add these values as `CfnOutput`s. For production,
-  resolve secrets at deploy time from **AWS Secrets Manager or SSM Parameter Store** (e.g.
-  in `bin/app.ts`, or via CloudFormation dynamic references) instead of a local `.env`, so
-  plaintext never touches the template or your shell history. The Cognito app client secret
-  is already intentionally **not** exported — retrieve it on demand via the
-  `UserPoolClientSecretHint` command rather than adding an output.
-- **Remove the seeded test users.** `user1`/`user2` are created with a single shared,
-  permanent password purely for demo sign-in. Delete the `CfnUserPoolUser` /
-  `AwsCustomResource` seeding (and `TEST_USER_PASSWORD`) for production and provision real
-  users through your identity provider / federation with per-user credentials.
+- **Keep secrets out of CDK outputs and synthesized templates.** The Slack client secret is
+  injected at synth time from `.env`, so it is rendered in cleartext into the generated
+  CloudFormation under `cdk.out/` (the OAuth provider config carries it). Never commit
+  `cdk.out/` (it is gitignored) and never add this value as a `CfnOutput`. For production,
+  resolve the secret at deploy time from **AWS Secrets Manager or SSM Parameter Store** (e.g.
+  in `bin/app.ts`, or via CloudFormation dynamic references / `ClientSecretSource: EXTERNAL`)
+  instead of a local `.env`, so plaintext never touches the template or your shell history.
+  The Cognito app client secret is already intentionally **not** exported — retrieve it on
+  demand via the `UserPoolClientSecretHint` command rather than adding an output.
 - **The runtime is internet-facing (`NetworkMode: PUBLIC`).** Access is gated only by the
   Cognito `CUSTOM_JWT` authorizer, so token hygiene matters: enable **MFA** on the user
   pool, shorten the 30-day refresh token and access-token validities, and consider WAF /

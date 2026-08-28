@@ -20,15 +20,6 @@ if (!slackClientId || !slackClientSecret) {
   );
 }
 
-const testUserPassword = process.env.TEST_USER_PASSWORD;
-
-if (!testUserPassword) {
-  throw new Error(
-    'Missing TEST_USER_PASSWORD. Copy .env.example to .env and set the password ' +
-      'for the seeded test users (must satisfy the Cognito password policy).'
-  );
-}
-
 const app = new cdk.App();
 
 new SlackGatewayStack(app, 'SlackGatewayStack', {
@@ -36,7 +27,6 @@ new SlackGatewayStack(app, 'SlackGatewayStack', {
   slackClientSecret,
   cognitoDomainPrefix: process.env.COGNITO_DOMAIN_PREFIX,
   resourceNameSuffix: process.env.RESOURCE_SUFFIX,
-  testUserPassword,
   bedrockModelId: process.env.BEDROCK_MODEL_ID,
   // Account comes from the deployer's active AWS credentials; region is pinned to
   // us-east-1 (overridable via CDK_DEFAULT_REGION / AWS_REGION).
