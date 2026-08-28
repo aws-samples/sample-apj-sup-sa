@@ -387,10 +387,17 @@ This repository is intended as a **sample for development environments**. It opt
 quick, self-contained walkthrough — not for production hardening. Before adapting it for a
 production deployment, make sure the following are in place:
 
+- **MFA is disabled** on the Cognito user pool. Production deployments should enable MFA
+  (TOTP or SMS) to protect user accounts.
+- **Cognito refresh tokens are valid for 30 days.** The Cognito app client is configured with `refreshTokenValidity: Duration.days(30)`. This long lifetime is convenient for demos but increases the window of exposure if a token is compromised. Shorten the refresh-token lifetime and add token revocation to match your organization's session policy.
+- **The AgentCore Runtime uses `NetworkMode: PUBLIC`.** The endpoint is internet-facing
+  and protected only by the `CUSTOM_JWT` authorizer. In production, move to private
+  networking (VPC / PrivateLink) and treat the JWT authorizer as one layer of defense, not
+  the only one.
 - **Secrets stay out of CloudFormation templates.** Both the Slack client id and secret are
   resolved from your pre-created Secrets Manager secret at deploy time via CloudFormation
   dynamic references, so only the reference — not the plaintext — appears in `cdk.out/`.
-  AgentCore stores its own MANAGED copy of the client secret after deploy; 
+  AgentCore stores its own MANAGED copy of the client secret after deploy.
 - **Lock down the runtime's network exposure.** The runtime is deployed with
   `NetworkMode: PUBLIC` (internet-facing, guarded only by the Cognito `CUSTOM_JWT`
   authorizer). For production, restrict inbound access (private networking / VPC, WAF, IP
