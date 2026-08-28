@@ -10,21 +10,26 @@ dotenv.config();
 // This stack deploys to us-east-1. Override with AWS_REGION / CDK_DEFAULT_REGION if needed.
 const region = process.env.CDK_DEFAULT_REGION ?? process.env.AWS_REGION ?? 'us-east-1';
 
-const slackClientId = process.env.SLACK_CLIENT_ID;
-const slackClientSecret = process.env.SLACK_CLIENT_SECRET;
+// ARN of the pre-created Secrets Manager secret holding the Slack OAuth2 app
+// credentials as JSON. An ARN (not a name) is required: the client secret is
+// referenced via ClientSecretConfig (ClientSecretSource = EXTERNAL), which
+// AgentCore Identity reads at runtime. The secret must exist before deploy and
+// grant the AgentCore service principal secretsmanager:GetSecretValue via its
+// resource policy (see README).
+const slackSecretArn = process.env.SLACK_SECRET_ARN;
 
-if (!slackClientId || !slackClientSecret) {
+if (!slackSecretArn) {
   throw new Error(
-    'Missing SLACK_CLIENT_ID and/or SLACK_CLIENT_SECRET. ' +
-      'Copy .env.example to .env and fill in the Slack OAuth2 app credentials.'
+    'Missing SLACK_SECRET_ARN. Copy .env.example to .env and set the ARN of the ' +
+      'pre-created Secrets Manager secret holding the Slack OAuth2 client id and secret ' +
+      '(JSON, e.g. {"client_id":"...","client_secret":"..."}).'
   );
 }
 
 const app = new cdk.App();
 
 new SlackGatewayStack(app, 'SlackGatewayStack', {
-  slackClientId,
-  slackClientSecret,
+  slackSecretArn,
   cognitoDomainPrefix: process.env.COGNITO_DOMAIN_PREFIX,
   resourceNameSuffix: process.env.RESOURCE_SUFFIX,
   bedrockModelId: process.env.BEDROCK_MODEL_ID,

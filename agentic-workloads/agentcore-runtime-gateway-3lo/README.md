@@ -90,12 +90,24 @@ cd slack-gateway-cdk
 cp .env.example .env
 ```
 
+First, pre-create a Secrets Manager secret (in the deploy account/region) holding your Slack
+app credentials as two key-value pairs:
+
+1. Open the **AWS Console → Secrets Manager** and click **Store a new secret**.
+2. Choose **Other type of secret**.
+3. Under **Key/value pairs**, add two entries:
+   - Key `client_id` → value: your Slack app's **Client ID**
+   - Key `client_secret` → value: your Slack app's **Client Secret**
+4. Click **Next**, name the secret `slack/agentcore-gateway-credentials`, then complete the wizard.
+5. After creation, open the secret and copy its full **ARN**.
+
+Then set `SLACK_SECRET_ARN` in `.env` to the full ARN of that secret.
+
 Edit `.env`:
 
-- `SLACK_CLIENT_ID` — your Slack app's **Client ID**.
-- `SLACK_CLIENT_SECRET` — your Slack app's **Client Secret**. AgentCore stores this as a
-  MANAGED secret in Secrets Manager, and its plaintext can't be read back from the API — so
-  you must supply the real value here.
+- `SLACK_SECRET_ARN` — the full **ARN** of the secret. Both `client_id` and `client_secret`
+  are resolved by CloudFormation at deploy time (the deploying principal needs
+  `secretsmanager:GetSecretValue` on it). The secret must use the JSON keys `client_id` and `client_secret`.
 
 Optional overrides (safe to leave commented):
 
@@ -121,8 +133,8 @@ The stack (`SlackGatewayStack`) provisions the following:
 | Resource | Type | What it does |
 | --- | --- | --- |
 | Cognito user pool + resource server + domain + app client | `AWS::Cognito::*` | The trusted JWT issuer for both the gateway and the runtime. App client uses auth-code OAuth + admin-password auth, generates a secret, `invoke` scope. No sign-in users are created — you add them after deploy (Step 3). |
-| Slack OAuth2 credential provider | `AWS::BedrockAgentCore::OAuth2CredentialProvider` | AgentCore Identity provider (`SlackOauth2`) built from your Slack client id/secret; drives the 3LO authorization-code flow. |
-| Gateway IAM role | `AWS::IAM::Role` | Assumed by the gateway; scoped to fetch workload tokens, the OAuth2 token, and the managed Slack secret. |
+| Slack OAuth2 credential provider | `AWS::BedrockAgentCore::OAuth2CredentialProvider` | AgentCore Identity provider (`SlackOauth2`, `ClientSecretSource: MANAGED`) — client id/secret resolved from your pre-created secret at deploy time; drives the 3LO authorization-code flow. |
+| Gateway IAM role | `AWS::IAM::Role` | Assumed by the gateway; scoped to fetch workload tokens, the OAuth2 token, and the AgentCore-managed client secret. |
 | AgentCore Gateway | `AWS::BedrockAgentCore::Gateway` | MCP gateway with a `CUSTOM_JWT` authorizer wired to the Cognito pool/client. |
 | Gateway target | `AWS::BedrockAgentCore::GatewayTarget` | Slack integration from an inline OpenAPI schema (`schema/slack-open-api.json`), using the OAuth2 provider with the Slack `user_scope`. |
 | Runtime execution role | `AWS::IAM::Role` | Grants the runtime Bedrock model invocation, logs/traces, and ECR pull. |
@@ -133,7 +145,32 @@ When the deploy finishes, note the stack outputs (`RuntimeArn`, `UserPoolId`,
 `UserPoolClientId`, `GatewayUrl`, etc.). The CLI discovers these automatically, so you don't
 need to copy them by hand.
 
-### Step 3 — Create a Cognito sign-in user
+### Step 3 — Register the AgentCore OAuth callback URL in your Slack app
+
+Before the 3-legged OAuth flow can complete, Slack must trust the AgentCore Identity
+callback URL as an allowed redirect. If this step is skipped, the gateway silently fails
+with a `redirect_uri_mismatch` error and the agent never surfaces an authorization URL.
+
+1. **Find the callback URL.** After deploy, retrieve it from the credential provider:
+   ```bash
+   aws bedrock-agentcore-control get-oauth2-credential-provider \
+     --name slack-mcp-server-provider-<your-suffix> \
+     --region us-east-1 \
+     --query 'oauth2ProviderConfigOutput.slackOauth2ProviderConfig' \
+     --output json
+   ```
+   The callback URL looks like:
+   ```
+   https://bedrock-agentcore.us-east-1.amazonaws.com/identities/oauth2/callback/<uuid>
+   ```
+2. **Add it to your Slack app.** Go to [api.slack.com/apps](https://api.slack.com/apps) →
+   select your app → **OAuth & Permissions → Redirect URLs → Add New Redirect URL**.
+   Paste the full `https://bedrock-agentcore…` URL and click **Save URLs**.
+
+The UUID in the URL is unique per credential provider, so if you ever destroy and redeploy
+the stack (which recreates the provider), repeat this step with the new URL.
+
+### Step 4 — Create a Cognito sign-in user
 
 The stack does not create any sign-in users, so add one from the **AWS console**. Use the
 `UserPoolId` from the stack outputs to find the pool.
@@ -152,7 +189,7 @@ The stack does not create any sign-in users, so add one from the **AWS console**
 
 Use this final username/password in the CLI step below.
 
-### Step 4 — Invoke the runtime from the CLI
+### Step 5 — Invoke the runtime from the CLI
 
 The CLI in `cli/` signs in as a Cognito user, invokes the runtime with that user's JWT, and
 streams the agent's reply. It also runs a local callback server on port 8080 to complete the
@@ -350,12 +387,10 @@ This repository is intended as a **sample for development environments**. It opt
 quick, self-contained walkthrough — not for production hardening. Before adapting it for a
 production deployment, make sure the following are in place:
 
-- **Keep secrets out of CloudFormation templates.** The Slack client secret is injected at
-  synth time and gets rendered into the generated template under `cdk.out/` (kept out of
-  source control here via `.gitignore`). For production, pass it by reference rather than
-  value — e.g. store it in AWS Secrets Manager / SSM Parameter Store and resolve it at deploy
-  time with dynamic references or `ClientSecretSource: EXTERNAL` — so plaintext never lands in
-  a template, state file, or CI log. 
+- **Secrets stay out of CloudFormation templates.** Both the Slack client id and secret are
+  resolved from your pre-created Secrets Manager secret at deploy time via CloudFormation
+  dynamic references, so only the reference — not the plaintext — appears in `cdk.out/`.
+  AgentCore stores its own MANAGED copy of the client secret after deploy; 
 - **Lock down the runtime's network exposure.** The runtime is deployed with
   `NetworkMode: PUBLIC` (internet-facing, guarded only by the Cognito `CUSTOM_JWT`
   authorizer). For production, restrict inbound access (private networking / VPC, WAF, IP

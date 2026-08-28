@@ -31,13 +31,31 @@ Configuration is read from a `.env` file at the project root (loaded via `dotenv
 
 ```bash
 cp .env.example .env
-# edit .env and set SLACK_CLIENT_SECRET (and SLACK_CLIENT_ID if different)
+# edit .env and set SLACK_SECRET_ARN
 ```
 
-The Slack OAuth2 app credentials are **required** — `cdk deploy` fails fast if either is
-missing:
+**Prerequisite — create the Slack credentials secret.** The Slack client id and secret are
+**not** put in `.env`. Pre-create a Secrets Manager secret (in the deploy account/region)
+holding both as JSON with the keys `client_id` / `client_secret`:
 
-- `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` — the Slack OAuth2 app credentials.
+```bash
+aws secretsmanager create-secret \
+  --name slack/agentcore-gateway-credentials \
+  --secret-string '{"client_id":"<your-slack-client-id>","client_secret":"<your-slack-client-secret>"}'
+```
+
+Then set `SLACK_SECRET_ARN` in `.env` to the full ARN of that secret.
+
+> The deploying principal needs `secretsmanager:GetSecretValue` on the secret — both
+> `client_id` and `client_secret` are resolved by CloudFormation at deploy time. No resource
+> policy is required: AgentCore stores its own **MANAGED** copy of the client secret after
+> deploy, so it never reads your secret at runtime.
+
+One value is **required** — `cdk deploy` fails fast if it is missing:
+
+- `SLACK_SECRET_ARN` — the full **ARN** of the secret. The deploying principal needs
+  `secretsmanager:GetSecretValue` on it. The secret must use the JSON keys `client_id` and
+  `client_secret`.
 
 This stack does **not** create any Cognito sign-in users. After deploy, create one yourself
 in the AWS console — see [Create a Cognito sign-in user](#create-a-cognito-sign-in-user).
@@ -46,10 +64,10 @@ You can also set `COGNITO_DOMAIN_PREFIX` in `.env` (defaults to `agentcore-gatew
 The Cognito hosted-UI domain prefix must be **globally unique across all AWS accounts**, so
 pick your own value if the default is taken.
 
-`.env` is gitignored. The live OAuth2 provider stores its Slack client secret as an
-AgentCore **MANAGED** secret, whose plaintext cannot be read back from the API — so you
-must provide the real secret value in `.env`. AgentCore re-stores it in Secrets Manager
-for you (`ClientSecretSource = MANAGED`).
+`.env` is gitignored. The OAuth2 provider uses `ClientSecretSource: MANAGED` — AgentCore
+stores its own copy of the client secret after deploy, giving a **stable callback URL** that
+does not change across redeployments as long as the provider is not deleted. Your
+pre-created secret is only read at deploy time and is not accessed by AgentCore at runtime.
 
 ## Usage
 
@@ -185,15 +203,13 @@ The runtime ARN is available in the `RuntimeArn` stack output.
 This is a **sample** optimized for a quick end-to-end demo. Review the following before
 adapting it for a production deployment:
 
-- **Keep secrets out of CDK outputs and synthesized templates.** The Slack client secret is
-  injected at synth time from `.env`, so it is rendered in cleartext into the generated
-  CloudFormation under `cdk.out/` (the OAuth provider config carries it). Never commit
-  `cdk.out/` (it is gitignored) and never add this value as a `CfnOutput`. For production,
-  resolve the secret at deploy time from **AWS Secrets Manager or SSM Parameter Store** (e.g.
-  in `bin/app.ts`, or via CloudFormation dynamic references / `ClientSecretSource: EXTERNAL`)
-  instead of a local `.env`, so plaintext never touches the template or your shell history.
-  The Cognito app client secret is already intentionally **not** exported — retrieve it on
-  demand via the `UserPoolClientSecretHint` command rather than adding an output.
+- **Secrets are kept out of the synthesized template.** Both the Slack client id and secret
+  are resolved from your pre-created Secrets Manager secret at deploy time via CloudFormation
+  dynamic references, so only the reference — not the plaintext — appears in `cdk.out/`.
+  AgentCore stores its own MANAGED copy after deploy; no resource policy is needed on your
+  secret. Never add these values as a `CfnOutput`. The Cognito app client secret is likewise
+  intentionally **not** exported — retrieve it on demand via the `UserPoolClientSecretHint`
+  command rather than adding an output.
 - **The runtime is internet-facing (`NetworkMode: PUBLIC`).** Access is gated only by the
   Cognito `CUSTOM_JWT` authorizer, so token hygiene matters: enable **MFA** on the user
   pool, shorten the 30-day refresh token and access-token validities, and consider WAF /

@@ -8,10 +8,16 @@ import { CfnResource } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 export interface SlackGatewayStackProps extends StackProps {
-  /** Slack OAuth2 application client id (from the .env file). */
-  readonly slackClientId: string;
-  /** Slack OAuth2 application client secret (from the .env file). */
-  readonly slackClientSecret: string;
+  /**
+   * ARN of the pre-created AWS Secrets Manager secret holding the Slack OAuth2 app
+   * credentials as JSON (e.g. {"client_id":"...","client_secret":"..."}).
+   * From the .env file (SLACK_SECRET_ARN). The secret must exist before deploy.
+   * An ARN (not a name) is required: the client secret is referenced via
+   * ClientSecretConfig.SecretId (ClientSecretSource = EXTERNAL), which AgentCore
+   * Identity reads at runtime. The secret must also carry a resource policy that
+   * grants the AgentCore service principal secretsmanager:GetSecretValue.
+   */
+  readonly slackSecretArn: string;
   /**
    * Cognito hosted-UI domain prefix for the user pool (must be globally unique
    * across all AWS accounts). From the .env file (COGNITO_DOMAIN_PREFIX).
@@ -158,10 +164,17 @@ export class SlackGatewayStack extends Stack {
     // ---------------------------------------------------------------------
     // 1. AgentCore Identity — OAuth2 credential provider (Slack)
     // ---------------------------------------------------------------------
-    // Client id + secret come from the .env file via props (see bin/app.ts).
-    // The live provider stores its client secret as an AgentCore-MANAGED secret,
-    // so AgentCore re-stores the supplied value in Secrets Manager for you
-    // (ClientSecretSource = MANAGED).
+    // Both the client id and secret are resolved at deploy time from the
+    // pre-created Secrets Manager secret (ARN from .env) via CloudFormation
+    // dynamic references, so plaintext never lands in the synthesized template.
+    // AgentCore stores its own MANAGED copy of the secret — the callback URL
+    // is stable across redeployments as long as this provider is not deleted,
+    // and no resource policy is required on your secret.
+    const slackClientId =
+      `{{resolve:secretsmanager:${props.slackSecretArn}:SecretString:client_id}}`;
+    const slackClientSecret =
+      `{{resolve:secretsmanager:${props.slackSecretArn}:SecretString:client_secret}}`;
+
     const oauthProvider = new CfnResource(this, 'SlackOAuthProvider', {
       type: 'AWS::BedrockAgentCore::OAuth2CredentialProvider',
       properties: {
@@ -169,8 +182,8 @@ export class SlackGatewayStack extends Stack {
         CredentialProviderVendor: 'SlackOauth2',
         Oauth2ProviderConfigInput: {
           SlackOauth2ProviderConfig: {
-            ClientId: props.slackClientId,
-            ClientSecret: props.slackClientSecret,
+            ClientId: slackClientId,
+            ClientSecret: slackClientSecret,
             ClientSecretSource: 'MANAGED',
           },
         },
@@ -179,10 +192,8 @@ export class SlackGatewayStack extends Stack {
 
     const providerArn = oauthProvider.getAtt('CredentialProviderArn').toString();
 
-    // The provider's MANAGED client secret is created by AgentCore in Secrets Manager
-    // under a predictable name: "bedrock-agentcore-identity!default/oauth2/<provider>-*".
-    // The ClientSecretArn attribute is a composite object (not a plain string), so it
-    // cannot be used directly in an IAM Resource; scope to the managed name pattern.
+    // AgentCore stores the MANAGED client secret in Secrets Manager under a
+    // predictable name. The gateway role's GetSecretValue is scoped to it.
     const providerSecretArnPattern =
       `arn:aws:secretsmanager:${Aws.REGION}:${Aws.ACCOUNT_ID}:secret:bedrock-agentcore-identity!default/oauth2/${PROVIDER_NAME}-*`;
 
