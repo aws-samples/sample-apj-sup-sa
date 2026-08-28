@@ -214,18 +214,28 @@ def _render_sse(resp: requests.Response) -> None:
     print()  # final newline after the streamed answer
 
 
-def _free_callback_port(port: int) -> None:
-    """Kill any process already bound to the callback port (best effort)."""
+def _check_callback_port(port: int) -> None:
+    """Warn and exit if the callback port is already in use.
+
+    Port 8080 is pinned in the OAuth return URL, so we cannot pick a
+    different port.  Rather than silently killing an unrelated process,
+    tell the user to free it themselves.
+    """
     try:
         pids = subprocess.run(
             ["lsof", f"-ti:{port}"], capture_output=True, text=True
         ).stdout.split()
     except FileNotFoundError:
-        return  # lsof not available; nothing to do
-    for pid in pids:
-        subprocess.run(["kill", "-9", pid], capture_output=True)
+        return  # lsof not available; assume the port is free
     if pids:
-        time.sleep(1)
+        print(
+            f"\n[error] Port {port} is already in use by PID(s) {', '.join(pids)}.\n"
+            f"        The OAuth callback URL is pinned to http://localhost:{port}/callback,\n"
+            f"        so this port cannot be changed.  Please stop the process using it\n"
+            f"        and try again.",
+            flush=True,
+        )
+        raise SystemExit(1)
 
 
 def start_callback_server(access_token: str, region: str) -> subprocess.Popen:
@@ -235,7 +245,7 @@ def start_callback_server(access_token: str, region: str) -> subprocess.Popen:
     gateway Slack tool call needs downstream consent) be completed on
     http://localhost:8080/callback during the session.
     """
-    _free_callback_port(CALLBACK_PORT)
+    _check_callback_port(CALLBACK_PORT)
 
     # Pass the access token through the environment rather than argv so it is not
     # exposed in process listings (`ps`) to other local users.
