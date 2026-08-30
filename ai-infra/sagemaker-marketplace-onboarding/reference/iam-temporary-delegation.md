@@ -5,7 +5,8 @@ after the model is published. Included here as a pointer for sellers who ask "ho
 customer's endpoint without a long-lived cross-account role."
 
 Source: AWS IAM User Guide — [IAM temporary delegation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies-temporary-delegation.html),
-and the AWS ML blog "Deepgram enhances Amazon SageMaker AI support with AWS IAM Temporary Delegation"
+and the AWS ML blog ["Deepgram enhances Amazon SageMaker AI support with AWS IAM Temporary
+Delegation"](https://aws.amazon.com/blogs/machine-learning/deepgram-enhances-amazon-sagemaker-ai-support-with-aws-iam-temporary-delegation/)
 (2026-07-27), which documents a reference integration for exactly this seller use case.
 
 ## The problem it solves

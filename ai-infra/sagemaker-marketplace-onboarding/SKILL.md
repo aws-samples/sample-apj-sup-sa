@@ -349,6 +349,18 @@ The walkthrough ends here.
 
 ---
 
+## Phase 12 — Operating a live listing (optional, only if asked)
+
+Only relevant after Phase 11 is complete and the listing is published. Do not raise this unprompted — surface it if the user asks about monitoring a live endpoint, reconciling Marketplace billing, or giving customer support teams account access.
+
+**Observability.** SageMaker publishes request/latency/error metrics and instance resource metrics to CloudWatch automatically — no container code needed for those. For streaming/WebSocket models, point the user at `ConcurrentRequestsPerModel` (10s-resolution, includes queued requests — the real load signal for long-lived connections) and `FirstChunkLatency`, not `InvocationsPerInstance`. For GPU capacity planning, SageMaker's detailed observability (on by default) exposes per-GPU Prometheus metrics via PromQL with zero container changes. If the seller wants their own business/billing metrics in CloudWatch (e.g. to reconcile Marketplace metered billing against actual traffic), recommend CloudWatch Embedded Metric Format (EMF) — a stdout JSON line CloudWatch auto-extracts into a real metric, no outbound call, works under network isolation. See `reference/observability.md` for the full metric catalog and an EMF emission snippet that mirrors the existing `metering.py` `ConsumedUnits` value.
+
+**Customer support access.** If the seller asks how to support a buyer's endpoint without a standing cross-account IAM role, point them at AWS IAM Temporary Delegation — buyer-approved, time-limited (≤12h) STS credentials, CloudTrail-logged, no wildcards. This requires separate AWS Partner qualification to initiate requests; it is account/product-level enablement, not something this skill's container or `CreateModelPackage` call sets up. See `reference/iam-temporary-delegation.md`.
+
+Both of these are pointers, not implementation phases — this skill does not build the CloudWatch dashboards, alarms, or delegation integration for the user.
+
+---
+
 ## Reference material (in this skill's directory)
 
 Read these when you need to quote a specific constraint:
@@ -361,6 +373,8 @@ Read these when you need to quote a specific constraint:
 - `reference/billing.md` — hourly vs per-inference, dimensions, freeze rule
 - `reference/logging.md` — CloudWatch log groups, structured JSON logging, key events to log, multi-process pitfalls
 - `reference/marketplace-listing.md` — CreateModelPackage API skeleton + validation job (Phase 11 only)
+- `reference/observability.md` — CloudWatch metrics catalog (invocation/instance/detailed-observability) + EMF business-metric emission (Phase 12 only)
+- `reference/iam-temporary-delegation.md` — buyer-approved temporary support access for a live listing (Phase 12 only)
 
 ## Interaction style
 
