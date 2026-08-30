@@ -94,21 +94,83 @@ Applies only to text-to-speech models — skip for LLMs, STT, image, embedding, 
 
 Container reads and applies. No shared state between customers.
 
-## Per-inference billing on WebSocket
+## Per-inference billing on WebSocket (companion metadata streaming)
 
-Metering does **not** go on the main data stream. It goes on a **companion metadata WebSocket** at `/invocations-bidirectional-stream-metadata`.
+GA capability (see AWS ML blog ["Introducing usage-based pricing for Amazon SageMaker bidirectional
+streaming"](https://aws.amazon.com/blogs/machine-learning/introducing-usage-based-pricing-for-amazon-sagemaker-bidirectional-streaming/),
+Deepgram launch partner). This is what makes per-inference billing possible on a long-lived
+connection where total usage is not known until the stream ends — SageMaker's header-based metering
+(`X-Amzn-Inference-Metering` on a normal `/invocations` response) only works because a request-response
+call has a bounded end. A bidi session can run 30 seconds or 30 minutes, so metering has to be reported
+incrementally on a side channel instead.
 
-1. Container advertises support in the main endpoint's upgrade response header:
-   ```
-   X-Amzn-SageMaker-Metadata-Stream-Supported: true
-   ```
-2. SageMaker opens a second WebSocket to the metadata endpoint with the same `X-Amzn-SageMaker-Request-Id`.
-3. Container emits JSON frames on the metadata channel:
-   ```json
-   {"Metering": {"Dimension": "audio_seconds", "ConsumedUnits": 150, "ClientToken": "<uuid>"}}
-   ```
+Metering does **not** go on the main data stream. It goes on a **companion metadata WebSocket** at
+`/invocations-bidirectional-stream-metadata` — a second, independent WebSocket connection SageMaker
+opens in parallel with the data connection.
 
-`Dimension` must match the value configured in your Marketplace listing. `ClientToken` is a per-frame idempotency key.
+### Step 1 — opt in via upgrade response headers on the *data* connection
+
+| Header | Required | Values | Description |
+|---|---|---|---|
+| `X-Amzn-SageMaker-Metadata-Stream-Supported` | Yes (to opt in) | `true` | Signals the model server supports the companion stream. If absent/not `true`, SageMaker never attempts the metadata connection. |
+| `X-Amzn-SageMaker-Metadata-Stream-Required` | No | `true` / `false` (default `false`) | If `true`, the **data** stream is terminated with **HTTP 424** when the metadata connection fails to establish or drops mid-session. If `false`/absent, the data stream keeps running in data-only mode and metering simply stops. |
+| `X-Amzn-SageMaker-Metadata-Invocation-Path` | No | custom path string | Overrides the default metadata path (`/invocations-bidirectional-stream-metadata`). |
+
+### Step 2 — accept the metadata connection
+
+SageMaker opens a second WebSocket to the metadata endpoint. Both connections carry the same
+`X-Amzn-SageMaker-Request-Id` header — use it to correlate the metadata connection with the matching
+data connection for the same inference session.
+
+### Step 3 — send metering messages
+
+One JSON object per Text frame, **exactly one metering record per frame** (do not batch multiple
+records into a single frame; binary frames are not supported for metering):
+
+```json
+{
+  "Metering": {
+    "Dimension": "inference.count",
+    "ConsumedUnits": 150,
+    "ClientToken": "a3f2b1c0-unique-uuid"
+  }
+}
+```
+
+| Field | Required | Type | Constraint |
+|---|---|---|---|
+| `Metering.Dimension` | Yes | string | max 128 characters |
+| `Metering.ConsumedUnits` | Yes | number | > 0 |
+| `Metering.ClientToken` | No | string | max 64 characters — idempotency key; a duplicate `ClientToken` on the same connection is recorded only once |
+
+`Dimension` must match the value configured on the Marketplace listing.
+
+### Constraints and limits
+
+- **Max message size:** 512 bytes (total size of the JSON text frame).
+- **Max send rate:** 1 message per second per connection. Exceeding this may drop messages.
+- **Frame type:** text frames only.
+- **Transport:** TCP — ordered, reliable delivery at the transport layer.
+
+### Send incrementally, not just at session end
+
+Recommended: emit metering records incrementally as usage accrues (e.g. per N seconds of audio
+processed), not only once at session close. **If the session drops mid-stream, billing is only
+captured for usage reported up to that point** — a single end-of-session record loses everything if
+the connection dies first.
+
+### Failure modes
+
+| Scenario | `Required=true` | `Required=false` (default) |
+|---|---|---|
+| Metadata WebSocket fails to connect | Data stream terminated (HTTP 424) | Data stream continues normally (data-only mode) |
+| Metadata WebSocket drops mid-session | Data stream terminated (HTTP 424) | Data stream continues; metering stops |
+| Malformed metering message | Message dropped; connection stays open | Message dropped; connection stays open |
+| Data connection breaks mid-stream | Metadata stream closed | Metadata stream closed |
+
+Set `Required=true` only if the model's business model cannot tolerate unmetered usage (e.g. the
+provider would rather fail the request than serve it unbilled). Default (`false`) favors availability
+over billing completeness.
 
 ## Testing locally
 

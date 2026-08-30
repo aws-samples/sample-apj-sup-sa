@@ -37,7 +37,14 @@ Reference: https://docs.aws.amazon.com/marketplace/latest/userguide/machine-lear
 
 ### Bidirectional WebSocket (`/invocations-bidirectional-stream`)
 
-Metering goes on a **companion metadata WebSocket** — never on the main data stream. See `reference/websocket.md` for the full protocol.
+Metering goes on a **companion metadata WebSocket** — never on the main data stream. This is a GA
+capability (Deepgram is the launch partner) that exists specifically because a bidi session's total
+usage isn't known until the stream ends, so the header-based mechanism below can't apply. See
+`reference/websocket.md` for the full protocol: opt-in headers, message schema, size/rate limits
+(512 bytes, 1 msg/sec), and failure-mode behavior (`X-Amzn-SageMaker-Metadata-Stream-Required`).
+
+Source: ["Introducing usage-based pricing for Amazon SageMaker bidirectional
+streaming"](https://aws.amazon.com/blogs/machine-learning/introducing-usage-based-pricing-for-amazon-sagemaker-bidirectional-streaming/)
 
 ## Choosing a dimension
 

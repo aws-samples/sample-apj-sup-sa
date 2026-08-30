@@ -66,6 +66,8 @@ The full list of things to compare between an existing model project and the Sag
 - [ ] Every 2XX `/invocations` response emits the `X-Amzn-Inference-Metering` header. Value is a JSON string: `{"Dimension": "...", "ConsumedUnits": N}`. Mini-batch requests set `ConsumedUnits` to the batch size. Metering is not emitted on non-2XX responses (which are not billed).
 - [ ] Dimension name matches what will be configured on the Marketplace listing.
 - [ ] For WebSocket: upgrade response includes `X-Amzn-SageMaker-Metadata-Stream-Supported: true` and the container implements `/invocations-bidirectional-stream-metadata`.
+- [ ] Metadata frames: one record per frame, text-only, ≤512 bytes, ≤1 msg/sec, `Dimension` ≤128 chars, `ConsumedUnits > 0`, `ClientToken` ≤64 chars.
+- [ ] `X-Amzn-SageMaker-Metadata-Stream-Required` set explicitly (true = fail the data stream with HTTP 424 if metering drops; false/default = keep serving unmetered).
 
 ## Multi-process containers (only if applicable)
 

@@ -87,14 +87,48 @@ def make_metering_frame(
     """
     Build the JSON metering frame sent on the companion metadata WebSocket
     (/invocations-bidirectional-stream-metadata) for bidirectional streaming
-    per-inference billing.
+    per-inference billing (GA capability -- see "Introducing usage-based
+    pricing for Amazon SageMaker bidirectional streaming",
+    https://aws.amazon.com/blogs/machine-learning/introducing-usage-based-pricing-for-amazon-sagemaker-bidirectional-streaming/).
 
-    ClientToken is a per-frame idempotency key. Auto-generated if empty.
+    ClientToken is a per-frame idempotency key (max 64 chars). Auto-generated
+    if empty. A duplicate ClientToken sent again on the same connection is
+    recorded only once by SageMaker.
+
+    Constraints enforced by the metadata channel (validate before sending,
+    not after -- SageMaker silently drops malformed frames rather than
+    erroring back):
+      - Dimension: max 128 characters.
+      - ConsumedUnits: must be > 0.
+      - Exactly ONE metering record per WebSocket text frame -- never batch
+        multiple records into one frame.
+      - Max frame size: 512 bytes total (the serialized JSON, not just the
+        payload). A long ClientToken/Dimension can blow this budget on
+        otherwise-small payloads -- keep both short.
+      - Max send rate: 1 message per second per connection. Sending faster
+        risks dropped messages; batch your own accounting and flush at most
+        once per second rather than one frame per inference event.
+      - Text frames only -- binary frames are not accepted for metering.
+
+    Recommended calling pattern: call this once per second (or per natural
+    accounting boundary, e.g. every N seconds of audio processed) with the
+    INCREMENTAL units consumed since the last call, not a running total.
+    Sending incrementally means a mid-stream disconnect still gets the
+    provider paid for usage reported up to that point.
     """
-    return {
+    frame = {
         "Metering": {
             "Dimension": dimension,
             "ConsumedUnits": int(consumed_units),
             "ClientToken": client_token or str(uuid.uuid4()),
         }
     }
+    encoded_len = len(json.dumps(frame).encode("utf-8"))
+    if encoded_len > 512:
+        raise ValueError(
+            f"metering frame is {encoded_len} bytes; SageMaker's metadata "
+            "channel caps frames at 512 bytes -- shorten Dimension/ClientToken"
+        )
+    if len(dimension) > 128:
+        raise ValueError("Dimension exceeds the 128-character limit")
+    return frame

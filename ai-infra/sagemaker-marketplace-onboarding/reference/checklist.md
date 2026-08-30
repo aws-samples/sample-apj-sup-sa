@@ -56,6 +56,8 @@ Copy this file into the project as `PRE_SUBMISSION_CHECKLIST.md`. Walk through e
 - [ ] Every 2XX `/invocations` response emits the `X-Amzn-Inference-Metering` header with a JSON value: `{"Dimension": "...", "ConsumedUnits": N}`. Mini-batch requests set `ConsumedUnits` to the number of inferences processed. No metering on non-2XX responses.
 - [ ] The `dimension` name in the emission matches what is configured on the Marketplace listing.
 - [ ] For bidirectional streaming: the WebSocket upgrade response includes `X-Amzn-SageMaker-Metadata-Stream-Supported: true` and `/invocations-bidirectional-stream-metadata` is implemented.
+- [ ] Metadata channel messages are one record per frame, text-only, ≤512 bytes, sent at ≤1/sec, with `ConsumedUnits > 0` and `Dimension` ≤128 chars.
+- [ ] `X-Amzn-SageMaker-Metadata-Stream-Required` is deliberately set `true` or `false` (not left to default) based on whether the model can tolerate unmetered usage if the metadata channel drops.
 
 ## Contract compliance (spot-check)
 
