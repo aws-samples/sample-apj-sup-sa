@@ -204,6 +204,7 @@ Walk the user through each endpoint's contract. For each one, show the relevant 
 - Max connection duration: 30 minutes. Client must reconnect for longer sessions. Design the container stateless per-connection.
 - Errors: send Text frame with `{"ModelStreamError": {"ErrorCode": "...", "Message": "..."}}` or a Close frame.
 - **If per-inference billing on WebSocket**: metering goes on a **companion metadata WebSocket** at `/invocations-bidirectional-stream-metadata`, not on the main data stream. Signal support with `X-Amzn-SageMaker-Metadata-Stream-Supported: true` in the upgrade response. See `websocket_handler.py` and `reference/websocket.md`.
+- **If modality is STT/TTS**: if the user wants this container easily consumable from a voice-orchestration framework like Pipecat, mention the control-message-vocabulary pattern (Speak/Flush/Clear/KeepAlive/Finalize) in `reference/pipecat-integration.md` while designing the container's WebSocket protocol — cheaper to build in now than retrofit later. Do not implement it unasked; just flag that the option exists at this point in the walkthrough.
 
 **Model loading — `model_loader.py`**
 - Weights at `/opt/ml/model/` (read-only), read via `SM_MODEL_DIR` env var.
@@ -361,6 +362,33 @@ Both of these are pointers, not implementation phases — this skill does not bu
 
 ---
 
+## Phase 13 — Pipecat ecosystem hand-off (optional, only if applicable)
+
+**Trigger condition** — independent of Phase 0's `goal` flag (relevant whether or not the user is listing on Marketplace): modality is STT or TTS, Bidirectional WebSocket was implemented (Phase 2), and Phase 8's local testing gate has passed. If any of those don't hold, skip this phase silently — don't mention it.
+
+If the trigger condition holds, ask once whether the user wants help getting the model consumable from [Pipecat](https://github.com/pipecat-ai/pipecat), an open-source voice-agent orchestration framework with first-class support for SageMaker bidirectional-streaming endpoints. Use AskUserQuestion, not free text, with these options:
+
+- **Skip** — no Pipecat work. Default if the user hasn't heard of Pipecat or doesn't have a voice-agent use case in mind.
+- **Community-maintained integration** — the user hosts and maintains the integration in their own separate repository; Pipecat lists it for discoverability. Lower barrier, the realistic default for most providers.
+- **Contribute to Pipecat core** — a PR into `pipecat-ai/pipecat` itself, only appropriate if the model is broadly relevant enough that Pipecat's maintainers would want to own and maintain it. Flag this as the Pipecat maintainers' call, not something to promise will be accepted.
+
+Read `reference/pipecat-integration.md` before proceeding — it has the full architecture explanation, the control-message-vocabulary table, both paths' concrete requirements, and an illustrative (not scaffolded) service-wrapper code appendix.
+
+If **Community-maintained integration**:
+1. Confirm with the user: which GitHub account/org will host the repo, what license (BSD-2 like Pipecat, or another permissive OSS license), and whether they want **company attribution** in the README (Pipecat's own guide recommends this when the provider works for the company behind the model — it builds confidence the integration will be maintained). Do not default or assume any of these — ask explicitly, the same way Phase 0 asks rather than assumes the user's goal.
+2. Walk through the requirements checklist from `reference/pipecat-integration.md`'s "Path A" section: source implementation (subclass `STTService`/`TTSService`, using the illustrative appendix as a starting point adapted to the container's own WebSocket control-message vocabulary from Phase 5/6 — not copy-pasted verbatim), a foundational single-file usage example, README (intro, install, usage, tested Pipecat version, attribution per step 1), LICENSE, docstrings, changelog.
+3. Mention the separate docs-site submission (`pipecat-ai/docs`, Supported Services page + a dedicated service page with a demo video) as a follow-up step once the integration repo itself is working — don't try to do both in one pass.
+4. Do not scaffold a `templates/pipecat_service_stub.py` file automatically. The service wrapper needs to be adapted to whatever control-message vocabulary this specific container's WebSocket protocol implements (see Phase 5's note) — there is no generic version that would be more than the illustrative appendix already provides. Help the user adapt the appendix's code to their container's actual protocol, in their own repository.
+
+If **Contribute to Pipecat core**:
+1. Confirm the user understands this is a judgment call for Pipecat's maintainers, not guaranteed acceptance.
+2. Walk through the mechanics from `reference/pipecat-integration.md`'s "Path B" section: fork `pipecat-ai/pipecat`, branch, implement the service wrapper under `src/pipecat/services/<provider>/sagemaker/` following the real `deepgram/sagemaker/{stt,tts}.py` files as structural reference, add a changelog fragment (`changelog/<PR_number>.added.md`), commit, push to fork, open the PR against `main` with a clear description.
+3. Same caution as above on not auto-generating the service wrapper — help adapt the illustrative appendix, in the user's fork, to their container's real protocol.
+
+This phase never writes to the user's model container project — any files it produces belong in a separate Pipecat-integration repository or fork, matching this skill's existing rule of never editing the user's own project outside the scaffolded sibling directory.
+
+---
+
 ## Reference material (in this skill's directory)
 
 Read these when you need to quote a specific constraint:
@@ -375,6 +403,7 @@ Read these when you need to quote a specific constraint:
 - `reference/marketplace-listing.md` — CreateModelPackage API skeleton + validation job (Phase 11 only)
 - `reference/observability.md` — CloudWatch metrics catalog (invocation/instance/detailed-observability) + EMF business-metric emission (Phase 12 only)
 - `reference/iam-temporary-delegation.md` — buyer-approved temporary support access for a live listing (Phase 12 only)
+- `reference/pipecat-integration.md` — Pipecat voice-agent orchestration architecture, control-message-vocabulary design guidance, and both ecosystem contribution paths (Phase 5 pointer + Phase 13 only)
 
 ## Interaction style
 
