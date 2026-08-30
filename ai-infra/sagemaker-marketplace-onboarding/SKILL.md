@@ -206,6 +206,10 @@ Walk the user through each endpoint's contract. For each one, show the relevant 
 - **If per-inference billing on WebSocket**: metering goes on a **companion metadata WebSocket** at `/invocations-bidirectional-stream-metadata`, not on the main data stream. Signal support with `X-Amzn-SageMaker-Metadata-Stream-Supported: true` in the upgrade response. See `websocket_handler.py` and `reference/websocket.md`.
 - **If modality is STT/TTS**: if the user wants this container easily consumable from a voice-orchestration framework like Pipecat, mention the control-message-vocabulary pattern (Speak/Flush/Clear/KeepAlive/Finalize) in `reference/pipecat-integration.md` while designing the container's WebSocket protocol — cheaper to build in now than retrofit later. Do not implement it unasked; just flag that the option exists at this point in the walkthrough.
 
+**Optional: mirroring metering into your own CloudWatch (EMF)** (only if per-inference billing was selected in Phase 2)
+- The `X-Amzn-Inference-Metering` header / metadata-channel frame is what actually gets the seller paid — nothing else is required for billing to work. Separately, mention that `reference/observability.md` documents an **optional** pattern (CloudWatch Embedded Metric Format) for mirroring the same `ConsumedUnits` value into the seller's own CloudWatch, as a self-serve way to reconcile the Marketplace bill against actual traffic without needing buyer-side CloudWatch access.
+- This is a nice-to-have, not a spec requirement. Ask before adding anything: if the user wants it, add the `emit_emf_metric()` call (from `reference/observability.md`) to their `metering.py`, generated at that point for their specific file — do not scaffold it into `templates/metering.py` by default. If they don't want it, don't mention it again.
+
 **Model loading — `model_loader.py`**
 - Weights at `/opt/ml/model/` (read-only), read via `SM_MODEL_DIR` env var.
 - `/tmp` is the only writable path. Zero outbound network.
