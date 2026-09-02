@@ -1,0 +1,15 @@
+{
+  "name": "aws-diagram-design",
+  "metadata": {
+    "description": "AWS-branded editorial diagram plugin — Amazon Ember, squid ink + smile orange, official AWS Architecture Icons bundled."
+  },
+  "owner": {
+    "name": "AWS APJ Startup Solutions Architects"
+  },
+  "plugins": [
+    {
+      "name": "aws-diagram-design",
+      "source": "./"
+    }
+  ]
+}
