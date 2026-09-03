@@ -1,0 +1,14 @@
+{
+  "app": "pnpm exec tsx bin/claimpilot-infra.ts",
+  "context": {
+    "claimpilot": {
+      "tableName": "ClaimPilotClaims",
+      "bucketNamePrefix": "claimpilot-evidence",
+      "allowedOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+      ],
+      "removalPolicy": "destroy"
+    }
+  }
+}
