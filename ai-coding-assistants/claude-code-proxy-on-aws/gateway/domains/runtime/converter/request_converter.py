@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
@@ -11,6 +13,16 @@ from typing import Any
 from gateway.domains.runtime.types import MessageRequest
 from shared.exceptions import ValidationError
 from shared.models import ModelCatalog
+
+# Bedrock Converse constrains toolSpec.name to ^[a-zA-Z0-9_-]{1,64}$, while the
+# Anthropic Messages API allows up to 128 chars. MCP tool names (mcp__server__tool)
+# routinely exceed 64 and may contain characters Bedrock rejects. Names are
+# sanitized for Bedrock and the original is restored on the response toolUse name
+# via `tool_name_map`.
+_TOOL_NAME_VALID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+_TOOL_NAME_INVALID_CHAR_RE = re.compile(r"[^a-zA-Z0-9_-]")
+_MAX_TOOL_NAME_LEN = 64
+_TOOL_NAME_HASH_LEN = 8
 
 MIN_BEDROCK_THINKING_BUDGET_TOKENS = 1024
 MIN_REQUEST_MAX_TOKENS_FOR_FIXED_THINKING = MIN_BEDROCK_THINKING_BUDGET_TOKENS + 1
@@ -70,6 +82,14 @@ class AnthropicToBedrockConverter:
         max_tokens_override: int | None = None,
     ) -> dict[str, Any]:
         cache_counter = _CachePointCounter()
+        # Per-request tool-name sanitization state. Reset on every call because a
+        # converter instance is created per request but this keeps it correct even
+        # if reused. `tool_name_map` (sanitized -> original) is read by the response
+        # converter to restore the client-facing tool name.
+        self.tool_name_map: dict[str, str] = {}
+        self._tool_name_forward: dict[str, str] = {}
+        self._used_tool_names: set[str] = set()
+        self._used_document_names: set[str] = set()
         effective_max_tokens = (
             max_tokens_override if max_tokens_override is not None else anthropic_req.max_tokens
         )
@@ -195,7 +215,9 @@ class AnthropicToBedrockConverter:
             "tools": self._convert_tools_with_cache_points(tools, cache_policy, cache_counter),
         }
         if tool_choice is not None:
-            payload["toolChoice"] = self._convert_tool_choice(tool_choice)
+            converted_choice = self._convert_tool_choice(tool_choice)
+            if converted_choice is not None:
+                payload["toolChoice"] = converted_choice
         return payload
 
     def convert_thinking(
@@ -250,12 +272,13 @@ class AnthropicToBedrockConverter:
         return converted
 
     def _convert_tool(self, tool: dict[str, Any]) -> dict[str, Any]:
+        sanitized_name = self._register_tool_name(tool["name"])
         input_schema = self._normalize_tool_input_schema(
             tool.get("input_schema"),
             tool_name=tool["name"],
         )
         tool_spec: dict[str, Any] = {
-            "name": tool["name"],
+            "name": sanitized_name,
             "inputSchema": {"json": input_schema},
         }
         description = tool.get("description")
@@ -265,15 +288,69 @@ class AnthropicToBedrockConverter:
             tool_spec["strict"] = bool(tool["strict"])
         return {"toolSpec": tool_spec}
 
-    def _convert_tool_choice(self, tool_choice: dict[str, Any]) -> dict[str, Any]:
+    def _register_tool_name(self, original: str) -> str:
+        """Return the Bedrock-safe tool name, recording the reverse mapping.
+
+        Deterministic and collision-free within a request: valid names pass
+        through unchanged; invalid/oversized names are sanitized and, if they
+        collide with an already-used name, disambiguated with a hash suffix.
+        """
+        cached = self._tool_name_forward.get(original)
+        if cached is not None:
+            return cached
+        sanitized = self._sanitize_tool_name(original)
+        if sanitized in self._used_tool_names:
+            sanitized = self._dedupe_tool_name(sanitized, original)
+        self._used_tool_names.add(sanitized)
+        self._tool_name_forward[original] = sanitized
+        if sanitized != original:
+            self.tool_name_map[sanitized] = original
+        return sanitized
+
+    def _sanitize_tool_name(self, original: str) -> str:
+        if _TOOL_NAME_VALID_RE.match(original):
+            return original
+        cleaned = _TOOL_NAME_INVALID_CHAR_RE.sub("_", original)
+        if not cleaned:
+            cleaned = "tool"
+        if len(cleaned) > _MAX_TOOL_NAME_LEN:
+            digest = hashlib.sha256(original.encode("utf-8")).hexdigest()[:_TOOL_NAME_HASH_LEN]
+            keep = _MAX_TOOL_NAME_LEN - _TOOL_NAME_HASH_LEN - 1
+            cleaned = f"{cleaned[:keep]}_{digest}"
+        return cleaned
+
+    def _dedupe_tool_name(self, sanitized: str, original: str) -> str:
+        digest = hashlib.sha256(original.encode("utf-8")).hexdigest()[:_TOOL_NAME_HASH_LEN]
+        keep = _MAX_TOOL_NAME_LEN - _TOOL_NAME_HASH_LEN - 1
+        candidate = f"{sanitized[:keep]}_{digest}"
+        counter = 0
+        while candidate in self._used_tool_names:
+            counter += 1
+            suffix = f"{digest}{counter}"
+            candidate = f"{sanitized[: _MAX_TOOL_NAME_LEN - len(suffix) - 1]}_{suffix}"
+        return candidate
+
+    def _convert_tool_choice(self, tool_choice: dict[str, Any]) -> dict[str, Any] | None:
         choice_type = tool_choice.get("type")
         if choice_type == "auto":
             return {"auto": {}}
         if choice_type == "any":
             return {"any": {}}
         if choice_type == "tool":
-            return {"tool": {"name": tool_choice["name"]}}
-        return deepcopy(tool_choice)
+            name = tool_choice.get("name")
+            if name is None:
+                return None
+            return {"tool": {"name": self._sanitized_tool_name_for(name)}}
+        # Anthropic's "none" and any unsupported/unknown type have no Bedrock
+        # Converse toolChoice equivalent. Omit toolChoice rather than passing an
+        # invalid shape (Bedrock rejects unknown toolChoice members).
+        return None
+
+    def _sanitized_tool_name_for(self, name: str) -> str:
+        cached = self._tool_name_forward.get(name)
+        if cached is not None:
+            return cached
+        return self._sanitize_tool_name(name)
 
     def _normalize_thinking(
         self,
@@ -514,10 +591,26 @@ class AnthropicToBedrockConverter:
         return {
             "document": {
                 "format": document_format,
-                "name": self._sanitize_document_name(block.get("title")),
+                "name": self._register_document_name(block.get("title")),
                 "source": {"bytes": document_bytes},
             }
         }
+
+    def _register_document_name(self, title: Any) -> str:
+        """Return a document name unique within the request.
+
+        Bedrock Converse rejects requests with duplicate document names. The
+        sanitized base name is disambiguated with a ' (N)' suffix (parentheses
+        are allowed by Bedrock) when it collides with an earlier document.
+        """
+        base = self._sanitize_document_name(title)
+        candidate = base
+        counter = 1
+        while candidate in self._used_document_names:
+            counter += 1
+            candidate = f"{base} ({counter})"
+        self._used_document_names.add(candidate)
+        return candidate
 
     @staticmethod
     def _sanitize_document_name(title: Any) -> str:

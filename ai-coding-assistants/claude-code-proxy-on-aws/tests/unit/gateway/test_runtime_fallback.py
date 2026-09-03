@@ -536,3 +536,33 @@ async def test_stream_bedrock_success_does_not_call_anthropic() -> None:
     bedrock_client.converse_stream.assert_awaited_once()
     anthropic_client.messages_stream.assert_not_awaited()
     stream_processor.stream_response.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_stream_client_bug_error_propagates_for_http_400() -> None:
+    """A pre-stream BedrockClientBugError (e.g. ValidationException) must
+    propagate out of process_message_stream so the FastAPI exception handler
+    renders HTTP 400 invalid_request_error -- NOT be swallowed into a 200
+    text/event-stream with a generic api_error event.
+
+    Regression lock for issue #9 on the standard (non web-search) stream path.
+    """
+    bedrock_client = SimpleNamespace(
+        converse=AsyncMock(),
+        converse_stream=AsyncMock(
+            side_effect=BedrockClientBugError(
+                "ValidationException: toolSpec.name must be <= 64"
+            )
+        ),
+    )
+    service, _ = _make_service(
+        bedrock_side_effect=None,
+        anthropic_client=SimpleNamespace(
+            messages=AsyncMock(), messages_stream=AsyncMock()
+        ),
+        resolved_model=_build_resolved_model("claude-sonnet-4-5-20250929"),
+        bedrock_client=bedrock_client,
+    )
+
+    with pytest.raises(BedrockClientBugError):
+        await service.process_message_stream(_build_request(), "sk-test", "req-stream-bug")
