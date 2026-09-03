@@ -1,0 +1,5 @@
+filter eventSource = "bedrock.amazonaws.com"
+       and ispresent(additionalEventData.inferenceRegion)
+| stats count(*) as calls
+        by requestParameters.modelId, additionalEventData.inferenceRegion
+| sort calls desc

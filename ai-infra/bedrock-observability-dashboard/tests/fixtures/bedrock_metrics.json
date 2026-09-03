@@ -1,0 +1,17 @@
+[
+  "CacheReadInputTokenCount",
+  "CacheWriteInputTokenCount",
+  "EstimatedTPMQuotaUsage",
+  "InputTokenCount",
+  "InvocationClientErrors",
+  "InvocationLatency",
+  "InvocationServerErrors",
+  "Invocations",
+  "ModelCopy",
+  "ModelInvocationLargeDataS3DeliveryFailure",
+  "ModelInvocationLargeDataS3DeliverySuccess",
+  "ModelInvocationLogsCloudWatchDeliverySuccess",
+  "ModelInvocationLogsS3DeliveryFailure",
+  "OutputTokenCount",
+  "TimeToFirstToken"
+]

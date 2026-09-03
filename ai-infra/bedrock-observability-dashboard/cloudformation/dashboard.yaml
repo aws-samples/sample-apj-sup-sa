@@ -1,0 +1,557 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Amazon Bedrock observability dashboard for FM users (InvokeModel / Converse).
+  Aggregates AWS/Bedrock CloudWatch metrics, Bedrock Model Invocation Logs, and
+  CloudTrail data into a single multi-section dashboard. Audiences: app teams,
+  SRE, security/governance. Optional alarms for throttle rate and log
+  delivery failures.
+
+Parameters:
+  DashboardName:
+    Type: String
+    Default: Bedrock-FM-Dashboard
+    Description: CloudWatch dashboard name (must be unique per account).
+
+  ModelInvocationLogGroup:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^/.*'
+    ConstraintDescription: Must be empty (Tier 1) or a log-group name starting with "/".
+    Description: >
+      (Tier 2) CloudWatch Log Group receiving Bedrock Model Invocation Logging
+      records. Leave EMPTY for Tier 1 (CloudWatch metrics only) — the Logs
+      Insights section and log-delivery alarm are then never created. Run
+      `aws bedrock get-model-invocation-logging-configuration` to find yours.
+      Requires logs delivered to CloudWatch Logs (S3-only delivery cannot be
+      queried here).
+
+  CloudTrailLogGroup:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^/.*'
+    ConstraintDescription: Must be empty (Tiers 1-2) or a log-group name starting with "/".
+    Description: >
+      Optional CloudWatch Log Group receiving CloudTrail management events.
+      Leave blank to skip the CloudTrail-driven widgets (throttle reasons,
+      identity attribution).
+
+  TenantMetadataKey:
+    Type: String
+    Default: team
+    AllowedPattern: '^[A-Za-z0-9_.:/+=@-]{1,128}$'
+    ConstraintDescription: 'A single requestMetadata key (letters, digits, _ . : / + = @ -).'
+    Description: >
+      (Tier 2) The requestMetadata key used for per-tenant attribution. Bedrock
+      lets callers tag invocations with up to 16 string keys; set this to the one
+      you use for chargeback (e.g. team, tenant, cost_center). Widgets stay empty
+      until callers actually tag this key.
+
+  PrimaryModelId:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-6
+    Description: >
+      Primary inference profile / model id shown in the dashboard banner. Must
+      match the ModelId dimension as it appears in CloudWatch (cross-region
+      inference profiles surface as the profile id, NOT the underlying
+      foundation-model id).
+
+  ThrottleRateAlarmThreshold:
+    Type: Number
+    Default: 5
+    Description: Throttle rate (%) over a 5-minute window that triggers an alarm.
+
+  ServerErrorsAlarmThreshold:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    Description: 5xx (InvocationServerErrors) Sum over 5 minutes that triggers the alarm.
+
+  AlarmSnsTopicArn:
+    Type: String
+    Default: ''
+    Description: Optional SNS topic ARN to notify on alarm. Leave blank to skip alarm actions.
+
+Conditions:
+  HasInvocationLogs: !Not [!Equals [!Ref ModelInvocationLogGroup, '']]
+  HasCloudTrail: !Not [!Equals [!Ref CloudTrailLogGroup, '']]
+  HasAlarmTopic: !Not [!Equals [!Ref AlarmSnsTopicArn, '']]
+
+Resources:
+
+  BedrockDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref DashboardName
+      DashboardBody:
+        Fn::Sub:
+          - |
+              {
+                "widgets": [
+                {
+                  "type": "text",
+                  "x": 0, "y": 0, "width": 24, "height": 2,
+                  "properties": {
+                    "markdown": "# Amazon Bedrock — FM Observability (primary: ${PrimaryModelId})\n\nRegion: **${AWS::Region}** · Native CW metrics use the `ModelId` dimension only — per-tenant attribution (Logs Insights, Tier 2) reads `requestMetadata.${TenantMetadataKey}` from Bedrock Model Invocation Logs."
+                  }
+                },
+
+                { "type": "text", "x": 0, "y": 2, "width": 24, "height": 1,
+                  "properties": { "markdown": "## 1. Overview (last hour)" } },
+
+                {
+                  "type": "metric",
+                  "x": 0, "y": 3, "width": 6, "height": 4,
+                  "properties": {
+                    "title": "Invocations",
+                    "metrics": [["AWS/Bedrock", "Invocations", { "stat": "Sum" }]],
+                    "view": "singleValue", "region": "${AWS::Region}", "period": 3600, "stat": "Sum",
+                    "sparkline": true
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 6, "y": 3, "width": 6, "height": 4,
+                  "properties": {
+                    "title": "Errors (4xx + 5xx + Throttles)",
+                    "metrics": [
+                      [ "AWS/Bedrock", "InvocationClientErrors", { "stat": "Sum", "label": "4xx" } ],
+                      [ ".", "InvocationServerErrors", { "stat": "Sum", "label": "5xx" } ],
+                      [ ".", "InvocationThrottles", { "stat": "Sum", "label": "Throttles" } ]
+                    ],
+                    "view": "singleValue", "region": "${AWS::Region}", "period": 3600, "stat": "Sum",
+                    "sparkline": true
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 3, "width": 12, "height": 4,
+                  "properties": {
+                    "title": "Total tokens",
+                    "metrics": [
+                      [ { "expression": "in_t + out_t + cr_t + cw_t", "label": "Total tokens", "id": "tot" } ],
+                      [ "AWS/Bedrock", "InputTokenCount",        { "stat": "Sum", "id": "in_t", "visible": false } ],
+                      [ ".",          "OutputTokenCount",       { "stat": "Sum", "id": "out_t", "visible": false } ],
+                      [ ".",          "CacheReadInputTokenCount",   { "stat": "Sum", "id": "cr_t",  "visible": false } ],
+                      [ ".",          "CacheWriteInputTokenCount",  { "stat": "Sum", "id": "cw_t",  "visible": false } ]
+                    ],
+                    "view": "singleValue", "region": "${AWS::Region}", "period": 3600,
+                    "sparkline": true
+                  }
+                },
+
+                { "type": "text", "x": 0, "y": 7, "width": 24, "height": 1,
+                  "properties": { "markdown": "## 2. Performance — by ModelId" } },
+
+                {
+                  "type": "metric",
+                  "x": 0, "y": 8, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Invocations by ModelId (every invoked model)",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"Invocations\"', 'Sum', 300)", "label": "", "id": "inv" } ]
+                    ],
+                    "view": "timeSeries", "stacked": false,
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0 } }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 8, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "InvocationLatency p50 / p90 / p99 — by ModelId",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationLatency\"', 'p50', 300)", "label": "p50", "id": "p50" } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationLatency\"', 'p90', 300)", "label": "p90", "id": "p90" } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationLatency\"', 'p99', 300)", "label": "p99", "id": "p99" } ]
+                    ],
+                    "view": "timeSeries", "stacked": false,
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0, "label": "ms" } }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 0, "y": 14, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "TimeToFirstToken p50 / p90 — by ModelId (streaming only)",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"TimeToFirstToken\"', 'p50', 300)", "label": "p50", "id": "ttftp50" } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"TimeToFirstToken\"', 'p90', 300)", "label": "p90", "id": "ttftp90" } ]
+                    ],
+                    "view": "timeSeries",
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0, "label": "ms" } }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 14, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Avg InvocationLatency per ModelId (last hour)",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationLatency\"', 'Average', 3600)", "label": "", "id": "avgl" } ]
+                    ],
+                    "view": "bar",
+                    "region": "${AWS::Region}", "period": 3600,
+                    "yAxis": { "left": { "min": 0, "label": "ms" } }
+                  }
+                },
+
+                { "type": "text", "x": 0, "y": 20, "width": 24, "height": 1,
+                  "properties": { "markdown": "## 3. Errors & Throttles (SRE)" } },
+
+                {
+                  "type": "metric",
+                  "x": 0, "y": 21, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Errors (4xx / 5xx / Throttles) — by ModelId",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationClientErrors\"', 'Sum', 300)", "label": "4xx", "id": "e4" } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationServerErrors\"', 'Sum', 300)", "label": "5xx", "id": "e5" } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationThrottles\"',    'Sum', 300)", "label": "Throttle", "id": "et" } ]
+                    ],
+                    "view": "timeSeries", "stacked": false,
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0 } }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 21, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "InvocationThrottles — by ModelId",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InvocationThrottles\"', 'Sum', 300)", "label": "", "id": "thr" } ]
+                    ],
+                    "view": "timeSeries",
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0, "label": "count" } },
+                    "annotations": {
+                      "horizontal": [ { "label": "Alarm threshold", "value": ${ThrottleRateAlarmThreshold} } ]
+                    }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 0, "y": 27, "width": 24, "height": 6,
+                  "properties": {
+                    "title": "Legacy model invocations (migration tracking)",
+                    "metrics": [
+                      [ "AWS/Bedrock", "LegacyModelInvocations", { "stat": "Sum" } ]
+                    ],
+                    "view": "timeSeries",
+                    "region": "${AWS::Region}", "period": 300
+                  }
+                },
+
+                { "type": "text", "x": 0, "y": 33, "width": 24, "height": 1,
+                  "properties": { "markdown": "## 4. Tokens" } },
+
+                {
+                  "type": "metric",
+                  "x": 0, "y": 34, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Input vs Output tokens — by ModelId",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"InputTokenCount\"', 'Sum', 300)",  "label": "input",  "id": "intok"  } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"OutputTokenCount\"', 'Sum', 300)", "label": "output", "id": "outtok" } ]
+                    ],
+                    "view": "timeSeries", "stacked": false,
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0, "label": "tokens" } }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 34, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Prompt-cache read vs write tokens — by ModelId",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"CacheReadInputTokenCount\"',  'Sum', 300)", "label": "cache READ",  "id": "cr" } ],
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"CacheWriteInputTokenCount\"', 'Sum', 300)", "label": "cache WRITE", "id": "cw" } ]
+                    ],
+                    "view": "timeSeries", "stacked": false,
+                    "region": "${AWS::Region}", "period": 300,
+                    "yAxis": { "left": { "min": 0, "label": "tokens" } }
+                  }
+                },
+
+                { "type": "text", "x": 0, "y": 40, "width": 24, "height": 1,
+                  "properties": { "markdown": "## 5. Quota Headroom\n\n> **Caveat (per AWS docs):** `EstimatedTPMQuotaUsage` is approximate and does NOT reflect the reservation-based token consumption that drives throttling decisions. Use it as a *trend* signal, not a capacity-planning input." } },
+
+                {
+                  "type": "metric",
+                  "x": 0, "y": 41, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "EstimatedTPMQuotaUsage (per ModelId)",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"EstimatedTPMQuotaUsage\"', 'Sum', 60)", "label": "", "id": "e1" } ]
+                    ],
+                    "view": "timeSeries",
+                    "region": "${AWS::Region}", "period": 60
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 41, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Derived RPM (Invocations · 60s SUM)",
+                    "metrics": [
+                      [ { "expression": "SEARCH('{AWS/Bedrock,ModelId} MetricName=\"Invocations\"', 'Sum', 60)", "label": "", "id": "e2" } ]
+                    ],
+                    "view": "timeSeries",
+                    "region": "${AWS::Region}", "period": 60,
+                    "yAxis": { "left": { "label": "requests / min" } }
+                  }
+                  }
+                  ${Section6}
+                  ${Section7}
+                ]
+              }
+          - # Tier-gating invariant: the widgets array always ends with a complete
+            # widget object "}" followed by bare ${Section6}${Section7} then "]".
+            # Each fragment below SELF-PREFIXES a leading comma, so when its
+            # condition is false it resolves to '' and the array stays valid JSON;
+            # when true it appends ",{...}". Never put a comma before ${Section6}.
+            # Y-coords: Section 6 occupies y47-60; Section 7 shifts to 60/61/67 when
+            # Section 6 is present, else 47/48/54 (see S7HdrY/S7RowY/S7Row2Y).
+            Section6: !If
+              - HasInvocationLogs
+              - !Sub
+                - >-
+                  ,{ "type": "text", "x": 0, "y": 47, "width": 24, "height": 1,
+                     "properties": { "markdown": "## 6. Per-tenant attribution (Logs Insights — Model Invocation Logs)\n\nReads from `${ModelInvocationLogGroup}`. Tag callers with `requestMetadata` (e.g. `{\"team\":\"...\"}`) for breakdowns to populate. Requires CloudWatch Logs delivery (S3-only logging cannot be queried here)." } },
+                  { "type": "log", "x": 0, "y": 48, "width": 12, "height": 6,
+                    "properties": { "title": "Top teams by total tokens (last 1h)",
+                      "query": "SOURCE '${ModelInvocationLogGroup}' | fields @timestamp, requestMetadata.${TenantMetadataKey} as tenant, input.inputTokenCount as in_tok, output.outputTokenCount as out_tok | filter ispresent(tenant) | stats sum(in_tok) as input_tokens, sum(out_tok) as output_tokens, sum(in_tok + out_tok) as total_tokens, count(*) as calls by tenant | sort total_tokens desc | limit 20",
+                      "region": "${AWS::Region}", "view": "table" } },
+                  { "type": "log", "x": 12, "y": 48, "width": 12, "height": 6,
+                    "properties": { "title": "Tokens by model + operation (last 1h)",
+                      "query": "SOURCE '${ModelInvocationLogGroup}' | fields modelId, operation, input.inputTokenCount as in_tok, output.outputTokenCount as out_tok | stats sum(in_tok) as input_tokens, sum(out_tok) as output_tokens, count(*) as calls by modelId, operation | sort input_tokens desc | limit 30",
+                      "region": "${AWS::Region}", "view": "table" } },
+                  { "type": "metric", "x": 0, "y": 54, "width": 12, "height": 6,
+                    "properties": { "title": "Model Invocation Log delivery health",
+                      "metrics": [ [ "AWS/Bedrock", "ModelInvocationLogsCloudWatchDeliverySuccess", { "stat": "Sum", "label": "CW success" } ], [ ".", "ModelInvocationLogsCloudWatchDeliveryFailure", { "stat": "Sum", "label": "CW failure" } ], [ ".", "ModelInvocationLogsS3DeliverySuccess", { "stat": "Sum", "label": "S3 success" } ], [ ".", "ModelInvocationLogsS3DeliveryFailure", { "stat": "Sum", "label": "S3 failure" } ], [ ".", "ModelInvocationLargeDataS3DeliverySuccess", { "stat": "Sum", "label": "Large-data S3 success" } ], [ ".", "ModelInvocationLargeDataS3DeliveryFailure", { "stat": "Sum", "label": "Large-data S3 failure" } ] ],
+                      "view": "timeSeries", "stacked": false, "region": "${AWS::Region}", "period": 300 } },
+                  { "type": "log", "x": 12, "y": 54, "width": 12, "height": 6,
+                    "properties": { "title": "Guardrail interventions (model-shape dependent; Anthropic bodies)",
+                      "query": "SOURCE '${ModelInvocationLogGroup}' | filter output.outputBodyJson.amazon-bedrock-guardrailAction = \"INTERVENED\" | fields @timestamp, modelId, requestMetadata.${TenantMetadataKey} as tenant, requestId | sort @timestamp desc | limit 50",
+                      "region": "${AWS::Region}", "view": "table" } }
+                - ModelInvocationLogGroup: !Ref ModelInvocationLogGroup
+                  TenantMetadataKey: !Ref TenantMetadataKey
+              - ''
+            Section7: !If
+              - HasCloudTrail
+              - !Sub
+                - >-
+                  ,{ "type": "text", "x": 0, "y": ${S7HdrY}, "width": 24, "height": 1,
+                     "properties": { "markdown": "## 7. Identity, routing & error reasons (CloudTrail — management events)\n\nReads from `${CloudTrailLogGroup}`. Standard runtime calls (InvokeModel/Converse) are CloudTrail *management* events (default-on); you pay only for log delivery, not per-event data-event charges." } },
+                  { "type": "log", "x": 0, "y": ${S7RowY}, "width": 12, "height": 6,
+                    "properties": { "title": "Top callers by IAM identity (last 1h)",
+                      "query": "SOURCE '${CloudTrailLogGroup}' | filter eventSource = \"${CTEventSource}\" | stats count(*) as calls by userIdentity.arn, requestParameters.modelId | sort calls desc | limit 30",
+                      "region": "${AWS::Region}", "view": "table" } },
+                  { "type": "log", "x": 12, "y": ${S7RowY}, "width": 12, "height": 6,
+                    "properties": { "title": "Throttle / error reasons by caller (last 1h)",
+                      "query": "SOURCE '${CloudTrailLogGroup}' | filter eventSource = \"${CTEventSource}\" and ispresent(errorCode) | stats count(*) as occurrences by errorCode, errorMessage, requestParameters.modelId | sort occurrences desc | limit 50",
+                      "region": "${AWS::Region}", "view": "table" } },
+                  { "type": "log", "x": 0, "y": ${S7Row2Y}, "width": 24, "height": 6,
+                    "properties": { "title": "Cross-region inference routing (last 1h)",
+                      "query": "SOURCE '${CloudTrailLogGroup}' | filter eventSource = \"${CTEventSource}\" and ispresent(additionalEventData.inferenceRegion) | stats count(*) as calls by requestParameters.modelId, additionalEventData.inferenceRegion | sort calls desc",
+                      "region": "${AWS::Region}", "view": "table" } }
+                - CloudTrailLogGroup: !Ref CloudTrailLogGroup
+                  CTEventSource: bedrock.amazonaws.com
+                  S7HdrY: !If [HasInvocationLogs, '60', '47']
+                  S7RowY: !If [HasInvocationLogs, '61', '48']
+                  S7Row2Y: !If [HasInvocationLogs, '67', '54']
+              - ''
+
+  # -----------------------------------------------------------------------------
+  # Saved Logs Insights queries (CloudFormation creates them as console artifacts)
+  # -----------------------------------------------------------------------------
+
+  QueryTopTeamsTokens:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasInvocationLogs
+    Properties:
+      Name: !Sub '${DashboardName}/01-top-teams-by-tokens'
+      LogGroupNames: [ !Ref ModelInvocationLogGroup ]
+      QueryString: !Sub |
+        fields @timestamp, requestMetadata.${TenantMetadataKey} as tenant, input.inputTokenCount as in_tok, output.outputTokenCount as out_tok
+        | filter ispresent(tenant)
+        | stats sum(in_tok) as input_tokens, sum(out_tok) as output_tokens, sum(in_tok + out_tok) as total_tokens, count(*) as calls by tenant
+        | sort total_tokens desc
+        | limit 20
+
+  QueryTokensByModelOperation:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasInvocationLogs
+    Properties:
+      Name: !Sub '${DashboardName}/02-tokens-by-model-and-operation'
+      LogGroupNames: [ !Ref ModelInvocationLogGroup ]
+      QueryString: |
+        fields modelId, operation, input.inputTokenCount as in_tok, output.outputTokenCount as out_tok
+        | stats sum(in_tok) as input_tokens, sum(out_tok) as output_tokens, count(*) as calls by modelId, operation
+        | sort input_tokens desc
+        | limit 30
+
+  QueryGuardrailInterventions:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasInvocationLogs
+    Properties:
+      Name: !Sub '${DashboardName}/03-guardrail-interventions'
+      LogGroupNames: [ !Ref ModelInvocationLogGroup ]
+      QueryString: !Sub |
+        filter output.outputBodyJson.amazon-bedrock-guardrailAction = "INTERVENED"
+        | fields @timestamp, modelId, requestMetadata.${TenantMetadataKey} as tenant, requestId
+        | sort @timestamp desc
+        | limit 100
+
+  QueryLargePrompts:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasInvocationLogs
+    Properties:
+      Name: !Sub '${DashboardName}/04-largest-prompts'
+      LogGroupNames: [ !Ref ModelInvocationLogGroup ]
+      QueryString: !Sub |
+        fields @timestamp, modelId, requestMetadata.${TenantMetadataKey} as tenant, input.inputTokenCount as in_tok, output.outputTokenCount as out_tok, requestId
+        | sort in_tok desc
+        | limit 50
+
+  QueryStopReasonDistribution:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasInvocationLogs
+    Properties:
+      Name: !Sub '${DashboardName}/05-converse-stop-reasons'
+      LogGroupNames: [ !Ref ModelInvocationLogGroup ]
+      QueryString: |
+        filter operation in ["Converse","ConverseStream"]
+        | fields output.outputBodyJson.stopReason as stop_reason
+        | stats count(*) as calls by stop_reason
+        | sort calls desc
+
+  QueryTopCallersByIdentity:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasCloudTrail
+    Properties:
+      Name: !Sub '${DashboardName}/06-top-callers-by-identity-cloudtrail'
+      LogGroupNames: [ !Ref CloudTrailLogGroup ]
+      QueryString: |
+        filter eventSource = "bedrock.amazonaws.com"
+        | stats count(*) as calls by userIdentity.arn, requestParameters.modelId
+        | sort calls desc
+        | limit 30
+
+  QueryThrottleReasons:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasCloudTrail
+    Properties:
+      Name: !Sub '${DashboardName}/07-throttle-and-error-reasons-cloudtrail'
+      LogGroupNames: [ !Ref CloudTrailLogGroup ]
+      QueryString: |
+        filter eventSource = "bedrock.amazonaws.com" and ispresent(errorCode)
+        | stats count(*) as occurrences by errorCode, errorMessage, requestParameters.modelId
+        | sort occurrences desc
+        | limit 50
+
+  QueryCrossRegionRouting:
+    Type: AWS::Logs::QueryDefinition
+    Condition: HasCloudTrail
+    Properties:
+      Name: !Sub '${DashboardName}/08-cross-region-inference-routing'
+      LogGroupNames: [ !Ref CloudTrailLogGroup ]
+      QueryString: |
+        filter eventSource = "bedrock.amazonaws.com" and ispresent(additionalEventData.inferenceRegion)
+        | stats count(*) as calls by requestParameters.modelId, additionalEventData.inferenceRegion
+        | sort calls desc
+
+  # -----------------------------------------------------------------------------
+  # Alarms
+  # -----------------------------------------------------------------------------
+
+  AlarmThrottleRate:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${DashboardName}-throttle-rate-high'
+      AlarmDescription: Bedrock throttle rate exceeded threshold over 5 minutes. (Account-aggregate across all ModelIds; the dashboard widget breaks this out per model.)
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      Threshold: !Ref ThrottleRateAlarmThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        !If [HasAlarmTopic, [!Ref AlarmSnsTopicArn], !Ref AWS::NoValue]
+      Metrics:
+        - Id: rate
+          Expression: '100 * thr / (inv + ce + se + thr + 0.0001)'
+          Label: Throttle %
+          ReturnData: true
+        - Id: inv
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: AWS/Bedrock, MetricName: Invocations }
+            Period: 300
+            Stat: Sum
+        - Id: ce
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: AWS/Bedrock, MetricName: InvocationClientErrors }
+            Period: 300
+            Stat: Sum
+        - Id: se
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: AWS/Bedrock, MetricName: InvocationServerErrors }
+            Period: 300
+            Stat: Sum
+        - Id: thr
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: AWS/Bedrock, MetricName: InvocationThrottles }
+            Period: 300
+            Stat: Sum
+
+  AlarmLogDeliveryFailures:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasInvocationLogs
+    Properties:
+      AlarmName: !Sub '${DashboardName}-log-delivery-failures'
+      AlarmDescription: Bedrock model invocation log delivery is failing.
+      Namespace: AWS/Bedrock
+      MetricName: ModelInvocationLogsCloudWatchDeliveryFailure
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        !If [HasAlarmTopic, [!Ref AlarmSnsTopicArn], !Ref AWS::NoValue]
+
+  AlarmServerErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${DashboardName}-server-errors'
+      AlarmDescription: Bedrock 5xx error count is non-zero over 5 minutes. (Account-aggregate across all ModelIds; the dashboard widget breaks this out per model.)
+      Namespace: AWS/Bedrock
+      MetricName: InvocationServerErrors
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref ServerErrorsAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        !If [HasAlarmTopic, [!Ref AlarmSnsTopicArn], !Ref AWS::NoValue]
+
+Outputs:
+  DashboardURL:
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${DashboardName}'
+    Description: Direct link to the deployed CloudWatch dashboard.
+
+  ModelInvocationLogGroupUsed:
+    Value: !Ref ModelInvocationLogGroup
+    Description: Log group powering Logs Insights widgets.
+
+  DeployedTier:
+    Description: Which tier materialised based on the parameters supplied.
+    Value: !If [HasCloudTrail, '3', !If [HasInvocationLogs, '2', '1']]

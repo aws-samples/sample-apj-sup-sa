@@ -1,0 +1,4 @@
+filter output.outputBodyJson.amazon-bedrock-guardrailAction = "INTERVENED"
+| fields @timestamp, modelId, requestMetadata.team as tenant, requestId
+| sort @timestamp desc
+| limit 100

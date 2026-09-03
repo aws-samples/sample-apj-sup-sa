@@ -1,0 +1,5 @@
+filter eventSource = "bedrock.amazonaws.com" and ispresent(errorCode)
+| stats count(*) as occurrences
+        by errorCode, errorMessage, requestParameters.modelId
+| sort occurrences desc
+| limit 50

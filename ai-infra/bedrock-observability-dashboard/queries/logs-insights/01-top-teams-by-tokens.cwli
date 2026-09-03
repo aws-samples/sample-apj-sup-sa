@@ -1,0 +1,10 @@
+fields @timestamp, requestMetadata.team as tenant,
+       input.inputTokenCount as in_tok, output.outputTokenCount as out_tok
+| filter ispresent(tenant)
+| stats sum(in_tok) as input_tokens,
+        sum(out_tok) as output_tokens,
+        sum(in_tok + out_tok) as total_tokens,
+        count(*) as calls
+        by tenant
+| sort total_tokens desc
+| limit 20

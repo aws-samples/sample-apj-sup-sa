@@ -1,0 +1,4 @@
+cfn-lint>=1.0.0
+pytest>=8.0.0
+pyyaml>=6.0.1
+boto3>=1.34.0
