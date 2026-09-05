@@ -25,8 +25,12 @@ There is no separate data-seeder template and no provisioning script to run.
 ### 2. Configure infrastructure
 
 `ws-studio/contentspec.yaml` already declares both templates, in the order
-Workshop Studio deploys them. Keep that order: the Code Editor is what
-participants open in Part 0, and it has no dependency on the tools stack.
+Workshop Studio deploys them. **Keep that order: the tools stack has to deploy
+first.** It seeds the baseline agent source to
+`s3://<ToolsProjectName>-data-<account>-<region>/workspace/`, and the Code Editor
+syncs that into `/workshop/repo` at boot, retrying while the tools stack finishes.
+Part 0 itself still comes up if the tools stack is late - Claude Code and the Kiro
+CLI do not need it - but Part 1 has nothing to open, so the order is not optional.
 
 Run `bash infra/sync_to_ws_studio.sh` after editing either template - it
 re-embeds the assets and copies both files into the Workshop Studio content
@@ -116,12 +120,17 @@ Other parameters worth knowing:
   parameter: the workspace gets an `AGENT-SOURCE-MISSING.md` telling the
   participant to ask you, and `ENVIRONMENT.md` flags the source as MISSING. Check
   that the tools stack reached CREATE_COMPLETE.
-- `CloudFrontOriginPrefixListId` - defaults to `pl-3b927c52`, the us-east-1 id.
-  Only change this if you run the workshop outside us-east-1:
-  ```bash
-  aws ec2 describe-managed-prefix-lists --region <region> \
-    --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing
-  ```
+
+**The CloudFront prefix list needs no parameter.** There is nothing to set when you
+run outside us-east-1: the template looks the origin-facing prefix list up by name
+(`com.amazonaws.global.cloudfront.origin-facing`) at deploy time through the
+`PrefixListLookupFunction` custom resource, because the id differs in every region.
+To see the id a region resolves to:
+
+```bash
+aws ec2 describe-managed-prefix-lists --region <region> \
+  --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing
+```
 
 **Debugging a participant account:** the whole bootstrap is logged to
 `/var/log/user-data.log`, and probe failures to `/var/log/bedrock-probe.log`.
