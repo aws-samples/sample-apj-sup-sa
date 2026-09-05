@@ -1,50 +1,71 @@
-# GenAI Product Canvas (blank)
+## GEN AI PRODUCT CANVAS 
 
-Fill this in for the biodiversity anomaly detection use case. This is a thinking
-tool, not a spec. You will validate every decision against a working agent in the
-build phase. Keep answers short and specific.
+Fill this in on the A3 canvas at your desk (or copy the headings onto paper). Work
+top to bottom. Keep every answer short and specific — this is a thinking tool, not
+a spec.
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│ GenAI PRODUCT CANVAS                                                    │
-│                                                                         │
-│ Product: ______________________________________________________        │
-│ Shape:   [ ] Pipeline    [ ] Agentic Loop    [ ] Hybrid                 │
-├───────────────────────────────────────────────────────────────────────┤
-│ 1. OUTCOME (a task, not a conversation)                                 │
-│    What artifact does the agent produce? ______________________         │
-│    Output format / schema: _____________________________________        │
-│    Why not a chatbot? __________________________________________        │
-├───────────────────────────────────────────────────────────────────────┤
-│ 2. DEFINITION OF DONE (when does the loop stop?)                        │
-│    Completion signals: _________________________________________        │
-│    Max iterations: ____   Confidence threshold: ____                    │
-│    If unresolved: ______________________________________________        │
-├───────────────────────────────────────────────────────────────────────┤
-│ 3. WHERE'S THE HUMAN?                                                    │
-│    Full-auto stages: ___________________________________________        │
-│    Human-gated stages: _________________________________________        │
-│    Cost of a false positive: ___________________________________        │
-│    Cost of a false negative: ___________________________________        │
-├───────────────────────────────────────────────────────────────────────┤
-│ 4. HOW FAST? (latency budget)                                           │
-│    Mode: [ ] Real-time  [ ] Async batch  [ ] Scheduled                  │
-│    Latency budget: _____________________________________________        │
-│    UX pattern: _________________________________________________        │
-├───────────────────────────────────────────────────────────────────────┤
-│ 5. WHO'S THE USER?                                                       │
-│    Primary persona: ____________________________________________        │
-│    What do they need? __________________________________________        │
-│    How do they consume the output? _____________________________        │
-├───────────────────────────────────────────────────────────────────────┤
-│ TOOLS (circle which you will wire up):                                  │
-│   query_detections | get_weather_data | check_land_use                  │
-│   search_news | get_species_baseline | generate_anomaly_report          │
-│                                                                         │
-│ COST ESTIMATE: ____ tool calls x ~$____/call = ~$____ / investigation   │
-└───────────────────────────────────────────────────────────────────────┘
-```
+**Project Title:** _______________________________________________
 
-When your team has filled this in, save it (or a photo of it) and hand it to the
-AI in the build phase. The next document shows exactly how each box becomes agent
-configuration.
+---
+
+### 🔒 Problem
+_What problem are you solving? Why does it matter?_
+
+>
+
+### 🔀 Existing alternatives
+_How is this problem solved today without AI/LLMs?_
+
+>
+
+### 🌐 Inputs (prompt, other data sources)
+_What data goes into the prompt? Where does it come from? What format?_
+
+>
+
+### ☁️ Outputs (structured vs unstructured, schema)
+_What does the LLM output look like? Structured or unstructured? What constraints?_
+
+>
+
+### ✅ Definition of Done (rubric / completion criteria)
+_How do you know the goal is achieved? Completion signals, max tool calls, what
+happens if unresolved?_
+
+>
+
+### ✨ UX (modality, augmentation, feedback)
+_How will users interact with this feature? How do they validate or give feedback?_
+
+>
+
+### 🧠 LLMX (which tools/services the agent uses, and how it knows to use them)
+_Pure prompt, or does the agent use tools? Which of the six tools do you wire up?_
+
+>
+
+### 📊 Costs
+_Estimated LLM inference costs (tokens, model, volume)._
+
+>
+
+### 💰 Pricing
+_How would this feature be priced or packaged? Margin impact?_
+
+>
+
+### 📋 Success metrics
+- Accuracy: ____%
+- Latency: ____
+- Adoption: ____
+
+### 🧪 Evaluation
+_How will you measure accuracy and quality? What is your test set? How do you
+validate against ground truth?_
+
+>
+
+### 💡 Solution
+_How does your solution work at a high level?_
+
+>

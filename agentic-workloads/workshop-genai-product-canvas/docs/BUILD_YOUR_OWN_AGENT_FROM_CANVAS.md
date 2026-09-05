@@ -1,42 +1,39 @@
----
-title: "Build: translate your canvas into an agent"
-weight: 50
----
+# Replicate this workflow: canvas -> local validation -> AgentCore Runtime
 
-You filled in the canvas. Now hand it to your coding agent (Kiro, Claude Code, etc.)
-and let it turn your design decisions into a working agent on the Touch Grass
-baseline: build it, **validate it locally**, then deploy it to Amazon Bedrock
-AgentCore Runtime.
+This guide lets any builder take a completed **GenAI Product Canvas** and, in their
+own coding agent (Kiro, Claude Code, etc.), turn it into a working agent on top of
+the Touch Grass baseline: build it, **validate the output locally**, then deploy it
+to **Amazon Bedrock AgentCore Runtime** using their AWS Workshop Studio account.
 
-There is no fixed answer here. Whatever your team put on the canvas — a report, a
-structured JSON feed, a chatbot, a dashboard — the prompt below builds toward *that*.
-The agent works with you phase by phase and checks in between each one.
+## Prerequisites
 
-## Before you start
+Install and verify these before you start.
 
-Have these ready (most are already set up on your workshop machine):
+| Tool | Why | Install / check |
+|------|-----|-----------------|
+| **Python 3.10+** | Runs the agent and the Strands framework | `python3 --version` |
+| **AWS CLI v2** | Credentials + calling AWS | `aws --version` |
+| **AWS credentials for your Workshop Studio account** | Bedrock access + deploy | `aws sts get-caller-identity` returns the WS account |
+| **Bedrock model access enabled** | The agent's reasoning model | The baseline model (BEDROCK_MODEL_ID in agent.py) is already enabled for this workshop account — reuse it rather than picking a new model, since availability varies by region |
+| **git** | Clone the baseline repo | `git --version` |
+| **Node.js 20+** | Runs the AgentCore CLI | `node --version` |
+| **`@aws/agentcore` CLI** | Package + deploy to AgentCore Runtime | `npm install -g @aws/agentcore` (verify: `agentcore --version`) |
 
-- Your completed canvas (a photo of the paper version, or a filled-in copy). If you have a photo of your filled-in canvas, drag and drop it into your code editor working space. 
-- Python 3.10+, AWS CLI v2, git, Node.js 20+.
-- The `@aws/agentcore` CLI - already installed on the Code Editor, so just
-  `agentcore --version`. On your own laptop: `npm install -g @aws/agentcore`.
-- Working AWS credentials for your Workshop Studio account (`aws sts get-caller-identity`).
-- The baseline Bedrock model is already enabled for this account — reuse it rather
-  than picking a new model, since availability varies by region.
+**CLI note:** `@aws/agentcore` is the AgentCore CLI this guide uses throughout. Your
+agent code, the `bedrock-agentcore` runtime SDK, and `strands-agents` are independent
+of the CLI. If you would rather not use the CLI at all, you can invoke a deployed
+endpoint directly with boto3 (set a long client `read_timeout`) — see Phase 4.
 
 ## The prompt
 
-Copy everything in the block below into your coding agent, with your completed canvas file path attached or pasted where indicated.
+Copy everything in the block below into your coding agent, with your completed GenAI
+Product Canvas attached or pasted where indicated.
 
 ```
 I'm building an AI agent on top of the "Touch Grass" biodiversity workshop baseline
 (agent/agent.py, tools_local.py, gateway_client.py, system_prompt.txt,
-tool_definition.json, data/*.json).
-
-My completed GenAI Product Canvas (a photo, or a filled-in copy of the canvas
-template) is below — attach it as an image if your tool supports that, otherwise
-paste its contents in place of this placeholder:
-<PASTE OR ATTACH YOUR COMPLETED CANVAS HERE>
+tool_definition.json, data/*.json). I've attached my completed GenAI Product Canvas
+(a photo or a filled-in copy of the canvas template).
 
 Goal: turn my canvas into a working agent, let me validate it LOCALLY, then deploy it
 to Amazon Bedrock AgentCore Runtime in my AWS Workshop Studio account.
@@ -44,7 +41,7 @@ to Amazon Bedrock AgentCore Runtime in my AWS Workshop Studio account.
 Follow these phases and check with me between each:
 
 PHASE 0 — Read first, don't guess
-- My completed canvas is what I attached or pasted above (a photo, or a filled-in
+- My completed canvas is what I attached to this message (a photo, or a filled-in
   copy of the template). Read it as my answers. For structure and worked examples,
   read the ./canvas folder in the repo (the blank template, the reference answer,
   and the canvas-to-config mapping).
@@ -57,14 +54,6 @@ PHASE 0 — Read first, don't guess
   built and run — do NOT encode them as rules inside the system prompt. The
   canvas-to-config mapping in ./canvas shows which boxes become prompt lines and which
   do not.
-- Check with me for any further constraints to design into the agent (e.g., call
-  budget, output size, preamble length, number of tool calls). This is a prototype
-  for workshop use, not a production system — an adequate output quality bar is fine.
-- Worked example of a stop-condition rule (adapt the numbers/tool name to my canvas,
-  don't copy this verbatim): before each tool call, state in one line "Tool call N of
-  8." If N reaches 8, do not make another tool call — proceed directly to
-  generate_anomaly_report with whatever evidence is available, setting
-  escalation_needed = true if confidence < 0.6.
 
 PHASE 1 — Translate canvas -> config (agent first, reuse existing resources)
 - Create a NEW sibling agent (e.g. agent/<my>_agent.py) and a NEW system prompt file.
@@ -155,33 +144,30 @@ PHASE 2 — Validate locally (no deploy yet)
   framework or add automated tests unless I ask.
 
 PHASE 3 — Deploy to AgentCore Runtime
-- I have already validated the agent LOCALLY in Phase 2. Only proceed to deploy once I
-  confirm the local run looks right.
 - Tell me this creates real AWS resources (a runtime endpoint, an IAM execution role,
   and deploy artifacts) before running anything.
 - Use the @aws/agentcore CLI (install with `npm install -g @aws/agentcore` if absent;
   verify `agentcore --version`).
-- The repo already ships a ready AgentCore CLI project at agent/agentcore/ (config +
-  a CDK app), wired to the baseline entrypoint. Do NOT run `agentcore create`. If I
-  built a NEW sibling agent, point the project's entrypoint at my agent file instead
-  of the baseline. Run `agentcore --help` and the relevant subcommand `--help`
-  (add, deploy, invoke, status) and follow the CLI's own current syntax rather than
-  assuming flags.
+- The CLI is project-based: it needs an agentcore project. Run `agentcore --help` and
+  the relevant subcommand `--help` (create, add, deploy, invoke, status) and follow
+  the CLI's own current syntax rather than assuming flags. In outline: create/
+  initialise a project (framework Strands, model provider Bedrock), wire in my
+  entrypoint agent, then `agentcore deploy`.
 - Deploy with the SAME model the baseline already uses (BEDROCK_MODEL_ID in agent.py /
   .env.example) rather than picking a new one — model availability varies by region
   (many Bedrock models are not offered in-region in ap-southeast-1), and the baseline
   model is already enabled for this workshop account. Only change the model if I ask,
   and if so confirm the model is available in my region first.
-- Set my runtime env on the project (agent/agentcore/agentcore.json envVars). If my
-  agent uses local tools, it needs TOOL_MODE=local and BEDROCK_MODEL_ID. If it uses
-  the remote Gateway tools, set TOOL_MODE=gateway and fill the gateway values from
-  gateway.env (the placeholders read REPLACE_FROM_gateway.env). Then `agentcore deploy`.
+- Set my runtime env on the project as the CLI directs. If my agent uses local tools,
+  it needs TOOL_MODE=local and BEDROCK_MODEL_ID. If it uses remote Gateway tools, run
+  infra/deploy_tools.sh then infra/create_gateway.py first and supply the gateway.env
+  values.
 - Wait for `agentcore status` to show the endpoint READY before invoking.
 
 PHASE 4 — Invoke, observe, and verify
 - Invoke the deployed agent with `agentcore invoke` (the CLI takes the prompt as a
-  plain argument, e.g. `agentcore invoke "..."`; check `agentcore invoke --help`). If
-  a run calls several tools it can take minutes — this is expected.
+  plain argument, e.g. `agentcore invoke --runtime <name> "..."`; check `agentcore
+  invoke --help`). If a run calls several tools it can take minutes — this is expected.
 - No-CLI fallback: invoke the endpoint directly with boto3
   (`bedrock-agentcore` client, `invoke_agent_runtime`, agentRuntimeArn=<arn>). Set a
   long client read_timeout (e.g. 600s) or it hits the 60s default and times out
@@ -189,18 +175,14 @@ PHASE 4 — Invoke, observe, and verify
 - Build in observability so I can see cost, latency, and every tool call:
     * AgentCore auto-instruments the runtime for traces/metrics at deploy time (OTEL),
       so no code change is needed for the deployed agent.
-    * Do NOT send me to CloudWatch -> GenAI Observability. That page is built entirely
-      on indexed transaction spans, and at an AWS-run event every panel on it reads
-      "No data - Enable Transaction Search"; enabling it needs a Logs resource policy
-      on the reserved aws/spans group that a temporary workshop account refuses. The
-      repo ships `observability/enable_observability.sh` for accounts where it CAN be
-      turned on, which is your own account, not this one.
-    * After a few invokes, point me instead to CloudWatch -> Metrics, where the
-      telemetry actually is: `gen_ai.client.token.usage` in the `bedrock-agentcore`
-      namespace split into input and output (my cost per run), `Invocations` in
-      `AWS/Bedrock-AgentCore` graphed by the tool `Name` dimension (the path my agent
-      chose, tool by tool), `strands.event_loop.cycle_count` (how far round the loop),
-      and `Latency` / `Errors` for latency and failures.
+    * Traces only appear once CloudWatch Transaction Search is enabled for the
+      account/region (one-time). If it is not on yet, enable it — the repo ships
+      `observability/enable_observability.sh` for this; run it, or do the equivalent
+      Transaction Search setup, before expecting traces.
+    * After a few invokes, point me to CloudWatch -> GenAI Observability -> Bedrock
+      AgentCore -> my runtime name. Show me where to read sessions (token usage +
+      duration), traces/spans (each model turn and tool call in order, with per-tool
+      latency), and metrics (session count, p50/p90 latency, tokens, error rate).
     * Tie it back to my canvas: compare real token cost against the Cost box, and real
       latency against the Success-metrics box.
 - Verify the run against my Definition of Done: confirm the output matches my canvas's
@@ -208,9 +190,7 @@ PHASE 4 — Invoke, observe, and verify
 - Note that on the runtime the artifact is returned in the invoke response, not saved
   to disk (ephemeral filesystem). If my canvas needs durable output, write it to S3
   from the handler (or use the CLI's session/EFS/S3 storage mounts).
-- Remind me how to tear down: `agentcore remove all` (removes the runtime and the
-  resources this CLI project created), or delete the runtime directly with the AWS API
-  if the project is unavailable.
+- Remind me how to tear down (see teardown note below).
 
 Constraints throughout:
 - Never overwrite the baseline files. Keep my agent as separate, clearly named files.
@@ -219,19 +199,21 @@ Constraints throughout:
 - Explain any deviation from my canvas before making it.
 ```
 
-## How this maps to the workshop
+## Teardown
 
-- **Phase 2 (local)** is your first checkpoint: the agent runs on your laptop before
-  anything touches AWS.
-- **Phase 3 (deploy)** uses the ready AgentCore CLI project at `agent/agentcore/`, so
-  you deploy onto tool infrastructure that already exists — you do not create a new
-  project. If you would rather have the AI drive the CLI for you, ask it to use the
-  `deploy-to-agentcore` skill shipped in the repo.
-- **Phase 4 (observe)** emits the telemetry you inspect on the next page.
-- Going further beyond the workshop? The full, standalone version of this prompt lives
-  in `docs/BUILD_YOUR_OWN_AGENT_FROM_CANVAS.md`.
+- **CLI-independent (recommended, always works):** delete the runtime directly with
+  the AWS API, by id:
+  ```bash
+  aws bedrock-agentcore-control list-agent-runtimes --region <region>
+  aws bedrock-agentcore-control delete-agent-runtime \
+    --agent-runtime-id <runtime-id> --region <region>
+  ```
+  This is destructive and removes the live endpoint — confirm before running. The
+  auto-created IAM execution role and deploy resources are separate; in Workshop
+  Studio accounts they are cleaned up automatically, otherwise remove them manually
+  for a full teardown.
 
-Once your agent is deployed and answering, move on to validate it against the
-scenarios.
-
-Next: [Validate](./080-validate.md)
+- **`@aws/agentcore` CLI:** teardown is project-based and tied to the agentcore
+  project you deployed from. Run `agentcore --help` to find the current remove/destroy
+  subcommand and its flags rather than assuming a command name. If you deployed from a
+  different machine or no longer have the project, use the CLI-independent path above.

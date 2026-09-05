@@ -10,20 +10,26 @@ produce your `system_prompt.txt`. Then diff it against the baseline.
 
 ## The mapping
 
-| Canvas decision | Becomes this model requirement | Where in the repo |
-|-----------------|-------------------------------|-------------------|
-| Shape = Agentic Loop | Use an `Agent` with tools (not a fixed pipeline / Step Functions) | `agent/agent.py` -> `Agent(model, system_prompt, tools=...)` |
-| Outcome = structured report | A terminal tool with a strict output schema the model must call last | `generate_anomaly_report` in `tool_definition.json` + "Output Format" in `system_prompt.txt` |
-| Why not chat | Instruction: "You produce a report, not a conversation." | `system_prompt.txt` -> Role section |
-| Definition of Done | Explicit stop rules the model can follow | `system_prompt.txt` -> "Definition of Done" section |
-| Max 8 iterations | Prompt hard-stop + (optionally) framework cap | `system_prompt.txt` + Strands `Agent` config |
-| Confidence >= 0.6 | Prompt rule + require a confidence field in the report | `system_prompt.txt` + `findings.probable_causes[].confidence` |
-| Consider >= 2 causes | Reasoning rule in the prompt | `system_prompt.txt` -> Reasoning Rules |
-| Human gate on actions | Prompt constraint + (extension) a Guardrail / pre-tool hook | `system_prompt.txt` -> Human Gate; extension in `content/100-extensions` |
-| Async / hours latency | Deploy behind a schedule; not a chat UI | `skills/deploy-to-agentcore` + EventBridge (extension) |
-| User = field ecologist | Persona + tone framing; enforcement phrased as "coordinate with Perhilitan" | `system_prompt.txt` -> Role + Human Gate |
-| Tools = all six | The tool list wired to the agent (local) and the Gateway target (remote) | `agent/tools_local.py` `LOCAL_TOOLS` / `agent/tool_definition.json` |
-| Cost estimate | Validate against real token usage after deploy | `observability/README.md` |
+| Canvas box | Canvas decision | Becomes this model requirement | Where in the repo |
+|-----------|-----------------|-------------------------------|-------------------|
+| Solution | Agentic Loop, not a fixed pipeline / Step Functions | Use an `Agent` with tools | `agent/agent.py` -> `Agent(model, system_prompt, tools=...)` |
+| Outputs | Structured anomaly report with an enum'd schema | A terminal tool with a strict output schema the model must call last | `generate_anomaly_report` in `tool_definition.json` + "Output Format" in `system_prompt.txt` |
+| UX | Report delivered to an inbox, not a conversation | Instruction: "You produce a report, not a conversation." | `system_prompt.txt` -> Role section |
+| UX | Human gate on real-world field action | Prompt constraint + (extension) a Guardrail / pre-tool hook | `system_prompt.txt` -> Human Gate; extension in `content/100-extensions` |
+| UX | Async batch, hours latency | Deploy behind a schedule; not a chat UI | `skills/deploy-to-agentcore` + EventBridge (extension) |
+| Definition of Done | Completion signals (confidence + evidence + actions) | Explicit stop rules the model can follow | `system_prompt.txt` -> "Definition of Done" section |
+| Definition of Done | Max 8 iterations | Prompt hard-stop + (optionally) framework cap | `system_prompt.txt` + Strands `Agent` config |
+| Definition of Done | Confidence >= 0.6 | Prompt rule + require a confidence field in the report | `system_prompt.txt` + `findings.probable_causes[].confidence` |
+| Definition of Done | Consider >= 2 causes | Reasoning rule in the prompt | `system_prompt.txt` -> Reasoning Rules |
+| Problem | User = field ecologist | Persona + tone framing; enforcement phrased as "coordinate with Perhilitan" | `system_prompt.txt` -> Role + Human Gate |
+| LLMX | Tools = all six, agent decides order | The tool list wired to the agent (local) and the Gateway target (remote) | `agent/tools_local.py` `LOCAL_TOOLS` / `agent/tool_definition.json` |
+| LLMX | An ordered methodology, not just a tool list | A step-by-step "when to use which tool" section, with rules for deviating | `system_prompt.txt` -> Investigation Methodology |
+| Inputs | Six data sources (detections, weather, land use, news, baselines) | Tool input/output schemas the model calls at run time, not text pasted into the prompt | `agent/tool_definition.json`, `agent/data/*.json` |
+| Existing alternatives | Manual spreadsheet review / static threshold alerts | Not a model requirement itself — the baseline the agent must beat, used to justify why the prompt asks for an *explanation*, not just a flag | motivates Reasoning Rules; no direct artifact |
+| Costs | ~5 tool calls x ~$0.03 = ~$0.15 / investigation | Validate against real token usage after deploy | `observability/README.md` |
+| Pricing | How the feature is priced or packaged | Budget/packaging decision — does NOT become a prompt line | tracked outside the agent config; informs deploy budget only |
+| Success metrics | Accuracy / latency / adoption targets | Already encoded via Definition of Done (confidence, iteration cap) and the deploy schedule; adoption is tracked post-deploy | `system_prompt.txt` Definition of Done + `observability/README.md` |
+| Evaluation | Ground-truth test set (tapir, elephant, pangolin) | Replay fixture data against the agent and check the report against the known root cause | `agent/data/*.json` fixtures + `python agent/agent.py <species>` |
 
 ## Worked example: one canvas line -> prompt text
 
@@ -48,15 +54,19 @@ language. That translation is the skill this workshop teaches.
 
 ## Common translation mistakes
 
-1. **Pasting the canvas verbatim.** "Async batch, hours" means nothing to the
-   model. It is a *deployment* decision (a schedule), not a prompt line.
-2. **Listing tools without a methodology.** Wiring six tools does not tell the
-   model *when* to use each. The prompt needs an ordered methodology plus rules
-   for when to deviate (e.g. regional vs localized anomalies).
+1. **Pasting the canvas verbatim.** "Async batch, hours" (a UX box decision) means
+   nothing to the model. It is a *deployment* decision (a schedule), not a prompt
+   line.
+2. **Listing tools without a methodology.** Wiring six tools in the LLMX box does
+   not tell the model *when* to use each. The prompt needs an ordered methodology
+   plus rules for when to deviate (e.g. regional vs localized anomalies).
 3. **No output contract.** "Produce a report" is not enforceable. Give the model a
    terminal tool with an enum'd schema so the output is machine-checkable.
 4. **Stop condition only as a number.** "8 iterations" without "else escalate"
    leaves the model to invent an ending. State the unresolved path explicitly.
+5. **Encoding Costs or Pricing as prompt rules.** These boxes shape scope and
+   budget, not model behavior — they belong in deployment config and business
+   docs, not `system_prompt.txt`.
 
 ## Try it
 

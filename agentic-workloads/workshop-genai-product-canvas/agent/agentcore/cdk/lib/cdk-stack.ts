@@ -22,6 +22,7 @@ export type HarnessConfig = HarnessDeploymentConfig;
 export interface PaymentConnectorSpec {
   name: string;
   provider: 'CoinbaseCDP' | 'StripePrivy';
+  credentialName: string;
   credentialProviderArn: string;
 }
 
@@ -206,8 +207,11 @@ export class AgentCoreStack extends Stack {
           const conn = new AgentCorePaymentConnector(this, `Payment${mgrId}${connId}`, {
             projectName: spec.name,
             paymentManager: manager,
-            connectorName: connector.name,
-            connectorType: connector.provider,
+            connector: {
+              name: connector.name,
+              provider: connector.provider,
+              credentialName: connector.credentialName,
+            },
             credentialProviderArn: connector.credentialProviderArn,
           });
 

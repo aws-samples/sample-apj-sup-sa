@@ -9,19 +9,18 @@ OpenTelemetry metrics the AgentCore Runtime and the Gateway publish to CloudWatc
 Like the Part 1 demo, this is facilitator-driven.
 
 :::alert{type="warning"}
-**Read this before you open the console.** At an AWS-run event the
-**CloudWatch -> GenAI Observability -> Bedrock AgentCore** page is **empty** - every
-panel on it reads *"No data - Enable Transaction Search"*. That page is built
-entirely on indexed transaction spans, and enabling Transaction Search needs
-`xray:UpdateTraceSegmentDestination` plus a CloudWatch Logs resource policy on the
-reserved `aws/spans` log group, which a temporary workshop account refuses even with
-facilitator credentials.
+**Read this before you open the console.** At an AWS-run event, **CloudWatch ->
+GenAI Observability -> Bedrock AgentCore** stays empty - every panel reads *"No
+data - Enable Transaction Search"* - because Transaction Search is not turned on by
+default: it indexes 100% of spans into the reserved `aws/spans` log group, and a
+temporary workshop account leaves it off to avoid the added log storage and
+ingestion cost. 
 
-That does **not** mean you have no telemetry. Token usage, per-tool call counts,
-latency and errors are all published as ordinary CloudWatch **metrics** and are
-there right now. The rest of this page uses those instead. In your own account you
-can turn the span views on once - **CloudWatch -> Settings -> Transaction Search ->
-Enable** - and get the trace waterfall as well.
+That does **not** mean you have no telemetry - CloudWatch
+**metrics** already give you aggregated token usage, per-tool call counts, latency
+and errors, and the rest of this page uses those instead. If you want the per-run
+span views, you can enable it once in your own account - **CloudWatch -> Settings ->
+Transaction Search -> Enable**.
 :::
 
 ## Make some telemetry
@@ -34,23 +33,17 @@ agentcore invoke "Asian Elephant gone from STN-01 since March 2026. Investigate.
 agentcore invoke "Sunda Pangolin declining across all stations Jan-Jul 2026. Investigate."
 ```
 
-The two groups of metrics do not arrive together, so give them time before deciding
-something is broken. Measured on a live event: the service metrics under
-`AWS/Bedrock-AgentCore` were already there a couple of minutes after the first
-invocation, while the agent's own `bedrock-agentcore` metrics - the token counts -
-took a good deal longer, because they travel out through the runtime's log group as
-embedded-metric-format records first. If the namespace reads *"There are no metrics
-in this namespace"*, that is what you are waiting on. Start with `AWS/Bedrock-AgentCore`
-below and come back to the token numbers in `bedrock-agentcore`.
+Give the metrics a few minutes before deciding something is broken. They travel out
+through the runtime's log group as embedded-metric-format records first, so on a
+live event they took a good deal longer than the invocation itself to show up. If
+the namespace reads *"There are no metrics in this namespace,"* that is what you are
+waiting on.
 
 ## Where the numbers are
 
-Open **CloudWatch -> Metrics -> All metrics** in your event's region. Two custom
-namespaces matter.
-
-### 1. `bedrock-agentcore` - what the agent itself emitted
-
-Written by the OpenTelemetry instrumentation inside the runtime.
+Open **CloudWatch -> Metrics -> Classic metrics** in your event's region, and search
+**All metrics** for the `bedrock-agentcore` namespace - written by the OpenTelemetry
+instrumentation inside the runtime, so it is there whatever the agent is built with.
 
 | Metric | What it tells you |
 |--------|-------------------|
@@ -61,21 +54,7 @@ Written by the OpenTelemetry instrumentation inside the runtime.
 | `strands.tool.success_count` | Tool calls that returned cleanly. |
 | `strands.event_loop.cycle_count` | **How many times round the loop.** This is the pipeline-versus-loop distinction from the previous section, as a number. |
 
-A single tapir investigation in a test run of this workshop came to roughly
-**18,800 input tokens and 1,900 output tokens** across all its model turns. Input
-dominates, because every tool result is fed back into the next turn.
-
-### 2. `AWS/Bedrock-AgentCore` - what the service saw
-
-Written by AgentCore itself, so it is there whatever the agent is built with.
-
-| Metric | What it tells you |
-|--------|-------------------|
-| `Invocations` | Dimensioned by tool `Name`, e.g. `wildlife-investigation-tools___check_land_use`. **Graph this by Name and you can see the path the agent chose** - which tools it used, and how often - without needing spans. |
-| `Sessions`, `ActiveSessionCount` | One session per investigation. |
-| `Latency`, `Duration`, `TargetExecutionTime` | End-to-end and per-target timing. |
-| `Errors`, `UserErrors`, `SystemErrors`, `Throttles` | Where a run went wrong. |
-| `InboundAuthorizationSuccess` | The Cognito JWT the Gateway checked on the way in. |
+A single tapir investigation in a test run of this workshop came to roughly **8,600 input tokens and 1,300 output tokens** (about **9,900 total**) for the final `chat` turn, with an end-to-end model duration around **22 seconds**. Input dominates, because every tool result is fed back into the next turn.
 
 ## Turn tokens into cost
 
@@ -102,13 +81,53 @@ The runtime's log group is
 there first as embedded-metric-format records, so if a metric looks wrong the raw
 event is in the log.
 
+## Go further: read a single run's span
+
+Everything above is aggregated - sums and counts over a namespace. If you enable
+Transaction Search in your own account (workshop accounts do not permit this - see
+the warning at the top), you get the per-run detail instead: each investigation
+produces a `chat` span carrying the token counts, latency, model id and the full
+message/tool trace for that one run, no summing across runs required.
+
+1. **Enable OpenTelemetry span ingestion (one time).** **CloudWatch -> Settings ->
+   X-Ray traces -> Transaction Search -> View settings**, and ensure **Ingest
+   OpenTelemetry Spans** is on. Give it a minute - spans that ran before ingestion
+   was enabled will not be backfilled, so run the agent again once it is on.
+2. **Run the agent** so there is a fresh span to look at - the same
+   `agentcore invoke` commands as above work.
+3. **Open the span.** **CloudWatch -> GenAI Observability -> Bedrock AgentCore ->
+   All Spans**, then click a `chat` span.
+4. **Read the token bill off the span.** The attributes that matter:
+
+   | Span attribute | What it tells you |
+   |-----------------|-------------------|
+   | `gen_ai.usage.input_tokens` (also `gen_ai.usage.prompt_tokens`) | The input side of the bill for that one run. |
+   | `gen_ai.usage.output_tokens` (also `gen_ai.usage.completion_tokens`) | The tokens the model generated. |
+   | `gen_ai.usage.total_tokens` | Input + output for the run. |
+   | `gen_ai.request.model` | Which model you were billed for. |
+   | `gen_ai.server.request.duration` | End-to-end model latency for the run, in milliseconds. |
+   | `gen_ai.server.time_to_first_token` | How long until the first token came back, in milliseconds. |
+   | `session.id` | One session per investigation - use it to tell runs apart. |
+
+   The span's **events** (`gen_ai.system.message`, `gen_ai.user.message`,
+   `gen_ai.assistant.message`, `gen_ai.tool.message`, `gen_ai.choice`) are the full
+   message and tool trace: the system prompt, your prompt, each `toolUse` the agent
+   chose, each `toolResult` it got back, and the final report. That is where you
+   read the path the agent chose and judge response quality.
+5. **Use the default dashboards** under **CloudWatch -> GenAI Observability ->
+   Bedrock AgentCore**: **All Capabilities** for total token and cost per agent,
+   **All Sessions** for tokens/errors/latency per session, **All Traces** and
+   **All Spans** for everything underneath a given run.
+
 ## Discuss
 
 - Did the pangolin (all-stations) investigation cost more than the tapir
   (one-station) one? Why? (Hint: multi-station detection payloads are larger, and
   larger tool results mean more tokens fed back into the model.)
-- Graph `Invocations` by tool `Name` for both runs. Did the agent take the same
-  path? Should it have?
+- If you have spans enabled, open each run's `chat` span and read its tool trace
+  (the `toolUse` events). Did the agent take the same path for both? Should it have?
+  Otherwise, compare `strands.tool.call_count` and `strands.tool.duration` across
+  the two runs instead.
 - Which tool returned the biggest payload, and how did that move the cost?
 - If you halved the 8-call ceiling, what would you save and what would you risk?
 
