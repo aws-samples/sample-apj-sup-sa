@@ -1,0 +1,8 @@
+[
+  {
+    "name": "default",
+    "description": "Filled in at boot with the account and region you are running in. Set both by hand if you are deploying from your own machine.",
+    "account": "000000000000",
+    "region": "us-east-1"
+  }
+]

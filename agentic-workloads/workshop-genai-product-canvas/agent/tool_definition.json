@@ -1,0 +1,95 @@
+{
+  "$comment": "Canonical tool contract for the Biodiversity Anomaly Detection Agent. Used to (a) create the AgentCore Gateway Lambda target (tool schemas), and (b) as the reference participants read when filling their canvas. The Lambda target dispatches on the tool `name` field.",
+  "gatewayTargetName": "wildlife-investigation-tools",
+  "tools": [
+    {
+      "name": "query_detections",
+      "description": "Query camera trap detection counts for a species across stations and time. Establishes baselines, identifies trends, and confirms an anomaly and its scope (one station vs all stations).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "species": {"type": "string", "description": "Species common name, e.g. 'Malayan Tapir'"},
+          "start_month": {"type": "string", "description": "Start month inclusive, YYYY-MM"},
+          "end_month": {"type": "string", "description": "End month inclusive, YYYY-MM"},
+          "station_id": {"type": "string", "description": "Optional station filter, e.g. 'STN-03'"}
+        },
+        "required": ["species", "start_month", "end_month"]
+      }
+    },
+    {
+      "name": "get_weather_data",
+      "description": "Get monthly weather (rainfall, temperature, humidity, flood events) for a station. Used to rule out environmental causes such as floods or extreme rainfall.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "station_id": {"type": "string", "description": "Station ID, e.g. 'STN-03'"},
+          "start_month": {"type": "string", "description": "Start month inclusive, YYYY-MM"},
+          "end_month": {"type": "string", "description": "End month inclusive, YYYY-MM"}
+        },
+        "required": ["station_id", "start_month", "end_month"]
+      }
+    },
+    {
+      "name": "check_land_use",
+      "description": "Detect land use changes (logging, construction, agriculture) near a station within a radius. Used to identify anthropogenic causes of wildlife displacement.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "station_id": {"type": "string", "description": "Station ID, e.g. 'STN-03'"},
+          "start_date": {"type": "string", "description": "Start date inclusive, YYYY-MM-DD"},
+          "end_date": {"type": "string", "description": "End date inclusive, YYYY-MM-DD"},
+          "radius_km": {"type": "number", "description": "Search radius in km (default 5)"}
+        },
+        "required": ["station_id", "start_date", "end_date"]
+      }
+    },
+    {
+      "name": "search_news",
+      "description": "Search local news articles by keywords and date range. Used to corroborate a hypothesis with independent reporting.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "keywords": {"type": "array", "items": {"type": "string"}, "description": "Search terms, e.g. ['logging','Sungai Lebam']"},
+          "start_date": {"type": "string", "description": "Start date inclusive, YYYY-MM-DD"},
+          "end_date": {"type": "string", "description": "End date inclusive, YYYY-MM-DD"}
+        },
+        "required": ["keywords", "start_date", "end_date"]
+      }
+    },
+    {
+      "name": "get_species_baseline",
+      "description": "Get ecological baseline for a species: IUCN status, typical detection range, known threats, habitat and disturbance sensitivity.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "species": {"type": "string", "description": "Species common name, e.g. 'Malayan Tapir'"}
+        },
+        "required": ["species"]
+      }
+    },
+    {
+      "name": "generate_anomaly_report",
+      "description": "Generate and publish the final anomaly investigation report. Call LAST after evidence is gathered.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "species": {"type": "string"},
+          "anomaly_type": {"type": "string", "enum": ["sudden_decline", "gradual_decline", "disappearance", "unusual_increase", "range_shift"]},
+          "severity": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+          "findings": {
+            "type": "object",
+            "description": "baseline_range, observed_value, probable_causes[], recommended_actions[], escalation_needed",
+            "properties": {
+              "baseline_range": {"type": "string"},
+              "observed_value": {"type": "string"},
+              "probable_causes": {"type": "array", "items": {"type": "object"}},
+              "recommended_actions": {"type": "array", "items": {"type": "string"}},
+              "escalation_needed": {"type": "boolean"}
+            }
+          }
+        },
+        "required": ["species", "anomaly_type", "severity", "findings"]
+      }
+    }
+  ]
+}

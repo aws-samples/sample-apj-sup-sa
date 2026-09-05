@@ -1,0 +1,90 @@
+{
+  "metadata": {
+    "source": "Global Forest Watch GLAD alerts + Johor State Forestry Department gazette notices + satellite imagery analysis",
+    "region": "Desaru, Kota Tinggi, Johor",
+    "period": "2025-06 to 2026-07",
+    "notes": "Detected land use changes within 10km of monitoring stations."
+  },
+  "changes": [
+    {
+      "change_id": "LUC-001",
+      "station_id": "STN-03",
+      "date": "2026-04-12",
+      "change_type": "illegal_logging",
+      "description": "Unauthorized timber extraction detected via GLAD deforestation alert. Chain-saw cut stumps and skid trails visible in satellite imagery. No valid logging permit on record with Johor Forestry Department.",
+      "distance_from_station_km": 0.8,
+      "area_hectares": 4.2,
+      "severity": "high",
+      "coordinates": {
+        "lat": 1.5445,
+        "lon": 104.2035
+      },
+      "detection_method": "GLAD alert + ground verification by Perhilitan",
+      "status": "under_investigation"
+    },
+    {
+      "change_id": "LUC-002",
+      "station_id": "STN-01",
+      "date": "2026-02-18",
+      "change_type": "construction",
+      "description": "Access road widening and earthworks for luxury resort expansion along Tanjung Balau coastline. Heavy machinery, noise, and night lighting documented. Part of the Teluk Serai coastal resort development, phase 3. EIA approved but wildlife corridor mitigation not yet implemented.",
+      "distance_from_station_km": 0.4,
+      "area_hectares": 12.5,
+      "severity": "high",
+      "coordinates": {
+        "lat": 1.586,
+        "lon": 104.2548
+      },
+      "detection_method": "Satellite imagery + construction permit records",
+      "status": "approved_development"
+    },
+    {
+      "change_id": "LUC-003",
+      "station_id": "STN-06",
+      "date": "2026-03-05",
+      "change_type": "agriculture_expansion",
+      "description": "Oil palm replanting extending 200m into secondary forest buffer. Herbicide application detected on forest edge. Common practice during replanting cycle.",
+      "distance_from_station_km": 1.2,
+      "area_hectares": 3.1,
+      "severity": "low",
+      "coordinates": {
+        "lat": 1.4995,
+        "lon": 104.243
+      },
+      "detection_method": "Routine monitoring by estate manager report",
+      "status": "reported_to_forestry"
+    },
+    {
+      "change_id": "LUC-004",
+      "station_id": "STN-04",
+      "date": "2026-05-22",
+      "change_type": "coastal_reclamation",
+      "description": "Small-scale land reclamation for fishing jetty upgrade at Kampung Tanjung Balau. Mangrove fringe partially cleared (~0.3 ha). State permit issued.",
+      "distance_from_station_km": 2.1,
+      "area_hectares": 0.3,
+      "severity": "low",
+      "coordinates": {
+        "lat": 1.571,
+        "lon": 104.289
+      },
+      "detection_method": "Community report + drone survey",
+      "status": "permitted"
+    },
+    {
+      "change_id": "LUC-005",
+      "station_id": "STN-05",
+      "date": "2025-11-15",
+      "change_type": "trail_clearing",
+      "description": "Existing hiking trail widened and gravel surfaced for eco-tourism access to Gunung Panti summit. Minimal canopy disturbance. Part of Johor National Park upgrade project.",
+      "distance_from_station_km": 3.5,
+      "area_hectares": 0.8,
+      "severity": "minimal",
+      "coordinates": {
+        "lat": 1.52,
+        "lon": 104.172
+      },
+      "detection_method": "Park management records",
+      "status": "completed"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "biodiversity_anomaly_agent"
+version = "0.1.0"
+description = "Biodiversity Anomaly Detection agent for Amazon Bedrock AgentCore Runtime"
+# The floor the package supports. Not the same as what the workshop runs: the
+# Code Editor develops on 3.11 and the AgentCore Runtime deploys on 3.12 - see the
+# note at the top of requirements.txt, whose pins are kept identical to these.
+requires-python = ">=3.10"
+dependencies = [
+    "strands-agents>=1.15.0",
+    "strands-agents-tools>=0.1.0",
+    "bedrock-agentcore>=1.9.1",
+    "mcp~=1.24.0",
+    "aws-opentelemetry-distro",
+    "botocore[crt]>=1.35.0",
+    "boto3>=1.34.0",
+    "requests>=2.31.0",
+]
+
+# CodeZip packaging: include only the agent runtime files, not the agentcore/
+# config+CDK project or the local dev datasets.
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "agent.py",
+    "tools_local.py",
+    "gateway_client.py",
+    "system_prompt.txt",
+    "tool_definition.json",
+]

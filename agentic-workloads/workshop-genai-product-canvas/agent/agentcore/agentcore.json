@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
+  "name": "biodiversity",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "biodiversity"
+  },
+  "runtimes": [
+    {
+      "name": "biodiversity_anomaly_agent",
+      "build": "CodeZip",
+      "entrypoint": "agent.py",
+      "codeLocation": ".",
+      "runtimeVersion": "PYTHON_3_12",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "envVars": [
+        { "name": "TOOL_MODE", "value": "gateway" },
+        { "name": "AGENTCORE_GATEWAY_URL", "value": "REPLACE_FROM_gateway.env" },
+        { "name": "COGNITO_TOKEN_URL", "value": "REPLACE_FROM_gateway.env" },
+        { "name": "COGNITO_CLIENT_ID", "value": "REPLACE_FROM_gateway.env" },
+        { "name": "COGNITO_CLIENT_SECRET", "value": "REPLACE_FROM_gateway.env" },
+        { "name": "COGNITO_SCOPE", "value": "REPLACE_FROM_gateway.env" },
+        { "name": "BEDROCK_MODEL_ID", "value": "us.anthropic.claude-sonnet-4-6" }
+      ]
+    }
+  ],
+  "memories": [],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "payments": []
+}
