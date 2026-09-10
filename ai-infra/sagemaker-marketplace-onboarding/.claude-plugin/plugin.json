@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "sagemaker-marketplace-onboarding",
+  "displayName": "SageMaker Marketplace Onboarding",
+  "version": "1.0.0",
+  "description": "Interactive walkthrough that onboards a model provider's container onto the AWS SageMaker Marketplace container contract: /ping + /invocations, optional bidirectional WebSocket, optional per-inference metering, weights packaging, local testing, ECR push, and CreateModelPackage hand-off.",
+  "author": {
+    "name": "AWS Samples"
+  },
+  "homepage": "https://github.com/aws-samples/sample-apj-sup-sa/tree/main/ai-infra/sagemaker-marketplace-onboarding",
+  "repository": "https://github.com/aws-samples/sample-apj-sup-sa",
+  "keywords": ["aws", "sagemaker", "marketplace", "ml", "container", "onboarding"]
+}
