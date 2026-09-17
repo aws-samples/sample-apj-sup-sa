@@ -1,0 +1,26 @@
+# Secrets — never commit
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+uv.lock
+
+# Node
+node_modules/
+# Vendored Daily SDK: restored by `npm install` (see package.json "vendor").
+client/vendor/
+
+# Your own media and the derived index — not redistributed with the sample
+videos/*
+!videos/.gitkeep
+data/
+
+# Logs and local scratch output
+build.log
+server.log
+ingest.log
+*.png
+!docs/*.png
+.DS_Store

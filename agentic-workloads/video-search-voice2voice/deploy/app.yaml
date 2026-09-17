@@ -1,0 +1,389 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Talk2Vid hosted demo. CloudFront (HTTPS + Basic Auth) -> internal-facing ALB ->
+  ECS Fargate task running the FastAPI app and the voice bot. Voice media does not
+  pass through this stack at all: it rides Daily, which the task reaches outbound,
+  so nothing here needs an inbound UDP path.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: ECR image URI (repo:tag) for the app.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Two or more public subnets in different AZs.
+  SecretArn:
+    Type: String
+    Description: Secrets Manager secret holding DEEPGRAM_API_KEY and DAILY_API_KEY.
+  AssetBucket:
+    Type: String
+    Description: Private S3 bucket holding the indexes and media.
+  HarnessArn:
+    Type: String
+    Description: AgentCore harness ARN for outside-world knowledge.
+  OriginSecret:
+    Type: String
+    NoEcho: true
+    Description: Shared secret CloudFront sends so the ALB refuses direct traffic.
+  BasicAuthB64:
+    Type: String
+    NoEcho: true
+    Description: base64("user:password") enforced by the CloudFront function.
+  LlmModelId:
+    Type: String
+    Default: us.anthropic.claude-haiku-4-5-20251001-v1:0
+  DesiredCount:
+    Type: Number
+    Default: 1
+    Description: Set to 0 to park the demo without deleting the stack.
+
+Resources:
+  # ---------------------------------------------------------------- networking
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      # EC2 rejects non-ASCII in GroupDescription, so keep this plain.
+      GroupDescription: Talk2Vid ALB - HTTP from CloudFront only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Scoped to CloudFront's own origin-facing ranges; combined with the
+        # secret-header rule below, the ALB is not usable directly.
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !FindInMap [CloudFrontPrefixList, !Ref "AWS::Region", Id]
+          Description: CloudFront origin-facing IPs
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 7860
+          ToPort: 7860
+          DestinationSecurityGroupId: !Ref TaskSecurityGroup
+          Description: to the app task
+      Tags: [{ Key: app, Value: talk2vid }]
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Talk2Vid task - inbound from the ALB only
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        # Outbound to Bedrock, AgentCore, Deepgram, Daily, S3 and ECR.
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS APIs, Deepgram and Daily
+      Tags: [{ Key: app, Value: talk2vid }]
+
+  TaskIngressFromAlb:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref TaskSecurityGroup
+      IpProtocol: tcp
+      FromPort: 7860
+      ToPort: 7860
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+      Description: app port from the ALB
+
+  # --------------------------------------------------------------------- ALB
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref AlbSecurityGroup]
+      LoadBalancerAttributes:
+        - { Key: idle_timeout.timeout_seconds, Value: "120" }
+        - { Key: routing.http.drop_invalid_header_fields.enabled, Value: "true" }
+      Tags: [{ Key: app, Value: talk2vid }]
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Port: 7860
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 15
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 4
+      # The app holds long-lived sessions; drain rather than cut them.
+      TargetGroupAttributes:
+        - { Key: deregistration_delay.timeout_seconds, Value: "30" }
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      # Default is a hard refusal: only requests carrying CloudFront's secret
+      # header get through, so the ALB's public DNS is a dead end.
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: "403"
+            ContentType: text/plain
+            MessageBody: "Direct access is not allowed. Use the CloudFront URL."
+
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 1
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: X-Origin-Secret
+            Values: [!Ref OriginSecret]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  # --------------------------------------------------------------------- IAM
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-secret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref SecretArn
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: talk2vid-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: BedrockModels
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*
+                  - arn:aws:bedrock:*::foundation-model/*
+              - Sid: AgentCoreHarness
+                Effect: Allow
+                # InvokeHarness is authorized by the InvokeAgentRuntime action,
+                # not by an action of its own name.
+                Action:
+                  - bedrock-agentcore:InvokeAgentRuntime
+                  - bedrock-agentcore:InvokeHarness
+                Resource:
+                  - !Ref HarnessArn
+                  - !Sub ${HarnessArn}/*
+              - Sid: ReadAssets
+                Effect: Allow
+                Action: [s3:GetObject]
+                Resource: !Sub arn:aws:s3:::${AssetBucket}/*
+              - Sid: ListAssets
+                Effect: Allow
+                Action: [s3:ListBucket]
+                Resource: !Sub arn:aws:s3:::${AssetBucket}
+
+  # --------------------------------------------------------------------- ECS
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/ecs/${AWS::StackName}
+      RetentionInDays: 7
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${AWS::StackName}-cluster
+      ClusterSettings: [{ Name: containerInsights, Value: disabled }]
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform:
+        # Built natively on ARM in CodeBuild; ARM Fargate is also cheaper.
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: app
+          Image: !Ref ImageUri
+          Essential: true
+          PortMappings: [{ ContainerPort: 7860, Protocol: tcp }]
+          Environment:
+            - { Name: TALK2VID_TRANSPORT, Value: daily }
+            - { Name: TALK2VID_HOST, Value: 0.0.0.0 }
+            - { Name: TALK2VID_PORT, Value: "7860" }
+            - { Name: TALK2VID_AWS_REGION, Value: !Ref "AWS::Region" }
+            - { Name: TALK2VID_S3_BUCKET, Value: !Ref AssetBucket }
+            - { Name: TALK2VID_HARNESS_ARN, Value: !Ref HarnessArn }
+            - { Name: TALK2VID_LLM_MODEL_ID, Value: !Ref LlmModelId }
+          Secrets:
+            - { Name: DEEPGRAM_API_KEY, ValueFrom: !Sub "${SecretArn}:DEEPGRAM_API_KEY::" }
+            - { Name: DAILY_API_KEY, ValueFrom: !Sub "${SecretArn}:DAILY_API_KEY::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: app
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7860/api/health',timeout=4).status==200 else 1)"
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 90
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: [ListenerRule, TaskIngressFromAlb]
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      # One task, and sessions live in its memory, so replace rather than overlap.
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+      HealthCheckGracePeriodSeconds: 120
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          # A public IP is how the task reaches Bedrock, Daily and Deepgram without
+          # paying for a NAT gateway. Its security group allows no inbound internet.
+          AssignPublicIp: ENABLED
+          Subnets: !Ref SubnetIds
+          SecurityGroups: [!Ref TaskSecurityGroup]
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 7860
+          TargetGroupArn: !Ref TargetGroup
+
+  # -------------------------------------------------------------- CloudFront
+  BasicAuthFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub ${AWS::StackName}-basic-auth
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Password gate for the Talk2Vid demo
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var expected = 'Basic ${BasicAuthB64}';
+          var headers = request.headers;
+          if (!headers.authorization || headers.authorization.value !== expected) {
+            return {
+              statusCode: 401,
+              statusDescription: 'Unauthorized',
+              headers: {
+                'www-authenticate': { value: 'Basic realm="Talk2Vid", charset="UTF-8"' },
+                'cache-control': { value: 'no-store' }
+              }
+            };
+          }
+          return request;
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${AWS::StackName} demo
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: alb
+            DomainName: !GetAtt LoadBalancer.DNSName
+            CustomOriginConfig:
+              # The ALB has no certificate; the viewer-facing hop is HTTPS via
+              # CloudFront's own cert, and the secret header authenticates this leg.
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 60
+            OriginCustomHeaders:
+              - { HeaderName: X-Origin-Secret, HeaderValue: !Ref OriginSecret }
+        DefaultCacheBehavior:
+          TargetOriginId: alb
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          # CachingDisabled + AllViewer: the API and the UI shell must never be cached.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt BasicAuthFunction.FunctionMetadata.FunctionARN
+        CacheBehaviors:
+          # Video files are the only heavy, immutable payload — cache them at the edge.
+          - PathPattern: /media/*
+            TargetOriginId: alb
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt BasicAuthFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /api/thumb/*
+            TargetOriginId: alb
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt BasicAuthFunction.FunctionMetadata.FunctionARN
+      Tags: [{ Key: app, Value: talk2vid }]
+
+Mappings:
+  # CloudFront's managed prefix list for origin-facing IPs, per region.
+  CloudFrontPrefixList:
+    us-east-1: { Id: pl-3b927c52 }
+    us-west-2: { Id: pl-82a045eb }
+    eu-west-1: { Id: pl-4fa04526 }
+
+Outputs:
+  Url:
+    Description: The demo URL (Basic Auth protected)
+    Value: !Sub https://${Distribution.DomainName}
+  AlbDns:
+    Description: ALB DNS (returns 403 without CloudFront's secret header)
+    Value: !GetAtt LoadBalancer.DNSName
+  ClusterName:
+    Value: !Ref Cluster
+  ServiceName:
+    Value: !GetAtt Service.Name
+  LogGroupName:
+    Value: !Ref LogGroup

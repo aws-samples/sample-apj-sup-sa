@@ -1,0 +1,17 @@
+{
+  "name": "talk2vid",
+  "version": "1.0.0",
+  "description": "Have a real voice conversation with a pre-recorded video. Pick a clip, press the mic, ask a question out loud, and hear a grounded answer back — with the player jumping to the moment being discussed.",
+  "main": "index.js",
+  "scripts": {
+    "vendor": "mkdir -p client/vendor && cp node_modules/@daily-co/daily-js/dist/daily-esm.js client/vendor/daily-esm.js",
+    "postinstall": "npm run vendor"
+  },
+  "keywords": [],
+  "author": "Amazon.com, Inc. or its affiliates",
+  "license": "MIT-0",
+  "type": "commonjs",
+  "dependencies": {
+    "@daily-co/daily-js": "^0.92.2"
+  }
+}
