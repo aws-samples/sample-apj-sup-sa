@@ -19,7 +19,7 @@ aioitertools==0.13.0
 aiortc==1.14.0
 aiosignal==1.4.0
 annotated-types==0.7.0
-anyio==4.13.0
+anyio==4.14.2
 asyncpg==0.31.0
 attrs==26.1.0
 audioop-lts==0.2.2
