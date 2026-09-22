@@ -14,7 +14,7 @@
     "@aws-sdk/lib-dynamodb": "^3.0.0",
     "@strands-agents/sdk": "^1.0.0",
     "express": "^5.1.0",
-    "mppx": "^0.6.7",
+    "mppx": "^0.8.2",
     "zod": "^4.1.12"
   },
   "devDependencies": {
