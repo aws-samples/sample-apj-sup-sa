@@ -373,9 +373,12 @@ while it runs — `scripts/provision_agentcore.py --teardown` removes it when th
 is over.
 
 Hosted: one 1 vCPU / 2 GB ARM Fargate task plus the ALB is roughly $0.05/hour.
-`deploy.py --park` sets desired count to 0 between rehearsals, leaving only the ALB
-and CloudFront. S3 lifecycle rules expire media and embedding artifacts so nothing
-accumulates.
+`deploy.py --park` sets desired count to 0 between rehearsals, which drops the
+Fargate half; the ALB remains and keeps billing at roughly $0.025/hour (about
+$18/month) plus LCUs, so parking is a rehearsal-gap measure and `deploy.py
+--teardown` is what actually takes the hosted cost to zero. CloudFront itself is
+request-priced, so an idle distribution costs nothing. S3 lifecycle rules expire
+media and embedding artifacts so nothing accumulates.
 
 ---
 

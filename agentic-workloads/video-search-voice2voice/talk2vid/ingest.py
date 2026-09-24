@@ -70,7 +70,9 @@ def ingest(
     if not path.exists():
         raise FileNotFoundError(path)
 
-    video_id = video_id or slugify(path.stem)
+    # Slugify an explicit --video-id too, not just the filename: the id becomes an S3
+    # key, a cache filename and part of a URL, so it stays [a-z0-9-] whoever set it.
+    video_id = slugify(video_id or path.stem)
     title = title or path.stem.replace("_", " ").replace("-", " ").title()
     persona = config.scenario(scenario).persona
     t_start = time.time()

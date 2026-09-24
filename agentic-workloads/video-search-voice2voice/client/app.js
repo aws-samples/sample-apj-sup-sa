@@ -82,12 +82,18 @@ async function loadVideos() {
 
   const totalSecs = videos.reduce((a, v) => a + v.duration, 0);
   const segments = videos.reduce((a, v) => a + v.segments, 0);
-  els.heroStats.innerHTML = [
-    `<b>${videos.length}</b> videos`,
-    `<b>${fmt(totalSecs)}</b> indexed`,
-    `<b>${segments}</b> searchable moments`,
-    health.world_knowledge ? '<b>web</b> access via AgentCore' : '',
-  ].filter(Boolean).map((t) => `<span>${t}</span>`).join('');
+  els.heroStats.replaceChildren(...[
+    [String(videos.length), ' videos'],
+    [fmt(totalSecs), ' indexed'],
+    [String(segments), ' searchable moments'],
+    ...(health.world_knowledge ? [['web', ' access via AgentCore']] : []),
+  ].map(([lead, rest]) => {
+    const span = document.createElement('span');
+    const b = document.createElement('b');
+    b.textContent = lead;
+    span.append(b, rest);
+    return span;
+  }));
 
   if (!videos.length) {
     els.library.innerHTML = `<p class="empty">No videos indexed yet — drop an mp4 in <code>videos/</code> then run
@@ -125,23 +131,29 @@ function card(v) {
   const el = document.createElement('button');
   el.className = 'card' + (v.playable ? '' : ' disabled');
   el.style.setProperty('--card-accent', v.accent);
+  // Static skeleton only: every value below is written through textContent, and the
+  // thumbnail goes through the style property, so nothing server-derived is ever
+  // parsed as HTML or as a CSS token.
   el.innerHTML = `
-    <div class="shot" style="background-image:url('/api/thumb/${v.video_id}')">
+    <div class="shot">
       <span class="badge"></span>
-      <span class="len">${fmt(v.duration)}</span>
+      <span class="len"></span>
     </div>
     <div class="meat">
       <h3></h3>
       <p></p>
-      <div class="foot">
-        <i>${v.segments} moments</i>
-        <i>${v.chapters.length} chapters</i>
-        <i>${v.has_embeddings ? 'multimodal' : 'text only'}</i>
-      </div>
+      <div class="foot"><i></i><i></i><i></i></div>
     </div>`;
+  el.querySelector('.shot').style.backgroundImage =
+    `url("/api/thumb/${encodeURIComponent(v.video_id)}")`;
+  el.querySelector('.len').textContent = fmt(v.duration);
   el.querySelector('.badge').textContent = v.scenario_label;
   el.querySelector('h3').textContent = v.title;
   el.querySelector('p').textContent = v.summary || '';
+  const foot = el.querySelectorAll('.foot i');
+  foot[0].textContent = `${v.segments} moments`;
+  foot[1].textContent = `${v.chapters.length} chapters`;
+  foot[2].textContent = v.has_embeddings ? 'multimodal' : 'text only';
   el.onclick = () => selectVideo(v);
   return el;
 }
@@ -271,8 +283,11 @@ function renderChapterList() {
     const row = document.createElement('button');
     row.className = 'chapter-row';
     row.dataset.i = i;
-    row.innerHTML = `<time>${fmt(ch.start)}</time><span></span>`;
-    row.querySelector('span').textContent = ch.title;
+    const time = document.createElement('time');
+    time.textContent = fmt(ch.start);
+    const label = document.createElement('span');
+    label.textContent = ch.title;
+    row.append(time, label);
     row.onclick = () => seek(ch.start);
     els.chapters.appendChild(row);
   });
@@ -339,20 +354,55 @@ function wordsToNumber(text) {
 }
 const numOf = (raw) => (/^\d+$/.test(raw.trim()) ? Number(raw) : wordsToNumber(raw));
 
+/* Rebuilt as DOM rather than a string: the text here is model output and speech
+ * transcription, so it must never be re-parsed as HTML. The four timestamp shapes
+ * are one alternation instead of a .replace() chain — the first branch that matches
+ * at a position wins and its text is not re-scanned, which is the ordering the
+ * chained replaces used to give (a matched 1:23 could not also match "minutes"). */
 function linkifyTimes(el) {
   const N = `(?:\\d{1,2}|${NUMWORD}(?:[\\s-]${NUMWORD})?)`;
-  const wrap = (m, secs) =>
-    secs > 0 && secs < 36000 ? `<span class="ts" data-t="${secs}">${m}</span>` : m;
-  el.innerHTML = el.textContent
-    .replace(/\b(\d{1,2}):([0-5]\d)\b/g, (m) => wrap(m, toSecs(m)))
-    .replace(new RegExp(`\\b(${N})\\s+minutes?(?:\\s+and)?\\s+(${N})\\b`, 'gi'),
-      (m, a, b) => wrap(m, numOf(a) * 60 + numOf(b)))
-    .replace(new RegExp(`\\b(${N})\\s+minutes?\\b`, 'gi'), (m, a) => wrap(m, numOf(a) * 60))
-    .replace(new RegExp(`\\b(${N})\\s+seconds?\\s+in\\b`, 'gi'), (m, a) => wrap(m, numOf(a)));
-  el.querySelectorAll('.ts').forEach((n) => (n.onclick = () => seek(Number(n.dataset.t))));
+  const pattern = new RegExp([
+    `\\b\\d{1,2}:[0-5]\\d\\b`,                                  // 1:23
+    `\\b(${N})\\s+minutes?(?:\\s+and)?\\s+(${N})\\b`,           // two minutes and ten
+    `\\b(${N})\\s+minutes?\\b`,                                 // two minutes
+    `\\b(${N})\\s+seconds?\\s+in\\b`,                           // eighteen seconds in
+  ].join('|'), 'gi');
+
+  const text = el.textContent;
+  const out = document.createDocumentFragment();
+  let end = 0;
+  for (const m of text.matchAll(pattern)) {
+    const [hit, minsAndSecs, secsPart, minsOnly, secsOnly] = m;
+    let secs;
+    if (minsAndSecs !== undefined) secs = numOf(minsAndSecs) * 60 + numOf(secsPart);
+    else if (minsOnly !== undefined) secs = numOf(minsOnly) * 60;
+    else if (secsOnly !== undefined) secs = numOf(secsOnly);
+    else secs = toSecs(hit);
+    if (!(secs > 0 && secs < 36000)) continue;
+
+    if (m.index > end) out.append(text.slice(end, m.index));
+    const span = document.createElement('span');
+    span.className = 'ts';
+    span.dataset.t = secs;
+    span.textContent = hit;
+    span.onclick = () => seek(secs);
+    out.append(span);
+    end = m.index + hit.length;
+  }
+  if (!end) return;                     // no timestamp found — leave the text as it is
+  out.append(text.slice(end));
+  el.replaceChildren(out);
 }
 function activity(text, running) {
-  els.activity.innerHTML = running ? `<span class="run">${text}</span>` : text;
+  if (!running) {
+    els.activity.textContent = text;
+    return;
+  }
+  // `text` carries tool detail chosen by the model, so it is written as text.
+  const span = document.createElement('span');
+  span.className = 'run';
+  span.textContent = text;
+  els.activity.replaceChildren(span);
 }
 
 /* -------------------------------------------------------------- RTVI I/O */
@@ -431,10 +481,21 @@ function onServerMessage(data) {
   } else if (data.t === 'research') {
     const box = document.createElement('div');
     box.className = 'research';
+    const label = document.createElement('b');
+    label.textContent = 'AgentCore web search';
+    box.append(label);
+    // The queries are written by the model — text, never markup.
     const queries = (data.queries || []).map((q) => `“${q}”`).join(', ');
-    box.innerHTML = `<b>AgentCore web search</b>`;
-    if (queries) box.innerHTML += `<span>${queries}</span>`;
-    if (data.latency_ms) box.innerHTML += `<span>${(data.latency_ms / 1000).toFixed(1)}s</span>`;
+    if (queries) {
+      const el = document.createElement('span');
+      el.textContent = queries;
+      box.append(el);
+    }
+    if (data.latency_ms) {
+      const el = document.createElement('span');
+      el.textContent = `${(data.latency_ms / 1000).toFixed(1)}s`;
+      box.append(el);
+    }
     els.log.appendChild(box);
     els.log.scrollTop = els.log.scrollHeight;
   }

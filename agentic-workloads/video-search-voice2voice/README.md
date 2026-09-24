@@ -228,15 +228,17 @@ at start, so re-ingesting a video needs no rebuild — just restart the service.
 ```bash
 uv run python scripts/deploy.py --status       # URL, login, running count, health
 uv run python scripts/deploy.py --skip-build   # redeploy the image already in ECR
-uv run python scripts/deploy.py --park         # desired count 0 — stops the hourly cost
+uv run python scripts/deploy.py --park         # desired count 0 — stops the Fargate cost
 uv run python scripts/deploy.py --resume       # back to 1
 uv run python scripts/deploy.py --teardown     # stack, ECR repo, secret, build project
 ```
 
-Park it when idle: one task plus the ALB is roughly $0.05/hour, and parked the
-stack costs almost nothing. Teardown removes everything this script created — the
-S3 bucket and the AgentCore harness belong to the provisioning scripts and are
-left alone.
+Park it when idle: one task plus the ALB is roughly $0.05/hour, and `--park` removes
+the Fargate share of that. It is not free — the ALB stays up and keeps billing at
+roughly $0.025/hour (about $18/month) plus LCUs, so park between rehearsals and
+**`--teardown` when you are done for good**. Teardown removes everything this script
+created — the S3 bucket and the AgentCore harness belong to the provisioning scripts
+and are left alone.
 
 Deploying needs an AWS profile with permission to create these resources and
 `AWS_REGION=us-east-1`, with any stale `AWS_*` environment variables unset.
@@ -278,7 +280,7 @@ Per-module detail is in [docs/architecture.md](docs/architecture.md#code-layout)
 | Amazon S3 | One private bucket (SSE-S3) for media, indexes and vectors |
 | Amazon ECS on AWS Fargate | Runs the app in the optional hosted mode (ARM64) |
 | Amazon CloudFront | HTTPS edge with a Basic Auth function in hosted mode |
-| Elastic Load Balancing (ALB) | Internal-facing origin that refuses traffic without CloudFront's secret header |
+| Elastic Load Balancing (ALB) | CloudFront's origin. Internet-facing, but its security group admits only CloudFront's managed prefix list and its listener refuses anything without CloudFront's secret header |
 | AWS Secrets Manager | Injects third-party API keys into the task at runtime |
 | Amazon ECR + AWS CodeBuild | Builds and stores the ARM64 container image inside AWS |
 | Amazon CloudWatch Logs | Application logs in hosted mode |

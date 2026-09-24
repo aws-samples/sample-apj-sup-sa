@@ -1,7 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Talk2Vid hosted demo. CloudFront (HTTPS + Basic Auth) -> internal-facing ALB ->
-  ECS Fargate task running the FastAPI app and the voice bot. Voice media does not
+  Talk2Vid hosted demo. CloudFront (HTTPS + Basic Auth) -> ALB -> ECS Fargate task
+  running the FastAPI app and the voice bot. The ALB is internet-facing but not
+  reachable from the internet in practice: its security group admits only
+  CloudFront's managed prefix list, and its listener's default action is 403 so only
+  requests carrying CloudFront's secret header are forwarded. Voice media does not
   pass through this stack at all: it rides Daily, which the task reaches outbound,
   so nothing here needs an inbound UDP path.
 

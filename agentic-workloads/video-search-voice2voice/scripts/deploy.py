@@ -492,7 +492,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-build", action="store_true", help="reuse the image already in ECR")
     ap.add_argument("--status", action="store_true")
-    ap.add_argument("--park", action="store_true", help="scale the service to 0")
+    ap.add_argument("--park", action="store_true",
+                    help="scale the service to 0 (the ALB stays up and keeps billing)")
     ap.add_argument("--resume", action="store_true", help="scale the service back to 1")
     ap.add_argument("--teardown", action="store_true")
     args = ap.parse_args()
