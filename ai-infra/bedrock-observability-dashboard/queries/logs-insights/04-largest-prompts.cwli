@@ -1,0 +1,4 @@
+fields @timestamp, modelId, requestMetadata.team as tenant,
+       input.inputTokenCount as in_tok, output.outputTokenCount as out_tok, requestId
+| sort in_tok desc
+| limit 50

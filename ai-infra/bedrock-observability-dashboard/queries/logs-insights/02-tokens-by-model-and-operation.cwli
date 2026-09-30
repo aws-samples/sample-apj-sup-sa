@@ -1,0 +1,8 @@
+fields modelId, operation,
+       input.inputTokenCount as in_tok, output.outputTokenCount as out_tok
+| stats sum(in_tok) as input_tokens,
+        sum(out_tok) as output_tokens,
+        count(*) as calls
+        by modelId, operation
+| sort input_tokens desc
+| limit 30

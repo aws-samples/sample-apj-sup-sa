@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Optional Tier-3 prerequisite for the Bedrock FM dashboard. Provisions a
+  CloudWatch Logs group (plus the IAM role CloudTrail uses to write to it) that
+  the dashboard's Section 7 reads via Logs Insights, and OPTIONALLY a dedicated
+  multi-region trail to feed it. Modes via parameters: greenfield (default),
+  bring-your-own S3 bucket, bring-your-own trail (CreateTrail=false), optional
+  KMS. Bedrock runtime calls are CloudTrail MANAGEMENT events (default-on, no
+  data-event charge). Pass the CloudTrailLogGroup output to the dashboard. See
+  docs/setup.md for the per-mode decision guide.
+
+Parameters:
+  TrailName:
+    Type: String
+    Default: bedrock-dashboard-trail
+    AllowedPattern: '^[A-Za-z0-9._-]{3,128}$'
+    Description: Name for the trail (when CreateTrail=true) and the seed for the delivery role name. Must not collide with an existing trail.
+
+  LogGroupName:
+    Type: String
+    Default: /aws/cloudtrail/bedrock-dashboard
+    AllowedPattern: '^/.*'
+    Description: >
+      CloudWatch Logs group to create and deliver management events to. Must not
+      already exist in this region (override if it does). Pass this value to the
+      dashboard stack as CloudTrailLogGroup.
+
+  LogRetentionInDays:
+    Type: Number
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    Description: Retention for the CloudWatch Logs group (days).
+
+  CreateTrail:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >
+      true  = this stack creates a dedicated multi-region trail (and an S3 bucket
+              unless ExistingTrailBucketName is set) that delivers to the log group.
+      false = this stack creates ONLY the log group + delivery role; attach them to
+              your own trail using the DeliveryRoleArn and CloudTrailLogGroupArn
+              outputs (governed / centrally-managed-trail environments).
+
+  ExistingTrailBucketName:
+    Type: String
+    Default: ''
+    Description: >
+      (CreateTrail=true only) Reuse an existing S3 bucket for trail log files
+      instead of creating one. Leave EMPTY to create a dedicated bucket. If set,
+      this stack does NOT create or modify the bucket policy — your bucket policy
+      must already permit this trail to s3:GetBucketAcl + s3:PutObject (see
+      docs/setup.md for the exact statements).
+
+  KmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      Optional customer-managed KMS key ARN to encrypt the log group, the created
+      S3 bucket, and the trail's log files. Leave EMPTY for AWS-managed encryption.
+      If set, the key policy must allow CloudTrail and CloudWatch Logs to use it
+      (see docs/setup.md).
+
+Conditions:
+  # Greenfield: create a trail AND its own bucket. (Live default deployment.)
+  MakeBucketTrail: !And
+    - !Equals [!Ref CreateTrail, 'true']
+    - !Equals [!Ref ExistingTrailBucketName, '']
+  # Bring-your-own bucket: create a trail pointed at an existing bucket.
+  MakeExistingBucketTrail: !And
+    - !Equals [!Ref CreateTrail, 'true']
+    - !Not [!Equals [!Ref ExistingTrailBucketName, '']]
+  # Either trail variant means "we created a trail".
+  MakeAnyTrail: !Equals [!Ref CreateTrail, 'true']
+  HasKms: !Not [!Equals [!Ref KmsKeyArn, '']]
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # CloudWatch Logs group — ALWAYS created. This is the Logs Insights target the
+  # dashboard's Section 7 reads, regardless of who owns the trail.
+  # ---------------------------------------------------------------------------
+  TrailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref LogGroupName
+      RetentionInDays: !Ref LogRetentionInDays
+      KmsKeyId: !If [HasKms, !Ref KmsKeyArn, !Ref 'AWS::NoValue']
+
+  # ---------------------------------------------------------------------------
+  # Role CloudTrail assumes to write to the log group. ALWAYS created — used by
+  # the trail we create, or handed to a customer-managed trail (CreateTrail=false)
+  # via the DeliveryRoleArn output. Scoped to the log-group NAME-derived ARN; do
+  # NOT use LogGroup.Arn (it ends in ":*", yielding a malformed log-stream ARN).
+  # ---------------------------------------------------------------------------
+  TrailToCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${TrailName}-cwlogs-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: deliver-to-cloudwatch-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AWSCloudTrailCreateLogStream
+                Effect: Allow
+                Action: logs:CreateLogStream
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LogGroupName}:log-stream:${AWS::AccountId}_CloudTrail_${AWS::Region}*'
+              - Sid: AWSCloudTrailPutLogEvents
+                Effect: Allow
+                Action: logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LogGroupName}:log-stream:${AWS::AccountId}_CloudTrail_${AWS::Region}*'
+
+  # ---------------------------------------------------------------------------
+  # Dedicated S3 bucket — created only in greenfield mode (create trail + no BYO
+  # bucket). CloudTrail mandates an S3 destination.
+  # ---------------------------------------------------------------------------
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    Condition: MakeBucketTrail
+    Properties:
+      BucketName: !Sub 'bedrock-dashboard-cloudtrail-${AWS::AccountId}-${AWS::Region}'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: !If
+              - HasKms
+              - SSEAlgorithm: aws:kms
+                KMSMasterKeyID: !Ref KmsKeyArn
+              - SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-trail-logs
+            Status: Enabled
+            ExpirationInDays: 90
+      VersioningConfiguration:
+        Status: Enabled
+
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: MakeBucketTrail
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt TrailBucket.Arn
+            Condition:
+              StringEquals:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${TrailName}'
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub '${TrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*'
+            Condition:
+              # Bucket uses BucketOwnerEnforced (ACLs disabled), so CloudTrail does
+              # NOT send x-amz-acl; do not require it here or every PutObject is denied.
+              StringEquals:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${TrailName}'
+
+  # ---------------------------------------------------------------------------
+  # Greenfield trail (logical ID kept as BedrockTrail for backward compatibility
+  # with the existing deployment). DependsOn the bucket policy: CloudTrail
+  # validates bucket write access at create time and fails if the policy isn't
+  # attached yet. Both this trail and the policy share Condition MakeBucketTrail,
+  # so the dependency target always exists when this resource does.
+  # ---------------------------------------------------------------------------
+  BedrockTrail:
+    Type: AWS::CloudTrail::Trail
+    Condition: MakeBucketTrail
+    DependsOn:
+      - TrailBucketPolicy
+    Properties:
+      TrailName: !Ref TrailName
+      S3BucketName: !Ref TrailBucket
+      IsLogging: true
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+      KMSKeyId: !If [HasKms, !Ref KmsKeyArn, !Ref 'AWS::NoValue']
+      CloudWatchLogsLogGroupArn: !GetAtt TrailLogGroup.Arn
+      CloudWatchLogsRoleArn: !GetAtt TrailToCloudWatchRole.Arn
+
+  # ---------------------------------------------------------------------------
+  # Bring-your-own-bucket trail. The customer's bucket policy must already allow
+  # this trail, so no DependsOn / policy resource here.
+  # ---------------------------------------------------------------------------
+  BedrockTrailExistingBucket:
+    Type: AWS::CloudTrail::Trail
+    Condition: MakeExistingBucketTrail
+    Metadata:
+      # ExistingTrailBucketName is validated by the customer's own bucket; the
+      # empty-default Ref trips cfn-lint's bucket-name pattern check though it is
+      # only used when non-empty under this condition.
+      cfn-lint:
+        config:
+          ignore_checks:
+            - W1030
+    Properties:
+      TrailName: !Ref TrailName
+      S3BucketName: !Ref ExistingTrailBucketName
+      IsLogging: true
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+      KMSKeyId: !If [HasKms, !Ref KmsKeyArn, !Ref 'AWS::NoValue']
+      CloudWatchLogsLogGroupArn: !GetAtt TrailLogGroup.Arn
+      CloudWatchLogsRoleArn: !GetAtt TrailToCloudWatchRole.Arn
+
+Outputs:
+  CloudTrailLogGroup:
+    Description: Pass this value to the dashboard stack as CloudTrailLogGroup to enable Tier 3.
+    Value: !Ref LogGroupName
+
+  CloudTrailLogGroupArn:
+    Description: Log group ARN. In CreateTrail=false mode, set this as your trail's CloudWatchLogsLogGroupArn.
+    Value: !GetAtt TrailLogGroup.Arn
+
+  DeliveryRoleArn:
+    Description: IAM role CloudTrail uses to write to the log group. In CreateTrail=false mode, set this as your trail's CloudWatchLogsRoleArn.
+    Value: !GetAtt TrailToCloudWatchRole.Arn
+
+  TrailName:
+    Condition: MakeAnyTrail
+    Value: !Ref TrailName
+    Description: Name of the created trail.
+
+  TrailBucketName:
+    Condition: MakeBucketTrail
+    Value: !Ref TrailBucket
+    Description: S3 bucket the greenfield trail writes log files to.

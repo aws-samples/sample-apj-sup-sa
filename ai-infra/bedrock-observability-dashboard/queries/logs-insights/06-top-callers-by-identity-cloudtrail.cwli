@@ -1,0 +1,4 @@
+filter eventSource = "bedrock.amazonaws.com"
+| stats count(*) as calls by userIdentity.arn, requestParameters.modelId
+| sort calls desc
+| limit 30

@@ -1,0 +1,4 @@
+filter operation in ["Converse","ConverseStream"]
+| fields output.outputBodyJson.stopReason as stop_reason
+| stats count(*) as calls by stop_reason
+| sort calls desc

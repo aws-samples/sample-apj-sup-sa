@@ -1,0 +1,47 @@
+# Credentials — never commit
+.env
+**/.env
+*.pem
+*.key
+.aws/credentials
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# AI assistant config — never commit
+CLAUDE.md
+.claude/
+
+# Logs / temp
+*.log
+/tmp/
+.cache/
+
+# Process / state files
+*.pid
+.deploy-state/
+
+# Data generator runtime files
+data-generator/generator.log
+data-generator/generator.pid
