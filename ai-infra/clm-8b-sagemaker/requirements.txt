@@ -1,0 +1,6 @@
+boto3>=1.43.1          # InstancePools support in create_endpoint_config
+huggingface_hub>=0.20
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+jupyter>=1.0
