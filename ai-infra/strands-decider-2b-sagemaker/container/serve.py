@@ -12,7 +12,8 @@ replaces the instance. With more, each worker process holds its own model copy a
 and this process is a small front: it sends every request to the worker with the fewest requests in flight.
 SageMaker reaches a container over a few kept-alive connections, so balancing by request (not by connection)
 is what lets the copies overlap. The front restarts a worker that exits (after a fatal GPU error) and routes
-around it while its model loads again.
+around it while its model loads again. A worker that exits before it ever loaded, or does not load within
+LOAD_S, stops the container instead, as a single worker would: the next copy would fail the same way.
 """
 import asyncio
 import contextlib
@@ -26,6 +27,7 @@ PORT = int(os.environ.get("SAGEMAKER_BIND_TO_PORT", "8080"))
 WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
 STUCK_S = 30      # a worker that served, then fails /ping this long, is replaced
 KILL_S = 10       # grace after SIGTERM before SIGKILL (a hung CUDA call never lets uvicorn finish)
+LOAD_S = 900      # a worker that has not answered /ping this long after it started is replaced
 
 
 def worker_ports() -> list[int]:
@@ -57,12 +59,14 @@ class Worker:
     busy: int = 0
     down_since: float | None = None
     terminated_at: float | None = None
+    started_at: float = 0.0
 
     def start(self, ctx) -> None:
         self.proc = ctx.Process(target=worker, args=(self.port, "127.0.0.1"), daemon=True)
         self.proc.start()
         self.up = self.ever_up = False
         self.busy, self.down_since, self.terminated_at = 0, None, None
+        self.started_at = time.monotonic()
 
 
 def front() -> None:
@@ -92,6 +96,12 @@ def front() -> None:
         now = time.monotonic()
         for w in workers:
             if not w.proc.is_alive():
+                if not w.ever_up:              # it never loaded (bad config, unreadable artifact, hung load): the
+                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} before it loaded; "
+                          "stopping the container", flush=True)     # next copy would fail the same way
+                    for x in workers:
+                        x.proc.kill()
+                    os._exit(1)
                 print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode}; starting a new one", flush=True)
                 w.start(ctx)
                 continue
@@ -109,6 +119,10 @@ def front() -> None:
                 print(f"[decider] worker on :{w.port} unhealthy for {STUCK_S} s; replacing it", flush=True)
                 w.up, w.terminated_at = False, now
                 w.proc.terminate()
+            elif not w.ever_up and now - w.started_at > LOAD_S:
+                print(f"[decider] worker on :{w.port} did not load within {LOAD_S} s; stopping it", flush=True)
+                w.terminated_at = now
+                w.proc.terminate()
         healthy_once = healthy_once or all(w.up for w in workers)
 
     async def ping(_request):
@@ -121,6 +135,7 @@ def front() -> None:
         if not ready:
             return JSONResponse({"error": "no model worker is ready; retry"}, status_code=503)
         w = min(ready, key=lambda x: x.busy)
+        proc = w.proc                                  # the count belongs to this process, not to a replacement
         w.busy += 1
         try:
             r = await client.post(f"http://127.0.0.1:{w.port}/invocations", content=body,
@@ -131,7 +146,8 @@ def front() -> None:
             w.up = False
             return JSONResponse({"error": "the model worker is not reachable; retry"}, status_code=503)
         finally:
-            w.busy -= 1
+            if w.proc is proc:
+                w.busy -= 1
         return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
 
     @contextlib.asynccontextmanager

@@ -112,7 +112,7 @@ $1.127/h), which measured 12.6 ticket and 27.3 rank requests per second: $24.80 
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
 score 1.102), the T4 in fp32 returns the same values to three decimals and the A10G in bf16 agrees within
-0.004. On the labelled Nova 2 Lite dataset the two endpoints differ only where bf16 moves a close call:
+0.004. On the labelled Nova 2 Lite dataset the two endpoints score the same on all three metrics:
 
 | Metric | T4 (fp32) | A10G (bf16) | Baseline |
 |---|---|---|---|
