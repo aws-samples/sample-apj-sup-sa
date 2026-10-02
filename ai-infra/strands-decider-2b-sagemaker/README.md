@@ -21,7 +21,7 @@ it: the pointer head reads each option's hidden state, which is not an operation
 > additional security testing and review.
 
 ```
-InvokeEndpoint ──► /invocations  (container/app.py: SageMaker contract and warm-up; serve.py starts the workers)
+InvokeEndpoint ──► /invocations  (container/serve.py front → app.py workers: SageMaker contract, warm-up)
                        │
                        ▼
                    strands-decider 0.1.0 engine: Qwen3.5-2B torso + LoRA + pointer head   (GPU)
@@ -92,7 +92,7 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 | A10G, bf16, 3 workers | rank | 32 | **26.0** | 903 ms | 2,146 ms | 128 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers, each with its own socket on the same port, overlap requests.
+24 GB GPU, three workers overlap requests.
 
 ### Which instance is cheaper
 
@@ -146,9 +146,10 @@ Ask an agent's related decisions together in one request rather than one request
   and works on the T4 too. Triton compiles them on first use, which took 106 s on a T4 and 36 s on an L4, past
   SageMaker's 60 s invocation limit, so the container compiles them before `/ping` reports healthy.
 - **Worker processes.** The engine answers one request at a time. Three processes on a 24-48 GB GPU let
-  requests overlap; a second process on the T4 added nothing in our tests. Each process opens its own socket on the
-  port (`SO_REUSEPORT`) once its model is warm, so the kernel spreads connections across them, and a process that
-  exits after a fatal GPU error is restarted.
+  requests overlap; a second process on the T4 added nothing in our tests. A small front process in `serve.py`
+  sends each request to the worker with the fewest in flight. Balancing by connection is not enough: SageMaker
+  reaches a container over a few kept-alive connections, so one worker would take most of the traffic. The front
+  restarts a worker that exits after a fatal GPU error and routes around it while it loads again.
 - **Offline model files, pinned.** The decider's loader fetches the base model from the Hugging Face Hub, so
   the artifact carries a Hugging Face cache with `Qwen/Qwen3.5-2B-Base` at revision `b1485b2` (the one the
   decider's `provenance.json` records) and the image sets `HF_HUB_OFFLINE=1`. The endpoints run with network
