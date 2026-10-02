@@ -21,6 +21,7 @@ import contextlib
 import dataclasses
 import multiprocessing as mp
 import os
+import signal
 import sys
 import time
 
@@ -29,6 +30,7 @@ WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
 STUCK_S = 30      # a worker that served, then fails /ping this long, is replaced
 KILL_S = 10       # grace after SIGTERM before SIGKILL (a hung CUDA call never lets uvicorn finish)
 LOAD_S = 900      # a worker that has not answered /ping this long after it started stops the container
+MAX_BODY_BYTES = int(os.environ.get("DECIDER_MAX_BODY_BYTES", str(32 * 1024)))   # the same cap as app.py
 
 
 def worker_ports() -> list[int]:
@@ -43,11 +45,27 @@ def worker_ports() -> list[int]:
 
 
 def worker(port: int, host: str) -> None:
+    # Until uvicorn installs its own handler, SIGTERM must still stop a load: as PID 1 (one worker, no front)
+    # the process would otherwise ignore it, and SageMaker would wait out its grace period.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     import uvicorn                     # imported here, so the front never loads torch
     import app
 
     app.prepare()                      # load and warm up before the port opens
     uvicorn.run(app.app, host=host, port=port, timeout_keep_alive=75, log_level="warning")
+
+
+async def read_capped(request) -> bytes | None:
+    """The request body, or None once it is larger than MAX_BODY_BYTES (without reading the rest)."""
+    size = request.headers.get("content-length", "")
+    if size.isdigit() and int(size) > MAX_BODY_BYTES:
+        return None
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_BODY_BYTES:
+            return None
+    return bytes(body)
 
 
 @dataclasses.dataclass
@@ -92,16 +110,28 @@ def front() -> None:
                 print(f"[decider] watcher error: {type(e).__name__}", flush=True)
             await asyncio.sleep(2)
 
+    async def probe(w) -> bool:
+        try:
+            return (await client.get(f"http://127.0.0.1:{w.port}/ping", timeout=2)).status_code == 200
+        except httpx.HTTPError:
+            return False
+
     async def check():
         nonlocal healthy_once
         now = time.monotonic()
+        probed = []
         for w in workers:
+            if w.proc is None:                 # not started: the others wait until the first has loaded, so they
+                if workers[0].ever_up:         # reuse the Triton kernels it compiled instead of all compiling them
+                    w.start(ctx)
+                continue
             if not w.proc.is_alive():
                 if not w.ever_up:              # it never loaded (bad config, unreadable artifact, hung load): the
                     print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} before it loaded; "
                           "stopping the container", flush=True)     # next copy would fail the same way
                     for x in workers:
-                        x.proc.kill()
+                        if x.proc is not None:
+                            x.proc.kill()
                     os._exit(1)
                 print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode}; starting a new one", flush=True)
                 w.start(ctx)
@@ -110,10 +140,10 @@ def front() -> None:
                 if now - w.terminated_at > KILL_S:
                     w.proc.kill()
                 continue
-            try:
-                w.up = (await client.get(f"http://127.0.0.1:{w.port}/ping", timeout=2)).status_code == 200
-            except httpx.HTTPError:
-                w.up = False
+            probed.append(w)
+        # All at once, so one slow worker does not delay what the others report.
+        for w, up in zip(probed, await asyncio.gather(*(probe(w) for w in probed))):
+            w.up = up
             w.ever_up = w.ever_up or w.up
             w.down_since = None if w.up else (w.down_since or now)
             if w.ever_up and w.down_since and now - w.down_since > STUCK_S:
@@ -131,7 +161,10 @@ def front() -> None:
         return Response(status_code=200 if healthy_once and any(w.up for w in workers) else 503)
 
     async def invocations(request):
-        body = await request.body()
+        body = await read_capped(request)
+        if body is None:
+            return JSONResponse({"error": f"request body is larger than {MAX_BODY_BYTES:,} bytes; "
+                                          "send a shorter state or fewer options"}, status_code=413)
         headers = {"content-type": request.headers.get("content-type", "application/json")}
         tried = set()
         while True:
@@ -147,9 +180,12 @@ def front() -> None:
             except httpx.TimeoutException:             # stuck: route around it until /ping says it is healthy
                 w.up = False
                 return JSONResponse({"error": "the model worker did not answer within 70 s"}, status_code=504)
-            except httpx.TransportError:               # gone (exited or restarting): try another worker
+            except httpx.ConnectError:                 # never delivered (exited or restarting): try another worker
                 w.up = False
                 continue
+            except httpx.TransportError:               # it failed while handling this request: do not pass the
+                w.up = False                           # same request on to the other workers
+                return JSONResponse({"error": "the model worker failed during the request; retry"}, status_code=503)
             finally:
                 if w.proc is proc:
                     w.busy -= 1
@@ -160,13 +196,13 @@ def front() -> None:
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
-        for w in workers:
-            w.start(ctx)
+        workers[0].start(ctx)                          # the watcher starts the rest once this one has loaded
         task = asyncio.get_running_loop().create_task(watch())
         yield
         task.cancel()
         for w in workers:
-            w.proc.kill()
+            if w.proc is not None:
+                w.proc.kill()
         await client.aclose()
 
     app = Starlette(routes=[Route("/ping", ping), Route("/invocations", invocations, methods=["POST"])],

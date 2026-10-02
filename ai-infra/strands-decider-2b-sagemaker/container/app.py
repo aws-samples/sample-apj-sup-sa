@@ -66,6 +66,8 @@ from strands_decider.infer import EngineConfig, SystemOneEngine  # noqa: E402
 from strands_decider.modeling import StrandsDeciderModel  # noqa: E402
 from strands_decider.schema import SystemOneRequest  # noqa: E402
 
+from serve import read_capped  # noqa: E402  (the same capped body read as the front)
+
 ENGINE: SystemOneEngine | None = None    # set by prepare() before this worker opens its socket
 BUSY_SINCE: float | None = None          # when the engine thread started its current request
 UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
@@ -79,7 +81,7 @@ _STICKY = ("illegal memory access", "device-side assert", "unspecified launch fa
 
 def _gpu_broken(e: Exception) -> bool:
     """True when the CUDA context is unusable: a known sticky error, or the device no longer synchronises."""
-    if type(e).__name__ == "AcceleratorError" or any(m in str(e) for m in _STICKY):
+    if any(m in str(e) for m in _STICKY):   # any CUDA error, AcceleratorError included, can be transient
         return True
     if DEVICE != "cuda":
         return False
@@ -177,8 +179,8 @@ async def ping() -> Response:          # async: never waits behind requests queu
 
 @app.post("/invocations")
 async def invocations(request: Request) -> JSONResponse:
-    raw = await request.body()
-    if len(raw) > MAX_BODY_BYTES:
+    raw = await read_capped(request)
+    if raw is None:
         return JSONResponse({"error": f"request body is larger than {MAX_BODY_BYTES:,} bytes; "
                                       "send a shorter state or fewer options"}, status_code=413)
     try:
