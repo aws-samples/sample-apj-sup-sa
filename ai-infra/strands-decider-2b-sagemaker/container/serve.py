@@ -1,6 +1,7 @@
 """Starts the Strands Decider server for SageMaker AI on port 8080 (or SAGEMAKER_BIND_TO_PORT).
 
-The request body is the decider's own System One request, unchanged:
+The request body is the decider's own System One request, unchanged (at most 32 KB, 64 questions and 64
+options per question; see app.py):
 
     {"state": ..., "questions": {id: {"type": "noul"|"choice"|"score", ...}}}
 
@@ -21,7 +22,7 @@ import sys
 
 PORT = int(os.environ.get("SAGEMAKER_BIND_TO_PORT", "8080"))
 WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
-WORKER_PORTS = [9001 + i for i in range(WORKERS)]
+WORKER_PORTS = [p for p in range(9001, 9101) if p != PORT][:WORKERS]   # loopback ports that skip PORT
 
 
 def worker(port: int, host: str) -> None:
@@ -47,22 +48,37 @@ def front() -> None:
     client = httpx.AsyncClient(timeout=httpx.Timeout(70.0),
                                limits=httpx.Limits(max_connections=256, max_keepalive_connections=64))
 
+    down_since = {p: None for p in WORKER_PORTS}
+    ever_up = {p: False for p in WORKER_PORTS}
+
     async def watch():
-        """Restart workers that exit, and track which ones answer /ping."""
+        """Restart workers that exit or stay unhealthy, and track which ones answer /ping."""
         while True:
-            for p, proc in list(procs.items()):
-                if not proc.is_alive():
-                    print(f"[decider] worker on :{p} exited with {proc.exitcode}; starting a new one", flush=True)
-                    up[p] = False
-                    procs[p] = ctx.Process(target=worker, args=(p, "127.0.0.1"), daemon=True)
-                    procs[p].start()
-                    continue
-                try:
-                    up[p] = (await client.get(f"http://127.0.0.1:{p}/ping", timeout=2)).status_code == 200
-                except httpx.HTTPError:
-                    up[p] = False
-            started["all"] = started["all"] or all(up.values())
+            try:
+                await check()
+            except Exception as e:  # noqa: BLE001  the watcher must keep running
+                print(f"[decider] watcher error: {e!r}", flush=True)
             await asyncio.sleep(2)
+
+    async def check():
+        for p, proc in list(procs.items()):
+            if not proc.is_alive():
+                print(f"[decider] worker on :{p} exited with {proc.exitcode}; starting a new one", flush=True)
+                up[p], ever_up[p], down_since[p] = False, False, None
+                procs[p] = ctx.Process(target=worker, args=(p, "127.0.0.1"), daemon=True)
+                procs[p].start()
+                continue
+            try:
+                up[p] = (await client.get(f"http://127.0.0.1:{p}/ping", timeout=2)).status_code == 200
+            except httpx.HTTPError:
+                up[p] = False
+            ever_up[p] = ever_up[p] or up[p]
+            # A worker that was serving and has failed /ping for 30 s (a stuck engine) is replaced.
+            down_since[p] = None if up[p] else (down_since[p] or asyncio.get_running_loop().time())
+            if ever_up[p] and down_since[p] and asyncio.get_running_loop().time() - down_since[p] > 30:
+                print(f"[decider] worker on :{p} unhealthy for 30 s; replacing it", flush=True)
+                proc.terminate()
+        started["all"] = started["all"] or all(up.values())
 
     async def ping(_request):
         # Healthy once every copy has loaded; afterwards while at least one answers.

@@ -67,7 +67,8 @@ The body is the decider's own System One request, unchanged:
 ```
 
 The response carries the answers, token usage and the engine's own latency. Malformed requests, and requests with
-more than 64 questions (`DECIDER_MAX_QUESTIONS`), get HTTP 400;
+more than 64 questions (`DECIDER_MAX_QUESTIONS`) or 64 options in one question (`DECIDER_MAX_OPTIONS`), get HTTP
+400; a body over 32 KB (`DECIDER_MAX_BODY_BYTES`) gets 413, so one request cannot hold a worker for long;
 a request that could not start within 50 s, because the model was busy, gets 503 so the caller can retry.
 
 ## Measured results
@@ -93,7 +94,7 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 | A10G, bf16, 3 workers | rank | 8 | **26.1** | 283 ms | 415 ms | 118 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers overlap requests: two `rank` requests at once take 86 ms each, against 74 ms for one.
+24 GB GPU, three workers overlap requests: two `rank` requests at once take 86 ms each end to end, against 82 ms for one.
 
 ### Which instance is cheaper
 

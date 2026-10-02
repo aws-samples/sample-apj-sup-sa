@@ -2,14 +2,9 @@
 
 `serve.py` starts it.
 
-The request body is the decider's own System One request, unchanged:
-
-    {"state": ..., "questions": {id: {"type": "noul"|"choice"|"score", ...}}}
-
-and the response is its System One response (answers with probabilities and confidence,
-plus usage and server latency). The engine is the published ``strands-decider`` package;
-this file only adds the SageMaker contract, precision selection, kernel warm-up and worker
-processes.
+The request and response formats are described in serve.py. The engine is the published
+``strands-decider`` package; this file adds the SageMaker contract, request limits, precision
+selection and kernel warm-up.
 
 Model files come from the S3 artifact SageMaker mounts read-only at /opt/ml/model:
     /opt/ml/model/decider/   the Hub repo StrandsAgents/strands-decider-2B-hobson-v19
@@ -43,7 +38,11 @@ from pathlib import Path
 
 MODEL_DIR = os.environ.get("DECIDER_MODEL_DIR", "/opt/ml/model/decider")
 DEVICE = os.environ.get("DECIDER_DEVICE", "cuda")
-MAX_BODY_BYTES = 6 * 1024 * 1024        # SageMaker's own request limit
+# Limits that keep one request short, since a worker runs one at a time: the body (an upper bound on the
+# tokens it can hold; benchmark requests are under 2 KB) and the options in one question.
+MAX_BODY_BYTES = int(os.environ.get("DECIDER_MAX_BODY_BYTES", str(32 * 1024)))
+MAX_OPTIONS = int(os.environ.get("DECIDER_MAX_OPTIONS", "64"))
+HANG_S = float(os.environ.get("DECIDER_HANG_SECONDS", "120"))   # one request this long means the engine is stuck
 # SageMaker gives a real-time invocation 60 s. A request that has waited this long for the model
 # (it is busy with earlier ones) is refused with 503 rather than run for a caller that has gone.
 DEADLINE_S = float(os.environ.get("DECIDER_REQUEST_DEADLINE", "50"))
@@ -66,6 +65,7 @@ from strands_decider.modeling import StrandsDeciderModel  # noqa: E402
 from strands_decider.schema import SystemOneRequest  # noqa: E402
 
 ENGINE: SystemOneEngine | None = None    # set by prepare() before this worker opens its socket
+BUSY_SINCE: float | None = None          # when the engine thread started its current request
 UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
@@ -169,14 +169,16 @@ app = FastAPI(title="strands-decider on SageMaker", lifespan=lifespan,
 
 @app.get("/ping")
 async def ping() -> Response:          # async: never waits behind requests queued for the engine
-    return Response(status_code=200 if UNHEALTHY is None else 503)
+    stuck = BUSY_SINCE is not None and time.monotonic() - BUSY_SINCE > HANG_S
+    return Response(status_code=200 if UNHEALTHY is None and not stuck else 503)
 
 
 @app.post("/invocations")
 async def invocations(request: Request) -> JSONResponse:
     raw = await request.body()
     if len(raw) > MAX_BODY_BYTES:
-        return JSONResponse({"error": "request body is larger than 6 MB"}, status_code=413)
+        return JSONResponse({"error": f"request body is larger than {MAX_BODY_BYTES:,} bytes; "
+                                      "send a shorter state or fewer options"}, status_code=413)
     try:
         req = SystemOneRequest.model_validate_json(raw)
     except ValidationError as e:
@@ -185,10 +187,21 @@ async def invocations(request: Request) -> JSONResponse:
         return JSONResponse({"error": "invalid request", "detail": detail}, status_code=400)
     if len(req.questions) > MAX_QUESTIONS:
         return JSONResponse({"error": f"at most {MAX_QUESTIONS} questions per request"}, status_code=400)
+    if any(len(getattr(q, "criteria", None) or ()) > MAX_OPTIONS for q in req.questions.values()):
+        return JSONResponse({"error": f"at most {MAX_OPTIONS} options per question"}, status_code=400)
     return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, time.monotonic())
 
 
 def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
+    global BUSY_SINCE
+    BUSY_SINCE = time.monotonic()
+    try:
+        return _run(req, arrived)
+    finally:
+        BUSY_SINCE = None
+
+
+def _run(req: SystemOneRequest, arrived: float) -> Response:
     global UNHEALTHY
     if UNHEALTHY is not None:
         return JSONResponse({"error": "worker is restarting; retry"}, status_code=503)

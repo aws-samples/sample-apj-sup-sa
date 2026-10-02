@@ -32,7 +32,7 @@ RUN (pip check > /tmp/check.before || true) \
  && (pip check > /tmp/check.after || true) \
  && if grep -v -x -F -f /tmp/check.before /tmp/check.after | grep -v '^No broken requirements found'; then \
       echo "new dependency conflicts" && exit 1; fi \
- && python -c "import strands_decider, transformers, peft, fla; print(transformers.__version__, peft.__version__)"
+ && python -c "import strands_decider, transformers, peft, fla, httpx, starlette, uvicorn; print(transformers.__version__, peft.__version__)"
 
 COPY serve.py app.py /opt/program/
 # Run as an unprivileged user. It needs a writable home for Triton's kernel cache and read access to
