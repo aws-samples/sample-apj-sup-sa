@@ -74,7 +74,7 @@ a request that could not start within 50 s, because the model was busy, gets 503
 ## Measured results
 
 Both endpoints in us-east-1, client on EC2 in the same Region, one instance each. The engine keeps no state between requests, so repeating the dataset does not inflate the numbers.
-The pools gave `ml.g4dn.xlarge` (T4) and `ml.g5.xlarge` (A10G). These are the outputs committed in
+The pools gave `ml.g4dn.2xlarge` (T4; `ml.g4dn.xlarge` had no capacity) and `ml.g5.xlarge` (A10G). These are the outputs committed in
 `02-deploy-and-benchmark.ipynb`. The decider generates no tokens, so **TTFT is time to first byte**, which
 equals end-to-end latency here; "engine" is the model's own time per request.
 
@@ -83,42 +83,43 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 
 | Endpoint | Workload | Concurrency | req/s | TTFT p50 | e2e p99 | Engine p50 |
 |---|---|---|---|---|---|---|
-| T4, fp32, 1 worker | ticket | 1 | 2.6 | 382 ms | 396 ms | 374 ms |
-| T4, fp32, 1 worker | ticket | 32 | 2.6 | 12,286 ms | 12,371 ms | 384 ms |
-| T4, fp32, 1 worker | rank | 1 | 6.1 | 148 ms | 210 ms | 141 ms |
-| T4, fp32, 1 worker | rank | 32 | 6.3 | 4,988 ms | 5,477 ms | 143 ms |
-| A10G, bf16, 3 workers | ticket | 1 | 6.3 | 158 ms | 169 ms | 149 ms |
-| A10G, bf16, 3 workers | ticket | 16 | **12.1** | 1,269 ms | 1,680 ms | 261 ms |
-| A10G, bf16, 3 workers | rank | 1 | 12.2 | 80 ms | 107 ms | 72 ms |
-| A10G, bf16, 3 workers | rank | 2 | 21.8 | 86 ms | 134 ms | 78 ms |
-| A10G, bf16, 3 workers | rank | 8 | **26.6** | 267 ms | 412 ms | 129 ms |
+| T4, fp32, 1 worker | ticket | 1 | 2.6 | 386 ms | 426 ms | 378 ms |
+| T4, fp32, 1 worker | ticket | 32 | 2.6 | 12,237 ms | 12,496 ms | 383 ms |
+| T4, fp32, 1 worker | rank | 1 | 6.8 | 145 ms | 195 ms | 138 ms |
+| T4, fp32, 1 worker | rank | 32 | 7.0 | 4,513 ms | 4,663 ms | 141 ms |
+| A10G, bf16, 3 workers | ticket | 1 | 6.2 | 161 ms | 181 ms | 153 ms |
+| A10G, bf16, 3 workers | ticket | 8 | **12.0** | 630 ms | 856 ms | 267 ms |
+| A10G, bf16, 3 workers | rank | 1 | 12.0 | 83 ms | 90 ms | 74 ms |
+| A10G, bf16, 3 workers | rank | 2 | 21.9 | 87 ms | 142 ms | 78 ms |
+| A10G, bf16, 3 workers | rank | 16 | **26.5** | 589 ms | 782 ms | 126 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers overlap requests: two `rank` requests at once take 86 ms each end to end, against 80 ms for one.
+24 GB GPU, three workers overlap requests: two `rank` requests at once take 87 ms each end to end, against 83 ms for one.
 
 ### Which instance is cheaper
 
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 77.63 | 32.34 |
-| `ml.g5.xlarge` (A10G) | 1.408 | **32.20** | **14.69** |
+| `ml.g4dn.2xlarge` (T4) | 0.940 | 99.71 | 37.25 |
+| `ml.g5.xlarge` (A10G) | 1.408 | **32.63** | **14.77** |
 
-The T4 is the cheaper instance but costs **2.2x to 2.4x more per request**: the A10G answers 4.2x to 4.6x more
-requests per second for 1.9x the price. In an earlier run the pool landed on the first choice, `ml.g6.xlarge` (L4,
-$1.127/h), which measured 12.6 ticket and 27.3 rank requests per second: $24.80 and $11.50 per million, about
-3x cheaper per request than the T4. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
+The T4 is the cheaper instance but costs **2.5x to 3.1x more per request**: the A10G answers 3.8x to 4.6x more
+requests per second for 1.5x the price. On the T4 pool's first choice, `ml.g4dn.xlarge` ($0.736/h, same GPU), an
+earlier run measured the same throughput at $77.63 and $32.34 per million, still 2.2x to 2.4x the A10G. In another
+run the GPU pool landed on its first choice, `ml.g6.xlarge` (L4, $1.127/h), which measured 12.6 ticket and 27.3
+rank requests per second: $24.80 and $11.50 per million, about 3x cheaper per request than the `ml.g4dn.xlarge` T4. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
 
 ### Answers are correct, and nearly identical on both GPUs
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
 score 1.102), the T4 in fp32 returns the same values to three decimals and the A10G in bf16 agrees within
-0.004. On the labelled Nova 2 Lite dataset the two endpoints score the same, with urgent AUROC 0.001 apart (0.932 and 0.933):
+0.004. On the labelled Nova 2 Lite dataset the two endpoints score the same, with urgent AUROC 0.001 apart (0.925 and 0.924):
 
 | Metric | T4 (fp32) | A10G (bf16) | Baseline |
 |---|---|---|---|
-| rank top-1 (8 options) | 95.0% | 95.0% | 12.5% chance |
-| urgent AUROC | 0.93 | 0.93 | 0.50 random |
-| department accuracy (5-way) | 84.2% | 84.2% | 20% chance |
+| rank top-1 (8 options) | 83.2% | 83.2% | 12.5% chance |
+| urgent AUROC | 0.92 | 0.92 | 0.50 random |
+| department accuracy (5-way) | 75.0% | 75.0% | 20% chance |
 
 ### More questions per request cost little
 
@@ -126,10 +127,10 @@ The engine encodes the state once and shares that work across every question abo
 
 | Questions in one request | Engine time | Per question |
 |---|---|---|
-| 1 | 80 ms | 80 ms |
-| 5 | 153 ms | 31 ms |
-| 10 | 214 ms | 21 ms |
-| 20 | 338 ms | 17 ms |
+| 1 | 74 ms | 74 ms |
+| 5 | 157 ms | 31 ms |
+| 10 | 217 ms | 22 ms |
+| 20 | 344 ms | 17 ms |
 
 Ask an agent's related decisions together in one request rather than one request each.
 
@@ -181,7 +182,7 @@ for regulated data without the controls it needs. The server logs only errors, n
 ## Responsible AI
 
 The decider returns probabilities, and they can be wrong. On the synthetic set above it picks the wrong department
-for about 1 ticket in 6. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
+for about 1 ticket in 4. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
 that affect people (account actions, refunds, content moderation), and measure accuracy on your own labelled data
 before you rely on a threshold. The model is trained on English text; test other languages before you use them.
 It does not filter harmful input or output: if states come from users, put Amazon Bedrock Guardrails or an
