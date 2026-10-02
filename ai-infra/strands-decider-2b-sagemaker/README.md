@@ -17,8 +17,11 @@ a small pointer head, served by the authors' own engine
 ([strands-labs/strands-decider](https://github.com/strands-labs/strands-decider), Apache-2.0). vLLM cannot serve
 it: the pointer head reads each option's hidden state, which is not an operation vLLM has.
 
+> **Note:** This is sample code for demonstration purposes only and is not intended for production use without
+> additional security testing and review.
+
 ```
-InvokeEndpoint ──► /invocations  (container/serve.py: SageMaker contract, warm-up, worker processes)
+InvokeEndpoint ──► /invocations  (container/app.py: SageMaker contract and warm-up; serve.py starts the workers)
                        │
                        ▼
                    strands-decider 0.1.0 engine: Qwen3.5-2B torso + LoRA + pointer head   (GPU)
@@ -30,7 +33,7 @@ InvokeEndpoint ──► /invocations  (container/serve.py: SageMaker contract, 
 |---|---|
 | [`01-generate-dataset.ipynb`](01-generate-dataset.ipynb) | Builds a small labelled benchmark set with Amazon Nova 2 Lite on Amazon Bedrock |
 | [`02-deploy-and-benchmark.ipynb`](02-deploy-and-benchmark.ipynb) | Image build and push, S3 artifact, two endpoints, correctness checks, benchmark, CloudWatch metrics, cost, clean-up |
-| [`container/`](container/) | The serving image: `Dockerfile` on the AWS PyTorch DLC, `serve.py`, pinned `requirements.txt` |
+| [`container/`](container/) | The serving image: `Dockerfile` on the AWS PyTorch DLC, `serve.py` (launcher), `app.py` (server), pinned `requirements.txt` |
 | `data/decider_bench.jsonl` | The generated dataset, committed so notebook 2 runs on its own |
 
 ## Quick start
@@ -68,7 +71,7 @@ a request that could not start within 50 s, because the model was busy, gets 503
 
 ## Measured results
 
-Both endpoints in us-east-1, client on EC2 in the same Region, one instance each, every request a new state.
+Both endpoints in us-east-1, client on EC2 in the same Region, one instance each. The engine keeps no state between requests, so repeating the dataset does not inflate the numbers.
 The pools gave `ml.g4dn.xlarge` (T4) and `ml.g5.xlarge` (A10G). These are the outputs committed in
 `02-deploy-and-benchmark.ipynb`. The decider generates no tokens, so **TTFT is time to first byte**, which
 equals end-to-end latency here; "engine" is the model's own time per request.
@@ -153,7 +156,8 @@ Ask an agent's related decisions together in one request rather than one request
   immutable tags and scans every push, and the notebook prints the scan's severity counts. The build applies
   Ubuntu's security updates to the base image and removes packages a serving container does not need but that
   carried HIGH or CRITICAL CVEs (ffmpeg inside `opencv-python`, `flash-attn`, the SageMaker Python SDK), and
-  upgrades `urllib3` and `tornado`. What remains is in the base image's own CPython build; a newer AWS DLC
+  upgrades `urllib3` and `tornado`. The Ubuntu updates are whatever is current at build time, so they are the one
+  build input that is not pinned; rebuild to pick up new ones. What remains is in the base image's own CPython build; a newer AWS DLC
   release fixes it, so bump `BASE_IMAGE` when one is available.
 - **Least-privilege role.** Read-only S3 on the artifact prefix in this account's bucket, image pull from this
   one repository, logs and metrics; the trust policy is bound to this account with `aws:SourceAccount`.
@@ -165,6 +169,15 @@ health and payment details, and you are responsible for handling that data under
 apply to you (for example GDPR, HIPAA or PCI DSS). For production, encrypt the endpoint storage with your own
 KMS key (`KmsKeyId` on the endpoint config), keep CloudWatch log retention short, and do not enable data capture
 for regulated data without the controls it needs. The server logs only errors, never request bodies.
+
+## Responsible AI
+
+The decider returns probabilities, and they can be wrong. On the synthetic set above it picks the wrong department
+for 1 ticket in 5. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
+that affect people (account actions, refunds, content moderation), and measure accuracy on your own labelled data
+before you rely on a threshold. The model is trained on English text; test other languages before you use them.
+It does not filter harmful input or output: if states come from users, put Amazon Bedrock Guardrails or an
+equivalent filter in front of it.
 
 ## License
 

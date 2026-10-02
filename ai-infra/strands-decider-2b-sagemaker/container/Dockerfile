@@ -34,7 +34,7 @@ RUN (pip check > /tmp/check.before || true) \
       echo "new dependency conflicts" && exit 1; fi \
  && python -c "import strands_decider, transformers, peft, fla; print(transformers.__version__, peft.__version__)"
 
-COPY serve.py /opt/program/serve.py
+COPY serve.py app.py /opt/program/
 # Run as an unprivileged user. It needs a writable home for Triton's kernel cache and read access to
 # /opt/ml/model, which SageMaker mounts readable by all users.
 RUN useradd --create-home --uid 1000 --shell /usr/sbin/nologin decider
