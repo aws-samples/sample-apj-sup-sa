@@ -1,7 +1,8 @@
 # Serving image for Strands Decider 2B on SageMaker AI.
 # Base: the AWS PyTorch 2.9 Deep Learning Container (CUDA 13, kernels for T4, A10G, L4 and L40S).
 # The AWS PyTorch *inference* images stop at torch 2.6, and strands-decider needs 2.7 or later.
-ARG BASE_IMAGE
+# The notebook passes the same image for its own Region; the default documents what is expected.
+ARG BASE_IMAGE=763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-training:2.9.0-gpu-py312-cu130-ubuntu22.04-sagemaker-v2.2
 FROM ${BASE_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,27 +19,30 @@ RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade --no-install-recommends \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Exact versions. The build fails if they add a dependency conflict the base image did not
-# already have (the base ships one of its own, aiobotocore vs botocore, which this leaves alone).
+# Exact versions, installed with --no-deps so nothing else is resolved. The build fails if they add a dependency
+# conflict the base image did not already have (the base ships one of its own, aiobotocore vs botocore).
 COPY requirements.txt /opt/program/requirements.txt
 # The base image also carries packages a serving container does not use; three have unfixed or fixed-upstream
 # HIGH/CRITICAL CVEs (ffmpeg bundled in opencv-python, flash-attn, the SageMaker Python SDK), so they are removed.
 RUN (pip check > /tmp/check.before || true) \
  && pip uninstall -y --root-user-action=ignore opencv-python opencv-python-headless flash-attn sagemaker \
- && pip install --no-cache-dir --root-user-action=ignore -r /opt/program/requirements.txt \
+ && pip install --no-cache-dir --no-deps --root-user-action=ignore -r /opt/program/requirements.txt \
  && (pip check > /tmp/check.after || true) \
- && if grep -v -x -F -f /tmp/check.before /tmp/check.after; then echo "new dependency conflicts" && exit 1; fi \
+ && if grep -v -x -F -f /tmp/check.before /tmp/check.after | grep -v '^No broken requirements found'; then \
+      echo "new dependency conflicts" && exit 1; fi \
  && python -c "import strands_decider, transformers, peft, fla; print(transformers.__version__, peft.__version__)"
 
 COPY serve.py /opt/program/serve.py
+# Run as an unprivileged user. It needs a writable home for Triton's kernel cache and read access to
+# /opt/ml/model, which SageMaker mounts readable by all users.
+RUN useradd --create-home --uid 1000 --shell /usr/sbin/nologin decider
+ENV HOME=/home/decider
+USER decider
 WORKDIR /opt/program
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=600s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ping', timeout=4)"
 LABEL com.amazonaws.sagemaker.capabilities.accept-bind-to-port=true
 
-# SageMaker runs model containers as root ("SageMaker AI expects all containers to run with root
-# users", docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html), so no USER.
-# checkov:skip=CKV_DOCKER_3: SageMaker requires the container to run as root
 # SageMaker starts the container as `docker run <image> serve`; the argument is ignored.
 ENTRYPOINT ["python", "/opt/program/serve.py"]

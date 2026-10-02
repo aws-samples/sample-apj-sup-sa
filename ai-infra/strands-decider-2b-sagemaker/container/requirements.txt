@@ -10,3 +10,7 @@ fla-core==0.5.2
 # Security fixes for packages that ship in the base image (HIGH CVEs in the versions it pins).
 urllib3==2.8.0
 tornado==6.5.9
+# Transitive dependencies the packages above add to the base image, pinned too: the image installs this file
+# with --no-deps, so it gets exactly these versions and nothing else.
+regex==2026.9.29
+tokenizers==0.23.2

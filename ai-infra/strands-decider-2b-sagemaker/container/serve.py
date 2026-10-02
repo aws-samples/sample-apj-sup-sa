@@ -81,12 +81,15 @@ def pick_dtype() -> torch.dtype:
 
 def load_engine() -> SystemOneEngine:
     dtype = pick_dtype()
-    model = StrandsDeciderModel.load(MODEL_DIR)
-    if dtype != torch.bfloat16:
+    # The engine moves the bf16 model to the device; casting afterwards does the fp32 conversion on the GPU,
+    # so the host never holds a 7 GiB fp32 copy and half as many bytes cross PCIe.
+    engine = SystemOneEngine(StrandsDeciderModel.load(MODEL_DIR),
+                             EngineConfig(device=DEVICE, use_prefix_cache=True,
+                                          model_name="strands-decider-2B-hobson-v19"))
+    if dtype != next(engine.model.torso.parameters()).dtype:
         with torch.inference_mode():
-            model.torso.to(dtype)
-    return SystemOneEngine(model, EngineConfig(device=DEVICE, use_prefix_cache=True,
-                                               model_name="strands-decider-2B-hobson-v19"))
+            engine.model.torso.to(dtype)
+    return engine
 
 
 def warm_up(engine: SystemOneEngine) -> None:
@@ -121,7 +124,7 @@ app = FastAPI(title="strands-decider on SageMaker", lifespan=lifespan,
 
 
 @app.get("/ping")
-def ping() -> Response:
+async def ping() -> Response:          # async: never waits behind requests queued in the thread pool
     return Response(status_code=200 if ENGINE is not None else 503)
 
 
