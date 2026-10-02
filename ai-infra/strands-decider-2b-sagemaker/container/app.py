@@ -42,7 +42,9 @@ DEVICE = os.environ.get("DECIDER_DEVICE", "cuda")
 # tokens it can hold; benchmark requests are under 2 KB) and the options in one question.
 MAX_BODY_BYTES = int(os.environ.get("DECIDER_MAX_BODY_BYTES", str(32 * 1024)))
 MAX_OPTIONS = int(os.environ.get("DECIDER_MAX_OPTIONS", "64"))
-HANG_S = float(os.environ.get("DECIDER_HANG_SECONDS", "120"))   # one request this long means the engine is stuck
+# One request this long means the engine is stuck: /ping turns 503. Kept under SageMaker's 60 s invocation limit
+# (a request at the limits above takes a few seconds), so the front stops routing to it before callers time out.
+HANG_S = float(os.environ.get("DECIDER_HANG_SECONDS", "50"))
 # SageMaker gives a real-time invocation 60 s. A request that has waited this long for the model
 # (it is busy with earlier ones) is refused with 503 rather than run for a caller that has gone.
 DEADLINE_S = float(os.environ.get("DECIDER_REQUEST_DEADLINE", "50"))
@@ -70,9 +72,9 @@ UNHEALTHY: str | None = None             # the GPU context is broken; this worke
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
 # Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
-# did not fit is not among them: the next request can still succeed.
+# did not fit, or a Triton launch that was refused, is not among them: the synchronize() probe below decides.
 _STICKY = ("illegal memory access", "device-side assert", "unspecified launch failure", "misaligned address",
-           "illegal instruction", "uncorrectable ECC", "Triton Error [CUDA]")
+           "illegal instruction", "uncorrectable ECC")
 
 
 def _gpu_broken(e: Exception) -> bool:
@@ -204,7 +206,9 @@ def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
 def _run(req: SystemOneRequest, arrived: float) -> Response:
     global UNHEALTHY
     if UNHEALTHY is not None:
-        return JSONResponse({"error": "worker is restarting; retry"}, status_code=503)
+        # The header tells the front (serve.py) to send the request to another worker instead.
+        return JSONResponse({"error": "worker is restarting; retry"}, status_code=503,
+                            headers={"x-decider-worker": "restarting"})
     if time.monotonic() - arrived > DEADLINE_S:   # the caller's 60 s are nearly gone: do not start
         return JSONResponse({"error": f"busy: not started within {DEADLINE_S:.0f} s; retry later"}, status_code=503)
     try:

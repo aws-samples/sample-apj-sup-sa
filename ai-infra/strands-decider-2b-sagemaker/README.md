@@ -151,7 +151,8 @@ Ask an agent's related decisions together in one request rather than one request
   requests overlap; a second process on the T4 added nothing in our tests. A small front process in `serve.py`
   sends each request to the worker with the fewest in flight. Balancing by connection is not enough: SageMaker
   reaches a container over a few kept-alive connections, so one worker would take most of the traffic. The front
-  restarts a worker that exits after a fatal GPU error and routes around it while it loads again.
+  restarts a worker that exits after a fatal GPU error and routes around it while it loads again, sending a
+  request that reached it while it was exiting to another worker.
 - **Offline model files, pinned.** The decider's loader fetches the base model from the Hugging Face Hub, so
   the artifact carries a Hugging Face cache with `Qwen/Qwen3.5-2B-Base` at revision `b1485b2` (the one the
   decider's `provenance.json` records) and the image sets `HF_HUB_OFFLINE=1`. The endpoints run with network

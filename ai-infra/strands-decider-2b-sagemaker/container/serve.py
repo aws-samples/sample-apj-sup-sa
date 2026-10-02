@@ -12,7 +12,8 @@ replaces the instance. With more, each worker process holds its own model copy a
 and this process is a small front: it sends every request to the worker with the fewest requests in flight.
 SageMaker reaches a container over a few kept-alive connections, so balancing by request (not by connection)
 is what lets the copies overlap. The front restarts a worker that exits (after a fatal GPU error) and routes
-around it while its model loads again. A worker that exits before it ever loaded, or does not load within
+around it while its model loads again; a request that reaches a worker that is exiting is sent to another
+one. A worker that exits before it ever loaded, or does not load within
 LOAD_S, stops the container instead, as a single worker would: the next copy would fail the same way.
 """
 import asyncio
@@ -27,7 +28,7 @@ PORT = int(os.environ.get("SAGEMAKER_BIND_TO_PORT", "8080"))
 WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
 STUCK_S = 30      # a worker that served, then fails /ping this long, is replaced
 KILL_S = 10       # grace after SIGTERM before SIGKILL (a hung CUDA call never lets uvicorn finish)
-LOAD_S = 900      # a worker that has not answered /ping this long after it started is replaced
+LOAD_S = 900      # a worker that has not answered /ping this long after it started stops the container
 
 
 def worker_ports() -> list[int]:
@@ -131,24 +132,31 @@ def front() -> None:
 
     async def invocations(request):
         body = await request.body()
-        ready = [w for w in workers if w.up]
-        if not ready:
-            return JSONResponse({"error": "no model worker is ready; retry"}, status_code=503)
-        w = min(ready, key=lambda x: x.busy)
-        proc = w.proc                                  # the count belongs to this process, not to a replacement
-        w.busy += 1
-        try:
-            r = await client.post(f"http://127.0.0.1:{w.port}/invocations", content=body,
-                                  headers={"content-type": request.headers.get("content-type", "application/json")})
-        except httpx.TimeoutException:                 # slow, not gone: leave its health to /ping
-            return JSONResponse({"error": "the model worker did not answer within 70 s"}, status_code=504)
-        except httpx.TransportError:
-            w.up = False
-            return JSONResponse({"error": "the model worker is not reachable; retry"}, status_code=503)
-        finally:
-            if w.proc is proc:
-                w.busy -= 1
-        return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
+        headers = {"content-type": request.headers.get("content-type", "application/json")}
+        tried = set()
+        while True:
+            ready = [w for w in workers if w.up and w.port not in tried]
+            if not ready:
+                return JSONResponse({"error": "no model worker is ready; retry"}, status_code=503)
+            w = min(ready, key=lambda x: x.busy)
+            tried.add(w.port)
+            proc = w.proc                              # the count belongs to this process, not to a replacement
+            w.busy += 1
+            try:
+                r = await client.post(f"http://127.0.0.1:{w.port}/invocations", content=body, headers=headers)
+            except httpx.TimeoutException:             # stuck: route around it until /ping says it is healthy
+                w.up = False
+                return JSONResponse({"error": "the model worker did not answer within 70 s"}, status_code=504)
+            except httpx.TransportError:               # gone (exited or restarting): try another worker
+                w.up = False
+                continue
+            finally:
+                if w.proc is proc:
+                    w.busy -= 1
+            if r.status_code == 503 and r.headers.get("x-decider-worker") == "restarting":
+                w.up = False                           # its GPU broke and it is about to exit: try another worker
+                continue
+            return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
