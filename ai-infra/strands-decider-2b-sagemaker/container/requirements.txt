@@ -1,0 +1,12 @@
+# Installed on top of the AWS PyTorch 2.9 DLC (which already has torch, accelerate, fastapi,
+# uvicorn, pydantic, huggingface_hub and numpy). Versions are the ones the authors document.
+strands-decider==0.1.0
+transformers==5.17.0
+peft==0.21.0
+# Triton kernels for the Gated DeltaNet layers; without them transformers falls back to a slow
+# reference implementation.
+flash-linear-attention==0.5.2
+fla-core==0.5.2
+# Security fixes for packages that ship in the base image (HIGH CVEs in the versions it pins).
+urllib3==2.8.0
+tornado==6.5.9
