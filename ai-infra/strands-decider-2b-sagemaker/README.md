@@ -83,27 +83,27 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 
 | Endpoint | Workload | Concurrency | req/s | TTFT p50 | e2e p99 | Engine p50 |
 |---|---|---|---|---|---|---|
-| T4, fp32, 1 worker | ticket | 1 | 2.7 | 370 ms | 407 ms | 362 ms |
-| T4, fp32, 1 worker | ticket | 32 | 2.7 | 11,735 ms | 12,072 ms | 366 ms |
-| T4, fp32, 1 worker | rank | 1 | 5.6 | 192 ms | 208 ms | 185 ms |
-| T4, fp32, 1 worker | rank | 32 | 6.3 | 4,694 ms | 6,101 ms | 139 ms |
-| A10G, bf16, 3 workers | ticket | 1 | 6.2 | 160 ms | 165 ms | 151 ms |
-| A10G, bf16, 3 workers | ticket | 32 | **11.9** | 2,667 ms | 2,996 ms | 265 ms |
-| A10G, bf16, 3 workers | rank | 1 | 12.1 | 82 ms | 90 ms | 73 ms |
-| A10G, bf16, 3 workers | rank | 2 | 21.7 | 86 ms | 122 ms | 77 ms |
-| A10G, bf16, 3 workers | rank | 8 | **26.1** | 283 ms | 415 ms | 118 ms |
+| T4, fp32, 1 worker | ticket | 1 | 2.7 | 370 ms | 385 ms | 362 ms |
+| T4, fp32, 1 worker | ticket | 32 | 2.7 | 11,729 ms | 11,791 ms | 366 ms |
+| T4, fp32, 1 worker | rank | 1 | 6.3 | 143 ms | 198 ms | 136 ms |
+| T4, fp32, 1 worker | rank | 32 | 6.6 | 4,896 ms | 5,226 ms | 139 ms |
+| A10G, bf16, 3 workers | ticket | 1 | 6.1 | 163 ms | 194 ms | 155 ms |
+| A10G, bf16, 3 workers | ticket | 16 | **12.0** | 1,272 ms | 1,700 ms | 273 ms |
+| A10G, bf16, 3 workers | rank | 1 | 11.6 | 84 ms | 109 ms | 75 ms |
+| A10G, bf16, 3 workers | rank | 2 | 19.6 | 90 ms | 138 ms | 81 ms |
+| A10G, bf16, 3 workers | rank | 8 | **25.9** | 274 ms | 411 ms | 130 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers overlap requests: two `rank` requests at once take 86 ms each end to end, against 82 ms for one.
+24 GB GPU, three workers overlap requests: two `rank` requests at once take 90 ms each end to end, against 84 ms for one.
 
 ### Which instance is cheaper
 
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 74.60 | 32.50 |
-| `ml.g5.xlarge` (A10G) | 1.408 | **32.70** | **15.00** |
+| `ml.g4dn.xlarge` (T4) | 0.736 | 74.70 | 31.20 |
+| `ml.g5.xlarge` (A10G) | 1.408 | **32.50** | **15.10** |
 
-The T4 is the cheaper instance but costs **2.2x to 2.3x more per request**: the A10G answers 4.1x to 4.4x more
+The T4 is the cheaper instance but costs **2.1x to 2.3x more per request**: the A10G answers 3.9x to 4.4x more
 requests per second for 1.9x the price. In an earlier run the pool landed on the first choice, `ml.g6.xlarge` (L4,
 $1.127/h), which measured 12.6 ticket and 27.3 rank requests per second: $24.80 and $11.50 per million, about
 3x cheaper per request than the T4. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
@@ -116,9 +116,9 @@ score 1.102), the T4 in fp32 returns the same values to three decimals and the A
 
 | Metric | T4 (fp32) | A10G (bf16) | Baseline |
 |---|---|---|---|
-| rank top-1 (8 options) | 94.1% | 94.1% | 12.5% chance |
-| urgent AUROC | 0.88 | 0.88 | 0.50 random |
-| department accuracy (5-way) | 85.0% | 85.0% | 20% chance |
+| rank top-1 (8 options) | 85.9% | 85.9% | 12.5% chance |
+| urgent AUROC | 0.94 | 0.94 | 0.50 random |
+| department accuracy (5-way) | 81.7% | 81.7% | 20% chance |
 
 ### More questions per request cost little
 
@@ -126,10 +126,10 @@ The engine encodes the state once and shares that work across every question abo
 
 | Questions in one request | Engine time | Per question |
 |---|---|---|
-| 1 | 74 ms | 74 ms |
-| 5 | 154 ms | 31 ms |
+| 1 | 89 ms | 89 ms |
+| 5 | 161 ms | 32 ms |
 | 10 | 216 ms | 22 ms |
-| 20 | 341 ms | 17 ms |
+| 20 | 343 ms | 17 ms |
 
 Ask an agent's related decisions together in one request rather than one request each.
 
@@ -180,7 +180,7 @@ for regulated data without the controls it needs. The server logs only errors, n
 ## Responsible AI
 
 The decider returns probabilities, and they can be wrong. On the synthetic set above it picks the wrong department
-for about 1 ticket in 7. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
+for about 1 ticket in 5. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
 that affect people (account actions, refunds, content moderation), and measure accuracy on your own labelled data
 before you rely on a threshold. The model is trained on English text; test other languages before you use them.
 It does not filter harmful input or output: if states come from users, put Amazon Bedrock Guardrails or an
