@@ -25,7 +25,7 @@ Settings (environment variables):
     DECIDER_REQUEST_DEADLINE  seconds a request may wait for the model before it gets 503 (default 50)
     DECIDER_MAX_QUESTIONS     questions allowed in one request (default 64), so one request cannot run for long
 
-A worker whose GPU context breaks (a sticky CUDA error) exits. With several workers uvicorn starts a new one;
+A worker whose GPU context breaks (a sticky CUDA error) exits. With several workers serve.py starts a new one;
 with one, the container stops and SageMaker replaces the instance.
 """
 from __future__ import annotations
@@ -65,13 +65,27 @@ from strands_decider.infer import EngineConfig, SystemOneEngine  # noqa: E402
 from strands_decider.modeling import StrandsDeciderModel  # noqa: E402
 from strands_decider.schema import SystemOneRequest  # noqa: E402
 
-ENGINE: SystemOneEngine | None = None    # set by lifespan before uvicorn serves any request
+ENGINE: SystemOneEngine | None = None    # set by prepare() before this worker opens its socket
 UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
 # Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
 # did not fit is not among them: the next request can still succeed.
-_STICKY = ("illegal memory access", "device-side assert", "unspecified launch failure", "misaligned address")
+_STICKY = ("illegal memory access", "device-side assert", "unspecified launch failure", "misaligned address",
+           "illegal instruction", "uncorrectable ECC", "Triton Error [CUDA]")
+
+
+def _gpu_broken(e: Exception) -> bool:
+    """True when the CUDA context is unusable: a known sticky error, or the device no longer synchronises."""
+    if type(e).__name__ == "AcceleratorError" or any(m in str(e) for m in _STICKY):
+        return True
+    if DEVICE != "cuda":
+        return False
+    try:
+        torch.cuda.synchronize()       # an earlier asynchronous fault surfaces here
+    except Exception:  # noqa: BLE001
+        return True
+    return False
 
 
 def pick_dtype() -> torch.dtype:
@@ -115,18 +129,24 @@ def warm_up(engine: SystemOneEngine) -> None:
     """Compile the Triton kernels before the first real request.
 
     Without this the first request pays the compile: about 100 s on a T4 and 35 s on an L4,
-    past SageMaker's 60 s invocation limit. Short and long states cover the kernel variants.
+    past SageMaker's 60 s invocation limit. Short and long states cover the kernel variants, and both the
+    several-question path (shared prefix cache) and the one-question path (no cache) are exercised.
     """
-    q = {"a": {"type": "noul", "instructions": "Is this urgent?"},
-         "b": {"type": "choice", "instructions": "Which team?", "criteria": {"x": "", "y": "", "z": ""}},
-         "c": {"type": "score", "instructions": "How bad is it?", "criteria": ["low", "mid", "high"]}}
-    for state in ("Short message.", "A longer support message about a billing problem. " * 60):
-        engine.evaluate(SystemOneRequest.model_validate({"state": state, "questions": q}))
+    three = {"a": {"type": "noul", "instructions": "Is this urgent?"},
+             "b": {"type": "choice", "instructions": "Which team?", "criteria": {"x": "", "y": "", "z": ""}},
+             "c": {"type": "score", "instructions": "How bad is it?", "criteria": ["low", "mid", "high"]}}
+    one = {"best": {"type": "choice", "instructions": "Which option fits best?",
+                    "criteria": {k: f"option {k}" for k in "ABCDEFGH"}}}
+    for questions in (three, one):
+        for state in ("Short message.", "A longer support message about a billing problem. " * 60):
+            engine.evaluate(SystemOneRequest.model_validate({"state": state, "questions": questions}))
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
+def prepare() -> None:
+    """Load and warm up the model. serve.py calls this before the worker opens its socket."""
     global ENGINE
+    if ENGINE is not None:
+        return
     t0 = time.time()
     engine = load_engine()
     warm_up(engine)
@@ -135,6 +155,11 @@ async def lifespan(_app: FastAPI):
            if DEVICE == "cuda" else "cpu")
     print(f"[decider] worker {os.getpid()} ready in {time.time() - t0:.0f} s on {gpu}, "
           f"{next(engine.model.torso.parameters()).dtype}, fla kernels {'on' if USE_FLA else 'off'}", flush=True)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    prepare()                          # a no-op when serve.py has already loaded the model
     yield
 
 
@@ -183,7 +208,7 @@ def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
         return Response(json.dumps(payload, allow_nan=False), media_type="application/json")
     except Exception as e:  # noqa: BLE001       a server-side fault: log it, report 500
         traceback.print_exc()
-        if type(e).__name__ == "AcceleratorError" or any(m in str(e) for m in _STICKY):
+        if _gpu_broken(e):
             UNHEALTHY = f"{type(e).__name__}: {e}"[:200]
             print(f"[decider] worker {os.getpid()} exiting: {UNHEALTHY}", flush=True)
             # Exit once this 500 is on its way, so a fresh process (or instance) takes over.
