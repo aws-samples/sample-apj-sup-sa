@@ -66,7 +66,8 @@ The body is the decider's own System One request, unchanged:
                    "criteria": ["calm", "frustrated", "depressed"]}}}
 ```
 
-The response carries the answers, token usage and the engine's own latency. Malformed requests get HTTP 400;
+The response carries the answers, token usage and the engine's own latency. Malformed requests, and requests with
+more than 64 questions (`DECIDER_MAX_QUESTIONS`), get HTTP 400;
 a request that could not start within 50 s, because the model was busy, gets 503 so the caller can retry.
 
 ## Measured results
@@ -134,7 +135,8 @@ Ask an agent's related decisions together in one request rather than one request
 
 - **No vLLM, so a small image of our own.** The authors' engine needs torch 2.7 or later, and the AWS PyTorch
   *inference* images stop at 2.6, so the image builds on the AWS PyTorch 2.9 training DLC (CUDA 13) and adds
-  four pinned packages. The build fails if they introduce a dependency conflict the base image did not
+  nine pinned packages (the engine, transformers, peft, the two flash-linear-attention packages, regex,
+  tokenizers, and upgraded urllib3 and tornado). The build fails if they introduce a dependency conflict the base image did not
   already have.
 - **Precision per GPU.** The checkpoint is bf16. The T4 has no native bf16, and fp16 is not safe for this
   architecture's Gated DeltaNet layers, so the T4 runs fp32 (exact, 7.1 GiB). The check uses

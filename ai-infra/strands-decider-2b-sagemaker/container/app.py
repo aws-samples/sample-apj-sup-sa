@@ -23,6 +23,10 @@ Settings (environment variables):
     DECIDER_FLA      auto, on or off: the Triton kernels for the Gated DeltaNet layers
     DECIDER_DEVICE   cuda, or cpu for a local smoke test
     DECIDER_REQUEST_DEADLINE  seconds a request may wait for the model before it gets 503 (default 50)
+    DECIDER_MAX_QUESTIONS     questions allowed in one request (default 64), so one request cannot run for long
+
+A worker whose GPU context breaks (a sticky CUDA error) exits. With several workers uvicorn starts a new one;
+with one, the container stops and SageMaker replaces the instance.
 """
 from __future__ import annotations
 
@@ -32,6 +36,8 @@ import sys
 import threading
 import time
 import traceback
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -41,6 +47,7 @@ MAX_BODY_BYTES = 6 * 1024 * 1024        # SageMaker's own request limit
 # SageMaker gives a real-time invocation 60 s. A request that has waited this long for the model
 # (it is busy with earlier ones) is refused with 503 rather than run for a caller that has gone.
 DEADLINE_S = float(os.environ.get("DECIDER_REQUEST_DEADLINE", "50"))
+MAX_QUESTIONS = int(os.environ.get("DECIDER_MAX_QUESTIONS", "64"))
 # flash-linear-attention (fla) gives the Gated DeltaNet layers fast Triton kernels on GPU.
 # Transformers picks it at import time whenever the package imports, so it has to be hidden
 # before the model code loads wherever it must not run: on CPU (Triton needs a GPU), or when
@@ -54,45 +61,17 @@ import torch  # noqa: E402
 from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
 from pydantic import ValidationError  # noqa: E402
-from starlette.concurrency import run_in_threadpool  # noqa: E402
 from strands_decider.infer import EngineConfig, SystemOneEngine  # noqa: E402
 from strands_decider.modeling import StrandsDeciderModel  # noqa: E402
 from strands_decider.schema import SystemOneRequest  # noqa: E402
 
-ENGINE: SystemOneEngine | None = None
-UNHEALTHY: str | None = None            # set when the GPU context is broken, so /ping tells SageMaker to replace us
-
-
-class FifoLock:
-    """A lock that hands out turns in arrival order (threading.Lock does not), so the deadline is fair."""
-
-    def __init__(self):
-        self._cond = threading.Condition()
-        self._next = self._serving = 0
-        self._skipped: set[int] = set()
-
-    def acquire(self, timeout: float) -> bool:
-        with self._cond:
-            ticket, self._next = self._next, self._next + 1
-            ok = self._cond.wait_for(lambda: self._serving == ticket, timeout=timeout)
-            if not ok:                  # give up our turn without blocking the ones behind it
-                self._skipped.add(ticket)
-                self._advance()
-            return ok
-
-    def release(self) -> None:
-        with self._cond:
-            self._serving += 1
-            self._advance()
-
-    def _advance(self) -> None:
-        while self._serving in self._skipped:
-            self._skipped.discard(self._serving)
-            self._serving += 1
-        self._cond.notify_all()
-
-
-LOCK = FifoLock()                       # the engine is synchronous and not thread-safe
+ENGINE: SystemOneEngine | None = None    # set by lifespan before uvicorn serves any request
+UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
+# The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
+RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
+# Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
+# did not fit is not among them: the next request can still succeed.
+_STICKY = ("illegal memory access", "device-side assert", "unspecified launch failure", "misaligned address")
 
 
 def pick_dtype() -> torch.dtype:
@@ -164,8 +143,8 @@ app = FastAPI(title="strands-decider on SageMaker", lifespan=lifespan,
 
 
 @app.get("/ping")
-async def ping() -> Response:          # async: never waits behind requests queued in the thread pool
-    return Response(status_code=200 if ENGINE is not None and UNHEALTHY is None else 503)
+async def ping() -> Response:          # async: never waits behind requests queued for the engine
+    return Response(status_code=200 if UNHEALTHY is None else 503)
 
 
 @app.post("/invocations")
@@ -179,14 +158,16 @@ async def invocations(request: Request) -> JSONResponse:
         # e.json() leaves out the raw input, which may not be serialisable (or may be large).
         detail = json.loads(e.json(include_url=False, include_input=False))
         return JSONResponse({"error": "invalid request", "detail": detail}, status_code=400)
-    return await run_in_threadpool(_evaluate, req, time.monotonic())
+    if len(req.questions) > MAX_QUESTIONS:
+        return JSONResponse({"error": f"at most {MAX_QUESTIONS} questions per request"}, status_code=400)
+    return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, time.monotonic())
 
 
 def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
     global UNHEALTHY
-    if ENGINE is None:
-        return JSONResponse({"error": "model is still loading"}, status_code=503)
-    if not LOCK.acquire(timeout=max(0.0, DEADLINE_S - (time.monotonic() - arrived))):
+    if UNHEALTHY is not None:
+        return JSONResponse({"error": "worker is restarting; retry"}, status_code=503)
+    if time.monotonic() - arrived > DEADLINE_S:   # the caller's 60 s are nearly gone: do not start
         return JSONResponse({"error": f"busy: not started within {DEADLINE_S:.0f} s; retry later"}, status_code=503)
     try:
         t0 = time.perf_counter()
@@ -202,8 +183,9 @@ def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
         return Response(json.dumps(payload, allow_nan=False), media_type="application/json")
     except Exception as e:  # noqa: BLE001       a server-side fault: log it, report 500
         traceback.print_exc()
-        if type(e).__name__ == "AcceleratorError" or "CUDA error" in str(e):
-            UNHEALTHY = f"{type(e).__name__}: {e}"[:200]   # every later CUDA call in this process would fail too
+        if type(e).__name__ == "AcceleratorError" or any(m in str(e) for m in _STICKY):
+            UNHEALTHY = f"{type(e).__name__}: {e}"[:200]
+            print(f"[decider] worker {os.getpid()} exiting: {UNHEALTHY}", flush=True)
+            # Exit once this 500 is on its way, so a fresh process (or instance) takes over.
+            threading.Timer(1.0, os._exit, (1,)).start()
         return JSONResponse({"error": f"internal error: {type(e).__name__}"}, status_code=500)
-    finally:
-        LOCK.release()
