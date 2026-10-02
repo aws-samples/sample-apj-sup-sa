@@ -1,8 +1,10 @@
 # Serving image for Strands Decider 2B on SageMaker AI.
 # Base: the AWS PyTorch 2.9 Deep Learning Container (CUDA 13, kernels for T4, A10G, L4 and L40S).
 # The AWS PyTorch *inference* images stop at torch 2.6, and strands-decider needs 2.7 or later.
-# The notebook passes the same image for its own Region; the default documents what is expected.
+# The notebook passes the same image for its own Region; the default documents what is expected. Either way the
+# tag is an explicit, versioned AWS DLC release (Checkov cannot read ARG defaults, hence the suppression).
 ARG BASE_IMAGE=763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-training:2.9.0-gpu-py312-cu130-ubuntu22.04-sagemaker-v2.2
+# checkov:skip=CKV_DOCKER_7: BASE_IMAGE is always a versioned AWS DLC tag (default above, pinned in the notebook)
 FROM ${BASE_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -41,7 +43,7 @@ USER decider
 WORKDIR /opt/program
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=600s \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ping', timeout=4)"
+  CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/ping' % os.environ.get('SAGEMAKER_BIND_TO_PORT', '8080'), timeout=4)"
 LABEL com.amazonaws.sagemaker.capabilities.accept-bind-to-port=true
 
 # SageMaker starts the container as `docker run <image> serve`; the argument is ignored.

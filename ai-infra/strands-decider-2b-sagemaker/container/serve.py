@@ -31,6 +31,7 @@ import threading
 import time
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 MODEL_DIR = os.environ.get("DECIDER_MODEL_DIR", "/opt/ml/model/decider")
 DEVICE = os.environ.get("DECIDER_DEVICE", "cuda")
@@ -70,8 +71,11 @@ def pick_dtype() -> torch.dtype:
     2B torso still fits a 16 GB T4 (about 7 GiB of weights).
     """
     choice = os.environ.get("DECIDER_DTYPE", "auto")
+    allowed = {"bfloat16": torch.bfloat16, "float32": torch.float32}
+    if choice != "auto" and choice not in allowed:
+        raise SystemExit(f"DECIDER_DTYPE={choice!r} is not one of auto, bfloat16, float32")
     if choice != "auto":
-        return {"bfloat16": torch.bfloat16, "float32": torch.float32}[choice]
+        return allowed[choice]
     if DEVICE == "cpu":
         return torch.float32
     # including_emulation=False: recent torch reports bf16 as "supported" on a T4 through
@@ -80,6 +84,10 @@ def pick_dtype() -> torch.dtype:
 
 
 def load_engine() -> SystemOneEngine:
+    unreadable = [str(f) for f in Path(MODEL_DIR).parent.rglob("*") if f.is_file() and not os.access(f, os.R_OK)]
+    if unreadable:
+        raise SystemExit(f"the server runs as uid {os.getuid()} and cannot read {len(unreadable)} model files, "
+                         f"for example {unreadable[0]}")
     dtype = pick_dtype()
     # The engine moves the bf16 model to the device; casting afterwards does the fp32 conversion on the GPU,
     # so the host never holds a 7 GiB fp32 copy and half as many bytes cross PCIe.
