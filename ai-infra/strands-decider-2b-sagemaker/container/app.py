@@ -220,7 +220,8 @@ def _run(req: SystemOneRequest, arrived: float) -> Response:
         # Strict JSON: a NaN would mean a numerical fault on our side, so it becomes a 500, not a broken body.
         return Response(json.dumps(payload, allow_nan=False), media_type="application/json")
     except Exception as e:  # noqa: BLE001       a server-side fault: log it, report 500
-        traceback.print_exc()
+        # The exception type and where it happened, not its message: messages can quote request text.
+        print(f"[decider] {type(e).__name__}\n" + "".join(traceback.format_tb(e.__traceback__)), flush=True)
         if _gpu_broken(e):
             UNHEALTHY = f"{type(e).__name__}: {e}"[:200]
             print(f"[decider] worker {os.getpid()} exiting: {UNHEALTHY}", flush=True)

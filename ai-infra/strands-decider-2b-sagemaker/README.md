@@ -100,7 +100,7 @@ The T4 runs one request at a time, so its throughput is flat and extra concurren
 
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 74.70 | 31.20 |
+| `ml.g4dn.xlarge` (T4) | 0.736 | 74.70 | 31.10 |
 | `ml.g5.xlarge` (A10G) | 1.408 | **32.50** | **15.10** |
 
 The T4 is the cheaper instance but costs **2.1x to 2.3x more per request**: the A10G answers 3.9x to 4.4x more
@@ -112,7 +112,7 @@ $1.127/h), which measured 12.6 ticket and 27.3 rank requests per second: $24.80 
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
 score 1.102), the T4 in fp32 returns the same values to three decimals and the A10G in bf16 agrees within
-0.003. On the labelled Nova 2 Lite dataset the two endpoints differ only where bf16 moves a close call:
+0.004. On the labelled Nova 2 Lite dataset the two endpoints differ only where bf16 moves a close call:
 
 | Metric | T4 (fp32) | A10G (bf16) | Baseline |
 |---|---|---|---|

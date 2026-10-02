@@ -16,13 +16,27 @@ around it while its model loads again.
 """
 import asyncio
 import contextlib
+import dataclasses
 import multiprocessing as mp
 import os
 import sys
+import time
 
 PORT = int(os.environ.get("SAGEMAKER_BIND_TO_PORT", "8080"))
 WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
-WORKER_PORTS = [p for p in range(9001, 9101) if p != PORT][:WORKERS]   # loopback ports that skip PORT
+STUCK_S = 30      # a worker that served, then fails /ping this long, is replaced
+KILL_S = 10       # grace after SIGTERM before SIGKILL (a hung CUDA call never lets uvicorn finish)
+
+
+def worker_ports() -> list[int]:
+    """Loopback ports for the workers: from SAGEMAKER_SAFE_PORT_RANGE when SageMaker sets it, never PORT."""
+    lo, hi = 9001, 9100
+    if os.environ.get("SAGEMAKER_SAFE_PORT_RANGE"):
+        lo, hi = (int(x) for x in os.environ["SAGEMAKER_SAFE_PORT_RANGE"].split("-"))
+    ports = [p for p in range(lo, hi + 1) if p != PORT][:WORKERS]
+    if not 1 <= WORKERS <= len(ports):
+        raise SystemExit(f"DECIDER_WORKERS={WORKERS}: must be between 1 and {len(ports)} (free ports {lo}-{hi})")
+    return ports
 
 
 def worker(port: int, host: str) -> None:
@@ -33,6 +47,24 @@ def worker(port: int, host: str) -> None:
     uvicorn.run(app.app, host=host, port=port, timeout_keep_alive=75, log_level="warning")
 
 
+@dataclasses.dataclass
+class Worker:
+    """One model process behind the front, and what the front knows about it."""
+    port: int
+    proc: mp.Process = None
+    up: bool = False
+    ever_up: bool = False
+    busy: int = 0
+    down_since: float | None = None
+    terminated_at: float | None = None
+
+    def start(self, ctx) -> None:
+        self.proc = ctx.Process(target=worker, args=(self.port, "127.0.0.1"), daemon=True)
+        self.proc.start()
+        self.up = self.ever_up = False
+        self.busy, self.down_since, self.terminated_at = 0, None, None
+
+
 def front() -> None:
     import httpx
     import uvicorn
@@ -41,15 +73,10 @@ def front() -> None:
     from starlette.routing import Route
 
     ctx = mp.get_context("spawn")
-    procs = {p: ctx.Process(target=worker, args=(p, "127.0.0.1"), daemon=True) for p in WORKER_PORTS}
-    up = {p: False for p in WORKER_PORTS}
-    busy = {p: 0 for p in WORKER_PORTS}
-    started = {"all": False}
+    workers = [Worker(p) for p in worker_ports()]
+    healthy_once = False
     client = httpx.AsyncClient(timeout=httpx.Timeout(70.0),
                                limits=httpx.Limits(max_connections=256, max_keepalive_connections=64))
-
-    down_since = {p: None for p in WORKER_PORTS}
-    ever_up = {p: False for p in WORKER_PORTS}
 
     async def watch():
         """Restart workers that exit or stay unhealthy, and track which ones answer /ping."""
@@ -57,60 +84,65 @@ def front() -> None:
             try:
                 await check()
             except Exception as e:  # noqa: BLE001  the watcher must keep running
-                print(f"[decider] watcher error: {e!r}", flush=True)
+                print(f"[decider] watcher error: {type(e).__name__}", flush=True)
             await asyncio.sleep(2)
 
     async def check():
-        for p, proc in list(procs.items()):
-            if not proc.is_alive():
-                print(f"[decider] worker on :{p} exited with {proc.exitcode}; starting a new one", flush=True)
-                up[p], ever_up[p], down_since[p] = False, False, None
-                procs[p] = ctx.Process(target=worker, args=(p, "127.0.0.1"), daemon=True)
-                procs[p].start()
+        nonlocal healthy_once
+        now = time.monotonic()
+        for w in workers:
+            if not w.proc.is_alive():
+                print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode}; starting a new one", flush=True)
+                w.start(ctx)
+                continue
+            if w.terminated_at is not None:            # stopping: escalate if SIGTERM did not end it
+                if now - w.terminated_at > KILL_S:
+                    w.proc.kill()
                 continue
             try:
-                up[p] = (await client.get(f"http://127.0.0.1:{p}/ping", timeout=2)).status_code == 200
+                w.up = (await client.get(f"http://127.0.0.1:{w.port}/ping", timeout=2)).status_code == 200
             except httpx.HTTPError:
-                up[p] = False
-            ever_up[p] = ever_up[p] or up[p]
-            # A worker that was serving and has failed /ping for 30 s (a stuck engine) is replaced.
-            down_since[p] = None if up[p] else (down_since[p] or asyncio.get_running_loop().time())
-            if ever_up[p] and down_since[p] and asyncio.get_running_loop().time() - down_since[p] > 30:
-                print(f"[decider] worker on :{p} unhealthy for 30 s; replacing it", flush=True)
-                proc.terminate()
-        started["all"] = started["all"] or all(up.values())
+                w.up = False
+            w.ever_up = w.ever_up or w.up
+            w.down_since = None if w.up else (w.down_since or now)
+            if w.ever_up and w.down_since and now - w.down_since > STUCK_S:
+                print(f"[decider] worker on :{w.port} unhealthy for {STUCK_S} s; replacing it", flush=True)
+                w.up, w.terminated_at = False, now
+                w.proc.terminate()
+        healthy_once = healthy_once or all(w.up for w in workers)
 
     async def ping(_request):
         # Healthy once every copy has loaded; afterwards while at least one answers.
-        ok = started["all"] and any(up.values())
-        return Response(status_code=200 if ok else 503)
+        return Response(status_code=200 if healthy_once and any(w.up for w in workers) else 503)
 
     async def invocations(request):
         body = await request.body()
-        ready = [p for p in WORKER_PORTS if up[p]]
+        ready = [w for w in workers if w.up]
         if not ready:
             return JSONResponse({"error": "no model worker is ready; retry"}, status_code=503)
-        p = min(ready, key=busy.get)
-        busy[p] += 1
+        w = min(ready, key=lambda x: x.busy)
+        w.busy += 1
         try:
-            r = await client.post(f"http://127.0.0.1:{p}/invocations", content=body,
+            r = await client.post(f"http://127.0.0.1:{w.port}/invocations", content=body,
                                   headers={"content-type": request.headers.get("content-type", "application/json")})
+        except httpx.TimeoutException:                 # slow, not gone: leave its health to /ping
+            return JSONResponse({"error": "the model worker did not answer within 70 s"}, status_code=504)
         except httpx.TransportError:
-            up[p] = False
-            return JSONResponse({"error": "the model worker restarted; retry"}, status_code=503)
+            w.up = False
+            return JSONResponse({"error": "the model worker is not reachable; retry"}, status_code=503)
         finally:
-            busy[p] -= 1
+            w.busy -= 1
         return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
-        for proc in procs.values():
-            proc.start()
+        for w in workers:
+            w.start(ctx)
         task = asyncio.get_running_loop().create_task(watch())
         yield
         task.cancel()
-        for proc in procs.values():
-            proc.terminate()
+        for w in workers:
+            w.proc.kill()
         await client.aclose()
 
     app = Starlette(routes=[Route("/ping", ping), Route("/invocations", invocations, methods=["POST"])],
@@ -121,6 +153,8 @@ def front() -> None:
 
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    if WORKERS < 1:
+        raise SystemExit(f"DECIDER_WORKERS={WORKERS}: must be at least 1")
     if WORKERS == 1:
         worker(PORT, "0.0.0.0")  # nosec B104
     else:
