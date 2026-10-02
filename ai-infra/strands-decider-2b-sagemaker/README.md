@@ -45,8 +45,8 @@ pip install -r requirements.txt     # pinned; boto3 1.43.1+ is needed for instan
 ```
 
 You need Docker (the notebook builds the serving image through the Docker SDK), SageMaker, S3, ECR, IAM and
-Bedrock access in a US Region, endpoint quota for `ml.g4dn.xlarge` and one of `ml.g6.xlarge` / `ml.g5.xlarge` /
-`ml.g6e.xlarge`, and about 25 GB of local disk for the image and the model files.
+Bedrock access in a US Region, endpoint quota for `ml.g4dn.xlarge` and one of `ml.g6.xlarge` / `ml.g6.2xlarge` /
+`ml.g5.xlarge` / `ml.g5.2xlarge` / `ml.g6e.xlarge` (the second endpoint's pool, cheapest first), and about 25 GB of local disk for the image and the model files.
 
 **Cost:** **$1.86 to $3.55 per hour while both endpoints run**, depending on which pools have capacity, plus
 ECR and S3 storage. A full run takes about 50 minutes, plus about 20 minutes for the first image build. The clean-up cell is commented out by default:
