@@ -69,7 +69,7 @@ a request that could not start within 50 s, because the model was busy, gets 503
 ## Measured results
 
 Both endpoints in us-east-1, client on EC2 in the same Region, one instance each, every request a new state.
-The pools gave `ml.g4dn.xlarge` (T4) and `ml.g6.xlarge` (L4). These are the outputs committed in
+The pools gave `ml.g4dn.xlarge` (T4) and `ml.g5.xlarge` (A10G). These are the outputs committed in
 `02-deploy-and-benchmark.ipynb`. The decider generates no tokens, so **TTFT is time to first byte**, which
 equals end-to-end latency here; "engine" is the model's own time per request.
 
@@ -78,41 +78,41 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 
 | Endpoint | Workload | Concurrency | req/s | TTFT p50 | e2e p99 | Engine p50 |
 |---|---|---|---|---|---|---|
-| T4, fp32, 1 worker | ticket | 1 | 2.6 | 376 ms | 423 ms | 368 ms |
-| T4, fp32, 1 worker | ticket | 32 | 2.7 | 11,958 ms | 12,319 ms | 374 ms |
-| T4, fp32, 1 worker | rank | 1 | 5.7 | 188 ms | 199 ms | 181 ms |
-| T4, fp32, 1 worker | rank | 32 | 5.8 | 5,358 ms | 5,857 ms | 183 ms |
-| L4, bf16, 3 workers | ticket | 1 | 7.0 | 141 ms | 171 ms | 133 ms |
-| L4, bf16, 3 workers | ticket | 4 | **12.6** | 266 ms | 521 ms | 232 ms |
-| L4, bf16, 3 workers | rank | 1 | 13.6 | 73 ms | 79 ms | 67 ms |
-| L4, bf16, 3 workers | rank | 32 | **27.3** | 941 ms | 2,037 ms | 104 ms |
+| T4, fp32, 1 worker | ticket | 1 | 2.6 | 385 ms | 392 ms | 377 ms |
+| T4, fp32, 1 worker | ticket | 32 | 2.6 | 12,489 ms | 12,813 ms | 390 ms |
+| T4, fp32, 1 worker | rank | 1 | 5.0 | 195 ms | 213 ms | 187 ms |
+| T4, fp32, 1 worker | rank | 32 | 5.2 | 6,075 ms | 6,388 ms | 192 ms |
+| A10G, bf16, 3 workers | ticket | 1 | 5.8 | 173 ms | 185 ms | 165 ms |
+| A10G, bf16, 3 workers | ticket | 16 | **11.2** | 1,070 ms | 2,165 ms | 263 ms |
+| A10G, bf16, 3 workers | rank | 1 | 11.3 | 87 ms | 121 ms | 80 ms |
+| A10G, bf16, 3 workers | rank | 32 | **23.0** | 885 ms | 2,373 ms | 123 ms |
 
-The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the L4,
-three workers overlap requests; at low concurrency SageMaker keeps reusing the same connection, so the extra
-workers only engage as concurrency rises.
+The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
+24 GB GPU, three workers overlap requests; they engage as concurrency rises and more connections arrive.
 
 ### Which instance is cheaper
 
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 75.80 | 34.70 |
-| `ml.g6.xlarge` (L4) | 1.127 | **24.80** | **11.50** |
+| `ml.g4dn.xlarge` (T4) | 0.736 | 78.50 | 39.00 |
+| `ml.g5.xlarge` (A10G) | 1.408 | **34.80** | **17.00** |
 
-The T4 is the cheaper instance but the L4 is about **3x cheaper per request**, because it answers 4.6x more
-requests per second for 1.5x the price. Choose the T4 only when traffic is too low to keep an L4 busy, when
-the hourly bill matters more than cost per request.
+The T4 is the cheaper instance but costs about **2.3x more per request**: the A10G answers 4.3x more requests
+per second for 1.9x the price. In an earlier run the pool landed on the first choice, `ml.g6.xlarge` (L4,
+$1.127/h), which measured 12.6 ticket and 27.3 rank requests per second: $24.80 and $11.50 per million, about
+3x cheaper per request than the T4. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
 
 ### Answers are correct, and identical on both GPUs
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
-score 1.102), the T4 in fp32 returns 0.829 / 0.844 / 1.102 and the L4 in bf16 0.828 / 0.845 / 1.100. On the
-labelled Nova 2 Lite dataset both endpoints score the same:
+score 1.102), the T4 in fp32 returns the same values to three decimals and the A10G in bf16 agrees within
+0.003. On the labelled Nova 2 Lite dataset both endpoints score the same:
 
 | Metric | Result | Baseline |
 |---|---|---|
-| rank top-1 (8 options) | 98.0% | 12.5% chance |
-| urgent AUROC | 0.915 | 0.50 random |
-| department accuracy (5-way) | 82.4% | 20% chance |
+| rank top-1 (8 options) | 92.1% | 12.5% chance |
+| urgent AUROC | 0.90 | 0.50 random |
+| department accuracy (5-way) | 80.0% | 20% chance |
 
 ### More questions per request cost little
 
@@ -120,13 +120,12 @@ The engine encodes the state once and shares that work across every question abo
 
 | Questions in one request | Engine time | Per question |
 |---|---|---|
-| 1 | 67 ms | 67 ms |
-| 5 | 142 ms | 28 ms |
-| 10 | 207 ms | 21 ms |
-| 20 | 383 ms | 19 ms |
+| 1 | 78 ms | 78 ms |
+| 5 | 172 ms | 34 ms |
+| 10 | 224 ms | 22 ms |
+| 20 | 349 ms | 17 ms |
 
 Ask an agent's related decisions together in one request rather than one request each.
-
 
 ## Design notes
 
