@@ -117,7 +117,8 @@ def pick_dtype() -> torch.dtype:
 
 
 def load_engine() -> SystemOneEngine:
-    unreadable = [str(f) for f in Path(MODEL_DIR).parent.rglob("*") if f.is_file() and not os.access(f, os.R_OK)]
+    roots = {Path(MODEL_DIR), Path(os.environ.get("HF_HOME", "/opt/ml/model/hf"))}   # the model files and the HF cache
+    unreadable = [str(f) for r in roots for f in r.rglob("*") if f.is_file() and not os.access(f, os.R_OK)]
     if unreadable:
         raise SystemExit(f"the server runs as uid {os.getuid()} and cannot read {len(unreadable)} model files, "
                          f"for example {unreadable[0]}")
@@ -181,8 +182,23 @@ async def ping() -> Response:          # async: never waits behind requests queu
     return Response(status_code=200 if UNHEALTHY is None and not stuck else 503)
 
 
+def _arrived(request: Request) -> float:
+    """When the front first received this request, so a retry on another worker keeps its original deadline.
+
+    The front passes its time.monotonic(), a clock every process on the host shares; a missing or implausible value
+    means the request came straight to this worker.
+    """
+    now = time.monotonic()
+    try:
+        t = float(request.headers.get("x-decider-arrived", ""))
+    except ValueError:
+        return now
+    return t if now - 120 <= t <= now else now
+
+
 @app.post("/invocations")
 async def invocations(request: Request) -> JSONResponse:
+    arrived = _arrived(request)
     raw = await read_capped(request)
     if raw is None:
         return JSONResponse({"error": f"request body is larger than {MAX_BODY_BYTES:,} bytes; "
@@ -197,7 +213,7 @@ async def invocations(request: Request) -> JSONResponse:
         return JSONResponse({"error": f"at most {MAX_QUESTIONS} questions per request"}, status_code=400)
     if any(len(getattr(q, "criteria", None) or ()) > MAX_OPTIONS for q in req.questions.values()):
         return JSONResponse({"error": f"at most {MAX_OPTIONS} options per question"}, status_code=400)
-    return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, time.monotonic())
+    return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived)
 
 
 def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
@@ -233,7 +249,7 @@ def _run(req: SystemOneRequest, arrived: float) -> Response:
         # The exception type and where it happened, not its message: messages can quote request text.
         print(f"[decider] {type(e).__name__}\n" + "".join(traceback.format_tb(e.__traceback__)), flush=True)
         if _gpu_broken(e):
-            UNHEALTHY = f"{type(e).__name__}: {e}"[:200]
+            UNHEALTHY = type(e).__name__              # the type only, like the log line above
             print(f"[decider] worker {os.getpid()} exiting: {UNHEALTHY}", flush=True)
             # Exit once this 500 is on its way, so a fresh process (or instance) takes over.
             threading.Timer(1.0, os._exit, (1,)).start()

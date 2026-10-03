@@ -77,7 +77,7 @@ a request that could not start within 50 s, because the model was busy, gets 503
 ## Measured results
 
 Both endpoints in us-east-1, client on EC2 in the same Region, one instance each. The engine keeps no state between requests, so repeating the dataset does not inflate the numbers.
-The pools gave `ml.g4dn.xlarge` (T4, its first choice) and `ml.g5.2xlarge` (A10G; `ml.g6.xlarge` and `ml.g6.2xlarge` had no capacity). These are the outputs committed in
+The pools gave `ml.g4dn.xlarge` (T4, its first choice) and `ml.g5.2xlarge` (A10G; `ml.g6.xlarge`, `ml.g6.2xlarge` and `ml.g5.xlarge` had no capacity). These are the outputs committed in
 `02-deploy-and-benchmark.ipynb`. The decider generates no tokens, so **TTFT is time to first byte**, which
 equals end-to-end latency here; "engine" is the model's own time per request.
 
@@ -109,7 +109,7 @@ The T4 runs one request at a time, so its throughput is flat and extra concurren
 The T4 is the cheaper instance but costs **2.3x to 2.5x more per request**: the A10G answers 4.7x to 5.1x more
 requests per second for 2.1x the price. The GPU pool's first choice is cheaper still when it has capacity: an earlier
 run on `ml.g6.xlarge` (L4, $1.127/h) measured 13.0 ticket and 29.6 rank requests per second ($24.16 and $10.58 per
-million), and the T4 pool's fallback `ml.g4dn.2xlarge` ($0.940/h, same T4 throughput) $99.71 and $37.25. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
+million), and an earlier run on the T4 pool's fallback `ml.g4dn.2xlarge` ($0.940/h) measured $99.71 and $37.25. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
 
 ### Answers are correct, and nearly identical on both GPUs
 

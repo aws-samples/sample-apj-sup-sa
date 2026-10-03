@@ -165,11 +165,12 @@ def front() -> None:
         return Response(status_code=200 if healthy_once and any(w.up for w in workers) else 503)
 
     async def invocations(request):
+        arrived = f"{time.monotonic():.6f}"           # workers count their deadline from here, retries included
         body = await read_capped(request)
         if body is None:
             return JSONResponse({"error": f"request body is larger than {MAX_BODY_BYTES:,} bytes; "
                                           "send a shorter state or fewer options"}, status_code=413)
-        headers = {"content-type": request.headers.get("content-type", "application/json")}
+        headers = {"content-type": request.headers.get("content-type", "application/json"), "x-decider-arrived": arrived}
         tried = set()
         while True:
             ready = [w for w in workers if w.up and w.port not in tried]
