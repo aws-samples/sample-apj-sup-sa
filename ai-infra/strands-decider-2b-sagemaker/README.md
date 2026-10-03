@@ -182,7 +182,7 @@ for regulated data without the controls it needs. The server logs only errors, n
 ## Responsible AI
 
 The decider returns probabilities, and they can be wrong. On the synthetic set above it picks the wrong department
-for about 1 ticket in 4. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
+for about 1 ticket in 6. Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
 that affect people (account actions, refunds, content moderation), and measure accuracy on your own labelled data
 before you rely on a threshold. The model is trained on English text; test other languages before you use them.
 It does not filter harmful input or output: if states come from users, put Amazon Bedrock Guardrails or an

@@ -98,7 +98,8 @@ def front() -> None:
     ctx = mp.get_context("spawn")
     workers = [Worker(p) for p in worker_ports()]
     healthy_once = False
-    client = httpx.AsyncClient(timeout=httpx.Timeout(70.0),
+    # A short pool wait: when every connection is busy the caller gets a quick 503, not one after SageMaker's 60 s.
+    client = httpx.AsyncClient(timeout=httpx.Timeout(70.0, pool=1.0),
                                limits=httpx.Limits(max_connections=256, max_keepalive_connections=64))
     # Health probes get their own small pool, so a full request pool never makes a healthy worker look down.
     probe_client = httpx.AsyncClient(timeout=httpx.Timeout(2.0),
