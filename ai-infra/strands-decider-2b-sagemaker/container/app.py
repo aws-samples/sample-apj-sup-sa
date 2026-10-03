@@ -240,6 +240,7 @@ def _run(req: SystemOneRequest, arrived: float) -> Response:
         except ValidationError:                   # the engine built an invalid answer: our fault, not the caller's
             raise
         except ValueError as e:                   # e.g. a malformed option permutation: caller error
+            print(f"[decider] request rejected: {type(e).__name__}", flush=True)   # the type only, never request text
             return JSONResponse({"error": str(e)}, status_code=400)
         payload = result.model_dump()
         payload["latency_ms"] = round((time.perf_counter() - t0) * 1000, 2)

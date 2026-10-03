@@ -74,7 +74,8 @@ class Worker:
     port: int
     proc: mp.Process = None
     up: bool = False
-    ever_up: bool = False
+    ever_up: bool = False                # this process has answered /ping
+    loaded_before: bool = False          # some process in this slot has, so the configuration is known to load
     busy: int = 0
     down_since: float | None = None
     terminated_at: float | None = None
@@ -130,9 +131,9 @@ def front() -> None:
                     w.start(ctx)
                 continue
             if not w.proc.is_alive():
-                if not w.ever_up:              # it never loaded (bad config, unreadable artifact, hung load): the
-                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} before it loaded; "
-                          "stopping the container", flush=True)     # next copy would fail the same way
+                if not w.ever_up and not any(x.loaded_before for x in workers):   # nothing ever loaded (bad config,
+                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} before it loaded; "   # unreadable
+                          "stopping the container", flush=True)     # artifact, hung load): the next copy would fail too
                     for x in workers:
                         if x.proc is not None:
                             x.proc.kill()
@@ -149,6 +150,7 @@ def front() -> None:
         for w, up in zip(probed, await asyncio.gather(*(probe(w) for w in probed))):
             w.up = up
             w.ever_up = w.ever_up or w.up
+            w.loaded_before = w.loaded_before or w.up
             w.down_since = None if w.up else (w.down_since or now)
             if w.ever_up and w.down_since and now - w.down_since > STUCK_S:
                 print(f"[decider] worker on :{w.port} unhealthy for {STUCK_S} s; replacing it", flush=True)
