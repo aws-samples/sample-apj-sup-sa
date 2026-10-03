@@ -100,6 +100,9 @@ def front() -> None:
     healthy_once = False
     client = httpx.AsyncClient(timeout=httpx.Timeout(70.0),
                                limits=httpx.Limits(max_connections=256, max_keepalive_connections=64))
+    # Health probes get their own small pool, so a full request pool never makes a healthy worker look down.
+    probe_client = httpx.AsyncClient(timeout=httpx.Timeout(2.0),
+                                     limits=httpx.Limits(max_connections=2 * len(workers)))
 
     async def watch():
         """Restart workers that exit or stay unhealthy, and track which ones answer /ping."""
@@ -112,7 +115,7 @@ def front() -> None:
 
     async def probe(w) -> bool:
         try:
-            return (await client.get(f"http://127.0.0.1:{w.port}/ping", timeout=2)).status_code == 200
+            return (await probe_client.get(f"http://127.0.0.1:{w.port}/ping")).status_code == 200
         except httpx.HTTPError:
             return False
 
@@ -177,12 +180,14 @@ def front() -> None:
             w.busy += 1
             try:
                 r = await client.post(f"http://127.0.0.1:{w.port}/invocations", content=body, headers=headers)
+            except httpx.PoolTimeout:                  # the front is at capacity; no worker is at fault
+                return JSONResponse({"error": "too many requests in flight; retry"}, status_code=503)
+            except (httpx.ConnectError, httpx.ConnectTimeout):   # never delivered (exited or restarting):
+                w.up = False                                       # try another worker
+                continue
             except httpx.TimeoutException:             # stuck: route around it until /ping says it is healthy
                 w.up = False
                 return JSONResponse({"error": "the model worker did not answer within 70 s"}, status_code=504)
-            except httpx.ConnectError:                 # never delivered (exited or restarting): try another worker
-                w.up = False
-                continue
             except httpx.TransportError:               # it failed while handling this request: do not pass the
                 w.up = False                           # same request on to the other workers
                 return JSONResponse({"error": "the model worker failed during the request; retry"}, status_code=503)
@@ -204,6 +209,7 @@ def front() -> None:
             if w.proc is not None:
                 w.proc.kill()
         await client.aclose()
+        await probe_client.aclose()
 
     app = Starlette(routes=[Route("/ping", ping), Route("/invocations", invocations, methods=["POST"])],
                     lifespan=lifespan)

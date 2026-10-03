@@ -19,6 +19,11 @@ Settings (environment variables):
     DECIDER_DEVICE   cuda, or cpu for a local smoke test
     DECIDER_REQUEST_DEADLINE  seconds a request may wait for the model before it gets 503 (default 50)
     DECIDER_MAX_QUESTIONS     questions allowed in one request (default 64), so one request cannot run for long
+    DECIDER_MAX_OPTIONS       options allowed in one question (default 64)
+    DECIDER_MAX_BODY_BYTES    request body size limit (default 32 KiB), enforced by serve.py and here
+    DECIDER_HANG_SECONDS      one request running this long marks the worker stuck: /ping turns 503 (default 50);
+                              keep it at or above DECIDER_REQUEST_DEADLINE
+    DECIDER_MODEL_DIR         the decider's model files (default /opt/ml/model/decider)
 
 A worker whose GPU context breaks (a sticky CUDA error) exits. With several workers serve.py starts a new one;
 with one, the container stops and SageMaker replaces the instance.
@@ -38,9 +43,8 @@ from pathlib import Path
 
 MODEL_DIR = os.environ.get("DECIDER_MODEL_DIR", "/opt/ml/model/decider")
 DEVICE = os.environ.get("DECIDER_DEVICE", "cuda")
-# Limits that keep one request short, since a worker runs one at a time: the body (an upper bound on the
-# tokens it can hold; benchmark requests are under 2 KB) and the options in one question.
-MAX_BODY_BYTES = int(os.environ.get("DECIDER_MAX_BODY_BYTES", str(32 * 1024)))
+# Limits that keep one request short, since a worker runs one at a time: the body (serve.MAX_BODY_BYTES, an upper
+# bound on the tokens it can hold; benchmark requests are under 2 KB) and the options in one question.
 MAX_OPTIONS = int(os.environ.get("DECIDER_MAX_OPTIONS", "64"))
 # One request this long means the engine is stuck: /ping turns 503. Kept under SageMaker's 60 s invocation limit
 # (a request at the limits above takes a few seconds), so the front stops routing to it before callers time out.
@@ -66,7 +70,7 @@ from strands_decider.infer import EngineConfig, SystemOneEngine  # noqa: E402
 from strands_decider.modeling import StrandsDeciderModel  # noqa: E402
 from strands_decider.schema import SystemOneRequest  # noqa: E402
 
-from serve import read_capped  # noqa: E402  (the same capped body read as the front)
+from serve import MAX_BODY_BYTES, read_capped  # noqa: E402  (the same cap and capped body read as the front)
 
 ENGINE: SystemOneEngine | None = None    # set by prepare() before this worker opens its socket
 BUSY_SINCE: float | None = None          # when the engine thread started its current request
