@@ -84,27 +84,27 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 
 | Endpoint | Workload | Concurrency | req/s | TTFT p50 | e2e p99 | Engine p50 |
 |---|---|---|---|---|---|---|
-| T4, fp32, 1 worker | ticket | 1 | 2.7 | 366 ms | 378 ms | 359 ms |
-| T4, fp32, 1 worker | ticket | 32 | 2.8 | 11,574 ms | 11,664 ms | 362 ms |
-| T4, fp32, 1 worker | rank | 1 | 6.6 | 140 ms | 194 ms | 134 ms |
-| T4, fp32, 1 worker | rank | 32 | 6.9 | 4,539 ms | 5,133 ms | 135 ms |
-| L4, bf16, 3 workers | ticket | 1 | 7.2 | 138 ms | 144 ms | 130 ms |
-| L4, bf16, 3 workers | ticket | 8 | **12.5** | 574 ms | 829 ms | 262 ms |
-| L4, bf16, 3 workers | rank | 1 | 14.3 | 69 ms | 73 ms | 62 ms |
-| L4, bf16, 3 workers | rank | 2 | 23.3 | 74 ms | 123 ms | 67 ms |
-| L4, bf16, 3 workers | rank | 8 | **29.0** | 243 ms | 378 ms | 116 ms |
+| T4, fp32, 1 worker | ticket | 1 | 2.7 | 365 ms | 383 ms | 357 ms |
+| T4, fp32, 1 worker | ticket | 32 | 2.8 | 11,491 ms | 11,550 ms | 359 ms |
+| T4, fp32, 1 worker | rank | 1 | 6.5 | 139 ms | 195 ms | 132 ms |
+| T4, fp32, 1 worker | rank | 32 | 6.6 | 4,751 ms | 5,139 ms | 135 ms |
+| L4, bf16, 3 workers | ticket | 1 | 7.0 | 141 ms | 157 ms | 133 ms |
+| L4, bf16, 3 workers | ticket | 8 | **12.8** | 615 ms | 804 ms | 247 ms |
+| L4, bf16, 3 workers | rank | 1 | 13.9 | 71 ms | 89 ms | 64 ms |
+| L4, bf16, 3 workers | rank | 2 | 24.4 | 76 ms | 120 ms | 69 ms |
+| L4, bf16, 3 workers | rank | 8 | **28.9** | 254 ms | 367 ms | 119 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers overlap requests: two `rank` requests at once take 74 ms each end to end, against 69 ms for one.
+24 GB GPU, three workers overlap requests: two `rank` requests at once take 76 ms each end to end, against 71 ms for one.
 
 ### Which instance is cheaper
 
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 74.01 | 29.75 |
-| `ml.g6.xlarge` (L4) | 1.127 | **24.98** | **10.79** |
+| `ml.g4dn.xlarge` (T4) | 0.736 | 73.50 | 30.68 |
+| `ml.g6.xlarge` (L4) | 1.127 | **24.36** | **10.83** |
 
-The T4 is the cheaper instance but costs **2.8x to 3.0x more per request**: the L4 answers 4.2x to 4.5x more
+The T4 is the cheaper instance but costs **2.8x to 3.0x more per request**: the L4 answers 4.3x to 4.6x more
 requests per second for 1.5x the price. The fallbacks did no better in earlier runs: `ml.g5.xlarge` (A10G, $1.408/h)
 measured 12.0 ticket and 26.5 rank requests per second ($32.63 and $14.77 per million), and `ml.g4dn.2xlarge`
 ($0.940/h, same T4 throughput) $99.71 and $37.25. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
@@ -113,13 +113,13 @@ measured 12.0 ticket and 26.5 rank requests per second ($32.63 and $14.77 per mi
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
 score 1.102), the T4 in fp32 returns the same values to three decimals and the L4 in bf16 agrees within
-0.002. On the labelled Nova 2 Lite dataset the two endpoints score the same (urgent AUROC 0.889 on both):
+0.002. On the labelled Nova 2 Lite dataset the two endpoints score the same (urgent AUROC 0.90 on both):
 
 | Metric | T4 (fp32) | L4 (bf16) | Baseline |
 |---|---|---|---|
-| rank top-1 (8 options) | 90.9% | 90.9% | 12.5% chance |
-| urgent AUROC | 0.89 | 0.89 | 0.50 random |
-| department accuracy (5-way) | 81.5% | 81.5% | 20% chance |
+| rank top-1 (8 options) | 92.1% | 92.1% | 12.5% chance |
+| urgent AUROC | 0.90 | 0.90 | 0.50 random |
+| department accuracy (5-way) | 82.4% | 82.4% | 20% chance |
 
 ### More questions per request cost little
 
@@ -127,10 +127,10 @@ The engine encodes the state once and shares that work across every question abo
 
 | Questions in one request | Engine time | Per question |
 |---|---|---|
-| 1 | 64 ms | 64 ms |
-| 5 | 135 ms | 27 ms |
-| 10 | 207 ms | 21 ms |
-| 20 | 384 ms | 19 ms |
+| 1 | 66 ms | 66 ms |
+| 5 | 139 ms | 28 ms |
+| 10 | 202 ms | 20 ms |
+| 20 | 380 ms | 19 ms |
 
 Ask an agent's related decisions together in one request rather than one request each.
 
