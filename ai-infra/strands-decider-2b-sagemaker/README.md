@@ -86,27 +86,27 @@ equals end-to-end latency here; "engine" is the model's own time per request.
 
 | Endpoint | Workload | Concurrency | req/s | TTFT p50 | e2e p99 | Engine p50 |
 |---|---|---|---|---|---|---|
-| T4, fp32, 1 worker | ticket | 1 | 2.6 | 383 ms | 395 ms | 374 ms |
-| T4, fp32, 1 worker | ticket | 32 | 2.6 | 12,067 ms | 12,138 ms | 377 ms |
-| T4, fp32, 1 worker | rank | 1 | 6.3 | 145 ms | 197 ms | 138 ms |
-| T4, fp32, 1 worker | rank | 32 | 6.5 | 4,874 ms | 5,308 ms | 139 ms |
-| A10G, bf16, 3 workers | ticket | 1 | 6.3 | 158 ms | 163 ms | 149 ms |
-| A10G, bf16, 3 workers | ticket | 32 | **12.7** | 2,476 ms | 2,683 ms | 234 ms |
-| A10G, bf16, 3 workers | rank | 1 | 12.5 | 80 ms | 84 ms | 72 ms |
-| A10G, bf16, 3 workers | rank | 2 | 23.7 | 83 ms | 107 ms | 75 ms |
-| A10G, bf16, 3 workers | rank | 8 | **33.0** | 251 ms | 320 ms | 87 ms |
+| T4, fp32, 1 worker | ticket | 1 | 2.6 | 376 ms | 390 ms | 367 ms |
+| T4, fp32, 1 worker | ticket | 32 | 2.7 | 11,807 ms | 12,209 ms | 369 ms |
+| T4, fp32, 1 worker | rank | 1 | 6.7 | 140 ms | 193 ms | 133 ms |
+| T4, fp32, 1 worker | rank | 32 | 6.9 | 4,508 ms | 5,003 ms | 136 ms |
+| A10G, bf16, 3 workers | ticket | 1 | 6.3 | 158 ms | 164 ms | 149 ms |
+| A10G, bf16, 3 workers | ticket | 16 | **12.7** | 1,184 ms | 1,431 ms | 234 ms |
+| A10G, bf16, 3 workers | rank | 1 | 12.4 | 81 ms | 85 ms | 73 ms |
+| A10G, bf16, 3 workers | rank | 2 | 24.3 | 82 ms | 87 ms | 74 ms |
+| A10G, bf16, 3 workers | rank | 16 | **33.6** | 445 ms | 607 ms | 85 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers overlap requests: two `rank` requests at once take 83 ms each end to end, against 80 ms for one.
+24 GB GPU, three workers overlap requests: two `rank` requests at once take 82 ms each end to end, against 81 ms for one.
 
 ### Which instance is cheaper
 
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 76.78 | 31.60 |
-| `ml.g5.2xlarge` (A10G) | 1.515 | **33.25** | **12.76** |
+| `ml.g4dn.xlarge` (T4) | 0.736 | 76.07 | 29.47 |
+| `ml.g5.2xlarge` (A10G) | 1.515 | **33.18** | **12.51** |
 
-The T4 is the cheaper instance but costs **2.3x to 2.5x more per request**: the A10G answers 4.7x to 5.1x more
+The T4 is the cheaper instance but costs **2.3x to 2.4x more per request**: the A10G answers 4.7x to 4.9x more
 requests per second for 2.1x the price. The GPU pool's first choice is cheaper still when it has capacity: an earlier
 run on `ml.g6.xlarge` (L4, $1.127/h) measured 13.0 ticket and 29.6 rank requests per second ($24.16 and $10.58 per
 million), and an earlier run on the T4 pool's fallback `ml.g4dn.2xlarge` ($0.940/h) measured $99.71 and $37.25. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
@@ -115,14 +115,14 @@ million), and an earlier run on the T4 pool's fallback `ml.g4dn.2xlarge` ($0.940
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
 score 1.102), the T4 in fp32 returns the same values to three decimals and the A10G in bf16 agrees within
-0.003. On the labelled Nova 2 Lite dataset the two endpoints score the same (urgent AUROC 0.90 on both):
+0.003. On the labelled Nova 2 Lite dataset the two endpoints score the same (urgent AUROC 0.93 on both):
 
 | Metric | T4 (fp32) | A10G (bf16) | Baseline |
 |---|---|---|---|
-| rank top-1 (8 options) | 94.1% | 94.1% | 12.5% chance |
-| urgent AUROC | 0.90 | 0.90 | 0.50 random |
-| department accuracy (5-way) | 80.0% | 80.8% | 20% chance |
-| frustration MAE (0-2 `score`) | 0.50 | 0.50 | 0.62 always guessing 1 |
+| rank top-1 (8 options) | 92.2% | 92.2% | 12.5% chance |
+| urgent AUROC | 0.93 | 0.93 | 0.50 random |
+| department accuracy (5-way) | 84.2% | 84.2% | 20% chance |
+| frustration MAE (0-2 `score`) | 0.53 | 0.52 | 0.62 always guessing 1 |
 
 ### More questions per request cost little
 
@@ -130,10 +130,10 @@ The engine encodes the state once and shares that work across every question abo
 
 | Questions in one request | Engine time | Per question |
 |---|---|---|
-| 1 | 73 ms | 73 ms |
-| 5 | 151 ms | 30 ms |
+| 1 | 74 ms | 74 ms |
+| 5 | 152 ms | 30 ms |
 | 10 | 214 ms | 21 ms |
-| 20 | 338 ms | 17 ms |
+| 20 | 339 ms | 17 ms |
 
 Ask an agent's related decisions together in one request rather than one request each.
 
@@ -185,7 +185,7 @@ for regulated data without the controls it needs. The server logs only errors, n
 ## Responsible AI
 
 The decider returns probabilities, and they can be wrong. On the synthetic set above it picks the wrong department
-for about 1 ticket in 5 (18% to 23% across our runs). Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
+for about 1 ticket in 5 (16% to 23% across our runs). Use its answers to route or to triage, keep a person or a stricter check in the loop for decisions
 that affect people (account actions, refunds, content moderation), and measure accuracy on your own labelled data
 before you rely on a threshold. The model is trained on English text; test other languages before you use them.
 It does not filter harmful input or output: if states come from users, put Amazon Bedrock Guardrails or an
