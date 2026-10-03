@@ -46,7 +46,9 @@ pip install -r requirements.txt     # pinned; boto3 1.43.1+ is needed for instan
 
 You need Docker (the notebook builds the serving image through the Docker SDK), SageMaker, S3, ECR, IAM and
 Bedrock access in a US Region (including `sagemaker:AddTags` and `sagemaker:ListTags`: the notebook tags
-what it creates, so clean-up never touches resources it did not create), endpoint quota for `ml.g4dn.xlarge` and one of `ml.g6.xlarge` / `ml.g6.2xlarge` /
+what it creates, so clean-up never touches resources it did not create), plus `cloudwatch:GetMetricStatistics` for the
+server metrics, `kms:DescribeKey` if the bucket uses SSE-KMS, and `logs:DeleteLogGroup` and
+`application-autoscaling:DeregisterScalableTarget` for the clean-up, endpoint quota for `ml.g4dn.xlarge` and one of `ml.g6.xlarge` / `ml.g6.2xlarge` /
 `ml.g5.xlarge` / `ml.g5.2xlarge` / `ml.g6e.xlarge` (the second endpoint's pool, cheapest first), and about 25 GB of local disk for the image and the model files.
 
 **Cost:** **$1.86 to $3.55 per hour while both endpoints run**, depending on which pools have capacity, plus
