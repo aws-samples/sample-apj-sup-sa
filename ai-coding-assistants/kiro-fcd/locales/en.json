@@ -368,7 +368,7 @@
     "어떤 일을 맡길까?": "What kind of work should I entrust you with?",
     "자세히 보기": "Learn more",
     "에이전트가 맡을 업무와 판단 기준을 시스템 프롬프트로 정의합니다. 설정을 메인 에이전트로 선택하거나 SubAgent·Workflow 단계의 담당자로 사용할 수 있습니다.": "The agent's tasks and judgment criteria are defined through system prompts. You can select the setup as the main agent or use it as the SubAgent·Workflow step's assignee.",
-    "언제 쓰나": "When to use it",
+    "언제 쓰나": "When to use",
     "· 구현·리뷰·조사 등 담당자의 역할을 구분하고, 팀의 작업 기준을 맞출 때": "· When distinguishing the roles of the person in charge, such as implementation, review, and investigation, and meeting the team's work standards",
     "모델": "Model",
     "어떤 모델을 쓸까?": "Which model should I use?",
