@@ -610,7 +610,7 @@
     "=read,grep \\\n        \"이 PR 변경을 보안 관점에서 검토해줘\"\n    env:": "=read,grep\\\n        “Please review this PR change from a security perspective”\n    env:",
     "--trust-tools 최소 권한": "--trust-tools minimal privileges",
     "텍스트 검색을 넘어": "Search code structure",
-    "코드 구조를 이해하고 변환합니다": "Understand and translate code structure",
+    "코드 구조를 이해하고 변환합니다": "Understand and transform code",
     "내장": "Built-in",
     "(18개 언어)로 심볼 검색, 코드베이스 개요,": "Symbol search (in 18 languages), codebase overview,",
     "AST 기반 패턴 검색·일괄 변환": "AST-based pattern search/batch conversion",
@@ -1868,7 +1868,9 @@
     "이슈 분류: 에이전트가 제목과 본문을 읽고 저장소에 이미 정의된 태그 중에서 라벨을 제안합니다. 실제 적용은 사용자가 UI에서 눌러야 이뤄집니다": "Issue triage: the agent reads the title and body, then proposes labels from the repository's existing tags. A user must click to apply them.",
     "사전 조사: 조사 버튼을 누르면 그 이슈를 맥락으로 삼는 세션이 열려 코드를 훑고 원인을 분석해 카드에 기록합니다. 같은 이슈를 다시 열면 이전 세션이 이어집니다": "Investigation: the button opens a session for the issue. Inspect code, analyze the cause, and record it in the card. Reopening the issue resumes the session.",
     "완전 자동화도 가능합니다. 스케줄 기능으로 매일 새벽 미분류 이슈에 라벨을 제안하거나 밤사이 열린 PR의 리뷰 초안을 미리 만들어 두도록 예약합니다": "Schedule label proposals for unclassified issues each morning or review drafts for PRs opened overnight. Scheduling automates these tasks.",
-    "에이전트가 맡을 업무와 판단 기준": "Agent tasks and decision criteria"
+    "에이전트가 맡을 업무와 판단 기준": "Agent tasks and decision criteria",
+    "내장 Tree-sitter(18개 언어)로 심볼 검색, 코드베이스 개요, AST 기반 패턴 검색·일괄 변환을 설정 없이 사용합니다": "Built-in Tree-sitter supports 18 languages. Search symbols, inspect the codebase, and find or transform AST patterns without setup.",
+    "/code init으로 선택적 LSP 통합을 제공합니다. 참조 찾기, 정의 이동, rename, diagnostics, hover 문서": "Use /code init for optional LSP integration: find references, go to definitions, rename, check diagnostics, and read hover documentation."
   },
   "html": {
     "스펙으로 개발하는AI 에이전트 개발 환경, Kiro": "<br/>AI agent development environment developed with specifications, <span style=\"color:var(--aws-violet-300)\">Kiro</span>",
@@ -1946,8 +1948,8 @@
     "승인할 사람이 없으므로 --trust-tools=read,grep처럼 최소 권한만 미리 허용합니다": "<i></i><span class=\"dk-b\">With no person to approve tools, <strong>pre-authorize minimum permissions</strong>, e.g. <code>--trust-tools=read,grep</code>.</span>",
     "git diff | kiro-cli chat …처럼 표준 입력으로 컨텍스트를 파이프하고, --agent·--model로 실행 시점에 역할과 모델을 지정합니다": "<i></i><span class=\"dk-b\"><strong>Pipe context through stdin</strong>, e.g. <code>git diff | kiro-cli chat …</code>. Select roles and models with <code>--agent</code> / <code>--model</code>.</span>",
     "종료 코드로 분기합니다 — 0 성공 · 1 실패 · 3 MCP 시작 실패. --require-mcp-startup으로 조용한 실패 대신 빠르게 실패시킵니다": "<i></i><span class=\"dk-b\">Exit codes: <strong>0 success · 1 failure · 3 MCP startup failure</strong>. Use <code>--require-mcp-startup</code> to fail fast.</span>",
-    "내장 Tree-sitter(18개 언어)로 심볼 검색, 코드베이스 개요, AST 기반 패턴 검색·일괄 변환을 설정 없이 사용합니다": "<i></i><span class=\"dk-b\" style=\"font-size:15.5px;line-height:1.55\">Enable symbol search, codebase overview, and <strong style=\"font-weight:600\">AST-based pattern search/batch conversion</strong> with built-in <strong style=\"font-weight:600\">Tree-sitter</strong> (18 languages) out of the box</span>",
-    "/code init으로 선택적 LSP 통합을 제공합니다. 참조 찾기, 정의 이동, rename, diagnostics, hover 문서": "Provides optional <strong style=\"font-weight:600\">LSP integration</strong> with <i></i><span class=\"dk-b\" style=\"font-size:15.5px;line-height:1.55\"><span style=\"font-family:var(--aws-font-mono);font-size:13px\">/code init</span>. Find references, move definitions, rename, diagnostics, hover document</span>",
+    "내장 Tree-sitter(18개 언어)로 심볼 검색, 코드베이스 개요, AST 기반 패턴 검색·일괄 변환을 설정 없이 사용합니다": "<i></i><span class=\"dk-b\">Built-in Tree-sitter supports 18 languages. Search symbols, inspect the codebase, and find or transform AST patterns without setup.</span>",
+    "/code init으로 선택적 LSP 통합을 제공합니다. 참조 찾기, 정의 이동, rename, diagnostics, hover 문서": "<i></i><span class=\"dk-b\">Use /code init for optional LSP integration: find references, go to definitions, rename, check diagnostics, and read hover documentation.</span>",
     "변환은 dry_run으로 미리 확인하므로, 대규모 리팩터링도 검증 가능한 근거 위에서 진행합니다": "<i></i><span class=\"dk-b\" style=\"font-size:15.5px;line-height:1.55\">Preview transformations with <span style=\"font-family:var(--aws-font-mono);font-size:13px\">dry_run</span>. Use the preview results before making large refactoring changes.</span>",
     "kiro-cli acp는 LSP가 언어 서버를 표준화했듯, 에이전트-편집기 연결을 표준화합니다 (JSON-RPC over stdio)": "<i></i><span class=\"dk-b\" style=\"font-size:15.5px;line-height:1.55\"><span style=\"font-family:var(--aws-font-mono);font-size:13px\">kiro-cli acp</span> standardizes agent-editor connections, as LSP does for language servers (JSON-RPC over stdio).</span>",
     "팀은 기존 전문 IDE를 유지하면서 Kiro를 선택하고, 같은 .kiro/ 설정을 어디서든 공유합니다": "<i></i><span class=\"dk-b\" style=\"font-size:15.5px;line-height:1.55\">The team chose Kiro while <strong style=\"font-weight:600\">maintaining their existing professional IDE</strong> and sharing the same <span style=\"font-family:var(--aws-font-mono);font-size:13px\">.kiro/</span> configuration everywhere</span>",
