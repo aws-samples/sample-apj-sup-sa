@@ -24,9 +24,13 @@ Kiro 소개와 고객 대화를 위한 한국어·영어·일본어를 지원하
 
 장표를 갱신할 때는 `main`의 `index.html`을 업데이트한 뒤 같은 파일을 게시 브랜치의 `ai-coding-assistants/kiro-fcd/index.html`에도 반영합니다. `.nojekyll`로 HTML을 변환 없이 제공합니다.
 
+## 문구 점검
+
+57개 장표와 상세 설명을 검토해 번역투·추상적 표현·중복을 줄였습니다. 짧은 문장·구체적인 동사·용어 통일을 우선했고, 원래 수치와 지원 조건은 유지했습니다. [점검 기준과 범위](COPY-REVIEW.md)를 참고하세요.
+
 ## 번역 소스
 
-`locales/en.json`, `locales/ja.json`과 `scripts/language-switcher.js`는 번역과 언어 전환을 검토하기 위한 소스입니다. 배포된 `index.html`은 이 데이터를 내장하며 해당 경로를 실행 중에 요청하지 않습니다. HTML 자체에 별도 컴파일이나 빌드는 필요하지 않습니다.
+`locales/ko.json`, `locales/en.json`, `locales/ja.json`과 `scripts/language-switcher.js`는 번역과 언어 전환을 검토하기 위한 소스입니다. 배포된 `index.html`은 이 데이터를 내장하며 해당 경로를 실행 중에 요청하지 않습니다. HTML 자체에 별도 컴파일이나 빌드는 필요하지 않습니다.
 
 ## 라이선스
 
