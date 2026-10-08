@@ -31,3 +31,5 @@ results/
 .local-notes
 .local-notes/
 .ash/
+cdk.out/
+node_modules/
