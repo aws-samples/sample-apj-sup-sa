@@ -116,9 +116,15 @@ Narrow the resources to the models and profiles you benchmark.
       "Resource": "*"
     },
     {
-      "Sid": "MantleInference",
+      "Sid": "MantleInference",           // scoped to Mantle projects in your account
       "Effect": "Allow",
-      "Action": ["bedrock-mantle:CallWithBearerToken", "bedrock-mantle:CreateInference"],
+      "Action": ["bedrock-mantle:CreateInference"],
+      "Resource": "arn:aws:bedrock-mantle:*:ACCOUNT_ID:project/*"
+    },
+    {
+      "Sid": "MantleBearerToken",         // this action does not support resource-level scoping
+      "Effect": "Allow",
+      "Action": ["bedrock-mantle:CallWithBearerToken"],
       "Resource": "*"
     },
     {
