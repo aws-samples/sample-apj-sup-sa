@@ -119,7 +119,7 @@ one instance type that is a failed deployment; with five pools SageMaker just ta
 
 ## Measured results
 
-`ml.g5.2xlarge` (A10G 24 GB) in us-east-1, the fourth pool (the three before it had no capacity this time), with the client on
+`ml.g5.xlarge` (A10G 24 GB) in us-east-1, the third pool (the two before it had no capacity this time), with the client on
 EC2 in the same Region. vLLM 0.30.0, `max-model-len 2048`, one instance, no autoscaling. These are the
 outputs committed in `02-deploy-and-benchmark.ipynb`.
 
@@ -130,37 +130,37 @@ embedded; only `ticket`'s 10 fixed option texts come from the cache after the fi
 
 | Workload | Concurrency | req/s | TTFT p50 | e2e p50 | e2e p99 | encoder tok/s |
 |---|---|---|---|---|---|---|
-| ticket | 1 | 11.2 | 97 ms | 97 ms | 100 ms | 1,360 |
-| ticket | 4 | 35.1 | 113 ms | 113 ms | 151 ms | 4,276 |
-| ticket | 16 | 51.7 | 298 ms | 298 ms | 416 ms | 6,465 |
-| ticket | 32 | **58.4** | 510 ms | 510 ms | 731 ms | 7,435 |
-| ticket | 64 | 57.7 | 974 ms | 974 ms | 1,689 ms | 7,320 |
-| rank | 1 | 6.9 | 145 ms | 145 ms | 156 ms | 1,362 |
-| rank | 4 | 22.2 | 176 ms | 176 ms | 213 ms | 4,387 |
-| rank | 16 | 32.7 | 458 ms | 458 ms | 644 ms | 6,778 |
-| rank | 32 | 35.8 | 822 ms | 822 ms | 1,230 ms | 7,528 |
-| rank | 64 | **37.2** | 1,660 ms | 1,660 ms | 2,149 ms | 7,919 |
+| ticket | 1 | 10.6 | 97 ms | 97 ms | 103 ms | 1,347 |
+| ticket | 4 | 28.0 | 151 ms | 151 ms | 197 ms | 3,545 |
+| ticket | 16 | 52.0 | 297 ms | 297 ms | 402 ms | 6,744 |
+| ticket | 32 | **57.8** | 512 ms | 512 ms | 745 ms | 7,683 |
+| ticket | 64 | 2.9 KB | 457 ms | 53 ms | 9x | 7,016 |
+| rank | 1 | 6.7 | 148 ms | 148 ms | 157 ms | 1,360 |
+| rank | 4 | 21.9 | 179 ms | 179 ms | 222 ms | 4,425 |
+| rank | 16 | 29.1 | 533 ms | 534 ms | 698 ms | 6,138 |
+| rank | 32 | 33.1 | 890 ms | 890 ms | 1,299 ms | 7,104 |
+| rank | 64 | **36.8** | 1,663 ms | 1,663 ms | 2,102 ms | 8,004 |
 
 Throughput flattens past 32 concurrent requests. Beyond that knee, extra concurrency only buys
-queueing latency (from 32 to 64 in flight `ticket` lost 1% and `rank` gained 4%, at twice the latency). Pick the
+queueing latency (from 32 to 64 in flight `ticket` lost 8% and `rank` gained 11%, at about twice the latency). Pick the
 concurrency that fits your latency budget; section 11 of the notebook computes an autoscaling target at 70% of the measured peak (its scaling calls are
 commented out, so the endpoint stays at one instance unless you run them). Server-side CloudWatch metrics over the benchmark window:
 
 | Metric | Value |
 |---|---|
-| `GPUUtilization`, highest minute | 93% |
+| `GPUUtilization`, highest minute | 88% |
 | `GPUMemoryUtilization`, highest minute | 86% |
-| `CPUUtilization`, highest minute | 76% of 800 (8 vCPU) |
-| `MemoryUtilization`, highest minute | 14% |
-| `ModelLatency`, mean over the benchmark | 647 ms |
-| `OverheadLatency`, mean over the benchmark | 3.7 ms |
+| `CPUUtilization`, highest minute | 111% of 400 (4 vCPU) |
+| `MemoryUtilization`, highest minute | 27% |
+| `ModelLatency`, mean over the benchmark | 676 ms |
+| `OverheadLatency`, mean over the benchmark | 3.9 ms |
 | `Invocation5XXErrors`, total | 0 |
 
 At the concurrency the notebook picks (the lowest within 2% of the peak, 32 for `ticket` and 64 for `rank` here), on one instance, that is
-about **$7.20 per million `systemone` calls** and **$11.31 per million 8-candidate `rank` calls**.
+about **$6.76 per million `systemone` calls** and **$10.62 per million 8-candidate `rank` calls**.
 The first pool is cheaper when it has capacity: an earlier run on `ml.g6.xlarge` (L4, $1.127/h) measured 57.8 `ticket`
-and 36.9 `rank` requests per second, **$5.42 and $8.47 per million**. Other pools in earlier runs: `ml.g5.xlarge` (A10G,
-$1.408/h) 54.9 and 38.3 ($7.13 and $10.21), and `ml.g6e.xlarge` (L40S 48 GB, $2.605/h) 110.6 and 52.9 ($6.54 and
+and 36.9 `rank` requests per second, **$5.42 and $8.47 per million**. Other pools in earlier runs: `ml.g5.2xlarge` (A10G,
+$1.515/h) 58.4 and 37.2 ($7.20 and $11.31), and `ml.g6e.xlarge` (L40S 48 GB, $2.605/h) 110.6 and 52.9 ($6.54 and
 $13.68). One run on `ml.g6.2xlarge` measured `rank` at half its usual rate with the same code, so treat any single
 run's figures as indicative.
 
@@ -172,10 +172,10 @@ spread between runs):
 
 | Candidates | Request size | Cold | Warm | Speed-up |
 |---|---|---|---|---|
-| 8 | 0.4 KB | 153 ms | 53 ms | 3x |
+| 8 | 0.4 KB | 168 ms | 53 ms | 3x |
 | 64 | 2.9 KB | 445 ms | 54 ms | 8x |
-| 256 | 12 KB | 1,557 ms | 55 ms | 28x |
-| 1024 | 50 KB | 4,514 ms | 66 ms | 68x |
+| 256 | 12 KB | 1,561 ms | 55 ms | 28x |
+| 1024 | 50 KB | 4,157 ms | 66 ms | 63x |
 
 Warm latency stays between 53 and 66 ms no matter how many candidates, because only the state is new. That is
 the shape an agent loop wants: a fixed tool or action set costs almost nothing to re-score.
@@ -203,9 +203,9 @@ pooling, a wrong revision or broken heads would all land near chance. It is not 
 
 | Metric | Result | Baseline |
 |---|---|---|
-| rank top-1 (8 candidates) | 40.6% | 12.5% chance |
-| urgent AUROC | 0.77 | 0.50 random |
-| department accuracy (5-way) | 40.0% | 20% chance; 25.0% always the most common team |
+| rank top-1 (8 candidates) | 67.3% | 12.5% chance |
+| urgent AUROC | 0.76 | 0.50 random |
+| department accuracy (5-way) | 42.5% | 20% chance; 25.0% always the most common team |
 
 Zero-shot `noul` probabilities are not calibrated, so urgency is scored with AUROC rather than a 0.5
 cut-off. The model card is explicit that CLM's strong agentic numbers come from **fine-tuned** heads;
@@ -214,7 +214,7 @@ those are another `*.pt` file you can drop into `code/` and select with `"model"
 Notebook 2 also asserts the model-card examples against an independent reference run of the same
 checkpoint (Hugging Face Transformers, Qwen3-8B bf16 on CPU). bf16 on a GPU, and how vLLM batches the request,
 move these values a little (urgency came out between 0.827 and 0.851 across our endpoint runs, against 0.822 on CPU), so the check allows 0.05. Reference, then this run: `billing` 0.988 and 0.989,
-urgency 0.822 and 0.834, the Moon 0.994 and 0.993.
+urgency 0.822 and 0.850, the Moon 0.994 and 0.994.
 
 The reference values are not the ones printed on the model card (for example `billing` 0.939): those do not come
 from the published `CLM_v0.1-8B.pt` on Qwen3-8B, which is also reported upstream as
@@ -260,7 +260,7 @@ Things that are easy to get wrong here.
   `aws:SourceAccount`. The role is tagged when created; the notebook will not modify, and the clean-up will not
   delete, a role of the same name that it did not create.
 - **The 60 s and 6 MB invocation limits apply.** Both are comfortable here: a 1024-candidate request is
-  about 50 KB and answered in 4.5 s cold in the run above.
+  about 50 KB and answered in 4.2 s cold in the run above.
 
 ## Your data
 
