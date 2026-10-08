@@ -69,7 +69,7 @@ and RSS fetches and the Mantle endpoint, which still need internet egress.
 
 ```bash
 cd deploy
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r requirements.lock
 npx aws-cdk@2 deploy --all -c account=ACCOUNT_ID
 ```
 

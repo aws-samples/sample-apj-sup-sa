@@ -26,7 +26,9 @@ def main() -> int:
     broker = AuthBroker()
     if os.environ.get("SKIP_DISCOVERY") != "1":
         try:
-            logger.info("discovery report:\n%s", run_discovery(broker, os.environ["AGENT_MODEL_ID"]))
+            # The full report is stored in discovery_events (Aurora); logs get its size only.
+            report = run_discovery(broker, os.environ["AGENT_MODEL_ID"])
+            logger.info("discovery finished (report: %d characters, stored in discovery_events)", len(report))
         except Exception:  # noqa: BLE001 - benchmark the existing registry even if discovery fails
             logger.exception("discovery failed; continuing with the stored registry")
 
