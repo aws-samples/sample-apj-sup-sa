@@ -127,8 +127,11 @@ At rest the stack costs about USD 18 per month (us-east-1 list prices, October 2
 | Aurora storage and backups (small database), compute paused at 0 ACU when idle | < 1 |
 | Lambda, API Gateway, Cognito (per use), Amplify Hosting | < 1 at low traffic |
 
-Each daily worker run costs the Fargate Spot time (cents) plus the Bedrock tokens of
-the configured benchmark. Run `bedrock-bench --dry-run <benchmark_args>` to see the token estimate
+Each daily worker run costs the Fargate Spot time (cents) plus the Bedrock tokens of the configured
+benchmark. Measured on 2026-10-08 with the default `--preset quick` over the 35 verified multi-tier models:
+140 cells, 699 samples, about 1.26M input and up to 0.43M output tokens, roughly 40 minutes (Flex requests
+queue for up to about 4 minutes). To benchmark fewer models, add `--keys` or `--families` to
+`benchmark_args`, for example `-c benchmark_args="--preset quick --keys zai.glm-5.3,moonshotai.kimi-k3"`. Run `bedrock-bench --dry-run <benchmark_args>` to see the token estimate
 before raising `benchmark_args`.
 
 ## Tear down
