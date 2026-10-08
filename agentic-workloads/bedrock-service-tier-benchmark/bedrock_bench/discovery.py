@@ -49,6 +49,8 @@ _CARD_APIS: dict[str, tuple[Api, ...]] = {
 }
 _CARD_TIERS = {"Standard": Tier.DEFAULT, "Flex": Tier.FLEX, "Priority": Tier.PRIORITY}
 _ENDPOINTS = {"bedrock-runtime": Endpoint.RUNTIME, "bedrock-mantle": Endpoint.MANTLE}
+#: Per-probe deadline (s): long enough for flex queueing on a tiny prompt.
+_PROBE_TIMEOUT = 300
 _PROBE_API = {Endpoint.RUNTIME: Api.CONVERSE_STREAM, Endpoint.MANTLE: Api.CHAT_COMPLETIONS}
 
 
@@ -194,7 +196,7 @@ def probe(specs: list[ModelSpec], broker: AuthBroker, regions: tuple[str, ...]) 
                         32,
                         None if tier.is_default else tier.value,
                         temperature=None,
-                        timeout=300,
+                        timeout=_PROBE_TIMEOUT,
                     )
                 )
                 served = served_matches(tier, m.served_tier)
@@ -291,7 +293,9 @@ def main(argv: list[str] | None = None) -> int:
     specs = discover_from_docs(only)
     logger.info("%d multi-tier text models documented", len(specs))
     if a.probe:
-        specs = probe(specs, AuthBroker(profile=a.aws_profile), regions)
+        # Socket read timeout just above the probe deadline, so a stalled request ends.
+        broker = AuthBroker(profile=a.aws_profile, read_timeout=_PROBE_TIMEOUT + 30)
+        specs = probe(specs, broker, regions)
     for s in specs:
         tiers = sorted({t.value for o in s.offerings for t in o.tiers})
         print(
