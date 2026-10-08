@@ -88,12 +88,13 @@ class WorkerStack(Stack):
                 "BENCHMARK_ARGS": benchmark_args,
                 "AGENT_MODEL_ID": agent_model_id,
                 "AWS_REGION": self.region,
-                "HOME": "/tmp",  # nosec B108 - writable scratch on a read-only root fs (ephemeral task storage)
             },
         )
-        task.add_volume(name="tmp")
+        # Writable scratch on a read-only root filesystem. Fargate applies the ownership of the
+        # image's /work (the non-root `bench` user) to this ephemeral volume.
+        task.add_volume(name="work")
         task.default_container.add_mount_points(
-            ecs.MountPoint(container_path="/tmp", source_volume="tmp", read_only=False)  # nosec B108
+            ecs.MountPoint(container_path="/work", source_volume="work", read_only=False)
         )
 
         # ---- least-privilege task role
