@@ -15,6 +15,7 @@ import csv
 import io
 import json
 import os
+import re
 import threading
 from collections import defaultdict
 from pathlib import Path
@@ -212,16 +213,29 @@ def write_markdown(
         st = s.stats
         hit = "—" if s.cache_hit_rate is None else f"{s.cache_hit_rate:.0%}"
         lines.append(
-            f"| {s.cell['label']} | {st['e2e'].n} | {_ms(st['ttft'].p50)} | {_ms(st['ttft'].p90)} | "
+            f"| {s.cell['label'].replace('|', ' / ')} | {st['e2e'].n} | {_ms(st['ttft'].p50)} | {_ms(st['ttft'].p90)} | "
             f"{_ms(st['e2e'].p50)} | {_ms(st['e2e'].p90)} | {_ms(st['itl'].p50)} | {hit} | "
             f"{dict(s.excluded) or ''} | {dict(s.errors) or ''} |"
         )
     atomic_write(path, "\n".join(lines) + "\n")
 
 
+_ARN_RE = re.compile(r"arn:aws[\w-]*:[^\s\"']*")
+_ACCOUNT_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
+
+
+def redact_text(text: str | None) -> str | None:
+    """Mask ARNs and 12-digit account ids inside free text (e.g. error messages)."""
+    if not text:
+        return text
+    return _ACCOUNT_RE.sub("<account>", _ARN_RE.sub("<arn>", text))
+
+
 def redact_meta(meta: dict[str, Any]) -> dict[str, Any]:
     """Mask account-identifying metadata for externally shared reports."""
     out = dict(meta)
+    if isinstance(out.get("preflight"), list):
+        out["preflight"] = [{**p, "error": redact_text(p.get("error"))} for p in out["preflight"]]
     acct = str(out.get("account_id") or "")
     out["account_id"] = ("*" * 8 + acct[-4:]) if len(acct) >= 4 else "redacted"
     out.pop("profile", None)

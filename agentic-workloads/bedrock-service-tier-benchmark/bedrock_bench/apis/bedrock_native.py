@@ -68,7 +68,16 @@ def _anthropic_usage(u: dict | None) -> Usage:
     )
 
 
-_nova_usage = _converse_usage  # Nova's InvokeModel body uses Converse-style usage keys
+def _nova_usage(u: dict | None) -> Usage:
+    """Nova InvokeModel usage: ``cacheReadInputTokenCount`` / ``cacheWriteInputTokenCount``."""
+    u = dict(u or {})
+    for src, dst in (
+        ("cacheReadInputTokenCount", "cacheReadInputTokens"),
+        ("cacheWriteInputTokenCount", "cacheWriteInputTokens"),
+    ):
+        if src in u and dst not in u:
+            u[dst] = u[src]
+    return _converse_usage(u)
 
 
 def _served(resp: dict) -> str | None:

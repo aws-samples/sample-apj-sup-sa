@@ -165,7 +165,9 @@ def save_registry(specs: list[ModelSpec], path: Path, generated_at: str) -> None
         "generated_at": generated_at,
         "models": [spec_to_dict(s) for s in sorted(specs, key=lambda s: (s.family, s.key))],
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(path)  # atomic: a crash never leaves a truncated registry
 
 
 @functools.lru_cache(maxsize=4)

@@ -19,11 +19,12 @@ from .report import (
     RawWriter,
     compare,
     redact_meta,
+    redact_text,
     write_markdown,
     write_summary_csv,
     write_summary_json,
 )
-from .runner import Runner, build_adapter
+from .runner import Runner, build_adapter, served_matches
 
 logger = logging.getLogger("bedrock_bench")
 
@@ -110,7 +111,7 @@ class Benchmark:
                     reasoning_effort=self.reasoning_effort if cell.spec.reasoning else None,
                 )
             )
-            ok = m.error is None
+            ok = m.error is None and served_matches(cell.tier, m.served_tier) is not False
             report.append(
                 {
                     "cell": cell.label,
@@ -149,6 +150,8 @@ class Benchmark:
         with RawWriter(raw_path) as raw:
 
             def on_sample(cell: Cell, rec: dict[str, Any], done: int, total: int) -> None:
+                if cfg.redact:
+                    rec = {**rec, "error": redact_text(rec.get("error"))}
                 raw.write(rec)
                 logger.info(
                     "[%s] %d/%d %s ttft=%s e2e=%s tier=%s",

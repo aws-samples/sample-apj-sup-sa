@@ -109,7 +109,7 @@ def discover_from_docs(only: set[str] | None = None) -> list[ModelSpec]:
         except Exception as e:  # noqa: BLE001 - one bad page must not stop discovery
             logger.warning("skipping %s: %s", row.model_name, e)
             continue
-        if "Text" not in card.output_modalities or "Response streaming" not in card.features:
+        if "Text" not in card.output_modalities or not card.features.get("Response streaming"):
             continue
         if sum(card.tiers.get(t, False) for t in ("Standard", "Flex", "Priority")) < 2:
             continue
@@ -166,9 +166,12 @@ def probe(specs: list[ModelSpec], broker: AuthBroker, regions: tuple[str, ...]) 
                         timeout=300,
                     )
                 )
-                if m.error is None and served_matches(tier, m.served_tier) is not False:
+                served = served_matches(tier, m.served_tier)
+                # A non-default tier counts only when Bedrock reports serving it.
+                if m.error is None and (served is True or (tier.is_default and served is None)):
                     ok.append(tier)
-                    reasoning = reasoning or bool(m.usage.reasoning_tokens)
+                streamed_reasoning = m.ttft is not None and m.ttft != m.ttfat
+                reasoning = reasoning or bool(m.usage.reasoning_tokens) or streamed_reasoning
                 logger.info(
                     "probe %s %s %s %s -> %s",
                     spec.key,
@@ -186,6 +189,7 @@ def probe(specs: list[ModelSpec], broker: AuthBroker, regions: tuple[str, ...]) 
                 o.model_id,
                 o.regions,
                 verified.get((o.endpoint, o.scope, o.model_id), ()),
+                o.base_path,
             )
             for o in spec.offerings
             if verified.get((o.endpoint, o.scope, o.model_id))
@@ -228,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Verify tiers with live requests (incurs a small cost).",
     )
     p.add_argument("--output", type=Path, default=MODELS_FILE)
+    p.add_argument("--force", action="store_true", help="Write even if no models were found.")
     p.add_argument("--dry-run", action="store_true", help="Print a summary; do not write.")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -244,6 +249,9 @@ def main(argv: list[str] | None = None) -> int:
             f"tiers={','.join(tiers)}"
         )
     if not a.dry_run:
+        if not specs and not a.force:
+            logger.error("no models discovered; refusing to overwrite %s (use --force)", a.output)
+            return 1
         save_registry(specs, a.output, datetime.now(timezone.utc).isoformat(timespec="seconds"))
         logger.info("wrote %d models to %s", len(specs), a.output)
     return 0
