@@ -54,7 +54,9 @@ class DataStack(Stack):
             max_azs=2,
             nat_gateways=0,
             subnet_configuration=[
-                ec2.SubnetConfiguration(name="public", subnet_type=ec2.SubnetType.PUBLIC, cidr_mask=24),
+                ec2.SubnetConfiguration(
+                    name="public", subnet_type=ec2.SubnetType.PUBLIC, cidr_mask=24
+                ),
                 ec2.SubnetConfiguration(
                     name="isolated", subnet_type=ec2.SubnetType.PRIVATE_ISOLATED, cidr_mask=24
                 ),
@@ -90,7 +92,9 @@ class DataStack(Stack):
                 "bench_admin", encryption_key=self.key
             ),
             writer=rds.ClusterInstance.serverless_v2(
-                "writer", enable_performance_insights=True, performance_insight_encryption_key=self.key
+                "writer",
+                enable_performance_insights=True,
+                performance_insight_encryption_key=self.key,
             ),
             serverless_v2_min_capacity=0,  # auto-pause when idle: no compute cost
             serverless_v2_max_capacity=2,
@@ -113,10 +117,18 @@ class DataStack(Stack):
         # Admin password rotation (hosted single-user rotation Lambda in the isolated
         # subnets; it reaches Secrets Manager through an interface endpoint).
         endpoint_sg = ec2.SecurityGroup(
-            self, "EndpointSg", vpc=self.vpc, description="Secrets Manager endpoint", allow_all_outbound=False
+            self,
+            "EndpointSg",
+            vpc=self.vpc,
+            description="Secrets Manager endpoint",
+            allow_all_outbound=False,
         )
         rotation_sg = ec2.SecurityGroup(
-            self, "RotationSg", vpc=self.vpc, description="Secret rotation Lambda", allow_all_outbound=False
+            self,
+            "RotationSg",
+            vpc=self.vpc,
+            description="Secret rotation Lambda",
+            allow_all_outbound=False,
         )
         endpoint_sg.add_ingress_rule(rotation_sg, ec2.Port.tcp(443), "rotation -> Secrets Manager")
         rotation_sg.add_egress_rule(endpoint_sg, ec2.Port.tcp(443), "Secrets Manager endpoint")
@@ -139,7 +151,10 @@ class DataStack(Stack):
         self.writer_secret = self._user_secret("WriterSecret", "bench_writer")
         self.reader_secret = self._user_secret("ReaderSecret", "bench_reader")
         schema = self._schema()
-        for cid, secret in (("WriterRotation", self.writer_secret), ("ReaderRotation", self.reader_secret)):
+        for cid, secret in (
+            ("WriterRotation", self.writer_secret),
+            ("ReaderRotation", self.reader_secret),
+        ):
             rotation = self.cluster.add_rotation_multi_user(
                 cid,
                 secret=secret,
@@ -184,7 +199,9 @@ class DataStack(Stack):
             self, "SchemaLogs", retention=logs.RetentionDays.ONE_MONTH, encryption_key=self.key
         )
         # Explicit role: logs scoped to this function's log group (no AWS managed policy).
-        role = iam.Role(self, "SchemaFnRole", assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"))
+        role = iam.Role(
+            self, "SchemaFnRole", assumed_by=iam.ServicePrincipal("lambda.amazonaws.com")
+        )
         role.add_to_policy(
             iam.PolicyStatement(
                 actions=["logs:CreateLogStream", "logs:PutLogEvents"],
@@ -227,7 +244,13 @@ class DataStack(Stack):
             secret.grant_read(fn)
         self.key.add_to_resource_policy(
             iam.PolicyStatement(
-                actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
+                actions=[
+                    "kms:Encrypt*",
+                    "kms:Decrypt*",
+                    "kms:ReEncrypt*",
+                    "kms:GenerateDataKey*",
+                    "kms:Describe*",
+                ],
                 principals=[iam.ServicePrincipal(f"logs.{self.region}.amazonaws.com")],
                 resources=["*"],
                 conditions={
