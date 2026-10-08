@@ -62,3 +62,23 @@ def test_rejects_unsafe_values(rds, value):
 def test_unknown_route_and_method(rds):
     assert api.handler(_event("/admin"), None)["statusCode"] == 404
     assert api.handler(_event("/models", method="POST"), None)["statusCode"] == 404
+
+
+def test_json_columns_are_decoded_and_resume_is_retried(monkeypatch):
+    class Resuming(Exception):
+        response = {"Error": {"Code": "DatabaseResumingException"}}
+
+    calls = {"n": 0}
+
+    class Flaky:
+        def execute_statement(self, **kw):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise Resuming()
+            return {"formattedRecords": json.dumps([{"model": "m", "deltas": json.dumps({"ttft": {"delta": -0.1}})}])}
+
+    monkeypatch.setattr(api, "rds", Flaky())
+    monkeypatch.setattr(api.time, "sleep", lambda s: None)
+    r = api.handler(_event("/comparisons", {"model": "m"}), None)
+    assert r["statusCode"] == 200 and calls["n"] == 2
+    assert json.loads(r["body"])[0]["deltas"]["ttft"]["delta"] == -0.1

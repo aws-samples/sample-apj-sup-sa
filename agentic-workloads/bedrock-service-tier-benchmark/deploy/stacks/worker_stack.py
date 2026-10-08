@@ -35,9 +35,13 @@ class WorkerStack(Stack):
         schedule_expression: str,
         benchmark_args: str,
         agent_model_id: str,
+        arch: str = "arm64",
         **kw,
     ) -> None:
         super().__init__(scope, cid, **kw)
+        if arch not in ("arm64", "x86_64"):
+            raise ValueError("worker_arch must be arm64 or x86_64")
+        arm = arch == "arm64"
 
         cluster = ecs.Cluster(self, "Cluster", vpc=data.vpc, container_insights_v2=ecs.ContainerInsights.ENABLED)
         cluster.enable_fargate_capacity_providers()
@@ -52,7 +56,8 @@ class WorkerStack(Stack):
             "Image",
             directory=str(_SAMPLE_ROOT),
             file="deploy/worker/Dockerfile",
-            platform=ecr_assets.Platform.LINUX_ARM64,
+            # arm64 (Graviton) is cheaper; x86_64 for build hosts without arm64 emulation.
+            platform=ecr_assets.Platform.LINUX_ARM64 if arm else ecr_assets.Platform.LINUX_AMD64,
             exclude=[".venv", "deploy/.venv", "deploy/cdk.out", "**/node_modules", ".git", ".ash", ".holmes"],
         )
 
@@ -65,7 +70,8 @@ class WorkerStack(Stack):
             cpu=1024,
             memory_limit_mib=2048,
             runtime_platform=ecs.RuntimePlatform(
-                cpu_architecture=ecs.CpuArchitecture.ARM64, operating_system_family=ecs.OperatingSystemFamily.LINUX
+                cpu_architecture=ecs.CpuArchitecture.ARM64 if arm else ecs.CpuArchitecture.X86_64,
+                operating_system_family=ecs.OperatingSystemFamily.LINUX,
             ),
             task_role=task_role,
             execution_role=exec_role,

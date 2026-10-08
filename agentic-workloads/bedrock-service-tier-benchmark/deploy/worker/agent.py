@@ -32,7 +32,7 @@ from . import db
 logger = logging.getLogger("worker.agent")
 
 FEEDS = {
-    "whats_new": "https://aws.amazon.com/about-aws/whats-new/recent/feeds/",
+    "whats_new": "https://aws.amazon.com/about-aws/whats-new/recent/feed/",
     "ml_blog": "https://aws.amazon.com/blogs/machine-learning/feed/",
 }
 _FEED_HOST = "aws.amazon.com"

@@ -112,6 +112,7 @@ aws ecs run-task --cluster <Cluster> --task-definition <TaskDefinition> --capaci
 | `federate_issuer_url`, `federate_client_id`, `federate_client_secret_name` | empty | OIDC identity provider for `auth_mode=midway`; the client secret is read from Secrets Manager at deploy time |
 | `schedule_expression` | `cron(0 18 * * ? *)` | When the worker runs (UTC) |
 | `benchmark_args` | `--preset quick` | Arguments passed to `bedrock-bench`; the cost scales with this |
+| `worker_arch` | `arm64` | Worker CPU architecture. `arm64` (Graviton) is cheaper; use `x86_64` if your build host cannot build arm64 images (no `docker buildx` arm64 emulation) |
 | `agent_model_id` | `us.anthropic.claude-sonnet-5-5` | Bedrock model for the discovery agent |
 
 ## Cost

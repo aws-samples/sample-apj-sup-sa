@@ -40,6 +40,7 @@ WorkerStack(
     schedule_expression=ctx("schedule_expression") or "cron(0 18 * * ? *)",
     benchmark_args=ctx("benchmark_args") or "--preset quick",
     agent_model_id=ctx("agent_model_id") or "us.anthropic.claude-sonnet-5-5",
+    arch=ctx("worker_arch") or "arm64",
     env=env,
 )
 

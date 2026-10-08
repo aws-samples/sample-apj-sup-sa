@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import Any
 
 import boto3
@@ -31,6 +32,21 @@ DB = os.environ["DB_NAME"]
 DIMENSIONS = ("model", "endpoint", "api", "scope", "region", "prompt_size", "cache", "tier")
 _VALUE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
 _MAX_ROWS = 2000
+
+
+def _with_resume_retry(call, attempts: int = 6):
+    """Retry while an auto-paused Aurora Serverless v2 cluster resumes (DatabaseResumingException)."""
+    for i in range(attempts):
+        try:
+            return call()
+        except Exception as e:  # noqa: BLE001 - re-raised unless it is the resume signal
+            code = getattr(e, "response", {}).get("Error", {}).get("Code")
+            if code != "DatabaseResumingException" or i == attempts - 1:
+                raise
+            time.sleep(min(2**i, 15))
+
+
+_JSON_COLUMNS = ("deltas", "summary", "offerings")
 _HEADERS = {
     "content-type": "application/json",
     "cache-control": "no-store",
@@ -39,15 +55,23 @@ _HEADERS = {
 
 
 def _query(sql: str, params: dict[str, str] | None = None) -> list[dict[str, Any]]:
-    resp = rds.execute_statement(
-        resourceArn=CLUSTER,
-        secretArn=SECRET,
-        database=DB,
-        sql=sql,
-        parameters=[{"name": k, "value": {"stringValue": v}} for k, v in (params or {}).items()],
-        formatRecordsAs="JSON",
+    resp = _with_resume_retry(
+        lambda: rds.execute_statement(
+            resourceArn=CLUSTER,
+            secretArn=SECRET,
+            database=DB,
+            sql=sql,
+            parameters=[{"name": k, "value": {"stringValue": v}} for k, v in (params or {}).items()],
+            formatRecordsAs="JSON",
+        )
     )
-    return json.loads(resp.get("formattedRecords") or "[]")
+    rows = json.loads(resp.get("formattedRecords") or "[]")
+    # json/jsonb columns arrive as text from the Data API; decode them for the client.
+    for row in rows:
+        for col in _JSON_COLUMNS:
+            if isinstance(row.get(col), str):
+                row[col] = json.loads(row[col])
+    return rows
 
 
 def _filters(qs: dict[str, str]) -> tuple[str, dict[str, str]]:
@@ -62,7 +86,7 @@ def _filters(qs: dict[str, str]) -> tuple[str, dict[str, str]]:
         clauses.append(f"{dim} = :{dim}")
         params[dim] = value
     if "run_id" not in params:
-        clauses.append("run_id = (SELECT run_id FROM runs ORDER BY started DESC NULLS LAST LIMIT 1)")
+        clauses.append("run_id = (SELECT run_id FROM runs WHERE finished IS NOT NULL ORDER BY started DESC LIMIT 1)")
     return " AND ".join(clauses), params
 
 
@@ -71,7 +95,7 @@ def models(_qs: dict[str, str]) -> Any:
         "SELECT m.key, m.family, m.display_name, m.reasoning, m.verified_at, "
         "COALESCE(json_agg(json_build_object('endpoint', o.endpoint, 'api', o.api, 'scope', o.scope, "
         "'model_id', o.model_id, 'regions', o.regions, 'tiers', o.tiers)) "
-        "FILTER (WHERE o.model_key IS NOT NULL), '[]') AS offerings "
+        "FILTER (WHERE o.model_key IS NOT NULL), '[]')::text AS offerings "
         "FROM models m LEFT JOIN offerings o ON o.model_key = m.key "
         "GROUP BY m.key ORDER BY m.family, m.display_name"
     )
@@ -96,7 +120,7 @@ def filters(qs: dict[str, str]) -> Any:
 
 def comparisons(qs: dict[str, str]) -> Any:
     where, params = _filters(qs)
-    cols = "run_id, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, deltas"
+    cols = "run_id, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, deltas::text AS deltas"
     order = "model, endpoint, api, prompt_size, cache, tier"
     sql = f"SELECT {cols} FROM comparisons WHERE {where} ORDER BY {order} LIMIT {_MAX_ROWS}"  # nosec B608 - allowlisted columns, bind params
     return _query(sql, params)
@@ -104,7 +128,10 @@ def comparisons(qs: dict[str, str]) -> Any:
 
 def cells(qs: dict[str, str]) -> Any:
     where, params = _filters(qs)
-    cols = "run_id, label, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, summary"
+    cols = (
+        "run_id, label, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, "
+        "summary::text AS summary"
+    )
     sql = f"SELECT {cols} FROM cells WHERE {where} ORDER BY label LIMIT {_MAX_ROWS}"  # nosec B608 - allowlisted columns, bind params
     return _query(sql, params)
 

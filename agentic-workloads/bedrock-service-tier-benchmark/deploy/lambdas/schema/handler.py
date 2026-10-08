@@ -12,9 +12,23 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 import boto3
+
+
+def _with_resume_retry(call, attempts: int = 6):
+    """Retry while an auto-paused Aurora Serverless v2 cluster resumes (DatabaseResumingException)."""
+    for i in range(attempts):
+        try:
+            return call()
+        except Exception as e:  # noqa: BLE001 - re-raised unless it is the resume signal
+            code = getattr(e, "response", {}).get("Error", {}).get("Code")
+            if code != "DatabaseResumingException" or i == attempts - 1:
+                raise
+            time.sleep(min(2**i, 15))
+
 
 rds = boto3.client("rds-data")
 sm = boto3.client("secretsmanager")
@@ -31,7 +45,7 @@ _IDENT = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 
 def _sql(statement: str) -> None:
-    rds.execute_statement(resourceArn=CLUSTER, secretArn=ADMIN, database=DB, sql=statement)
+    _with_resume_retry(lambda: rds.execute_statement(resourceArn=CLUSTER, secretArn=ADMIN, database=DB, sql=statement))
 
 
 def _statements(text: str) -> list[str]:

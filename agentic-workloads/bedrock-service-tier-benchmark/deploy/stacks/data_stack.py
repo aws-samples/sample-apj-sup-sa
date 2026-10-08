@@ -136,7 +136,7 @@ class DataStack(Stack):
             subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
             security_groups=[endpoint_sg],
         )
-        self.cluster.add_rotation_single_user(
+        admin_rotation = self.cluster.add_rotation_single_user(
             automatically_after=Duration.days(30),
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
             security_group=rotation_sg,
@@ -147,6 +147,8 @@ class DataStack(Stack):
         self.writer_secret = self._user_secret("WriterSecret", "bench_writer")
         self.reader_secret = self._user_secret("ReaderSecret", "bench_reader")
         schema = self._schema()
+        # The first rotation runs immediately; let the schema resource finish with the admin secret first.
+        admin_rotation.node.add_dependency(schema)
         for cid, secret in (
             ("WriterRotation", self.writer_secret),
             ("ReaderRotation", self.reader_secret),

@@ -7,12 +7,25 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any
 
 import boto3
 from bedrock_bench.registry import ModelSpec, spec_from_dict, spec_to_dict
 
 _rds = None
+
+
+def _with_resume_retry(call, attempts: int = 6):
+    """Retry while an auto-paused Aurora Serverless v2 cluster resumes (DatabaseResumingException)."""
+    for i in range(attempts):
+        try:
+            return call()
+        except Exception as e:  # noqa: BLE001 - re-raised unless it is the resume signal
+            code = getattr(e, "response", {}).get("Error", {}).get("Code")
+            if code != "DatabaseResumingException" or i == attempts - 1:
+                raise
+            time.sleep(min(2**i, 15))
 
 
 def _client():
@@ -41,7 +54,7 @@ def execute(sql: str, params: dict[str, Any] | None = None, *, transaction_id: s
     }
     if transaction_id:
         kw["transactionId"] = transaction_id
-    resp = _client().execute_statement(**kw)
+    resp = _with_resume_retry(lambda: _client().execute_statement(**kw))
     return json.loads(resp.get("formattedRecords") or "[]")
 
 
@@ -72,10 +85,12 @@ def upsert_spec(spec: ModelSpec) -> None:
     if not spec.verified_at:
         raise ValueError(f"refusing to persist unverified spec {spec.key}")
     d = spec_to_dict(spec)
-    tx = _client().begin_transaction(
-        resourceArn=os.environ["CLUSTER_ARN"],
-        secretArn=os.environ["WRITER_SECRET_ARN"],
-        database=os.environ.get("DB_NAME", "bench"),
+    tx = _with_resume_retry(
+        lambda: _client().begin_transaction(
+            resourceArn=os.environ["CLUSTER_ARN"],
+            secretArn=os.environ["WRITER_SECRET_ARN"],
+            database=os.environ.get("DB_NAME", "bench"),
+        )
     )["transactionId"]
     try:
         execute(
@@ -145,12 +160,11 @@ def load_summary(summary: dict[str, Any]) -> int:
     run_id = meta["run_id"]
     execute(
         "INSERT INTO runs (run_id, started, finished, version, config, meta) VALUES (:run_id, "
-        "CAST(:started AS timestamptz), CAST(:finished AS timestamptz), :version, CAST(:config AS jsonb), "
+        "CAST(:started AS timestamptz), NULL, :version, CAST(:config AS jsonb), "
         "CAST(:meta AS jsonb)) ON CONFLICT (run_id) DO NOTHING",
         {
             "run_id": run_id,
             "started": meta.get("started"),
-            "finished": meta.get("finished"),
             "version": meta.get("version"),
             "config": json.dumps(summary.get("config", {}), default=str),
             "meta": json.dumps({**meta, "cells": len(summary.get("cells", []))}, default=str),
@@ -184,4 +198,10 @@ def load_summary(summary: dict[str, Any]) -> int:
                 "deltas": json.dumps(cmp["deltas"], default=str),
             },
         )
+    # Mark the run finished only after every row is in: the API serves the latest
+    # *finished* run, so a partial load is never shown as the default.
+    execute(
+        "UPDATE runs SET finished = CAST(:finished AS timestamptz) WHERE run_id = :run_id",
+        {"run_id": run_id, "finished": meta.get("finished") or meta.get("started")},
+    )
     return len(summary.get("cells", []))
