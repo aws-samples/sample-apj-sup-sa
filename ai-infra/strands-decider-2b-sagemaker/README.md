@@ -72,7 +72,11 @@ The body is the decider's own System One request, unchanged:
 The response carries the answers, token usage and the engine's own latency. Malformed requests, and requests with
 more than 64 questions (`DECIDER_MAX_QUESTIONS`) or 64 options in one question (`DECIDER_MAX_OPTIONS`), get HTTP
 400; a body over 32 KB (`DECIDER_MAX_BODY_BYTES`) gets 413, so one request cannot hold a worker for long;
-a request that could not start within 50 s, because the model was busy, gets 503 so the caller can retry.
+under overload a request gets 503 at once, so callers fail fast and can retry: when a worker already holds 64
+requests (`DECIDER_MAX_QUEUE`), or its oldest queued request has waited 20 s, or the queue would take 20 s at the
+median recent engine time (`DECIDER_MAX_QUEUE_WAIT`). With several workers the front tries another worker first. A
+request that still could not start within 50 s (`DECIDER_REQUEST_DEADLINE`) gets 503 rather than running for a caller
+that has gone.
 
 ## Measured results
 

@@ -18,8 +18,9 @@ Settings (environment variables):
     DECIDER_FLA      auto, on or off: the Triton kernels for the Gated DeltaNet layers
     DECIDER_DEVICE   cuda, or cpu for a local smoke test
     DECIDER_REQUEST_DEADLINE  seconds a request may wait for the model before it gets 503 (default 50)
-    DECIDER_MAX_QUEUE_WAIT    a request is refused with 503 at once when the requests ahead of it in this worker
-                              would take longer than this to finish (default 20 s, from the recent engine time)
+    DECIDER_MAX_QUEUE         requests one worker holds, queued and running (default 64); more get 503 at once
+    DECIDER_MAX_QUEUE_WAIT    a request also gets 503 at once when the oldest queued one has waited this long, or
+                              the queue would take this long at the median recent engine time (default 20 s)
     DECIDER_MAX_QUESTIONS     questions allowed in one request (default 64), so one request cannot run for long
     DECIDER_MAX_OPTIONS       options allowed in one question (default 64)
     DECIDER_MAX_BODY_BYTES    request body size limit (default 32 KiB), enforced by serve.py and here
@@ -39,6 +40,8 @@ import threading
 import time
 import traceback
 import asyncio
+import statistics
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -54,9 +57,11 @@ HANG_S = float(os.environ.get("DECIDER_HANG_SECONDS", "50"))
 # SageMaker gives a real-time invocation 60 s. A request that has waited this long for the model
 # (it is busy with earlier ones) is refused with 503 rather than run for a caller that has gone.
 DEADLINE_S = float(os.environ.get("DECIDER_REQUEST_DEADLINE", "50"))
-# Admission: a request that would wait longer than this behind the ones already queued gets 503 straight away, so
-# under overload callers get a fast refusal instead of holding a connection until DEADLINE_S. Kept well under the
-# deadline, so a request that is admitted is normally answered.
+# Admission: under overload a request gets 503 straight away instead of holding a connection until DEADLINE_S. Three
+# checks, so neither one slow request nor a burst of heavy ones defeats it: a fixed queue depth, how long the oldest
+# queued request has already waited, and the queue's length times the median of recent engine times. The wait limit
+# is well under the deadline, so a request that is admitted is normally answered.
+MAX_QUEUE = int(os.environ.get("DECIDER_MAX_QUEUE", "64"))
 MAX_QUEUE_WAIT_S = float(os.environ.get("DECIDER_MAX_QUEUE_WAIT", "20"))
 MAX_QUESTIONS = int(os.environ.get("DECIDER_MAX_QUESTIONS", "64"))
 # flash-linear-attention (fla) gives the Gated DeltaNet layers fast Triton kernels on GPU.
@@ -84,7 +89,9 @@ UNHEALTHY: str | None = None             # the GPU context is broken; this worke
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
 IN_FLIGHT = 0                            # requests handed to RUNNER and not finished, the running one included
-ENGINE_S = 0.5                           # moving average of the engine time per request, seeded by warm-up
+WAITING: deque[float] = deque()          # when each queued request was admitted, oldest first (RUNNER is FIFO)
+RECENT: deque[float] = deque(maxlen=32)  # engine seconds of the latest requests (engine thread only)
+ENGINE_S = 0.5                           # their median, read by admission; seeded by warm-up
 # Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
 # did not fit, or a Triton launch that was refused, is not among them: the synchronize() probe below decides.
 _STICKY = ("illegal memory access", "device-side assert", "unspecified launch failure", "misaligned address",
@@ -156,13 +163,13 @@ def warm_up(engine: SystemOneEngine) -> None:
                     "criteria": {k: f"option {k}" for k in "ABCDEFGH"}}}
     global ENGINE_S
     for warm in (False, True):        # the second pass runs compiled kernels and seeds ENGINE_S
-        t0, n = time.perf_counter(), 0
         for questions in (three, one):
             for state in ("Short message.", "A longer support message about a billing problem. " * 60):
+                t0 = time.perf_counter()
                 engine.evaluate(SystemOneRequest.model_validate({"state": state, "questions": questions}))
-                n += 1
-        if warm:
-            ENGINE_S = (time.perf_counter() - t0) / n
+                if warm:
+                    RECENT.append(time.perf_counter() - t0)
+    ENGINE_S = statistics.median(RECENT)
 
 
 def prepare() -> None:
@@ -228,19 +235,37 @@ async def invocations(request: Request) -> JSONResponse:
     if any(len(getattr(q, "criteria", None) or ()) > MAX_OPTIONS for q in req.questions.values()):
         return JSONResponse({"error": f"at most {MAX_OPTIONS} options per question"}, status_code=400)
     global IN_FLIGHT
-    wait = IN_FLIGHT * ENGINE_S
-    if wait > MAX_QUEUE_WAIT_S:
-        return JSONResponse({"error": f"busy: {IN_FLIGHT} requests ahead (about {wait:.0f} s); retry later"},
-                            status_code=503)
-    IN_FLIGHT += 1                    # only this event loop thread changes it
+    busy = _busy()
+    if busy:
+        # The header lets the front (serve.py) try another worker before it passes the 503 on.
+        return JSONResponse({"error": f"busy: {busy}; retry later"}, status_code=503,
+                            headers={"x-decider-worker": "busy"})
+    IN_FLIGHT += 1                    # only this event loop thread changes IN_FLIGHT and appends to WAITING
+    WAITING.append(time.monotonic())
     try:
         return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived)
     finally:
         IN_FLIGHT -= 1
 
 
+def _busy() -> str | None:
+    """Why a new request should be refused now, or None to admit it."""
+    if IN_FLIGHT >= MAX_QUEUE:
+        return f"{IN_FLIGHT} requests queued"
+    try:
+        waited = time.monotonic() - WAITING[0]
+    except IndexError:                # nothing queued (or the engine thread just took the last one)
+        waited = 0.0
+    if waited > MAX_QUEUE_WAIT_S:
+        return f"the oldest queued request has waited {waited:.0f} s"
+    if IN_FLIGHT * ENGINE_S > MAX_QUEUE_WAIT_S:
+        return f"{IN_FLIGHT} requests ahead, about {IN_FLIGHT * ENGINE_S:.0f} s"
+    return None
+
+
 def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
     global BUSY_SINCE
+    WAITING.popleft()                 # this request has left the queue
     BUSY_SINCE = time.monotonic()
     try:
         return _run(req, arrived)
@@ -262,7 +287,8 @@ def _run(req: SystemOneRequest, arrived: float) -> Response:
             try:
                 result = ENGINE.evaluate(req)
             finally:                              # requests refused before the engine ran do not count
-                ENGINE_S = 0.8 * ENGINE_S + 0.2 * (time.perf_counter() - t0)
+                RECENT.append(time.perf_counter() - t0)
+                ENGINE_S = statistics.median(RECENT)   # a median, so one slow request does not move it
         except ValidationError:                   # the engine built an invalid answer: our fault, not the caller's
             raise
         except ValueError as e:                   # e.g. a malformed option permutation: caller error

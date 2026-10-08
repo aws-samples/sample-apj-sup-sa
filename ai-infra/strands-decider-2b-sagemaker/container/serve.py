@@ -15,8 +15,11 @@ is what lets the copies overlap. The front restarts a worker that exits (after a
 around it while its model loads again; a request that reaches a worker that is exiting is sent to another
 one. A worker that exits before it ever loaded, or does not load within LOAD_S, stops the container instead,
 as a single worker would: the next copy would fail the same way. So does a slot whose process fails to load
-FAILED_LOADS times in a row after other slots have loaded, which is what happens when DECIDER_WORKERS asks for
-more copies than the GPU's memory holds.
+FAILED_LOADS times in a row during start-up while other slots have loaded, which is what happens when
+DECIDER_WORKERS asks for more copies than the GPU's memory holds. Once the endpoint has been healthy, a slot that
+keeps failing to load is retried with a growing delay instead, so the workers that are up keep serving.
+A worker that refuses a request because its queue is full (503, x-decider-worker: busy) has the request sent to
+another worker first.
 """
 import asyncio
 import contextlib
@@ -32,7 +35,7 @@ WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
 STUCK_S = 30      # a worker that served, then fails /ping this long, is replaced
 KILL_S = 10       # grace after SIGTERM before SIGKILL (a hung CUDA call never lets uvicorn finish)
 LOAD_S = 900      # a worker that has not answered /ping this long after it started stops the container
-FAILED_LOADS = 3  # starts in a row that never load before a slot stops the container
+FAILED_LOADS = 3  # starts in a row that never load before a slot stops the container (during start-up)
 MAX_BODY_BYTES = int(os.environ.get("DECIDER_MAX_BODY_BYTES", str(32 * 1024)))   # the same cap as app.py
 
 
@@ -80,6 +83,7 @@ class Worker:
     ever_up: bool = False                # this process has answered /ping
     loaded_before: bool = False          # some process in this slot has, so the configuration is known to load
     failed_loads: int = 0                # processes in a row in this slot that exited before they loaded
+    retry_at: float | None = None        # set when an exit is seen: when to start the next process
     busy: int = 0
     down_since: float | None = None
     terminated_at: float | None = None
@@ -135,22 +139,29 @@ def front() -> None:
                     w.start(ctx)
                 continue
             if not w.proc.is_alive():
-                w.failed_loads = 0 if w.ever_up else w.failed_loads + 1
-                stop = None
-                if not w.ever_up and not any(x.loaded_before for x in workers):   # nothing ever loaded (bad config,
-                    stop = "before it loaded"                                  # unreadable artifact, hung load):
-                elif w.failed_loads >= FAILED_LOADS:                           # the next copy would fail too
-                    stop = (f"before it loaded, {w.failed_loads} times in a row while other workers run; "
-                            f"DECIDER_WORKERS={WORKERS} may be more copies than this GPU's memory holds")
-                if stop:
-                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} {stop}; "
-                          "stopping the container", flush=True)
-                    for x in workers:
-                        if x.proc is not None:
-                            x.proc.kill()
-                    os._exit(1)
-                print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode}; starting a new one", flush=True)
-                w.start(ctx)
+                if w.retry_at is None:                 # the first check since this process exited
+                    w.failed_loads = 0 if w.ever_up else w.failed_loads + 1
+                    stop = None
+                    if not w.ever_up and not any(x.loaded_before for x in workers):   # nothing ever loaded (bad
+                        stop = "before it loaded"                     # config, unreadable artifact, hung load):
+                    elif not healthy_once and w.failed_loads >= FAILED_LOADS:         # the next copy would fail too
+                        stop = (f"before it loaded, {w.failed_loads} times in a row while other workers run; "
+                                f"DECIDER_WORKERS={WORKERS} may be more copies than this GPU's memory holds")
+                    if stop:
+                        print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} {stop}; "
+                              "stopping the container", flush=True)
+                        for x in workers:
+                            if x.proc is not None:
+                                x.proc.kill()
+                        os._exit(1)
+                    # While serving, a slot that keeps failing to load waits longer each time (up to 5 minutes).
+                    delay = min(300, 15 * 2 ** (w.failed_loads - 1)) if w.failed_loads >= FAILED_LOADS else 0
+                    w.retry_at = now + delay
+                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode}; starting a new one"
+                          + (f" in {delay} s ({w.failed_loads} failed loads in a row)" if delay else ""), flush=True)
+                if now >= w.retry_at:
+                    w.retry_at = None
+                    w.start(ctx)
                 continue
             if w.terminated_at is not None:            # stopping: escalate if SIGTERM did not end it
                 if now - w.terminated_at > KILL_S:
@@ -184,10 +195,12 @@ def front() -> None:
             return JSONResponse({"error": f"request body is larger than {MAX_BODY_BYTES:,} bytes; "
                                           "send a shorter state or fewer options"}, status_code=413)
         headers = {"content-type": request.headers.get("content-type", "application/json"), "x-decider-arrived": arrived}
-        tried = set()
+        tried, refused = set(), None
         while True:
             ready = [w for w in workers if w.up and w.port not in tried]
             if not ready:
+                if refused is not None:                # every ready worker's queue is full
+                    return Response(refused.content, status_code=503, media_type=refused.headers.get("content-type"))
                 return JSONResponse({"error": "no model worker is ready; retry"}, status_code=503)
             w = min(ready, key=lambda x: x.busy)
             tried.add(w.port)
@@ -211,6 +224,9 @@ def front() -> None:
                     w.busy -= 1
             if r.status_code == 503 and r.headers.get("x-decider-worker") == "restarting":
                 w.up = False                           # its GPU broke and it is about to exit: try another worker
+                continue
+            if r.status_code == 503 and r.headers.get("x-decider-worker") == "busy":
+                refused = r                            # its queue is full: try another worker
                 continue
             return Response(r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
 
