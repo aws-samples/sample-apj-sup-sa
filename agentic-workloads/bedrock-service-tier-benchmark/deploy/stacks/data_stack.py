@@ -299,7 +299,10 @@ class DataStack(Stack):
             # Re-run when the schema changes.
             properties={"schema": (_LAMBDAS / "schema" / "schema.sql").read_text()},
         )
-        resource.node.add_dependency(self.cluster)
+        # Depend on the cluster and its writer only: depending on the whole cluster construct
+        # would include the rotation schedules, which themselves wait for this resource.
+        resource.node.add_dependency(self.cluster.node.default_child)
+        resource.node.add_dependency(self.cluster.node.find_child("writer"))
         checkov.skip(
             self.cluster,
             (
