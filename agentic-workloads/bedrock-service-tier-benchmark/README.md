@@ -36,6 +36,7 @@ dashboard or database of your own.
 - [Setup](#setup)
 - [Usage](#usage)
 - [Outputs](#outputs)
+- [Sample results](#sample-results)
 - [Model discovery](#model-discovery)
 - [Cost](#cost)
 - [Security](#security)
@@ -203,6 +204,30 @@ Each run writes `results/<run_id>/`:
 | `summary.csv` | One row per cell. |
 | `raw.jsonl` | One line per measured request, written live. |
 
+## Sample results
+
+[`docs/sample-report/`](docs/sample-report/) holds one standard run from 2026-10-08 (us-east-1,
+12:12-17:04 UTC, `--public`): Kimi K3, GLM 5.3 and GLM 5; runtime and Mantle endpoints; four APIs;
+small and medium prompts; cold and warm_implicit; n=10 per cell, 30 s apart. 120 cells were planned
+and 119 ran (one flex cell failed its preflight with a server error); 1,179 of 1,190 requests succeeded.
+
+Median change against Standard over the cold contexts of each model (TTFT = time to first token,
+E2E = end-to-end; "significant" = 95% bootstrap interval excludes 0):
+
+| Model | Tier | Contexts | Median ΔTTFT | Significant | Median ΔE2E |
+|---|---|---:|---:|---:|---:|
+| Kimi K3 | flex | 8 | +1.2 s (+84%) | 8 of 8 | +4% |
+| Kimi K3 | priority | 8 | -0.14 s (-10%) | 2 of 8 | -10% |
+| GLM 5.3 | flex | 7 | +17.9 s (+460%) | 6 of 7 | +349% |
+| GLM 5.3 | priority | 8 | -2.3 s (-64%) | 8 of 8 | -51% |
+| GLM 5 | flex | 8 | +1.4 s (+125%) | 4 of 8 | -11% |
+| GLM 5 | priority | 8 | -0.03 s (-4%) | 1 of 8 | -28% |
+
+On average 46% of flex samples were bursts (queued, then streamed all at once), against 3% for Standard.
+Priority helped most where Standard was slow (GLM 5.3: Standard TTFT p50 about 3.6 s).
+All 480 warm_implicit samples were excluded as `warm_miss`: every request wrote the prompt cache and
+none read it (see [Limitations](#limitations)), so the warm rows in this report are empty.
+
 ## Model discovery
 
 No Bedrock API reports which tiers, APIs or scopes a model supports. `bedrock-bench-discover` reads the
@@ -285,6 +310,10 @@ tests/                 # unit tests (no AWS calls)
 - **Reserved tier** needs a capacity reservation and is only benchmarked when requested.
 - **Anthropic Messages API** is supported by the benchmark, but as of October 2026 no model that
   offers it (Claude) also lists Flex or Priority, so no Messages cell has a tier to compare against.
+- **Implicit caching may not hit through a geographic profile.** In the sample run Kimi K3 and
+  GLM 5.3 (both via `us.` profiles) reported a cache write on every warm request and a cache read on
+  none, so all warm_implicit samples were excluded as `warm_miss`. A likely cause is that the profile
+  routes requests to different regions, which do not share a cache. Use `--scopes in_region` where available to measure warm latency.
 - **Served tier must be reported.** A flex or priority sample whose response does not say which tier
   served it is excluded (`tier_unreported`), because it cannot be told apart from Standard.
 

@@ -203,6 +203,9 @@ class Benchmark:
             meta = redact_meta(meta)
         comparisons = compare(summaries, samples, seed=self.config.seed)
         config_out = {k: _plain(v) for k, v in asdict(self.config).items() if k != "profile"}
+        if self.config.redact:
+            # The output path can contain the local user name.
+            config_out["output_dir"] = "redacted"
         paths = {
             "summary_json": self.out_dir / "summary.json",
             "summary_csv": self.out_dir / "summary.csv",
