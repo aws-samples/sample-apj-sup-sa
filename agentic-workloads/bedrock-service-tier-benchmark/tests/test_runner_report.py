@@ -7,13 +7,13 @@ import json
 from bedrock_bench import catalog
 from bedrock_bench.apis.base import Measurement, Request, Usage
 from bedrock_bench.apis.bedrock_native import ConverseStream, InvokeStream, invoke_body
+from bedrock_bench.benchmark import estimate
 from bedrock_bench.cells import expand_cells
 from bedrock_bench.config import BenchmarkConfig, CacheMode
 from bedrock_bench.html_report import render
 from bedrock_bench.metrics import summarize
 from bedrock_bench.registry import spec_from_dict
 from bedrock_bench.report import compare, redact_meta, redact_text, write_markdown
-from bedrock_bench.benchmark import estimate
 from bedrock_bench.runner import Runner, classify_sample, served_matches
 
 SPEC = spec_from_dict(
