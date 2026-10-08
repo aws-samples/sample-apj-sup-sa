@@ -90,11 +90,26 @@ class WorkerStack(Stack):
                 "AWS_REGION": self.region,
             },
         )
-        # Writable scratch on a read-only root filesystem. Fargate applies the ownership of the
-        # image's /work (the non-root `bench` user) to this ephemeral volume.
+        # Writable scratch on a read-only root filesystem. Fargate mounts ephemeral volumes owned
+        # by root, so a short-lived init container (same image, no network use) hands /work to the
+        # non-root worker user before the worker starts.
         task.add_volume(name="work")
-        task.default_container.add_mount_points(
-            ecs.MountPoint(container_path="/work", source_volume="work", read_only=False)
+        worker = task.default_container
+        work_mount = ecs.MountPoint(container_path="/work", source_volume="work", read_only=False)
+        worker.add_mount_points(work_mount)
+        init = task.add_container(
+            "init-scratch",
+            image=ecs.ContainerImage.from_docker_image_asset(image),
+            essential=False,
+            user="0",
+            entry_point=["/bin/sh", "-c"],
+            command=["chown 10001:10001 /work && chmod 0700 /work"],
+            readonly_root_filesystem=True,
+            logging=ecs.LogDrivers.aws_logs(stream_prefix="init", log_group=log_group),
+        )
+        init.add_mount_points(work_mount)
+        worker.add_container_dependencies(
+            ecs.ContainerDependency(container=init, condition=ecs.ContainerDependencyCondition.SUCCESS)
         )
 
         # ---- least-privilege task role
