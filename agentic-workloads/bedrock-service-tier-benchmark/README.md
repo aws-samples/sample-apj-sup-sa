@@ -138,9 +138,15 @@ Cells you cannot access are dropped at preflight instead of failing the run.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -e .                     # add ".[dev]" for tests and linters
+pip install --require-hashes -r requirements.lock   # exact, hash-pinned dependencies
+pip install --no-deps -e .
 export BEDROCK_BENCH_PROFILE=my-aws-profile   # optional; otherwise the default chain
 ```
+
+`requirements.lock` (runtime) and `requirements-dev.lock` (adds tests and linters) pin every
+dependency, including transitive ones, with hashes. Regenerate them with
+`uv pip compile pyproject.toml --generate-hashes -o requirements.lock` (add `--extra dev` for the dev
+file) and check them with `pip-audit -r requirements-dev.lock --require-hashes --disable-pip`.
 
 ## Usage
 
@@ -269,7 +275,7 @@ tests/                 # unit tests (no AWS calls)
 ## Development
 
 ```bash
-pip install -e ".[dev]"
+pip install --require-hashes -r requirements-dev.lock && pip install --no-deps -e .
 ruff check bedrock_bench tests && ruff format --check bedrock_bench tests
 mypy bedrock_bench
 pytest -q
