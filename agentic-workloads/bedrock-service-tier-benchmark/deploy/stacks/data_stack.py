@@ -14,14 +14,24 @@ Security posture:
 
 from __future__ import annotations
 
-from aws_cdk import Duration, RemovalPolicy, Stack
+from pathlib import Path
+
+from aws_cdk import CustomResource, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_ec2 as ec2
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
+from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_logs as logs
 from aws_cdk import aws_rds as rds
-from aws_cdk import aws_secretsmanager as sm
+from aws_cdk import custom_resources as cr
+from cdk_nag import NagSuppressions
 from constructs import Construct
 
 DB_NAME = "bench"
+#: Generated and rotated passwords are alphanumeric: the schema custom resource puts
+#: them into DDL (which cannot take bind parameters) after validating that.
+_PUNCTUATION = " %+~`#$&*()|[]{}:;<>?!'/@\"\\,.-_=^"
+_LAMBDAS = Path(__file__).resolve().parent.parent / "lambdas"
 
 
 class DataStack(Stack):
@@ -124,21 +134,94 @@ class DataStack(Stack):
             security_group=rotation_sg,
         )
 
-        # Application users. Passwords are generated here; the schema custom resource
-        # creates the roles with these passwords and grants least privilege.
+        # Application users: secrets attached to the cluster, rotated (multi-user, so
+        # there is always one valid password) after the schema resource created them.
         self.writer_secret = self._user_secret("WriterSecret", "bench_writer")
         self.reader_secret = self._user_secret("ReaderSecret", "bench_reader")
+        schema = self._schema()
+        for cid, secret in (("WriterRotation", self.writer_secret), ("ReaderRotation", self.reader_secret)):
+            rotation = self.cluster.add_rotation_multi_user(
+                cid,
+                secret=secret,
+                automatically_after=Duration.days(30),
+                exclude_characters=_PUNCTUATION,
+                vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
+                security_group=rotation_sg,
+            )
+            rotation.node.add_dependency(schema)
 
-    def _user_secret(self, cid: str, username: str) -> sm.Secret:
-        return sm.Secret(
+        NagSuppressions.add_stack_suppressions(
+            self,
+            [
+                {
+                    "id": "AwsSolutions-RDS6",
+                    "reason": "No network client connects to the database: all access is through the RDS "
+                    "Data API (IAM-authorised, Secrets Manager credentials). The security group has no "
+                    "ingress except the rotation Lambda.",
+                },
+                {
+                    "id": "CdkNagValidationFailure",
+                    "reason": "EC23 cannot evaluate security group rules that reference other security groups "
+                    "(intrinsics); no rule allows 0.0.0.0/0 ingress.",
+                },
+            ],
+        )
+
+    def _user_secret(self, cid: str, username: str) -> rds.DatabaseSecret:
+        secret = rds.DatabaseSecret(
             self,
             cid,
+            username=username,
+            master_secret=self.cluster.secret,
             encryption_key=self.key,
-            generate_secret_string=sm.SecretStringGenerator(
-                secret_string_template=f'{{"username": "{username}"}}',
-                generate_string_key="password",
-                exclude_punctuation=True,
-                password_length=32,
-            ),
-            description=f"bedrock-tier-bench {username}",
+            exclude_characters=_PUNCTUATION,
         )
+        return secret.attach(self.cluster)
+
+    def _schema(self) -> CustomResource:
+        """Apply schema.sql and create the reader/writer roles through the Data API (no VPC)."""
+        fn = lambda_.Function(
+            self,
+            "SchemaFn",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            architecture=lambda_.Architecture.ARM_64,
+            handler="handler.handler",
+            code=lambda_.Code.from_asset(str(_LAMBDAS / "schema")),
+            timeout=Duration.minutes(5),
+            environment={
+                "CLUSTER_ARN": self.cluster.cluster_arn,
+                "ADMIN_SECRET_ARN": self.cluster.secret.secret_arn,
+                "WRITER_SECRET_ARN": self.writer_secret.secret_arn,
+                "READER_SECRET_ARN": self.reader_secret.secret_arn,
+                "DB_NAME": DB_NAME,
+            },
+            log_group=logs.LogGroup(
+                self, "SchemaLogs", retention=logs.RetentionDays.ONE_MONTH, encryption_key=self.key
+            ),
+        )
+        self.key.grant_decrypt(fn)
+        self.cluster.grant_data_api_access(fn)
+        for secret in (self.writer_secret, self.reader_secret):
+            secret.grant_read(fn)
+        self.key.add_to_resource_policy(
+            iam.PolicyStatement(
+                actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
+                principals=[iam.ServicePrincipal(f"logs.{self.region}.amazonaws.com")],
+                resources=["*"],
+                conditions={
+                    "ArnLike": {
+                        "kms:EncryptionContext:aws:logs:arn": f"arn:aws:logs:{self.region}:{self.account}:*"
+                    }
+                },
+            )
+        )
+        provider = cr.Provider(self, "SchemaProvider", on_event_handler=fn)
+        resource = CustomResource(
+            self,
+            "Schema",
+            service_token=provider.service_token,
+            # Re-run when the schema changes.
+            properties={"schema": (_LAMBDAS / "schema" / "schema.sql").read_text()},
+        )
+        resource.node.add_dependency(self.cluster)
+        return resource

@@ -1,0 +1,67 @@
+"""Custom resource: apply schema.sql and create least-privilege DB roles via the RDS Data API.
+
+* ``bench_writer``: SELECT/INSERT/UPDATE/DELETE on the benchmark tables (worker).
+* ``bench_reader``: SELECT only (API Lambda).
+
+Passwords come from Secrets Manager. They are generated alphanumeric by CDK and
+validated here, because PostgreSQL DDL cannot take bind parameters.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from pathlib import Path
+
+import boto3
+
+rds = boto3.client("rds-data")
+sm = boto3.client("secretsmanager")
+
+CLUSTER = os.environ["CLUSTER_ARN"]
+ADMIN = os.environ["ADMIN_SECRET_ARN"]
+DB = os.environ["DB_NAME"]
+USERS = {
+    "bench_writer": (os.environ["WRITER_SECRET_ARN"], "SELECT, INSERT, UPDATE, DELETE"),
+    "bench_reader": (os.environ["READER_SECRET_ARN"], "SELECT"),
+}
+_SAFE = re.compile(r"^[A-Za-z0-9]{16,128}$")
+_IDENT = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+
+
+def _sql(statement: str) -> None:
+    rds.execute_statement(resourceArn=CLUSTER, secretArn=ADMIN, database=DB, sql=statement)
+
+
+def _statements(text: str) -> list[str]:
+    body = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("--"))
+    return [s.strip() for s in body.split(";") if s.strip()]
+
+
+def _secret(arn: str) -> dict:
+    return json.loads(sm.get_secret_value(SecretId=arn)["SecretString"])
+
+
+def apply() -> None:
+    for stmt in _statements((Path(__file__).parent / "schema.sql").read_text()):
+        _sql(stmt)
+    for user, (arn, privileges) in USERS.items():
+        pw = _secret(arn)["password"]
+        if not _SAFE.match(pw) or not _IDENT.match(user):
+            raise ValueError(f"refusing unsafe credentials for {user}")
+        _sql(
+            f"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{user}') "
+            f"THEN CREATE ROLE {user} LOGIN PASSWORD '{pw}'; END IF; END $$"
+        )
+        _sql(f"GRANT CONNECT ON DATABASE {DB} TO {user}")
+        _sql(f"GRANT USAGE ON SCHEMA public TO {user}")
+        _sql(f"GRANT {privileges} ON ALL TABLES IN SCHEMA public TO {user}")
+        if user == "bench_writer":
+            _sql(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {user}")
+
+
+def handler(event, _context):
+    if event["RequestType"] in ("Create", "Update"):
+        apply()
+    return {"PhysicalResourceId": "bench-schema"}

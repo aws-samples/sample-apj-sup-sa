@@ -33,3 +33,4 @@ results/
 .ash/
 cdk.out/
 node_modules/
+.holmes/
