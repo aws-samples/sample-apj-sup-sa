@@ -9,6 +9,7 @@ from cdk_nag import AwsSolutionsChecks
 from stacks.api_stack import ApiStack
 from stacks.data_stack import DataStack
 from stacks.web_stack import WebStack
+from stacks.worker_stack import WorkerStack
 
 app = cdk.App()
 auth_mode = app.node.try_get_context("auth_mode") or "cognito"
@@ -30,6 +31,15 @@ api = ApiStack(
         "client_id": ctx("federate_client_id") or "",
         "client_secret_name": ctx("federate_client_secret_name") or "bedrock-tier-bench/federate-client-secret",
     },
+    env=env,
+)
+WorkerStack(
+    app,
+    "BedrockTierBench-Worker",
+    data=data,
+    schedule_expression=ctx("schedule_expression") or "cron(0 18 * * ? *)",
+    benchmark_args=ctx("benchmark_args") or "--preset quick",
+    agent_model_id=ctx("agent_model_id") or "us.anthropic.claude-sonnet-5-5",
     env=env,
 )
 
