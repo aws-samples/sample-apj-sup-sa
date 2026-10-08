@@ -208,7 +208,13 @@ bedrock-bench-discover --dry-run                       # documentation only, pri
 bedrock-bench-discover --models "GLM 5.3,Kimi K3" --probe   # verify and write models.json
 ```
 
-Only text models with more than one on-demand tier are kept.
+Only text models with more than one on-demand tier are kept. Each geo inference profile (`us.`,
+`eu.`, `apac.`, `jp.`, `au.`, `ca.`, `in.`) is limited to the source regions of its own geography.
+A run that would drop models or replace probed entries with documentation-only ones is refused
+unless you pass `--force`.
+
+As of October 2026 the documentation lists 43 multi-tier text models; 33 of them are also served on
+`bedrock-mantle`.
 
 ## Cost
 
@@ -271,6 +277,10 @@ tests/                 # unit tests (no AWS calls)
   Burst column shows when that happened.
 - **Documentation can lag.** Discovery's `--probe` step is the ground truth for tier support.
 - **Reserved tier** needs a capacity reservation and is only benchmarked when requested.
+- **Anthropic Messages API** is supported by the benchmark, but as of October 2026 no model that
+  offers it (Claude) also lists Flex or Priority, so no Messages cell has a tier to compare against.
+- **Served tier must be reported.** A flex or priority sample whose response does not say which tier
+  served it is excluded (`tier_unreported`), because it cannot be told apart from Standard.
 
 ## Development
 
