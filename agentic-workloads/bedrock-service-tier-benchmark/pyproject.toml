@@ -72,6 +72,8 @@ select = ["E", "F", "I", "UP", "B"]
 # logic; wrapping the literals would corrupt output or hurt readability.
 "bedrock_bench/html_report.py" = ["E501"]
 "bedrock_bench/report.py" = ["E501"]
+# HTML fixture copied from a Bedrock model card.
+"tests/test_runner_report.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"
