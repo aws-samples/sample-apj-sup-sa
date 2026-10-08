@@ -1,174 +1,185 @@
-"""The model registry — the source of truth for *what* gets benchmarked.
+"""The model registry (schema v2): what can be benchmarked, and how.
 
-The registry is **generated**, not hand-curated: :mod:`bedrock_bench.discovery`
-probes every Bedrock text model on both transports for which service tiers it
-actually accepts *and is served*, then writes :data:`MODELS_FILE` (``models.json``).
-This module loads that file into :class:`ModelSpec` objects.
+Each model lists **offerings**: one per (endpoint, API, scope) it is reachable
+on, with the model or inference-profile id, the source regions, and the tiers
+verified for it. Example::
 
-Inclusion rule (per the benchmark's purpose): a model appears only if it supports
-**flex and/or priority** on at least one transport. Default-only models are
-excluded — there is nothing to compare. Each transport carries its own list of
-supported tiers (``default`` plus whichever of ``flex``/``priority`` were served),
-so the cell expander never schedules a tier a model can't serve.
+    {
+      "key": "zai.glm-5.3",
+      "family": "GLM (Z.AI)",
+      "display_name": "GLM 5.3",
+      "reasoning": true,
+      "body_style": "openai",
+      "cache": {"implicit": true, "explicit": true, "min_tokens": 1024},
+      "offerings": [
+        {"endpoint": "runtime", "api": "converse_stream", "scope": "geo",
+         "model_id": "us.zai.glm-5.3", "regions": ["us-east-1", "us-west-2"],
+         "tiers": ["default", "flex", "priority"]}
+      ],
+      "sources": ["https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-zai-glm-5-3.html"],
+      "verified_at": "2026-10-08"
+    }
 
-Facts the generator bakes in (do not "simplify" away):
-
-* InvokeModel IDs and Mantle IDs are **different strings** for the same logical
-  model (e.g. ``openai.gpt-oss-120b-1:0`` vs ``openai.gpt-oss-120b``;
-  ``moonshot.*`` vs ``moonshotai.*``; Mantle often appends ``-instruct``). The
-  generator canonicalises them to one logical ``key`` and stores both ids.
-* Availability is per-region; the generator records the region each id was found
-  in, and :meth:`ModelSpec.resolve_region` honours the configured preference.
-* Amazon Nova models use the Converse-native payload/stream shape
-  (``payload_style == "nova"``); everything else is OpenAI-shaped.
-
-To refresh after Bedrock's catalog changes, run::
-
-    python -m bedrock_bench.discovery --profile my-aws-profile
+The file is produced by ``bedrock-bench-discover`` (live probes on top of the
+model cards) and, in the web deployment, kept in Aurora by the discovery agent.
+Only models with more than one tier on some offering are benchmarked.
 """
 
 from __future__ import annotations
 
 import functools
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from .config import PayloadStyle, Tier, Transport
+from .config import Api, Endpoint, Scope, Tier
 
-#: Generated catalog file (produced by :mod:`bedrock_bench.discovery`).
 MODELS_FILE = Path(__file__).with_name("models.json")
+SCHEMA_VERSION = 2
+
+
+@dataclass(frozen=True)
+class Offering:
+    endpoint: Endpoint
+    api: Api
+    scope: Scope
+    model_id: str
+    regions: tuple[str, ...]
+    tiers: tuple[Tier, ...]
+    #: Mantle path prefix for OpenAI-compatible APIs ("/v1" or "/openai/v1").
+    base_path: str | None = None
+
+
+@dataclass(frozen=True)
+class CacheSupport:
+    implicit: bool = False
+    explicit: bool = False
+    min_tokens: int | None = None
 
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """One benchmarkable model and how to reach it on each transport.
-
-    Attributes:
-        key: Stable logical slug shared across transports (used in result keys).
-        family: Provider/family label for grouping in reports.
-        display_name: Human label for reports.
-        invoke_id: Model/inference-profile ID for InvokeModel, or ``None``.
-        invoke_region: Region where ``invoke_id`` was found, or ``None``.
-        invoke_tiers: Tiers served on InvokeModel (e.g. ``(DEFAULT, FLEX, PRIORITY)``).
-        mantle_id: Model ID for the Mantle OpenAI endpoint, or ``None``.
-        mantle_region: Region where ``mantle_id`` was found, or ``None``.
-        mantle_tiers: Tiers served on Mantle.
-        payload_style: Body/stream schema for the InvokeModel transport.
-        notes: Free-form caveats.
-    """
-
     key: str
     family: str
     display_name: str
-    invoke_id: str | None
-    invoke_region: str | None
-    invoke_tiers: tuple[Tier, ...]
-    mantle_id: str | None
-    mantle_region: str | None
-    mantle_tiers: tuple[Tier, ...]
-    payload_style: PayloadStyle = PayloadStyle.OPENAI
+    offerings: tuple[Offering, ...]
+    reasoning: bool = False
+    body_style: str = "openai"
+    cache: CacheSupport = field(default_factory=CacheSupport)
+    sources: tuple[str, ...] = ()
+    verified_at: str | None = None
     notes: str = ""
 
-    # --- transport-keyed accessors ----------------------------------------
-    def id_for(self, transport: Transport) -> str | None:
-        return self.invoke_id if transport is Transport.INVOKE else self.mantle_id
-
-    def region_for(self, transport: Transport) -> str | None:
-        return self.invoke_region if transport is Transport.INVOKE else self.mantle_region
-
-    def tiers_for(self, transport: Transport) -> tuple[Tier, ...]:
-        return self.invoke_tiers if transport is Transport.INVOKE else self.mantle_tiers
-
-    def supports(self, transport: Transport) -> bool:
-        return self.id_for(transport) is not None and bool(self.tiers_for(transport))
-
-    def resolve_region(self, transport: Transport, preference: tuple[str, ...]) -> str | None:
-        """Region to use for ``transport``.
-
-        The generator records exactly one region per (model, transport). If it is
-        in the caller's ``preference`` order we return it; otherwise we still fall
-        back to the discovered region (the model genuinely lives there), which
-        keeps a us-east-1-only model benchmarkable even when the preference lists
-        us-west-2 first.
-        """
-        discovered = self.region_for(transport)
-        if discovered is None:
-            return None
-        for region in preference:
-            if region == discovered:
-                return discovered
-        return discovered
+    @property
+    def multi_tier(self) -> bool:
+        """True when some offering serves more than one tier (worth benchmarking)."""
+        return any(len(o.tiers) > 1 for o in self.offerings)
 
 
-def _spec_from_dict(d: dict) -> ModelSpec:
-    def _tiers(values: list[str]) -> tuple[Tier, ...]:
-        return tuple(Tier(v) for v in values)
+def _offering(d: dict) -> Offering:
+    return Offering(
+        endpoint=Endpoint(d["endpoint"]),
+        api=Api(d["api"]),
+        scope=Scope(d["scope"]),
+        model_id=d["model_id"],
+        regions=tuple(d.get("regions", [])),
+        tiers=tuple(Tier(t) for t in d.get("tiers", [])),
+        base_path=d.get("base_path"),
+    )
 
+
+def spec_from_dict(d: dict) -> ModelSpec:
+    c = d.get("cache") or {}
     return ModelSpec(
         key=d["key"],
-        family=d["family"],
-        display_name=d["display_name"],
-        invoke_id=d.get("invoke_id"),
-        invoke_region=d.get("invoke_region"),
-        invoke_tiers=_tiers(d.get("invoke_tiers", [])),
-        mantle_id=d.get("mantle_id"),
-        mantle_region=d.get("mantle_region"),
-        mantle_tiers=_tiers(d.get("mantle_tiers", [])),
-        payload_style=PayloadStyle(d.get("payload_style", "openai")),
+        family=d.get("family", d["key"].split(".", 1)[0]),
+        display_name=d.get("display_name", d["key"]),
+        offerings=tuple(_offering(o) for o in d.get("offerings", [])),
+        reasoning=bool(d.get("reasoning", False)),
+        body_style=d.get("body_style", "openai"),
+        cache=CacheSupport(
+            implicit=bool(c.get("implicit", False)),
+            explicit=bool(c.get("explicit", False)),
+            min_tokens=c.get("min_tokens"),
+        ),
+        sources=tuple(d.get("sources", [])),
+        verified_at=d.get("verified_at"),
         notes=d.get("notes", ""),
     )
 
 
+def spec_to_dict(s: ModelSpec) -> dict:
+    return {
+        "key": s.key,
+        "family": s.family,
+        "display_name": s.display_name,
+        "reasoning": s.reasoning,
+        "body_style": s.body_style,
+        "cache": {
+            "implicit": s.cache.implicit,
+            "explicit": s.cache.explicit,
+            "min_tokens": s.cache.min_tokens,
+        },
+        "offerings": [
+            {
+                "endpoint": o.endpoint.value,
+                "api": o.api.value,
+                "scope": o.scope.value,
+                "model_id": o.model_id,
+                "regions": list(o.regions),
+                "tiers": [t.value for t in o.tiers],
+                **({"base_path": o.base_path} if o.base_path else {}),
+            }
+            for o in s.offerings
+        ],
+        "sources": list(s.sources),
+        "verified_at": s.verified_at,
+        "notes": s.notes,
+    }
+
+
 def load_registry(path: Path | None = None) -> list[ModelSpec]:
-    """Load and validate the generated model registry from JSON.
-
-    Args:
-        path: Override for the registry file. Defaults to :data:`MODELS_FILE`.
-
-    Returns:
-        The list of :class:`ModelSpec` entries.
+    """Load and validate a registry file.
 
     Raises:
-        FileNotFoundError: If the registry file does not exist (run
-            ``python -m bedrock_bench.discovery`` to generate it).
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the schema version is unsupported.
     """
     path = path or MODELS_FILE
     if not path.exists():
         raise FileNotFoundError(
-            f"Model registry {path} not found. Generate it with "
-            f"`python -m bedrock_bench.discovery`."
+            f"Model registry {path} not found. Generate it with `bedrock-bench-discover`."
         )
-    data = json.loads(path.read_text())
-    return [_spec_from_dict(d) for d in data]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(
+            f"{path}: expected schema_version {SCHEMA_VERSION}; regenerate with "
+            "`bedrock-bench-discover`."
+        )
+    return [spec_from_dict(d) for d in data.get("models", [])]
 
 
-@functools.lru_cache(maxsize=1)
-def registry() -> tuple[ModelSpec, ...]:
-    """Return the loaded registry, reading the JSON file on first use only.
+def save_registry(specs: list[ModelSpec], path: Path, generated_at: str) -> None:
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "models": [spec_to_dict(s) for s in sorted(specs, key=lambda s: (s.family, s.key))],
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    Loading is lazy and cached so that merely importing this module (e.g. for
-    ``--help`` or unit tests of unrelated code) never performs file I/O and
-    cannot fail on a missing ``models.json``.
-    """
-    return tuple(load_registry())
+
+@functools.lru_cache(maxsize=4)
+def _cached(path: str) -> tuple[ModelSpec, ...]:
+    return tuple(load_registry(Path(path)))
 
 
 def select(
     families: tuple[str, ...] | None = None,
     keys: tuple[str, ...] | None = None,
+    path: Path | None = None,
 ) -> list[ModelSpec]:
-    """Return registry entries matching the given filters.
-
-    Args:
-        families: Keep only these families (case-insensitive substring match on
-            the family label). ``None`` = all.
-        keys: Keep only these exact logical keys. ``None`` = all.
-
-    Returns:
-        The matching :class:`ModelSpec` entries (a fresh list).
-    """
-    specs = list(registry())
+    """Registry entries matching the filters (case-insensitive family substring, exact key)."""
+    specs = list(_cached(str(path or MODELS_FILE)))
     if families:
         wanted = [f.lower() for f in families]
         specs = [s for s in specs if any(w in s.family.lower() for w in wanted)]
@@ -176,11 +187,3 @@ def select(
         kset = set(keys)
         specs = [s for s in specs if s.key in kset]
     return specs
-
-
-def families() -> list[str]:
-    """Return distinct family names, in registry order."""
-    seen: dict[str, None] = {}
-    for s in registry():
-        seen.setdefault(s.family, None)
-    return list(seen)

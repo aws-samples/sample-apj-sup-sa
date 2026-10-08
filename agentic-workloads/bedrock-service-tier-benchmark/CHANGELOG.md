@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-08
+
+Methodology rewrite. Results from 0.x are not comparable with 1.0 (see "Fixed").
+
+### Fixed
+
+- **Cache contamination.** 0.x sent the identical prompt on every request. Bedrock's implicit
+  prompt caching is on by default, so after the first sample every request was a warm-cache hit
+  (verified live: the second identical request read 100% of its prefix from cache on all four
+  runtime APIs). Cold requests now carry a random nonce and a unique document, and every sample's
+  cache-read tokens are checked.
+- **TTFT on empty chunks.** TTFT now starts at the first non-empty text or reasoning delta.
+- **New models were invisible.** Models served only through cross-Region inference profiles
+  (GLM 5.3, Kimi K3, ...) could not be discovered. Inference scope is now a dimension.
+
+### Added
+
+- Dimensions: endpoint (`bedrock-runtime`, `bedrock-mantle`), API (ConverseStream, Converse,
+  InvokeModel(WithResponseStream), Chat Completions, Responses, Anthropic Messages), inference scope
+  (in-Region / geo / global), prompt size (small ≈1.5k, medium ≈10k, large ≈100k input tokens) and
+  prompt cache (`cold`, `warm_implicit`, `warm_explicit`, each verified per sample).
+- `reserved` tier (opt-in; needs a reservation).
+- Metrics: time to first answer token, inter-token latency, output tokens/s, server first-byte
+  latency, p95/p99, stdev, burst share; bootstrap 95% confidence intervals on tier deltas.
+- Seeded tier-order shuffling, discarded warm-up requests, per-tier timeouts, `reasoning_effort`.
+- Interactive HTML report with filters for every dimension; presets `quick`, `standard`, `full`.
+- Discovery from the Bedrock documentation model cards plus optional live probes (`--probe`).
+- `docs/DESIGN.md` with the methodology.
+
+### Changed
+
+- Registry format `models.json` schema v2 (offerings per endpoint / API / scope).
+- Responses API requests always send `store=false`.
+- Dropped the LLMeter dependency; measurement is done by per-API adapters.
+
 ## [0.2.1] - 2026-06-19
 
 ### Added

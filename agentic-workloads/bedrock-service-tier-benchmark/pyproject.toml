@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "bedrock-bench"
 dynamic = ["version"]   # single-sourced from bedrock_bench.__version__
-description = "Benchmark AWS Bedrock service tiers (default vs flex vs priority): TTFT and total-latency percentiles across models and transports."
+description = "Benchmark Amazon Bedrock service tiers (default, flex, priority, reserved) across endpoints, APIs, inference scopes, prompt sizes and cache modes."
 readme = "README.md"
 requires-python = ">=3.10"
 # License is inherited from the parent (aws-samples) repository's LICENSE file;
@@ -24,13 +24,12 @@ classifiers = [
     "Topic :: System :: Benchmark",
 ]
 dependencies = [
-    "llmeter[openai]>=0.1.11,<0.2",
-    "aws-bedrock-token-generator>=1.1.0,<2",
-    # boto3 >= 1.40.0 is REQUIRED: the InvokeModel `serviceTier` parameter (flex/
-    # priority) was added to botocore in 1.40.0; earlier releases reject it with a
-    # ParamValidationError, silently breaking the flex/priority benchmark.
+    # boto3 >= 1.40.0 is REQUIRED: the `serviceTier` parameter (Converse and
+    # InvokeModel) was added in botocore 1.40.0; earlier releases reject it.
     "boto3>=1.40.0,<2",
-    "openai>=1.35.1,<3",
+    "aws-bedrock-token-generator>=1.1.0,<2",
+    "openai>=2.0,<3",       # Chat Completions + Responses (service_tier, store=False)
+    "httpx>=0.27,<1",       # Anthropic Messages API (SSE)
     "numpy>=1.24,<3",
 ]
 
