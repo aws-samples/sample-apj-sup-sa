@@ -126,7 +126,7 @@ class DataStack(Stack):
             description="Secret rotation Lambda",
             allow_all_outbound=False,
         )
-        endpoint_sg.add_ingress_rule(rotation_sg, ec2.Port.tcp(443), "rotation -> Secrets Manager")
+        endpoint_sg.add_ingress_rule(rotation_sg, ec2.Port.tcp(443), "rotation Lambda to Secrets Manager")
         rotation_sg.add_egress_rule(endpoint_sg, ec2.Port.tcp(443), "Secrets Manager endpoint")
         rotation_sg.add_egress_rule(db_sg, ec2.Port.tcp(5432), "rotate DB password")
         db_sg.add_ingress_rule(rotation_sg, ec2.Port.tcp(5432), "secret rotation Lambda only")
