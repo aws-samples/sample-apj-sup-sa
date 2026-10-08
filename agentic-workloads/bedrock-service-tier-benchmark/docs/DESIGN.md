@@ -86,17 +86,22 @@ Chat Completions / InvokeModel (OpenAI body) `prompt_cache_breakpoint` on the te
 `prompt_cache_options`; Responses `prompt_cache_breakpoint` on the `input_text` block;
 Anthropic Messages `cache_control: {"type": "ephemeral"}`.
 
-The warm cadence (default 60 s between requests per cell group) stays inside every documented cache TTL
-(5 min minimum).
+All tiers of a warm context share one document, and the context's requests are at most
+`tiers x --interval` apart (3 min with three tiers at the default 60 s), inside the 5-minute minimum cache
+TTL. With more tiers or a longer interval, check the cache-hit rate in the report: misses are excluded
+and counted, never silently mixed in.
 
 ## 4. Pacing and fairness
 
 - A **pacing domain** is (endpoint, model id, region). Requests in a domain run strictly serially with
   `--interval` seconds between starts (default 60). Domains run in parallel.
-- Within a round, the domain's cells are shuffled with a seeded RNG, so no tier systematically runs
-  first.
+- Inside a domain, contexts run one after another (seeded order). Inside a context, the tiers are
+  interleaved and shuffled every round, so no tier systematically runs first and all tiers see the same
+  conditions.
+- A request that overruns its slot shifts the schedule; the next slots are not fired back to back.
+- Every request has a wall-clock deadline (per tier; flex 600 s by default) checked on each stream event.
 - SDK retries are disabled: a throttle becomes one recorded error, not a silently slow sample.
-- One discarded warm-up request per cell.
+- Discarded warm-up rounds per context (at least one for warm contexts, which must prime the cache).
 - Responses API requests always send `store=false` (Bedrock otherwise retains the request and response
   for 30 days).
 
