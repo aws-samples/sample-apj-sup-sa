@@ -54,12 +54,8 @@ class DataStack(Stack):
             max_azs=2,
             nat_gateways=0,
             subnet_configuration=[
-                ec2.SubnetConfiguration(
-                    name="public", subnet_type=ec2.SubnetType.PUBLIC, cidr_mask=24
-                ),
-                ec2.SubnetConfiguration(
-                    name="isolated", subnet_type=ec2.SubnetType.PRIVATE_ISOLATED, cidr_mask=24
-                ),
+                ec2.SubnetConfiguration(name="public", subnet_type=ec2.SubnetType.PUBLIC, cidr_mask=24),
+                ec2.SubnetConfiguration(name="isolated", subnet_type=ec2.SubnetType.PRIVATE_ISOLATED, cidr_mask=24),
             ],
         )
         self.vpc.add_flow_log("FlowLog")
@@ -75,22 +71,16 @@ class DataStack(Stack):
         params = rds.ParameterGroup(
             self,
             "Params",
-            engine=rds.DatabaseClusterEngine.aurora_postgres(
-                version=rds.AuroraPostgresEngineVersion.VER_17_5
-            ),
+            engine=rds.DatabaseClusterEngine.aurora_postgres(version=rds.AuroraPostgresEngineVersion.VER_17_5),
             parameters={"rds.force_ssl": "1", "log_min_duration_statement": "2000"},
         )
 
         self.cluster = rds.DatabaseCluster(
             self,
             "Cluster",
-            engine=rds.DatabaseClusterEngine.aurora_postgres(
-                version=rds.AuroraPostgresEngineVersion.VER_17_5
-            ),
+            engine=rds.DatabaseClusterEngine.aurora_postgres(version=rds.AuroraPostgresEngineVersion.VER_17_5),
             default_database_name=DB_NAME,
-            credentials=rds.Credentials.from_generated_secret(
-                "bench_admin", encryption_key=self.key
-            ),
+            credentials=rds.Credentials.from_generated_secret("bench_admin", encryption_key=self.key),
             writer=rds.ClusterInstance.serverless_v2(
                 "writer",
                 enable_performance_insights=True,
@@ -195,13 +185,9 @@ class DataStack(Stack):
 
     def _schema(self) -> CustomResource:
         """Apply schema.sql and create the reader/writer roles through the Data API (no VPC)."""
-        log_group = logs.LogGroup(
-            self, "SchemaLogs", retention=logs.RetentionDays.ONE_MONTH, encryption_key=self.key
-        )
+        log_group = logs.LogGroup(self, "SchemaLogs", retention=logs.RetentionDays.ONE_MONTH, encryption_key=self.key)
         # Explicit role: logs scoped to this function's log group (no AWS managed policy).
-        role = iam.Role(
-            self, "SchemaFnRole", assumed_by=iam.ServicePrincipal("lambda.amazonaws.com")
-        )
+        role = iam.Role(self, "SchemaFnRole", assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"))
         role.add_to_policy(
             iam.PolicyStatement(
                 actions=["logs:CreateLogStream", "logs:PutLogEvents"],
@@ -254,9 +240,7 @@ class DataStack(Stack):
                 principals=[iam.ServicePrincipal(f"logs.{self.region}.amazonaws.com")],
                 resources=["*"],
                 conditions={
-                    "ArnLike": {
-                        "kms:EncryptionContext:aws:logs:arn": f"arn:aws:logs:{self.region}:{self.account}:*"
-                    }
+                    "ArnLike": {"kms:EncryptionContext:aws:logs:arn": f"arn:aws:logs:{self.region}:{self.account}:*"}
                 },
             )
         )

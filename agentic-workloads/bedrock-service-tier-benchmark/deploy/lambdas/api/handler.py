@@ -62,9 +62,7 @@ def _filters(qs: dict[str, str]) -> tuple[str, dict[str, str]]:
         clauses.append(f"{dim} = :{dim}")
         params[dim] = value
     if "run_id" not in params:
-        clauses.append(
-            "run_id = (SELECT run_id FROM runs ORDER BY started DESC NULLS LAST LIMIT 1)"
-        )
+        clauses.append("run_id = (SELECT run_id FROM runs ORDER BY started DESC NULLS LAST LIMIT 1)")
     return " AND ".join(clauses), params
 
 
@@ -90,14 +88,15 @@ def filters(qs: dict[str, str]) -> Any:
     where, params = _filters({k: v for k, v in qs.items() if k == "run_id"})
     out: dict[str, Any] = {}
     for dim in DIMENSIONS:
-        rows = _query(f"SELECT DISTINCT {dim} AS v FROM cells WHERE {where} ORDER BY 1", params)
+        sql = f"SELECT DISTINCT {dim} AS v FROM cells WHERE {where} ORDER BY 1"  # nosec B608 - column names from the DIMENSIONS allowlist; values are bind parameters
+        rows = _query(sql, params)
         out[dim] = [r["v"] for r in rows]
     return out
 
 
 def comparisons(qs: dict[str, str]) -> Any:
     where, params = _filters(qs)
-    return _query(
+    return _query(  # nosec B608 - WHERE built from allowlisted columns; values are bind parameters
         "SELECT run_id, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, "
         f"deltas FROM comparisons WHERE {where} ORDER BY model, endpoint, api, prompt_size, cache, tier "
         f"LIMIT {_MAX_ROWS}",
@@ -107,7 +106,7 @@ def comparisons(qs: dict[str, str]) -> Any:
 
 def cells(qs: dict[str, str]) -> Any:
     where, params = _filters(qs)
-    return _query(
+    return _query(  # nosec B608 - WHERE built from allowlisted columns; values are bind parameters
         "SELECT run_id, label, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, "
         f"summary FROM cells WHERE {where} ORDER BY label LIMIT {_MAX_ROWS}",
         params,

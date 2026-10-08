@@ -46,9 +46,7 @@ def _event(path, qs=None, method="GET"):
 
 
 def test_filters_are_bind_parameters(rds):
-    r = api.handler(
-        _event("/comparisons", {"model": "zai.glm-5.3", "tier": "flex", "evil": "x"}), None
-    )
+    r = api.handler(_event("/comparisons", {"model": "zai.glm-5.3", "tier": "flex", "evil": "x"}), None)
     assert r["statusCode"] == 200
     sql = rds.calls[0]["sql"]
     assert "zai.glm-5.3" not in sql and ":model" in sql and "evil" not in sql
