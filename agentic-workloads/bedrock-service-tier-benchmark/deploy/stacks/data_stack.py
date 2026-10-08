@@ -257,7 +257,9 @@ class DataStack(Stack):
                 principals=[iam.ServicePrincipal(f"logs.{self.region}.amazonaws.com")],
                 resources=["*"],
                 conditions={
-                    "ArnLike": {"kms:EncryptionContext:aws:logs:arn": f"arn:aws:logs:{self.region}:{self.account}:*"}
+                    "ArnLike": {"kms:EncryptionContext:aws:logs:arn": (
+                            f"arn:aws:logs:{self.region}:{self.account}:log-group:{self.stack_name}-*"
+                        )}
                 },
             )
         )
