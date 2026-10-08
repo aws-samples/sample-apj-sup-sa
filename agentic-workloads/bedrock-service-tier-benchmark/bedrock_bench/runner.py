@@ -22,7 +22,6 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeout
 from datetime import datetime, timezone
 from typing import Any
 
@@ -128,47 +127,60 @@ class Runner:
 
     # ------------------------------------------------------------------ internals
     def _run_domain(self, cells: list[Cell]) -> None:
+        """Run one pacing domain.
+
+        Contexts (same model, endpoint, API, scope, region, size, cache) run one
+        after another; inside a context the tiers are interleaved and shuffled each
+        round. A context's requests are therefore at most ``tiers x interval`` apart,
+        which keeps warm-cache contexts inside the prompt-cache TTL, while tiers
+        are still compared under the same conditions.
+        """
         cfg = self.config
         rng = random.Random(f"{cfg.seed}:{cells[0].domain}")  # nosec B311 - shuffles request order, not security-sensitive
-        adapters = {c.label: self._factory(c, self.broker) for c in cells}
-        factories = {
-            c.label: PromptFactory(c.size, c.cache, cfg.seed, c.context_key) for c in cells
-        }
-        warmup = max(cfg.warmup_requests, 1 if any(c.cache.is_warm for c in cells) else 0)
-        rounds = warmup + cfg.n_requests
+        contexts: dict[str, list[Cell]] = defaultdict(list)
+        for c in cells:
+            contexts[c.context_key].append(c)
+        order = list(contexts)
+        rng.shuffle(order)
         total = cfg.n_requests * len(cells)
         done = 0
-        # One worker thread enforces the wall-clock timeout per request.
-        # Worker pool sized to the domain so an abandoned (timed-out) request
-        # cannot block the next one; at most one request is *started* at a time.
-        with ThreadPoolExecutor(max_workers=len(cells) + 1) as one:
-            start = time.monotonic()
-            slot = 0
-            for rnd in range(rounds):
-                order = list(cells)
-                rng.shuffle(order)
-                for cell in order:
-                    target = start + slot * cfg.interval_seconds
+        start = time.monotonic()
+        slot = 0
+        for ck in order:
+            group = contexts[ck]
+            adapters = {c.label: self._factory(c, self.broker) for c in group}
+            # One prompt factory per context, so every tier shares the warm prefix.
+            prompts = PromptFactory(group[0].size, group[0].cache, cfg.seed, ck)
+            warm = group[0].cache.is_warm
+            warmup = max(cfg.warmup_requests, 1 if warm else 0)
+            for rnd in range(warmup + cfg.n_requests):
+                round_cells = list(group)
+                rng.shuffle(round_cells)
+                for cell in round_cells:
+                    delay = start + slot * cfg.interval_seconds - time.monotonic()
                     slot += 1
-                    delay = target - time.monotonic()
                     if delay > 0:
                         self._sleep(delay)
-                    m = self._send(one, adapters[cell.label], factories[cell.label], cell)
+                    else:
+                        # An overrunning request shifts the schedule instead of
+                        # firing the following slots back to back.
+                        start -= delay
+                    m = self._send(adapters[cell.label], prompts, cell)
                     if rnd < warmup:
                         continue
                     record = self._record(cell, m)
                     with self._lock:
                         self.records[cell.label].append(record)
-                        done += 1
+                    done += 1
                     if self.on_sample:
                         try:
                             self.on_sample(cell, record, done, total)
                         except Exception:  # noqa: BLE001 - progress must never break a run
                             logger.exception("progress callback failed")
 
-    def _send(self, pool: ThreadPoolExecutor, adapter: Any, prompts: PromptFactory, cell: Cell):
+    def _send(self, adapter: Any, prompts: PromptFactory, cell: Cell) -> Measurement:
+        """Send one request inline; the adapter enforces the wall-clock deadline."""
         p = prompts.next()
-        timeout = self.config.timeout_for(cell.tier)
         req = Request(
             model_id=cell.model_id,
             region=cell.region,
@@ -178,18 +190,13 @@ class Runner:
             tier=None if cell.tier.is_default else cell.tier.value,
             explicit_cache=cell.cache is CacheMode.WARM_EXPLICIT,
             temperature=None if cell.spec.reasoning else 0.0,
-            timeout=timeout,
+            timeout=self.config.timeout_for(cell.tier),
             reasoning_effort=self.reasoning_effort if cell.spec.reasoning else None,
         )
-        # A request that overruns its timeout is abandoned (recorded as a timeout);
-        # the pool has spare workers so it cannot block the next request.
-        fut = pool.submit(adapter.send, req)
         try:
-            return fut.result(timeout=timeout + 5)
-        except FutureTimeout:
-            fut.cancel()
-            m = Measurement(error=f"TimeoutError: exceeded {timeout:.0f}s", error_kind="timeout")
-            return m
+            return adapter.send(req)
+        except Exception as e:  # noqa: BLE001 - adapters record errors; this is a backstop
+            return Measurement(error=f"{type(e).__name__}: {str(e)[:300]}", error_kind="client")
 
     def _record(self, cell: Cell, m: Measurement) -> dict[str, Any]:
         rec = m.to_dict()

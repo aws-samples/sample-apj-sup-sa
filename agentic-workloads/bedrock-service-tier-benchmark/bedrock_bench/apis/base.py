@@ -73,10 +73,23 @@ class StreamRecorder:
 
     def __init__(self) -> None:
         self._t0: float | None = None
+        self._deadline: float | None = None
         self.m = Measurement()
 
-    def start(self) -> None:
+    def start(self, timeout: float | None = None) -> None:
+        """Start the clock; ``timeout`` (s) is a wall-clock deadline for the whole request."""
         self._t0 = time.perf_counter()
+        self._deadline = None if timeout is None else self._t0 + timeout
+
+    def check(self) -> None:
+        """Raise :class:`TimeoutError` once the request deadline has passed.
+
+        Adapters call this for every stream event, so a slow stream is stopped (and
+        its connection closed by the caller's context manager / garbage collection)
+        instead of overlapping the next paced request.
+        """
+        if self._deadline is not None and time.perf_counter() > self._deadline:
+            raise TimeoutError("request exceeded its deadline")
 
     def _now(self) -> float:
         if self._t0 is None:
@@ -85,6 +98,7 @@ class StreamRecorder:
 
     def reasoning(self, text: str | None) -> None:
         """Record a reasoning delta (counts toward TTFT, not TTFAT)."""
+        self.check()
         if text:
             t = self._now()
             if self.m.ttft is None:
@@ -93,6 +107,7 @@ class StreamRecorder:
 
     def answer(self, text: str | None) -> None:
         """Record an answer-text delta."""
+        self.check()
         if text:
             t = self._now()
             if self.m.ttft is None:

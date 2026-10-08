@@ -114,11 +114,12 @@ class ConverseStream:
     def send(self, req: Request) -> Measurement:
         rec = StreamRecorder()
         kw = _converse_kwargs(req)
-        rec.start()
+        rec.start(req.timeout)
         try:
             resp = self._client.converse_stream(**kw)
             served = _served(resp)
             for event in resp["stream"]:
+                rec.check()
                 if "contentBlockDelta" in event:
                     delta = event["contentBlockDelta"].get("delta", {})
                     if "reasoningContent" in delta:
@@ -147,7 +148,7 @@ class Converse:
     def send(self, req: Request) -> Measurement:
         rec = StreamRecorder()
         kw = _converse_kwargs(req)
-        rec.start()
+        rec.start(req.timeout)
         try:
             resp = self._client.converse(**kw)
             rec.finish()
@@ -232,11 +233,12 @@ class InvokeStream:
     def send(self, req: Request) -> Measurement:
         rec = StreamRecorder()
         kw = _invoke_kwargs(req, self._style, stream=True)
-        rec.start()
+        rec.start(req.timeout)
         try:
             resp = self._client.invoke_model_with_response_stream(**kw)
             served = _served(resp)
             for event in resp["body"]:
+                rec.check()
                 raw = (event.get("chunk") or {}).get("bytes")
                 if not raw:
                     continue
@@ -295,7 +297,7 @@ class Invoke:
     def send(self, req: Request) -> Measurement:
         rec = StreamRecorder()
         kw = _invoke_kwargs(req, self._style, stream=False)
-        rec.start()
+        rec.start(req.timeout)
         try:
             resp = self._client.invoke_model(**kw)
             body = json.loads(resp["body"].read())

@@ -110,7 +110,7 @@ class Messages:
         }
         payload = json.dumps(self.body(req))
         rec = StreamRecorder()
-        rec.start()
+        rec.start(req.timeout)
         try:
             with self._client.stream(
                 "POST", self._url, headers=headers, content=payload, timeout=req.timeout
@@ -124,6 +124,7 @@ class Messages:
                     raise MessagesError(f"unexpected content-type {ctype!r}: {r.text[:300]}")
                 rec.m.served_tier = r.headers.get("x-amzn-bedrock-service-tier")
                 for event, data in iter_sse(r.iter_lines()):
+                    rec.check()
                     self._on_event(rec, event or data.get("type"), data)
         except Exception as e:  # noqa: BLE001 - every failure becomes a recorded sample
             return rec.fail(e)

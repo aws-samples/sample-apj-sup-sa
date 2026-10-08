@@ -20,6 +20,8 @@ from botocore.config import Config
 
 # Tokens live up to 12 h; refresh well before that.
 _TOKEN_TTL_SECONDS = 11 * 3600
+#: Re-mint this long before temporary credentials expire.
+_CRED_MARGIN_SECONDS = 300
 
 
 class AuthBroker:
@@ -30,7 +32,7 @@ class AuthBroker:
         self._profile = profile
         self._config = Config(
             retries={"max_attempts": 1, "mode": "standard"},
-            read_timeout=900,  # the runner enforces the real per-tier cap
+            read_timeout=630,  # > flex timeout; adapters also enforce a wall-clock deadline
             connect_timeout=15,
             max_pool_connections=max_pool_connections,
         )
@@ -52,12 +54,17 @@ class AuthBroker:
     def bedrock_runtime(self, region: str) -> Any:
         return self.client("bedrock-runtime", region)
 
-    def token(self, region: str) -> str:
-        """A valid bearer token for ``region``, minting or refreshing as needed."""
+    def token(self, region: str, *, force: bool = False) -> str:
+        """A valid bearer token for ``region``, minting or refreshing as needed.
+
+        A token minted from temporary credentials (SSO, assumed role) stops working
+        when those credentials expire, so the cache lifetime is the earlier of
+        11 hours and the credentials' own expiry minus a safety margin.
+        """
         now = time.time()
         with self._lock:
             cached = self._tokens.get(region)
-            if cached and cached[1] > now:
+            if cached and not force and cached[1] > now:
                 return cached[0]
             from aws_bedrock_token_generator import BedrockTokenGenerator
 
@@ -66,8 +73,13 @@ class AuthBroker:
             creds = self._session.get_credentials()
             if creds is None:
                 raise RuntimeError("No AWS credentials resolved (check profile / environment)")
-            tok = self._gen.get_token(creds.get_frozen_credentials(), region)
-            self._tokens[region] = (tok, now + _TOKEN_TTL_SECONDS)
+            frozen = creds.get_frozen_credentials()  # refreshes temporary credentials if due
+            tok = self._gen.get_token(frozen, region)
+            expiry = now + _TOKEN_TTL_SECONDS
+            cred_expiry = getattr(creds, "_expiry_time", None)
+            if cred_expiry is not None:
+                expiry = min(expiry, cred_expiry.timestamp() - _CRED_MARGIN_SECONDS)
+            self._tokens[region] = (tok, max(expiry, now + 60))
             return tok
 
     def token_provider(self, region: str) -> Callable[[], str]:

@@ -117,10 +117,11 @@ class ChatCompletions(_OpenAIBase):
         client = self._prepare(req)
         kw = self.body(req)
         rec = StreamRecorder()
-        rec.start()
+        rec.start(req.timeout)
         try:
             served = None
             for chunk in client.chat.completions.create(**kw):
+                rec.check()
                 served = getattr(chunk, "service_tier", None) or served
                 for choice in chunk.choices or []:
                     d = choice.delta
@@ -180,9 +181,10 @@ class Responses(_OpenAIBase):
         client = self._prepare(req)
         kw = self.body(req)
         rec = StreamRecorder()
-        rec.start()
+        rec.start(req.timeout)
         try:
             for event in client.responses.create(**kw):
+                rec.check()
                 etype = getattr(event, "type", "")
                 if etype == "response.output_text.delta":
                     rec.answer(getattr(event, "delta", None))
