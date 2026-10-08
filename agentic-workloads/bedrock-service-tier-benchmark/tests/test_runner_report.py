@@ -13,6 +13,7 @@ from bedrock_bench.html_report import render
 from bedrock_bench.metrics import summarize
 from bedrock_bench.registry import spec_from_dict
 from bedrock_bench.report import compare, redact_meta, redact_text, write_markdown
+from bedrock_bench.benchmark import estimate
 from bedrock_bench.runner import Runner, classify_sample, served_matches
 
 SPEC = spec_from_dict(
@@ -243,3 +244,61 @@ def test_fetch_refuses_other_hosts():
 
 def test_cache_mode_enum_round_trip():
     assert CacheMode("warm_explicit").is_warm
+
+
+# --------------------------------------------------------------------------- review r2 fixes
+def test_unreported_tier_is_excluded_for_non_default():
+    _, cells, _, _ = _run()
+    flex = next(c for c in cells if not c.tier.is_default)
+    default = next(c for c in cells if c.tier.is_default)
+    m = Measurement(ttft=1, e2e=2, served_tier=None, usage=Usage())
+    assert classify_sample(flex, m) == (False, "tier_unreported")
+    assert classify_sample(default, m) == (True, None)
+
+
+def test_non_streaming_overrun_is_a_timeout():
+    import time as _t
+
+    from bedrock_bench.apis.base import StreamRecorder
+
+    rec = StreamRecorder()
+    rec.start(timeout=0.01)
+    _t.sleep(0.02)
+    import pytest
+
+    with pytest.raises(TimeoutError):
+        rec.finish()
+
+
+def test_adapter_build_failure_records_errors_and_continues():
+    cfg = BenchmarkConfig(
+        apis=("converse_stream",),
+        tiers=("default", "flex"),
+        n_requests=2,
+        interval_seconds=0,
+    )
+    cells = expand_cells(cfg, [SPEC])
+
+    def boom(cell, _broker):
+        raise RuntimeError("token mint failed")
+
+    records = Runner(cfg, broker=None, adapter_factory=boom, sleep=lambda s: None).run(cells)
+    assert all(len(records[c.label]) == 2 for c in cells)
+    assert all(
+        r["error_kind"] == "client" and not r["included"] for c in cells for r in records[c.label]
+    )
+
+
+def test_estimate_counts_warmup_per_context():
+    cfg = BenchmarkConfig(
+        apis=("converse_stream",),
+        cache_modes=("cold", "warm_implicit"),
+        tiers=("default", "flex"),
+        n_requests=5,
+        warmup_requests=0,
+        interval_seconds=1,
+    )
+    cells = expand_cells(cfg, [SPEC])
+    cold = [c for c in cells if not c.cache.is_warm]
+    warm = [c for c in cells if c.cache.is_warm]
+    assert estimate(cfg, cells)["requests"] == 5 * len(cold) + 6 * len(warm)

@@ -117,7 +117,12 @@ class StreamRecorder:
             self.m.e2e = t
 
     def finish(self) -> None:
-        """Mark completion of a non-streaming response (E2E only, no TTFT)."""
+        """Mark completion of a non-streaming response (E2E only, no TTFT).
+
+        A response that arrives after the deadline is a timeout, exactly as it
+        would be on the streaming API, so both apply the same censoring.
+        """
+        self.check()
         t = self._now()
         if self.m.e2e is None:
             self.m.e2e = t

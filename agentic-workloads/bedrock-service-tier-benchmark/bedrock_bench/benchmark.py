@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .apis.base import Request
+from .apis.base import Measurement, Request
 from .auth import AuthBroker
 from .cells import Cell, expand_cells
 from .config import BenchmarkConfig, Tier
@@ -38,20 +38,24 @@ def _utc_now() -> str:
 
 def estimate(config: BenchmarkConfig, cells: list[Cell]) -> dict[str, Any]:
     """Matrix shape, request count, token volume and wall-clock estimate (no AWS calls)."""
+
+    def rounds(c: Cell) -> int:
+        # Mirrors Runner: warm contexts always get at least one priming round.
+        return config.n_requests + max(config.warmup_requests, 1 if c.cache.is_warm else 0)
+
     domains: dict[str, int] = {}
     for c in cells:
-        domains[c.domain] = domains.get(c.domain, 0) + 1
-    warm = any(c.cache.is_warm for c in cells)
-    rounds = config.n_requests + max(config.warmup_requests, 1 if warm else 0)
-    per_domain = [cnt * rounds * config.interval_seconds for cnt in domains.values()]
-    in_tokens = sum(c.size.input_tokens * rounds for c in cells)
-    out_tokens = sum(config.output_cap(c.size) * rounds for c in cells)
+        domains[c.domain] = domains.get(c.domain, 0) + rounds(c)
+    per_domain = [n * config.interval_seconds for n in domains.values()]
+    total = sum(rounds(c) for c in cells)
+    in_tokens = sum(c.size.input_tokens * rounds(c) for c in cells)
+    out_tokens = sum(config.output_cap(c.size) * rounds(c) for c in cells)
     return {
         "models": len({c.spec.key for c in cells}),
         "contexts": len({c.context_key for c in cells}),
         "cells": len(cells),
         "domains": len(domains),
-        "requests": len(cells) * rounds,
+        "requests": total,
         "approx_input_tokens": in_tokens,
         "max_output_tokens": out_tokens,
         "est_wall_clock_s": max(per_domain, default=0.0),
@@ -85,7 +89,8 @@ class Benchmark:
     @property
     def broker(self) -> AuthBroker:
         if self._broker is None:
-            self._broker = AuthBroker(profile=self.config.profile)
+            longest = max(self.config.timeout_for(t) for t in Tier)
+            self._broker = AuthBroker(profile=self.config.profile, read_timeout=longest + 30)
         return self._broker
 
     def estimate(self) -> dict[str, Any]:
@@ -97,21 +102,29 @@ class Benchmark:
         kept: list[Cell] = []
         report: list[dict[str, Any]] = []
         for cell in self.cells:
-            adapter = build_adapter(cell, self.broker)
-            m = adapter.send(
-                Request(
-                    model_id=cell.model_id,
-                    region=cell.region,
-                    document=_PREFLIGHT_DOC,
-                    question=_PREFLIGHT_Q,
-                    max_tokens=32,
-                    tier=None if cell.tier is Tier.DEFAULT else cell.tier.value,
-                    temperature=None,
-                    timeout=self.config.timeout_for(cell.tier),
-                    reasoning_effort=self.reasoning_effort if cell.spec.reasoning else None,
+            try:
+                m = build_adapter(cell, self.broker).send(
+                    Request(
+                        model_id=cell.model_id,
+                        region=cell.region,
+                        document=_PREFLIGHT_DOC,
+                        question=_PREFLIGHT_Q,
+                        max_tokens=32,
+                        tier=None if cell.tier is Tier.DEFAULT else cell.tier.value,
+                        temperature=None,
+                        timeout=self.config.timeout_for(cell.tier),
+                        reasoning_effort=self.reasoning_effort if cell.spec.reasoning else None,
+                    )
                 )
-            )
-            ok = m.error is None and served_matches(cell.tier, m.served_tier) is not False
+            except Exception as e:  # noqa: BLE001 - a failing cell is dropped, not fatal
+                m = Measurement(error=f"{type(e).__name__}: {str(e)[:300]}", error_kind="client")
+            ok = m.error is None
+            if ok:
+                match = served_matches(cell.tier, m.served_tier)
+                if match is False or (match is None and cell.tier is not Tier.DEFAULT):
+                    ok = False
+                    m.error_kind = "tier_mismatch" if match is False else "tier_unreported"
+                    m.error = f"requested {cell.tier.value}, served {m.served_tier!r}"
             report.append(
                 {
                     "cell": cell.label,

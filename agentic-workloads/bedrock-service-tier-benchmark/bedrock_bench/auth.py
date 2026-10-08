@@ -27,12 +27,19 @@ _CRED_MARGIN_SECONDS = 300
 class AuthBroker:
     """Thread-safe provider of boto3 clients and bearer tokens."""
 
-    def __init__(self, profile: str | None = None, max_pool_connections: int = 128):
+    def __init__(
+        self,
+        profile: str | None = None,
+        max_pool_connections: int = 128,
+        read_timeout: float = 630,
+    ):
         self._session = boto3.Session(profile_name=profile)
         self._profile = profile
         self._config = Config(
             retries={"max_attempts": 1, "mode": "standard"},
-            read_timeout=630,  # > flex timeout; adapters also enforce a wall-clock deadline
+            # Must exceed the longest tier timeout: botocore would otherwise cut a
+            # queued flex request before the benchmark's own deadline does.
+            read_timeout=read_timeout,
             connect_timeout=15,
             max_pool_connections=max_pool_connections,
         )

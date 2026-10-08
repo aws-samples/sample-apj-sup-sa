@@ -80,8 +80,12 @@ def served_matches(requested: Tier, served: str | None) -> bool | None:
 
 def classify_sample(cell: Cell, m: Measurement) -> tuple[bool, str | None]:
     """``(included, exclude_reason)`` for a successful measurement."""
-    if served_matches(cell.tier, m.served_tier) is False:
+    match = served_matches(cell.tier, m.served_tier)
+    if match is False:
         return False, "tier_mismatch"
+    if match is None and not cell.tier.is_default:
+        # Without a served-tier report we cannot tell flex/priority from Standard.
+        return False, "tier_unreported"
     read = m.usage.cache_read_tokens
     if cell.cache is CacheMode.COLD and read:
         return False, "cache_contaminated"
@@ -120,9 +124,14 @@ class Runner:
             domains[c.domain].append(c)
         logger.info("Running %d cells in %d pacing domains", len(cells), len(domains))
         with ThreadPoolExecutor(max_workers=max(len(domains), 1)) as pool:
-            futures = [pool.submit(self._run_domain, d) for d in domains.values()]
-            for f in futures:
-                f.result()
+            futures = {pool.submit(self._run_domain, d): k for k, d in domains.items()}
+            for f, key in futures.items():
+                try:
+                    f.result()
+                except Exception:  # noqa: BLE001 - one broken domain must not lose the others
+                    logger.exception(
+                        "pacing domain %s failed; its remaining cells are missing", key
+                    )
         return dict(self.records)
 
     # ------------------------------------------------------------------ internals
@@ -148,7 +157,18 @@ class Runner:
         slot = 0
         for ck in order:
             group = contexts[ck]
-            adapters = {c.label: self._factory(c, self.broker) for c in group}
+            try:
+                adapters = {c.label: self._factory(c, self.broker) for c in group}
+            except Exception as e:  # noqa: BLE001 - e.g. expired credentials while minting a token
+                logger.error("cannot build adapters for %s: %s", ck, type(e).__name__)
+                err = Measurement(error=f"{type(e).__name__}: {str(e)[:300]}", error_kind="client")
+                with self._lock:
+                    for c in group:
+                        self.records[c.label].extend(
+                            self._record(c, err) for _ in range(cfg.n_requests)
+                        )
+                done += cfg.n_requests * len(group)
+                continue
             # One prompt factory per context, so every tier shares the warm prefix.
             prompts = PromptFactory(group[0].size, group[0].cache, cfg.seed, ck)
             warm = group[0].cache.is_warm
