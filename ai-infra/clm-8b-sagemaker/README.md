@@ -33,8 +33,8 @@ when the upstream function's source hash matches the pinned commit, change upstr
   [#23](https://github.com/Contrastive-LM/CLM/pull/23); the sample keeps its patch until a release includes it.
 - `_load_weights_only` loads head files with `torch.load(..., weights_only=True)`. A `.pt` file is a pickle, and
   upstream calls `torch.load` without that argument, so this makes the safe mode explicit rather than relying on
-  torch's default. If upstream changes the function, the handler refuses to start unless torch is 2.6 or later,
-  where `weights_only=True` is the default.
+  torch's default. Unlike the cache patch, it fails closed: if the pinned commit is changed and upstream's
+  function differs, the handler refuses to start until the patch is reviewed.
 
 > **Note:** This is sample code for demonstration purposes only and is not intended for production use without
 > additional security testing and review.
@@ -239,7 +239,7 @@ Things that are easy to get wrong here.
   running, before the deadline. The encoder rate that estimate uses depends on the GPU the instance pool
   landed on, so the handler reads the GPU name from NVML at start-up (no CUDA context) and uses the lowest
   rate our benchmark sweeps measured on it: 5,500 tokens/s on an L4, 6,500 on an A10G, 10,000 on an L40S, and
-  5,500 on any other GPU. The endpoint log prints the rate it chose; `CLM_ENC_RATE` overrides it.
+  5,500 on any other GPU (one `ml.g6.2xlarge` run whose `rank` sweep ran at half the usual L4 rate is left out). The endpoint log prints the rate it chose; `CLM_ENC_RATE` overrides it.
 - **Network isolation is on.** Weights, heads and the `clm` package all ship in the artifact, so the
   container needs no internet and never calls the Hugging Face Hub. That also means `requirements.txt`
   auto-install cannot reach PyPI, so bake anything extra into a derived image.

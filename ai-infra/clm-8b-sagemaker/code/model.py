@@ -57,7 +57,9 @@ from clm.schema import build_pairs, to_text  # noqa: E402
 DEADLINE_S = float(os.environ.get("CLM_REQUEST_DEADLINE", "55"))
 MIN_RUN_S = float(os.environ.get("CLM_MIN_RUN", "10"))
 # Encoder tokens/s with nothing cached, by GPU: the lowest a benchmark sweep measured on each GPU of the
-# notebook's instance pools (L4 on ml.g6, A10G on ml.g5, L40S on ml.g6e), rounded down. CLM_ENC_RATE overrides it.
+# notebook's instance pools (L4 on ml.g6, A10G on ml.g5, L40S on ml.g6e), rounded down. One ml.g6.2xlarge run
+# measured rank at about half the usual L4 rate (3,500) with the same code and is left out as an outlier; an
+# endpoint on such a host sheds less than it should. CLM_ENC_RATE overrides the table.
 ENC_RATES = {"NVIDIA L4": 5500, "NVIDIA A10G": 6500, "NVIDIA L40S": 10000}
 DEFAULT_ENC_RATE = 5500                                      # another GPU: assume the slowest measured
 
@@ -85,8 +87,8 @@ WORKERS = int(os.environ.get("CLM_WORKERS", "32"))
 MAX_TEXTS = int(os.environ.get("CLM_MAX_TEXTS", "1025"))
 # Encoder tokens one request may need, so it can finish inside the deadline. Counted over the texts not already
 # in the vector cache, as an upper bound that needs no tokenizer: each text as its UTF-8 length in bytes (a
-# byte-level BPE never makes more tokens than bytes), capped at the encoder's 2,048-token cut-off. 200,000 is
-# under 30 s at ENC_RATE.
+# byte-level BPE never makes more tokens than bytes), capped at the encoder's 2,048-token cut-off. 200,000 takes
+# about 20 s (L40S) to 36 s (L4) at the rates below, inside DEADLINE_S.
 MAX_TOKENS = int(os.environ.get("CLM_MAX_TOKENS", "200000"))
 EMB_MAX_TOKENS = int(os.environ.get("CLM_EMB_MAX_TOKENS", "2048"))
 # Bytes one text (a rendered state plus instructions, or one option) may have. The encoder reads at most
@@ -168,16 +170,11 @@ if _source_sha(_claim) == "29fbefd4990b6892":  # pragma: allowlist secret
     clm.cache.Pool.claim = _claim_once
 else:
     print("[clm] cache patch not applied: clm.cache.Pool has changed upstream", flush=True)
-if _source_sha(_load) == "ae352693da390bcc":  # pragma: allowlist secret
-    clm.heads.HeadPair._load = _load_weights_only
-# Upstream loads with torch.load's default. Without the patch above, that is safe only where the default is
-# weights_only=True (torch 2.6 and later) and nothing has switched it off, so anything else refuses to start.
-elif torch.__version__ < "2.6" or os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "0") not in ("", "0"):
-    raise RuntimeError("clm.heads.HeadPair._load has changed upstream and torch.load would unpickle head files "
-                       "without weights_only; use torch 2.6 or later with TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD unset")
-else:
-    print("[clm] head-loading patch not applied: clm.heads.HeadPair._load has changed upstream; relying on "
-          "torch.load's weights_only=True default", flush=True)
+# Unlike the cache patch, this one fails closed: upstream code we have not read could load head files unsafely.
+if _source_sha(_load) != "ae352693da390bcc":  # pragma: allowlist secret
+    raise RuntimeError("clm.heads.HeadPair._load differs from clm bb42c6c, so head files cannot be loaded with "
+                       "weights_only=True as written here: review the new upstream code and update this patch")
+clm.heads.HeadPair._load = _load_weights_only
 # The token bound below skips texts already cached by looking up the engine's own cache keys. That works only
 # with the key layout of Engine._cached and VectorArena.get at bb42c6c; on any other code it counts every text.
 # Engine.answer and HeadPair.namespace build the key namespaces; Engine._cached and VectorArena.get build the keys.
