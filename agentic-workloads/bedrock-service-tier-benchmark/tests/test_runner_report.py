@@ -343,3 +343,13 @@ SPEC_DICT_OFFERING = {
     "regions": ["us-east-1"],
     "tiers": ["default", "flex"],
 }
+
+
+def test_geo_profile_regions_are_narrowed_to_their_geography():
+    from bedrock_bench.discovery import geo_regions
+
+    regs = ("ap-northeast-1", "ap-south-1", "eu-west-1", "us-east-1", "us-west-2")
+    assert geo_regions("us.zai.glm-5.3", regs) == ("us-east-1", "us-west-2")
+    assert geo_regions("apac.amazon.nova-pro-v1:0", regs) == ("ap-northeast-1", "ap-south-1")
+    assert geo_regions("in.moonshotai.kimi-k3", regs) == ("ap-south-1",)
+    assert geo_regions("eu.x", regs) == ("eu-west-1",)

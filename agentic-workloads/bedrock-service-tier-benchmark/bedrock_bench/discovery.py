@@ -52,6 +52,28 @@ _ENDPOINTS = {"bedrock-runtime": Endpoint.RUNTIME, "bedrock-mantle": Endpoint.MA
 _PROBE_API = {Endpoint.RUNTIME: Api.CONVERSE_STREAM, Endpoint.MANTLE: Api.CHAT_COMPLETIONS}
 
 
+#: Geo inference-profile prefix -> source-region prefixes it serves. A model card lists
+#: one "Geo" column for all of its geo profiles, so each profile is narrowed to its
+#: own geography (sending ``apac.*`` from us-east-1 fails with "model identifier is invalid").
+_GEO_REGION_PREFIXES: dict[str, tuple[str, ...]] = {
+    "us": ("us-",),
+    "eu": ("eu-",),
+    "apac": ("ap-",),
+    "jp": ("ap-northeast-1", "ap-northeast-3"),
+    "au": ("ap-southeast-2", "ap-southeast-4"),
+    "ca": ("ca-",),
+    "in": ("ap-south-1", "ap-south-2"),
+}
+
+
+def geo_regions(profile_id: str, regions: tuple[str, ...]) -> tuple[str, ...]:
+    """The subset of ``regions`` a geo profile id (``us.``, ``eu.``, ...) can be called from."""
+    prefixes = _GEO_REGION_PREFIXES.get(profile_id.split(".", 1)[0])
+    if prefixes is None:
+        return regions
+    return tuple(r for r in regions if r.startswith(prefixes))
+
+
 def _body_style(model_id: str) -> str:
     base = (
         model_id.split(".", 1)[-1]
@@ -91,6 +113,8 @@ def offerings_from_card(card: catalog.ModelCard) -> tuple[str, list[Offering]]:
             scope_ids.append((Scope.GLOBAL, gl, "Global"))
         for scope, mid, col in scope_ids:
             regions = tuple(sorted(r for r, v in card.regions.items() if v.get(col)))
+            if scope is Scope.GEO:
+                regions = geo_regions(mid, regions)
             if not regions:
                 continue
             for api in apis:
