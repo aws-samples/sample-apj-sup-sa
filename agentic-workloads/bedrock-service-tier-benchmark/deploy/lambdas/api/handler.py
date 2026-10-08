@@ -96,21 +96,17 @@ def filters(qs: dict[str, str]) -> Any:
 
 def comparisons(qs: dict[str, str]) -> Any:
     where, params = _filters(qs)
-    return _query(  # nosec B608 - WHERE built from allowlisted columns; values are bind parameters
-        "SELECT run_id, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, "
-        f"deltas FROM comparisons WHERE {where} ORDER BY model, endpoint, api, prompt_size, cache, tier "
-        f"LIMIT {_MAX_ROWS}",
-        params,
-    )
+    cols = "run_id, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, deltas"
+    order = "model, endpoint, api, prompt_size, cache, tier"
+    sql = f"SELECT {cols} FROM comparisons WHERE {where} ORDER BY {order} LIMIT {_MAX_ROWS}"  # nosec B608 - allowlisted columns, bind params
+    return _query(sql, params)
 
 
 def cells(qs: dict[str, str]) -> Any:
     where, params = _filters(qs)
-    return _query(  # nosec B608 - WHERE built from allowlisted columns; values are bind parameters
-        "SELECT run_id, label, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, "
-        f"summary FROM cells WHERE {where} ORDER BY label LIMIT {_MAX_ROWS}",
-        params,
-    )
+    cols = "run_id, label, model, display_name, endpoint, api, scope, region, prompt_size, cache, tier, summary"
+    sql = f"SELECT {cols} FROM cells WHERE {where} ORDER BY label LIMIT {_MAX_ROWS}"  # nosec B608 - allowlisted columns, bind params
+    return _query(sql, params)
 
 
 ROUTES = {

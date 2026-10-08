@@ -50,10 +50,9 @@ def apply() -> None:
         pw = _secret(arn)["password"]
         if not _SAFE.match(pw) or not _IDENT.match(user):
             raise ValueError(f"refusing unsafe credentials for {user}")
-        _sql(  # nosec B608 - user/password validated against strict regexes above (DDL takes no binds)
-            f"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{user}') "
-            f"THEN CREATE ROLE {user} LOGIN PASSWORD '{pw}'; END IF; END $$"
-        )
+        create = f"CREATE ROLE {user} LOGIN PASSWORD '{pw}'"  # nosec B608 - user/pw regex-validated; DDL takes no binds
+        exists = f"SELECT FROM pg_roles WHERE rolname = '{user}'"  # nosec B608 - user regex-validated
+        _sql(f"DO $$ BEGIN IF NOT EXISTS ({exists}) THEN {create}; END IF; END $$")
         _sql(f"GRANT CONNECT ON DATABASE {DB} TO {user}")
         _sql(f"GRANT USAGE ON SCHEMA public TO {user}")
         _sql(f"GRANT {privileges} ON ALL TABLES IN SCHEMA public TO {user}")
