@@ -139,7 +139,9 @@ class Runner:
         total = cfg.n_requests * len(cells)
         done = 0
         # One worker thread enforces the wall-clock timeout per request.
-        with ThreadPoolExecutor(max_workers=1) as one:
+        # Worker pool sized to the domain so an abandoned (timed-out) request
+        # cannot block the next one; at most one request is *started* at a time.
+        with ThreadPoolExecutor(max_workers=len(cells) + 1) as one:
             start = time.monotonic()
             slot = 0
             for rnd in range(rounds):
@@ -179,10 +181,13 @@ class Runner:
             timeout=timeout,
             reasoning_effort=self.reasoning_effort if cell.spec.reasoning else None,
         )
+        # A request that overruns its timeout is abandoned (recorded as a timeout);
+        # the pool has spare workers so it cannot block the next request.
         fut = pool.submit(adapter.send, req)
         try:
             return fut.result(timeout=timeout + 5)
         except FutureTimeout:
+            fut.cancel()
             m = Measurement(error=f"TimeoutError: exceeded {timeout:.0f}s", error_kind="timeout")
             return m
 
