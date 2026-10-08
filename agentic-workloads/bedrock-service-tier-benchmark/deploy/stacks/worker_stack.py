@@ -134,7 +134,14 @@ class WorkerStack(Stack):
         task_role.add_to_policy(
             iam.PolicyStatement(
                 sid="Aurora",
-                actions=["rds-data:ExecuteStatement", "rds-data:BatchExecuteStatement"],
+                # Transactions: registry upserts are atomic (begin/commit/rollback).
+                actions=[
+                    "rds-data:ExecuteStatement",
+                    "rds-data:BatchExecuteStatement",
+                    "rds-data:BeginTransaction",
+                    "rds-data:CommitTransaction",
+                    "rds-data:RollbackTransaction",
+                ],
                 resources=[data.cluster.cluster_arn],
             )
         )
