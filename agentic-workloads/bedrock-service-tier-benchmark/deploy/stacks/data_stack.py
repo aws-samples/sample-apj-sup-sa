@@ -93,6 +93,7 @@ class DataStack(Stack):
             ),
             serverless_v2_min_capacity=0,  # auto-pause when idle: no compute cost
             serverless_v2_max_capacity=2,
+            monitoring_interval=Duration.seconds(60),
             serverless_v2_auto_pause_duration=Duration.minutes(10),
             vpc=self.vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
@@ -168,6 +169,14 @@ class DataStack(Stack):
                     "reason": "No network client connects to the database: all access is through the RDS "
                     "Data API (IAM-authorised, Secrets Manager credentials). The security group has no "
                     "ingress except the rotation Lambda.",
+                },
+                {
+                    "id": "AwsSolutions-IAM4",
+                    "reason": "Aurora enhanced monitoring role uses the AWS-managed AmazonRDSEnhancedMonitoringRole "
+                    "policy (CloudWatch Logs for RDS OS metrics only), as AWS documents.",
+                    "appliesTo": [
+                        "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+                    ],
                 },
                 {
                     "id": "CdkNagValidationFailure",
