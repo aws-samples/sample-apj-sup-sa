@@ -181,7 +181,8 @@ def build_agent(broker: AuthBroker, model_id: str):
         return probe_and_store_names(model_names, state["documented"], broker)
 
     return Agent(
-        model=BedrockModel(model_id=model_id, temperature=0.0, max_tokens=4096),
+        # No temperature: current Claude models reject it ("temperature is deprecated for this model").
+        model=BedrockModel(model_id=model_id, max_tokens=4096),
         system_prompt=SYSTEM_PROMPT,
         tools=[registry_summary, documented_models, recent_announcements, probe_and_store],
         callback_handler=None,
