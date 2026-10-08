@@ -90,7 +90,7 @@ def test_warm_contexts_share_prefix_across_tiers():
 def test_classify_sample_rules():
     _, cells, _, _ = _run()
     cold = cells[0]
-    hit = Measurement(ttft=1, e2e=2, usage=Usage(cache_read_tokens=10))
+    hit = Measurement(ttft=1, e2e=2, usage=Usage(cache_read_tokens=500))
     assert classify_sample(cold, hit) == (False, "cache_contaminated")
     wrong = Measurement(ttft=1, e2e=2, served_tier="flex", usage=Usage(cache_read_tokens=0))
     default_cell = next(c for c in cells if c.tier.is_default)
@@ -353,3 +353,16 @@ def test_geo_profile_regions_are_narrowed_to_their_geography():
     assert geo_regions("apac.amazon.nova-pro-v1:0", regs) == ("ap-northeast-1", "ap-south-1")
     assert geo_regions("in.moonshotai.kimi-k3", regs) == ("ap-south-1",)
     assert geo_regions("eu.x", regs) == ("eu-west-1",)
+
+
+def test_cold_sample_tolerates_template_prefix_cache():
+    _, cells, _, _ = _run()
+    cold = cells[0]
+    template = Measurement(
+        ttft=1, e2e=2, served_tier="default", usage=Usage(input_tokens=1350, cache_read_tokens=16)
+    )
+    assert classify_sample(cold, template) == (True, None)
+    document = Measurement(
+        ttft=1, e2e=2, served_tier="default", usage=Usage(input_tokens=1350, cache_read_tokens=1024)
+    )
+    assert classify_sample(cold, document) == (False, "cache_contaminated")

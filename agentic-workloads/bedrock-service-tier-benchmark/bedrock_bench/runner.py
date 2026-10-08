@@ -38,6 +38,11 @@ logger = logging.getLogger("bedrock_bench.runner")
 SampleCallback = Callable[[Cell, dict[str, Any], int, int], None]
 
 _STANDARD_NAMES = {"default", "standard", "on_demand", "on-demand"}
+#: Some providers cache their fixed chat-template prefix (MiniMax M2 reports 16 cached
+#: tokens on every request, however unique the user text). A cold sample is contaminated
+#: only when it read more than this from cache, i.e. part of the document itself.
+TEMPLATE_CACHE_TOKENS = 64
+TEMPLATE_CACHE_SHARE = 0.05
 
 
 def build_adapter(cell: Cell, broker: AuthBroker) -> Any:
@@ -92,7 +97,9 @@ def classify_sample(cell: Cell, m: Measurement) -> tuple[bool, str | None]:
         return False, "tier_unreported"
     read = m.usage.cache_read_tokens
     if cell.cache is CacheMode.COLD and read:
-        return False, "cache_contaminated"
+        allowed = max(TEMPLATE_CACHE_TOKENS, TEMPLATE_CACHE_SHARE * (m.usage.input_tokens or 0))
+        if read > allowed:
+            return False, "cache_contaminated"
     if cell.cache.is_warm and not read:
         return False, "warm_miss"
     if cell.api.streaming and m.ttft is None:

@@ -77,7 +77,7 @@ requests share a prefix unless the cache mode asks them to:
 
 | Mode | Prompt construction | Verification |
 |---|---|---|
-| `cold` | nonce + unique document + task | cache-read tokens must be 0; otherwise the sample is flagged `cache_contaminated` |
+| `cold` | nonce + unique document + task | cache-read tokens must not exceed max(64, 5% of input); otherwise the sample is flagged `cache_contaminated`. The allowance covers providers that cache their fixed chat-template prefix: MiniMax M2 reports 16 cached tokens on every request, however unique the text. |
 | `warm_implicit` | shared document per cell (no nonce) + unique short question at the end; one priming request discarded | cache-read tokens > 0, else sample is `warm_miss` (counted, excluded from warm stats) |
 | `warm_explicit` | as `warm_implicit` plus the API's native cache checkpoint after the document | same as above |
 
