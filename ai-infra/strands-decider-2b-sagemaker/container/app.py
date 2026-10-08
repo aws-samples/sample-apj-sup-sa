@@ -18,6 +18,8 @@ Settings (environment variables):
     DECIDER_FLA      auto, on or off: the Triton kernels for the Gated DeltaNet layers
     DECIDER_DEVICE   cuda, or cpu for a local smoke test
     DECIDER_REQUEST_DEADLINE  seconds a request may wait for the model before it gets 503 (default 50)
+    DECIDER_MAX_QUEUE_WAIT    a request is refused with 503 at once when the requests ahead of it in this worker
+                              would take longer than this to finish (default 20 s, from the recent engine time)
     DECIDER_MAX_QUESTIONS     questions allowed in one request (default 64), so one request cannot run for long
     DECIDER_MAX_OPTIONS       options allowed in one question (default 64)
     DECIDER_MAX_BODY_BYTES    request body size limit (default 32 KiB), enforced by serve.py and here
@@ -52,6 +54,10 @@ HANG_S = float(os.environ.get("DECIDER_HANG_SECONDS", "50"))
 # SageMaker gives a real-time invocation 60 s. A request that has waited this long for the model
 # (it is busy with earlier ones) is refused with 503 rather than run for a caller that has gone.
 DEADLINE_S = float(os.environ.get("DECIDER_REQUEST_DEADLINE", "50"))
+# Admission: a request that would wait longer than this behind the ones already queued gets 503 straight away, so
+# under overload callers get a fast refusal instead of holding a connection until DEADLINE_S. Kept well under the
+# deadline, so a request that is admitted is normally answered.
+MAX_QUEUE_WAIT_S = float(os.environ.get("DECIDER_MAX_QUEUE_WAIT", "20"))
 MAX_QUESTIONS = int(os.environ.get("DECIDER_MAX_QUESTIONS", "64"))
 # flash-linear-attention (fla) gives the Gated DeltaNet layers fast Triton kernels on GPU.
 # Transformers picks it at import time whenever the package imports, so it has to be hidden
@@ -77,6 +83,8 @@ BUSY_SINCE: float | None = None          # when the engine thread started its cu
 UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
+IN_FLIGHT = 0                            # requests handed to RUNNER and not finished, the running one included
+ENGINE_S = 0.5                           # moving average of the engine time per request, seeded by warm-up
 # Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
 # did not fit, or a Triton launch that was refused, is not among them: the synchronize() probe below decides.
 _STICKY = ("illegal memory access", "device-side assert", "unspecified launch failure", "misaligned address",
@@ -146,9 +154,15 @@ def warm_up(engine: SystemOneEngine) -> None:
              "c": {"type": "score", "instructions": "How bad is it?", "criteria": ["low", "mid", "high"]}}
     one = {"best": {"type": "choice", "instructions": "Which option fits best?",
                     "criteria": {k: f"option {k}" for k in "ABCDEFGH"}}}
-    for questions in (three, one):
-        for state in ("Short message.", "A longer support message about a billing problem. " * 60):
-            engine.evaluate(SystemOneRequest.model_validate({"state": state, "questions": questions}))
+    global ENGINE_S
+    for warm in (False, True):        # the second pass runs compiled kernels and seeds ENGINE_S
+        t0, n = time.perf_counter(), 0
+        for questions in (three, one):
+            for state in ("Short message.", "A longer support message about a billing problem. " * 60):
+                engine.evaluate(SystemOneRequest.model_validate({"state": state, "questions": questions}))
+                n += 1
+        if warm:
+            ENGINE_S = (time.perf_counter() - t0) / n
 
 
 def prepare() -> None:
@@ -213,7 +227,16 @@ async def invocations(request: Request) -> JSONResponse:
         return JSONResponse({"error": f"at most {MAX_QUESTIONS} questions per request"}, status_code=400)
     if any(len(getattr(q, "criteria", None) or ()) > MAX_OPTIONS for q in req.questions.values()):
         return JSONResponse({"error": f"at most {MAX_OPTIONS} options per question"}, status_code=400)
-    return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived)
+    global IN_FLIGHT
+    wait = IN_FLIGHT * ENGINE_S
+    if wait > MAX_QUEUE_WAIT_S:
+        return JSONResponse({"error": f"busy: {IN_FLIGHT} requests ahead (about {wait:.0f} s); retry later"},
+                            status_code=503)
+    IN_FLIGHT += 1                    # only this event loop thread changes it
+    try:
+        return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived)
+    finally:
+        IN_FLIGHT -= 1
 
 
 def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
@@ -226,7 +249,7 @@ def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
 
 
 def _run(req: SystemOneRequest, arrived: float) -> Response:
-    global UNHEALTHY
+    global UNHEALTHY, ENGINE_S
     if UNHEALTHY is not None:
         # The header tells the front (serve.py) to send the request to another worker instead.
         return JSONResponse({"error": "worker is restarting; retry"}, status_code=503,
@@ -236,7 +259,10 @@ def _run(req: SystemOneRequest, arrived: float) -> Response:
     try:
         t0 = time.perf_counter()
         try:
-            result = ENGINE.evaluate(req)
+            try:
+                result = ENGINE.evaluate(req)
+            finally:                              # requests refused before the engine ran do not count
+                ENGINE_S = 0.8 * ENGINE_S + 0.2 * (time.perf_counter() - t0)
         except ValidationError:                   # the engine built an invalid answer: our fault, not the caller's
             raise
         except ValueError as e:                   # e.g. a malformed option permutation: caller error

@@ -13,8 +13,10 @@ and this process is a small front: it sends every request to the worker with the
 SageMaker reaches a container over a few kept-alive connections, so balancing by request (not by connection)
 is what lets the copies overlap. The front restarts a worker that exits (after a fatal GPU error) and routes
 around it while its model loads again; a request that reaches a worker that is exiting is sent to another
-one. A worker that exits before it ever loaded, or does not load within
-LOAD_S, stops the container instead, as a single worker would: the next copy would fail the same way.
+one. A worker that exits before it ever loaded, or does not load within LOAD_S, stops the container instead,
+as a single worker would: the next copy would fail the same way. So does a slot whose process fails to load
+FAILED_LOADS times in a row after other slots have loaded, which is what happens when DECIDER_WORKERS asks for
+more copies than the GPU's memory holds.
 """
 import asyncio
 import contextlib
@@ -30,6 +32,7 @@ WORKERS = int(os.environ.get("DECIDER_WORKERS", "1"))
 STUCK_S = 30      # a worker that served, then fails /ping this long, is replaced
 KILL_S = 10       # grace after SIGTERM before SIGKILL (a hung CUDA call never lets uvicorn finish)
 LOAD_S = 900      # a worker that has not answered /ping this long after it started stops the container
+FAILED_LOADS = 3  # starts in a row that never load before a slot stops the container
 MAX_BODY_BYTES = int(os.environ.get("DECIDER_MAX_BODY_BYTES", str(32 * 1024)))   # the same cap as app.py
 
 
@@ -76,6 +79,7 @@ class Worker:
     up: bool = False
     ever_up: bool = False                # this process has answered /ping
     loaded_before: bool = False          # some process in this slot has, so the configuration is known to load
+    failed_loads: int = 0                # processes in a row in this slot that exited before they loaded
     busy: int = 0
     down_since: float | None = None
     terminated_at: float | None = None
@@ -131,9 +135,16 @@ def front() -> None:
                     w.start(ctx)
                 continue
             if not w.proc.is_alive():
+                w.failed_loads = 0 if w.ever_up else w.failed_loads + 1
+                stop = None
                 if not w.ever_up and not any(x.loaded_before for x in workers):   # nothing ever loaded (bad config,
-                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} before it loaded; "   # unreadable
-                          "stopping the container", flush=True)     # artifact, hung load): the next copy would fail too
+                    stop = "before it loaded"                                  # unreadable artifact, hung load):
+                elif w.failed_loads >= FAILED_LOADS:                           # the next copy would fail too
+                    stop = (f"before it loaded, {w.failed_loads} times in a row while other workers run; "
+                            f"DECIDER_WORKERS={WORKERS} may be more copies than this GPU's memory holds")
+                if stop:
+                    print(f"[decider] worker on :{w.port} exited with {w.proc.exitcode} {stop}; "
+                          "stopping the container", flush=True)
                     for x in workers:
                         if x.proc is not None:
                             x.proc.kill()

@@ -16,7 +16,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Ubuntu security updates for the base image's OS packages (curl, openssl, glib, expat, libxml2 and others had
 # CRITICAL and HIGH CVEs in ECR's scan of the unpatched base). Kernel headers stay: Triton compiles a small C
-# launcher at run time.
+# launcher at run time. The image tag is a hash of this directory, but the upgrade takes whatever Ubuntu has
+# published on the build day, so two builds with the same tag can differ in OS package versions.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade --no-install-recommends \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
