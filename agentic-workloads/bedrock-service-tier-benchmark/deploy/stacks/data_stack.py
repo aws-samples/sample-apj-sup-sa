@@ -30,9 +30,12 @@ from constructs import Construct
 from . import checkov
 
 DB_NAME = "bench"
-#: Generated and rotated passwords are alphanumeric: the schema custom resource puts
-#: them into DDL (which cannot take bind parameters) after validating that.
-_PUNCTUATION = " %+~`#$&*()|[]{}:;<>?!'/@\"\\,.-_=^"
+#: Characters never used in generated or rotated passwords. Without ' and \ a password is
+#: safe inside a PostgreSQL string literal (standard_conforming_strings is on), which the
+#: schema custom resource needs because DDL cannot take bind parameters; " @ / are the
+#: characters RDS itself disallows. Other punctuation stays, so Secrets Manager can still
+#: include every character type.
+_EXCLUDED_CHARS = "'\\\"@/ "
 _LAMBDAS = Path(__file__).resolve().parent.parent / "lambdas"
 
 
@@ -157,7 +160,7 @@ class DataStack(Stack):
                 cid,
                 secret=secret,
                 automatically_after=Duration.days(30),
-                exclude_characters=_PUNCTUATION,
+                exclude_characters=_EXCLUDED_CHARS,
                 vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
                 security_group=rotation_sg,
             )
@@ -195,7 +198,7 @@ class DataStack(Stack):
             username=username,
             master_secret=self.cluster.secret,
             encryption_key=self.key,
-            exclude_characters=_PUNCTUATION,
+            exclude_characters=_EXCLUDED_CHARS,
         )
         return secret.attach(self.cluster)
 

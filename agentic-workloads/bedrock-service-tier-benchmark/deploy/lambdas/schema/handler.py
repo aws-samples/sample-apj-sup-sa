@@ -4,7 +4,8 @@
 * ``bench_reader``: SELECT only (API Lambda).
 
 Passwords come from Secrets Manager. They are generated alphanumeric by CDK and
-validated here, because PostgreSQL DDL cannot take bind parameters.
+validated here (no quote, backslash or control characters, which CDK and the rotation
+exclude) because PostgreSQL DDL cannot take bind parameters.
 """
 
 from __future__ import annotations
@@ -40,7 +41,8 @@ USERS = {
     "bench_writer": (os.environ["WRITER_SECRET_ARN"], "SELECT, INSERT, UPDATE, DELETE"),
     "bench_reader": (os.environ["READER_SECRET_ARN"], "SELECT"),
 }
-_SAFE = re.compile(r"^[A-Za-z0-9]{16,128}$")
+# Printable ASCII except ' and \ : safe inside a standard-conforming SQL string literal.
+_SAFE = re.compile(r"^[\x21-\x26\x28-\x5b\x5d-\x7e]{16,128}$")
 _IDENT = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 
