@@ -27,7 +27,14 @@ from .apis.base import Request
 from .auth import AuthBroker
 from .cells import Cell
 from .config import Api, CacheMode, Endpoint, PromptSize, Scope, Tier, validate_region
-from .registry import MODELS_FILE, CacheSupport, ModelSpec, Offering, save_registry
+from .registry import (
+    MODELS_FILE,
+    CacheSupport,
+    ModelSpec,
+    Offering,
+    load_registry,
+    save_registry,
+)
 from .runner import build_adapter, served_matches
 
 logger = logging.getLogger("bedrock_bench.discovery")
@@ -214,6 +221,21 @@ def probe(specs: list[ModelSpec], broker: AuthBroker, regions: tuple[str, ...]) 
     return out
 
 
+def overwrite_refusal(new: list[ModelSpec], existing: list[ModelSpec]) -> str | None:
+    """Why writing ``new`` over ``existing`` would lose verified data (``None`` = safe).
+
+    A throttled probe can drop models, and a docs-only run replaces live-verified
+    tiers with documented ones; both need ``--force``.
+    """
+    if not new:
+        return "no models discovered"
+    if len(new) < len(existing):
+        return f"would shrink the registry from {len(existing)} to {len(new)} models"
+    if any(s.verified_at for s in existing) and not any(s.verified_at for s in new):
+        return "would replace live-probed entries with documentation-only ones"
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="bedrock-bench-discover", description=__doc__.splitlines()[0])
     p.add_argument(
@@ -232,7 +254,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Verify tiers with live requests (incurs a small cost).",
     )
     p.add_argument("--output", type=Path, default=MODELS_FILE)
-    p.add_argument("--force", action="store_true", help="Write even if no models were found.")
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Write even if the result is empty or smaller than the existing registry.",
+    )
     p.add_argument("--dry-run", action="store_true", help="Print a summary; do not write.")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -249,8 +275,13 @@ def main(argv: list[str] | None = None) -> int:
             f"tiers={','.join(tiers)}"
         )
     if not a.dry_run:
-        if not specs and not a.force:
-            logger.error("no models discovered; refusing to overwrite %s (use --force)", a.output)
+        try:
+            existing = load_registry(a.output) if a.output.exists() else []
+        except ValueError:
+            existing = []  # old schema: always replaceable
+        reason = overwrite_refusal(specs, existing)
+        if reason and not a.force:
+            logger.error("%s; refusing to overwrite %s (use --force)", reason, a.output)
             return 1
         save_registry(specs, a.output, datetime.now(timezone.utc).isoformat(timespec="seconds"))
         logger.info("wrote %d models to %s", len(specs), a.output)

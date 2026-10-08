@@ -302,3 +302,16 @@ def test_estimate_counts_warmup_per_context():
     cold = [c for c in cells if not c.cache.is_warm]
     warm = [c for c in cells if c.cache.is_warm]
     assert estimate(cfg, cells)["requests"] == 5 * len(cold) + 6 * len(warm)
+
+
+def test_discovery_refuses_lossy_overwrite():
+    from dataclasses import replace as _replace
+
+    from bedrock_bench.discovery import overwrite_refusal
+
+    probed = _replace(SPEC, verified_at="2026-10-08")
+    other = _replace(SPEC, key="vendor.n")
+    assert overwrite_refusal([], [SPEC]) == "no models discovered"
+    assert "shrink" in overwrite_refusal([SPEC], [SPEC, other])
+    assert "documentation-only" in overwrite_refusal([SPEC], [probed])
+    assert overwrite_refusal([probed, other], [probed]) is None
