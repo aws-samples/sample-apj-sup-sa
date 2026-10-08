@@ -1,10 +1,425 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-10-08T00:00:00Z",
+  "generated_at": "2026-10-08T11:48:34+00:00",
   "models": [
     {
+      "key": "moonshotai.kimi-k3",
+      "family": "Moonshot AI",
+      "display_name": "Kimi K3",
+      "reasoning": true,
+      "body_style": "openai",
+      "cache": {
+        "implicit": true,
+        "explicit": true,
+        "min_tokens": 1024
+      },
+      "offerings": [
+        {
+          "endpoint": "runtime",
+          "api": "responses",
+          "scope": "geo",
+          "model_id": "us.moonshotai.kimi-k3",
+          "regions": [
+            "ap-south-1",
+            "ap-south-2",
+            "ca-central-1",
+            "ca-west-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "chat_completions",
+          "scope": "geo",
+          "model_id": "us.moonshotai.kimi-k3",
+          "regions": [
+            "ap-south-1",
+            "ap-south-2",
+            "ca-central-1",
+            "ca-west-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "converse_stream",
+          "scope": "geo",
+          "model_id": "us.moonshotai.kimi-k3",
+          "regions": [
+            "ap-south-1",
+            "ap-south-2",
+            "ca-central-1",
+            "ca-west-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "converse",
+          "scope": "geo",
+          "model_id": "us.moonshotai.kimi-k3",
+          "regions": [
+            "ap-south-1",
+            "ap-south-2",
+            "ca-central-1",
+            "ca-west-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke_stream",
+          "scope": "geo",
+          "model_id": "us.moonshotai.kimi-k3",
+          "regions": [
+            "ap-south-1",
+            "ap-south-2",
+            "ca-central-1",
+            "ca-west-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke",
+          "scope": "geo",
+          "model_id": "us.moonshotai.kimi-k3",
+          "regions": [
+            "ap-south-1",
+            "ap-south-2",
+            "ca-central-1",
+            "ca-west-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "responses",
+          "scope": "global",
+          "model_id": "global.moonshotai.kimi-k3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "me-central-1",
+            "me-south-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "chat_completions",
+          "scope": "global",
+          "model_id": "global.moonshotai.kimi-k3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "me-central-1",
+            "me-south-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "converse_stream",
+          "scope": "global",
+          "model_id": "global.moonshotai.kimi-k3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "me-central-1",
+            "me-south-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "converse",
+          "scope": "global",
+          "model_id": "global.moonshotai.kimi-k3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "me-central-1",
+            "me-south-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke_stream",
+          "scope": "global",
+          "model_id": "global.moonshotai.kimi-k3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "me-central-1",
+            "me-south-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke",
+          "scope": "global",
+          "model_id": "global.moonshotai.kimi-k3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "me-central-1",
+            "me-south-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        }
+      ],
+      "sources": [
+        "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-moonshot-ai-kimi-k3.html"
+      ],
+      "verified_at": "2026-10-08",
+      "notes": "probed live"
+    },
+    {
       "key": "zai.glm-5.3",
-      "family": "GLM (Z.AI)",
+      "family": "Z.AI",
       "display_name": "GLM 5.3",
       "reasoning": true,
       "body_style": "openai",
@@ -16,128 +431,9 @@
       "offerings": [
         {
           "endpoint": "runtime",
-          "api": "converse_stream",
+          "api": "responses",
           "scope": "geo",
           "model_id": "us.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "converse_stream",
-          "scope": "global",
-          "model_id": "global.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "converse",
-          "scope": "geo",
-          "model_id": "us.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "converse",
-          "scope": "global",
-          "model_id": "global.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke_stream",
-          "scope": "geo",
-          "model_id": "us.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke_stream",
-          "scope": "global",
-          "model_id": "global.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke",
-          "scope": "geo",
-          "model_id": "us.zai.glm-5.3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke",
-          "scope": "global",
-          "model_id": "global.zai.glm-5.3",
           "regions": [
             "us-east-1",
             "us-east-2",
@@ -169,9 +465,9 @@
         },
         {
           "endpoint": "runtime",
-          "api": "chat_completions",
-          "scope": "global",
-          "model_id": "global.zai.glm-5.3",
+          "api": "converse_stream",
+          "scope": "geo",
+          "model_id": "us.zai.glm-5.3",
           "regions": [
             "us-east-1",
             "us-east-2",
@@ -186,7 +482,41 @@
         },
         {
           "endpoint": "runtime",
-          "api": "responses",
+          "api": "converse",
+          "scope": "geo",
+          "model_id": "us.zai.glm-5.3",
+          "regions": [
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke_stream",
+          "scope": "geo",
+          "model_id": "us.zai.glm-5.3",
+          "regions": [
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke",
           "scope": "geo",
           "model_id": "us.zai.glm-5.3",
           "regions": [
@@ -207,6 +537,253 @@
           "scope": "global",
           "model_id": "global.zai.glm-5.3",
           "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "mx-central-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "chat_completions",
+          "scope": "global",
+          "model_id": "global.zai.glm-5.3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "mx-central-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "converse_stream",
+          "scope": "global",
+          "model_id": "global.zai.glm-5.3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "mx-central-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "converse",
+          "scope": "global",
+          "model_id": "global.zai.glm-5.3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "mx-central-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke_stream",
+          "scope": "global",
+          "model_id": "global.zai.glm-5.3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "mx-central-1",
+            "sa-east-1",
+            "us-east-1",
+            "us-east-2",
+            "us-west-1",
+            "us-west-2"
+          ],
+          "tiers": [
+            "default",
+            "flex",
+            "priority"
+          ]
+        },
+        {
+          "endpoint": "runtime",
+          "api": "invoke",
+          "scope": "global",
+          "model_id": "global.zai.glm-5.3",
+          "regions": [
+            "af-south-1",
+            "ap-east-2",
+            "ap-northeast-1",
+            "ap-northeast-2",
+            "ap-northeast-3",
+            "ap-south-1",
+            "ap-south-2",
+            "ap-southeast-1",
+            "ap-southeast-2",
+            "ap-southeast-3",
+            "ap-southeast-4",
+            "ap-southeast-5",
+            "ap-southeast-6",
+            "ap-southeast-7",
+            "ca-central-1",
+            "ca-west-1",
+            "eu-central-1",
+            "eu-central-2",
+            "eu-north-1",
+            "eu-south-1",
+            "eu-south-2",
+            "eu-west-1",
+            "eu-west-2",
+            "eu-west-3",
+            "il-central-1",
+            "mx-central-1",
+            "sa-east-1",
             "us-east-1",
             "us-east-2",
             "us-west-1",
@@ -223,230 +800,7 @@
         "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-zai-glm-5-3.html"
       ],
       "verified_at": "2026-10-08",
-      "notes": "Seed entry from the model card; default/flex/priority verified live on Converse in us-east-1 (us. profile). Regenerate with bedrock-bench-discover."
-    },
-    {
-      "key": "moonshotai.kimi-k3",
-      "family": "Kimi (Moonshot)",
-      "display_name": "Kimi K3",
-      "reasoning": true,
-      "body_style": "openai",
-      "cache": {
-        "implicit": true,
-        "explicit": true,
-        "min_tokens": 1024
-      },
-      "offerings": [
-        {
-          "endpoint": "runtime",
-          "api": "converse_stream",
-          "scope": "geo",
-          "model_id": "us.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "converse_stream",
-          "scope": "global",
-          "model_id": "global.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "converse",
-          "scope": "geo",
-          "model_id": "us.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "converse",
-          "scope": "global",
-          "model_id": "global.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke_stream",
-          "scope": "geo",
-          "model_id": "us.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke_stream",
-          "scope": "global",
-          "model_id": "global.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke",
-          "scope": "geo",
-          "model_id": "us.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "invoke",
-          "scope": "global",
-          "model_id": "global.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "chat_completions",
-          "scope": "geo",
-          "model_id": "us.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "chat_completions",
-          "scope": "global",
-          "model_id": "global.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "responses",
-          "scope": "geo",
-          "model_id": "us.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        },
-        {
-          "endpoint": "runtime",
-          "api": "responses",
-          "scope": "global",
-          "model_id": "global.moonshotai.kimi-k3",
-          "regions": [
-            "us-east-1",
-            "us-east-2",
-            "us-west-1",
-            "us-west-2"
-          ],
-          "tiers": [
-            "default",
-            "flex",
-            "priority"
-          ]
-        }
-      ],
-      "sources": [
-        "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-moonshot-ai-kimi-k3.html"
-      ],
-      "verified_at": null,
-      "notes": "Seed entry from the model card (not yet probed live). Regenerate with bedrock-bench-discover."
+      "notes": "probed live"
     }
   ]
 }
