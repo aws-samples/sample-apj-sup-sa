@@ -112,8 +112,9 @@ No Bedrock API reports which tiers, APIs or scopes a model supports. Discovery c
 1. **Control plane**: `ListFoundationModels`, `ListInferenceProfiles` (runtime), `GET /v1/models`
    (Mantle) give the candidate model and profile IDs.
 2. **Model cards** (Models at a glance): structured HTML tables give APIs per endpoint, tiers, scopes per
-   region, caching support (minimum tokens, TTL) and base paths. They are parsed from raw HTML, because
-   support marks are icons.
+   region and caching support (minimum tokens, TTL). They are parsed from raw HTML, because support
+   marks are icons. Mantle uses `/v1` unless a registry entry sets `base_path` to `/openai/v1`; no other
+   value is accepted, because the bearer token is sent to that URL.
 3. **Live probes** are ground truth: one tiny request per (model, endpoint, API, scope, tier) confirms
    the documented support and records the served tier.
 

@@ -236,7 +236,6 @@ def redact_meta(meta: dict[str, Any]) -> dict[str, Any]:
     out = dict(meta)
     if isinstance(out.get("preflight"), list):
         out["preflight"] = [{**p, "error": redact_text(p.get("error"))} for p in out["preflight"]]
-    acct = str(out.get("account_id") or "")
-    out["account_id"] = ("*" * 8 + acct[-4:]) if len(acct) >= 4 else "redacted"
+    out["account_id"] = "redacted"
     out.pop("profile", None)
     return out

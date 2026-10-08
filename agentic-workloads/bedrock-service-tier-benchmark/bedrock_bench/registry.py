@@ -35,6 +35,9 @@ from pathlib import Path
 from .config import Api, Endpoint, Scope, Tier
 
 MODELS_FILE = Path(__file__).with_name("models.json")
+#: The only Mantle path prefixes Bedrock uses. Anything else in a registry file is
+#: rejected: the bearer token is sent to whatever URL the path produces.
+ALLOWED_BASE_PATHS = frozenset({"/v1", "/openai/v1"})
 SCHEMA_VERSION = 2
 
 
@@ -77,6 +80,11 @@ class ModelSpec:
 
 
 def _offering(d: dict) -> Offering:
+    base_path = d.get("base_path")
+    if base_path is not None and base_path not in ALLOWED_BASE_PATHS:
+        raise ValueError(
+            f"unsupported base_path {base_path!r}; allowed: {sorted(ALLOWED_BASE_PATHS)}"
+        )
     return Offering(
         endpoint=Endpoint(d["endpoint"]),
         api=Api(d["api"]),
@@ -84,7 +92,7 @@ def _offering(d: dict) -> Offering:
         model_id=d["model_id"],
         regions=tuple(d.get("regions", [])),
         tiers=tuple(Tier(t) for t in d.get("tiers", [])),
-        base_path=d.get("base_path"),
+        base_path=base_path,
     )
 
 

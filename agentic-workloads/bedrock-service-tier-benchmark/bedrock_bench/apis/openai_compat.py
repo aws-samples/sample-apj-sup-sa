@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from openai import OpenAI
@@ -32,7 +33,12 @@ def runtime_base_url(region: str) -> str:
 
 
 def mantle_base_url(region: str, path: str = MANTLE_DEFAULT_PATH) -> str:
-    return f"https://bedrock-mantle.{region}.api.aws{path}"
+    url = f"https://bedrock-mantle.{region}.api.aws{path}"
+    parts = urlsplit(url)
+    # Defence in depth: the bearer token must only ever go to the Mantle host.
+    if parts.hostname != f"bedrock-mantle.{region}.api.aws" or parts.username or parts.port:
+        raise ValueError(f"refusing non-Mantle base URL {url!r}")
+    return url
 
 
 def _dump(obj: Any) -> dict:

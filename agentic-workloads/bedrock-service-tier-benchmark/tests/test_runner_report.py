@@ -315,3 +315,31 @@ def test_discovery_refuses_lossy_overwrite():
     assert "shrink" in overwrite_refusal([SPEC], [SPEC, other])
     assert "documentation-only" in overwrite_refusal([SPEC], [probed])
     assert overwrite_refusal([probed, other], [probed]) is None
+
+
+def test_registry_rejects_hostile_base_path_and_mantle_url_is_pinned():
+    import pytest
+
+    from bedrock_bench.apis.openai_compat import mantle_base_url
+
+    bad = {**SPEC_DICT_OFFERING, "base_path": "@attacker.example/v1"}
+    with pytest.raises(ValueError):
+        spec_from_dict({"key": "x", "offerings": [bad]})
+    assert spec_from_dict(
+        {"key": "x", "offerings": [{**SPEC_DICT_OFFERING, "base_path": "/openai/v1"}]}
+    )
+    with pytest.raises(ValueError):
+        mantle_base_url("us-east-1", "@attacker.example/v1")
+    with pytest.raises(ValueError):
+        mantle_base_url("us-east-1", ".attacker.example/v1")
+    assert mantle_base_url("us-east-1") == "https://bedrock-mantle.us-east-1.api.aws/v1"
+
+
+SPEC_DICT_OFFERING = {
+    "endpoint": "mantle",
+    "api": "chat_completions",
+    "scope": "in_region",
+    "model_id": "vendor.m",
+    "regions": ["us-east-1"],
+    "tiers": ["default", "flex"],
+}
