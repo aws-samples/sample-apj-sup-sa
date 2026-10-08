@@ -19,6 +19,7 @@ from aws_cdk import aws_scheduler as scheduler
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
+from . import checkov
 from .data_stack import DB_NAME, DataStack
 
 _SAMPLE_ROOT = Path(__file__).resolve().parents[2]
@@ -188,6 +189,7 @@ class WorkerStack(Stack):
             ),
         )
         self.cluster, self.task, self.security_group = cluster, task, sg
+        checkov.skip(log_group, checkov.LOGS_DEFAULT_KEY)
 
         NagSuppressions.add_resource_suppressions(
             task_role,

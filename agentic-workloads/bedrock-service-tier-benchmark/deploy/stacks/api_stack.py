@@ -27,6 +27,7 @@ from aws_cdk import aws_logs as logs
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
+from . import checkov
 from .data_stack import DB_NAME, DataStack
 
 _LAMBDAS = Path(__file__).resolve().parent.parent / "lambdas"
@@ -199,6 +200,9 @@ class ApiStack(Stack):
                 path=path, methods=[apigw.HttpMethod.GET], integration=integration, authorizer=authorizer
             )
 
+        checkov.skip(fn, checkov.LAMBDA_NO_VPC, checkov.LAMBDA_NO_DLQ, checkov.LAMBDA_ENV_PLAIN)
+        checkov.skip(log_group, checkov.LOGS_DEFAULT_KEY)
+        checkov.skip(access_logs, checkov.LOGS_DEFAULT_KEY)
         CfnOutput(self, "ApiUrl", value=self.http_api.api_endpoint)
         CfnOutput(self, "UserPoolId", value=self.user_pool.user_pool_id)
         CfnOutput(self, "UserPoolClientId", value=self.client.user_pool_client_id)

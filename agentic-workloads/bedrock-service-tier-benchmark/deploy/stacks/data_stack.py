@@ -27,6 +27,8 @@ from aws_cdk import custom_resources as cr
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
+from . import checkov
+
 DB_NAME = "bench"
 #: Generated and rotated passwords are alphanumeric: the schema custom resource puts
 #: them into DDL (which cannot take bind parameters) after validating that.
@@ -58,7 +60,10 @@ class DataStack(Stack):
                 ec2.SubnetConfiguration(name="isolated", subnet_type=ec2.SubnetType.PRIVATE_ISOLATED, cidr_mask=24),
             ],
         )
-        self.vpc.add_flow_log("FlowLog")
+        flow_logs = logs.LogGroup(
+            self, "FlowLogGroup", retention=logs.RetentionDays.THREE_MONTHS, encryption_key=self.key
+        )
+        self.vpc.add_flow_log("FlowLog", destination=ec2.FlowLogDestination.to_cloud_watch_logs(flow_logs))
 
         db_sg = ec2.SecurityGroup(
             self,
@@ -215,6 +220,7 @@ class DataStack(Stack):
             handler="handler.handler",
             code=lambda_.Code.from_asset(str(_LAMBDAS / "schema")),
             timeout=Duration.minutes(5),
+            reserved_concurrent_executions=1,
             environment={
                 "CLUSTER_ARN": self.cluster.cluster_arn,
                 "ADMIN_SECRET_ARN": self.cluster.secret.secret_arn,
@@ -244,7 +250,15 @@ class DataStack(Stack):
                 },
             )
         )
+        checkov.skip(fn, checkov.LAMBDA_NO_VPC, checkov.LAMBDA_NO_DLQ, checkov.LAMBDA_ENV_PLAIN)
         provider = cr.Provider(self, "SchemaProvider", on_event_handler=fn)
+        checkov.skip(
+            provider.node.find_child("framework-onEvent"),
+            checkov.LAMBDA_NO_VPC,
+            checkov.LAMBDA_NO_DLQ,
+            checkov.LAMBDA_ENV_PLAIN,
+            checkov.LAMBDA_CONCURRENCY,
+        )
         NagSuppressions.add_resource_suppressions(
             provider,
             [
@@ -273,4 +287,19 @@ class DataStack(Stack):
             properties={"schema": (_LAMBDAS / "schema" / "schema.sql").read_text()},
         )
         resource.node.add_dependency(self.cluster)
+        checkov.skip(
+            self.cluster,
+            (
+                "CKV_AWS_162",
+                "Access is through the RDS Data API only (Secrets Manager credentials); no network clients.",
+            ),
+        )
+        restrict = self.node.try_find_child("Custom::VpcRestrictDefaultSGCustomResourceProvider")
+        if restrict is not None:
+            checkov.skip(
+                restrict.node.find_child("Handler"),
+                checkov.LAMBDA_NO_VPC,
+                checkov.LAMBDA_NO_DLQ,
+                checkov.LAMBDA_CONCURRENCY,
+            )
         return resource
