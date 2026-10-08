@@ -30,16 +30,19 @@ export interface Run {
   finished: string;
 }
 
+/** Thrown when the session has no valid token or the API rejects it: the UI returns to sign-in. */
+export class AuthError extends Error {}
+
 export async function get<T>(cfg: Config, path: string, filters: Filters = {}): Promise<T> {
   const t = token();
-  if (!t) throw new Error("not signed in");
+  if (!t) throw new AuthError("Your session has ended. Sign in again.");
   const q = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]);
   const r = await fetch(`${cfg.apiUrl}${path}${q.size ? `?${q}` : ""}`, {
     headers: { authorization: `Bearer ${t}` },
   });
+  if (r.status === 401 || r.status === 403) throw new AuthError("Your session has ended. Sign in again.");
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
-  const body = (await r.json()) as T | string;
-  return (typeof body === "string" ? JSON.parse(body) : body) as T;
+  return (await r.json()) as T;
 }
 
 export function fmtMs(v: number | null | undefined): string {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { completeLogin, login, logout, token, type Config } from "./auth";
-import { DIMENSIONS, fmtMs, get, type Comparison, type Dim, type Filters, type Run } from "./api";
+import { AuthError, DIMENSIONS, fmtMs, get, type Comparison, type Dim, type Filters, type Run } from "./api";
 
 const METRICS = [
   ["ttft", "Δ TTFT"],
@@ -28,6 +28,12 @@ export function App({ cfg }: { cfg: Config }) {
   const [filters, setFilters] = useState<Filters>({});
   const [rows, setRows] = useState<Comparison[]>([]);
 
+  // One handler for every request: expired sessions go back to sign-in, other errors are shown.
+  const fail = (e: Error) => {
+    if (e instanceof AuthError) setSignedIn(false);
+    setError(e.message);
+  };
+
   useEffect(() => {
     completeLogin(cfg)
       .then(() => setSignedIn(!!token()))
@@ -36,19 +42,29 @@ export function App({ cfg }: { cfg: Config }) {
 
   useEffect(() => {
     if (!signedIn) return;
-    get<Run[]>(cfg, "/runs").then(setRuns).catch((e: Error) => setError(e.message));
+    get<Run[]>(cfg, "/runs").then(setRuns).catch(fail);
   }, [cfg, signedIn]);
 
   useEffect(() => {
     if (!signedIn) return;
     get<Partial<Record<Dim, string[]>>>(cfg, "/filters", { run_id: filters.run_id })
       .then(setOptions)
-      .catch((e: Error) => setError(e.message));
+      .catch(fail);
   }, [cfg, signedIn, filters.run_id]);
 
   useEffect(() => {
     if (!signedIn) return;
-    get<Comparison[]>(cfg, "/comparisons", filters).then(setRows).catch((e: Error) => setError(e.message));
+    let live = true; // ignore responses for filters the user has already changed
+    get<Comparison[]>(cfg, "/comparisons", filters)
+      .then((r) => {
+        if (!live) return;
+        setRows(r);
+        setError(null);
+      })
+      .catch((e: Error) => live && fail(e));
+    return () => {
+      live = false;
+    };
   }, [cfg, signedIn, filters]);
 
   const sorted = useMemo(
