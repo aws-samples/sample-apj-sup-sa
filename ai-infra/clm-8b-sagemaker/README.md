@@ -24,8 +24,17 @@ InvokeEndpoint ──► /invocations  (code/model.py: CLM engine, heads on CPU)
 ```
 
 `/ping` stays vLLM's own health check. Nothing is forked or rebuilt: the handler imports the upstream `clm`
-package at a pinned commit and calls the engine the project ships. One small runtime patch fixes a cache bug
-that shows up under concurrent traffic (see `_claim_once` in `code/model.py`).
+package at a pinned commit and calls the engine the project ships. Two small runtime patches, each applied only
+when the upstream function's source hash matches the pinned commit, change upstream behaviour:
+
+- `_claim_once` fixes a vector-cache slot leak under concurrent traffic: two requests that miss on the same text
+  each claim a slot, and the first is lost for good. This is reported upstream as
+  [Contrastive-LM/CLM#27](https://github.com/Contrastive-LM/CLM/issues/27), with the same fix proposed in
+  [#23](https://github.com/Contrastive-LM/CLM/pull/23); the sample keeps its patch until a release includes it.
+- `_load_weights_only` loads head files with `torch.load(..., weights_only=True)`. A `.pt` file is a pickle, and
+  upstream calls `torch.load` without that argument, so this makes the safe mode explicit rather than relying on
+  torch's default. If upstream changes the function, the handler refuses to start unless torch is 2.6 or later,
+  where `weights_only=True` is the default.
 
 > **Note:** This is sample code for demonstration purposes only and is not intended for production use without
 > additional security testing and review.
@@ -207,6 +216,11 @@ checkpoint (Hugging Face Transformers, Qwen3-8B bf16 on CPU). bf16 on a GPU, and
 move these values a little (urgency came out between 0.827 and 0.851 across our endpoint runs, against 0.822 on CPU), so the check allows 0.05. Reference, then this run: `billing` 0.988 and 0.989,
 urgency 0.822 and 0.834, the Moon 0.994 and 0.993.
 
+The reference values are not the ones printed on the model card (for example `billing` 0.939): those do not come
+from the published `CLM_v0.1-8B.pt` on Qwen3-8B, which is also reported upstream as
+[Contrastive-LM/CLM#15](https://github.com/Contrastive-LM/CLM/issues/15). So the check compares against our own
+reference run of the published checkpoint, not against the model card.
+
 ## Design notes
 
 Things that are easy to get wrong here.
@@ -221,6 +235,11 @@ Things that are easy to get wrong here.
   server, so the handler runs it in a thread pool (`CLM_WORKERS`, default 32). Each request has a 55 s
   deadline that includes its time in the queue; past it the handler answers 503 instead of starting work
   the caller has already given up on.
+- **Admission knows the GPU.** A request is admitted only if the encoder can finish it, and the work already
+  running, before the deadline. The encoder rate that estimate uses depends on the GPU the instance pool
+  landed on, so the handler reads the GPU name from NVML at start-up (no CUDA context) and uses the lowest
+  rate our benchmark sweeps measured on it: 5,500 tokens/s on an L4, 6,500 on an A10G, 10,000 on an L40S, and
+  5,500 on any other GPU. The endpoint log prints the rate it chose; `CLM_ENC_RATE` overrides it.
 - **Network isolation is on.** Weights, heads and the `clm` package all ship in the artifact, so the
   container needs no internet and never calls the Hugging Face Hub. That also means `requirements.txt`
   auto-install cannot reach PyPI, so bake anything extra into a derived image.
@@ -271,7 +290,8 @@ items are pointers.
 - **Scale to zero** for spiky or dev traffic, by deploying the same model as an inference component with
   `MinInstanceCount=0`.
 - **Fine-tuned heads** served side by side on the same encoder: add more `*.pt` files under `code/` and send
-  `"model": "<file stem>"`.
+  `"model": "<file stem>"`. They are loaded with `weights_only=True`, so a head file holds only tensors and plain
+  values and cannot run code; still ship only files you trust.
 - **VPC** via `VpcConfig` plus an S3 gateway endpoint; network isolation already blocks egress.
 
 ## License

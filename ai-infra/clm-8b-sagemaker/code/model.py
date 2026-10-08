@@ -15,7 +15,8 @@ itself fails), so they count as server errors and clients can retry them. A requ
 cannot finish within its deadline (queue time included) gets 503 and is not run.
 
 Extra ``*.pt`` head checkpoints placed next to this file are served too, each under its
-file stem: send ``"model": "<stem>"``.
+file stem: send ``"model": "<stem>"``. A ``.pt`` file is a pickle; this handler loads every one with
+``torch.load(..., weights_only=True)``, which reads tensors and plain containers only and runs no code.
 
 Files next to this one (see the notebook): ``clm/`` (the contrastive-lm package)
 and ``CLM_v0.1-8B.pt`` (the heads).
@@ -55,7 +56,25 @@ from clm.schema import build_pairs, to_text  # noqa: E402
 # past the deadline, so a worker does not keep computing an answer the caller has already given up on.
 DEADLINE_S = float(os.environ.get("CLM_REQUEST_DEADLINE", "55"))
 MIN_RUN_S = float(os.environ.get("CLM_MIN_RUN", "10"))
-ENC_RATE = float(os.environ.get("CLM_ENC_RATE", "7000"))   # tokens/s one 24 GB GPU encodes with nothing cached
+# Encoder tokens/s with nothing cached, by GPU: the lowest a benchmark sweep measured on each GPU of the
+# notebook's instance pools (L4 on ml.g6, A10G on ml.g5, L40S on ml.g6e), rounded down. CLM_ENC_RATE overrides it.
+ENC_RATES = {"NVIDIA L4": 5500, "NVIDIA A10G": 6500, "NVIDIA L40S": 10000}
+DEFAULT_ENC_RATE = 5500                                      # another GPU: assume the slowest measured
+
+
+def _gpu_name() -> str:
+    """The GPU's name from NVML (no CUDA context in this process, so vLLM keeps the whole GPU)."""
+    try:
+        import pynvml                                       # nvidia-ml-py, a vLLM dependency
+        pynvml.nvmlInit()
+        name = pynvml.nvmlDeviceGetName(pynvml.nvmlDeviceGetHandleByIndex(0))
+        return name.decode() if isinstance(name, bytes) else name
+    except Exception:  # noqa: BLE001  no GPU, no driver or no NVML: fall back to the default rate
+        return ""
+
+
+GPU_NAME = _gpu_name()
+ENC_RATE = float(os.environ.get("CLM_ENC_RATE") or ENC_RATES.get(GPU_NAME, DEFAULT_ENC_RATE))
 # The token bound counts UTF-8 bytes; admission instead estimates each text's tokens at this many bytes per token
 # (about right for code and CJK text, cautious for English, which is nearer 4), capped at the encoder's cut-off.
 BYTES_PER_TOKEN = float(os.environ.get("CLM_BYTES_PER_TOKEN", "3"))
@@ -106,6 +125,25 @@ DEVICE = os.environ.get("CLM_DEVICE", "cpu")
 torch.set_num_threads(int(os.environ.get("CLM_TORCH_THREADS", "2")))
 
 _claim = clm.cache.Pool.claim
+_load = clm.heads.HeadPair._load
+
+
+def _load_weights_only(self) -> None:
+    """HeadPair._load at clm bb42c6c, with weights_only=True: a .pt is a pickle, and this one reads only tensors and
+    plain containers, so a head file dropped next to this handler cannot run code when it loads."""
+    ck = torch.load(self.path, map_location="cpu", weights_only=True)
+    cfg = dict(ck["cfg"])
+    kw = dict(width=cfg["width"], depth=cfg["depth"],
+              proj=ck.get("projection_dim", cfg.get("projection_dim", clm.heads.PROJ_DIM)),
+              activation=cfg.get("activation", "gelu"), layernorm=cfg.get("layernorm", False),
+              residual=cfg.get("residual", False), hidden=cfg.get("hidden_size", HIDDEN))
+    sh, ah = clm.heads.make_head(**kw), clm.heads.make_head(**kw)
+    sh.load_state_dict(ck["state_head"]); ah.load_state_dict(ck["action_head"])
+    sh.eval().to(self.device); ah.eval().to(self.device)
+    self.state_head, self.action_head, self.cfg = sh, ah, cfg
+    self.generation += 1
+    self.proj_dim = kw["proj"]
+    self.scale = float(torch.as_tensor(ck["logit_scale"]).float().exp().clamp(max=100.0))
 
 
 def _claim_once(pool, key):
@@ -130,6 +168,16 @@ if _source_sha(_claim) == "29fbefd4990b6892":  # pragma: allowlist secret
     clm.cache.Pool.claim = _claim_once
 else:
     print("[clm] cache patch not applied: clm.cache.Pool has changed upstream", flush=True)
+if _source_sha(_load) == "ae352693da390bcc":  # pragma: allowlist secret
+    clm.heads.HeadPair._load = _load_weights_only
+# Upstream loads with torch.load's default. Without the patch above, that is safe only where the default is
+# weights_only=True (torch 2.6 and later) and nothing has switched it off, so anything else refuses to start.
+elif torch.__version__ < "2.6" or os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "0") not in ("", "0"):
+    raise RuntimeError("clm.heads.HeadPair._load has changed upstream and torch.load would unpickle head files "
+                       "without weights_only; use torch 2.6 or later with TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD unset")
+else:
+    print("[clm] head-loading patch not applied: clm.heads.HeadPair._load has changed upstream; relying on "
+          "torch.load's weights_only=True default", flush=True)
 # The token bound below skips texts already cached by looking up the engine's own cache keys. That works only
 # with the key layout of Engine._cached and VectorArena.get at bb42c6c; on any other code it counts every text.
 # Engine.answer and HeadPair.namespace build the key namespaces; Engine._cached and VectorArena.get build the keys.
@@ -170,7 +218,8 @@ PARSE_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="clm-parse")
 # another's rows (which would make the upstream cache re-embed under its lock and stall every request). Waiting
 # clm-raw requests queue here, not on POOL, so a burst of them never holds the threads the other heads use.
 RAW_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="clm-raw")
-print(f"[clm] heads loaded on {DEVICE}: {[m['name'] for m in ENGINE.models()]}", flush=True)
+print(f"[clm] heads loaded on {DEVICE}: {[m['name'] for m in ENGINE.models()]}; admission at {ENC_RATE:,.0f} "
+      f"encoder tokens/s ({GPU_NAME or 'GPU not identified'})", flush=True)
 
 
 class BadRequest(ValueError):
