@@ -81,52 +81,61 @@ that has gone.
 ## Measured results
 
 Both endpoints in us-east-1, client on EC2 in the same Region, one instance each. The engine keeps no state between requests, so repeating the dataset does not inflate the numbers.
-The pools gave `ml.g4dn.xlarge` (T4, its first choice) and `ml.g5.2xlarge` (A10G; `ml.g6.xlarge`, `ml.g6.2xlarge` and `ml.g5.xlarge` had no capacity). These are the outputs committed in
-`02-deploy-and-benchmark.ipynb`. The decider generates no tokens, so **TTFT is time to first byte**, which
+The pools gave `ml.g4dn.2xlarge` (T4; `ml.g4dn.xlarge` had no capacity) and `ml.g6.2xlarge` (L4; `ml.g6.xlarge` had no capacity). These are the outputs committed in
+`02-deploy-and-benchmark.ipynb`. The decider generates no tokens, so in place of time to first token the table shows **time to first byte (TTFB)**, which
 equals end-to-end latency here; "engine" is the model's own time per request.
 
 `ticket` asks 3 questions about one support message (a 5-way `choice`, a `noul` and a 3-level `score`);
-`rank` asks one 8-way `choice`.
+`rank` asks one 8-way `choice`. Bold marks the concurrency the cost below uses: the lowest within 2% of the peak.
 
-| Endpoint | Workload | Concurrency | req/s | TTFT p50 | e2e p99 | Engine p50 |
+| Endpoint | Workload | Concurrency | req/s | TTFB p50 | e2e p99 | Engine p50 |
 |---|---|---|---|---|---|---|
-| T4, fp32, 1 worker | ticket | 1 | 2.6 | 388 ms | 395 ms | 379 ms |
-| T4, fp32, 1 worker | ticket | 32 | 2.6 | 12,238 ms | 12,276 ms | 382 ms |
-| T4, fp32, 1 worker | rank | 1 | 6.1 | 149 ms | 204 ms | 142 ms |
-| T4, fp32, 1 worker | rank | 32 | 6.3 | 5,055 ms | 5,508 ms | 144 ms |
-| A10G, bf16, 3 workers | ticket | 1 | 6.3 | 158 ms | 174 ms | 148 ms |
-| A10G, bf16, 3 workers | ticket | 32 | **12.7** | 2,470 ms | 2,611 ms | 234 ms |
-| A10G, bf16, 3 workers | rank | 1 | 12.5 | 80 ms | 85 ms | 72 ms |
-| A10G, bf16, 3 workers | rank | 2 | 23.9 | 83 ms | 94 ms | 75 ms |
-| A10G, bf16, 3 workers | rank | 32 | **32.2** | 949 ms | 1,066 ms | 88 ms |
+| T4, fp32, 1 worker | ticket | 1 | **2.6** | 390 ms | 401 ms | 382 ms |
+| T4, fp32, 1 worker | ticket | 32 | 2.5 | 12,530 ms | 12,592 ms | 392 ms |
+| T4, fp32, 1 worker | rank | 1 | 6.0 | 150 ms | 200 ms | 143 ms |
+| T4, fp32, 1 worker | rank | 32 | 6.2 | 5,247 ms | 5,680 ms | 146 ms |
+| L4, bf16, 3 workers | ticket | 1 | 7.0 | 142 ms | 161 ms | 133 ms |
+| L4, bf16, 3 workers | ticket | 4 | **13.2** | 233 ms | 482 ms | 220 ms |
+| L4, bf16, 3 workers | ticket | 32 | 13.1 | 2,394 ms | 2,524 ms | 228 ms |
+| L4, bf16, 3 workers | rank | 1 | 13.8 | 72 ms | 76 ms | 64 ms |
+| L4, bf16, 3 workers | rank | 4 | **30.1** | 103 ms | 200 ms | 96 ms |
+| L4, bf16, 3 workers | rank | 32 | 30.4 | 1,002 ms | 1,100 ms | 98 ms |
 
 The T4 runs one request at a time, so its throughput is flat and extra concurrency only queues. On the
-24 GB GPU, three workers overlap requests: two `rank` requests at once take 83 ms each end to end, against 80 ms for one.
+24 GB GPU, three workers overlap requests: two `rank` requests at once take 74 ms each end to end, against 72 ms for one.
+Throughput stops rising at about 4 requests in flight, and `GPUUtilization` peaked at 100% during the sweep.
+
+**More workers do not help on a 24 GB GPU.** A separate run on `ml.g5.xlarge` (A10G) with the same sweep: 3 workers
+peaked at 12.1 `ticket` and 26.6 `rank` requests per second with the GPU at 99%; 4 workers gave 11.5 and 28.2
+(-5% and +6%); 6 workers do not fit, because each copy holds about 4 GiB, and the container stopped at start-up
+with a log line saying `DECIDER_WORKERS=6 may be more copies than this GPU's memory holds`.
 
 ### Which instance is cheaper
 
+At the bold concurrency above, with one instance running all hour:
+
 | Endpoint | $/h | ticket: $ per million | rank: $ per million |
 |---|---|---|---|
-| `ml.g4dn.xlarge` (T4) | 0.736 | 77.73 | 32.64 |
-| `ml.g5.2xlarge` (A10G) | 1.515 | **33.14** | **13.06** |
+| `ml.g4dn.2xlarge` (T4) | 0.940 | 102.09 | 42.03 |
+| `ml.g6.2xlarge` (L4) | 1.222 | **25.72** | **11.29** |
 
-The T4 is the cheaper instance but costs **2.3x to 2.5x more per request**: the A10G answers 4.8x to 5.1x more
-requests per second for 2.1x the price. The GPU pool's first choice is cheaper still when it has capacity: an earlier
-run on `ml.g6.xlarge` (L4, $1.127/h) measured 13.0 ticket and 29.6 rank requests per second ($24.16 and $10.58 per
-million), and an earlier run on the T4 pool's fallback `ml.g4dn.2xlarge` ($0.940/h) measured $99.71 and $37.25. Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
+The T4 is the cheaper instance but costs **4.0x to 3.7x more per request**: the L4 answers 5.2x to 4.8x more
+requests per second for 1.3x the price. Earlier runs on other pools: `ml.g4dn.xlarge` (T4, $0.736/h) about $75 and
+$30 per million, `ml.g5.xlarge` (A10G, $1.408/h) $32.54 and $14.83, `ml.g5.2xlarge` (A10G, $1.515/h) about $33 and $13.
+Choose the T4 only when traffic is too low to keep a 24 GB GPU busy.
 
 ### Answers are correct, and nearly identical on both GPUs
 
 Against an independent CPU run of the authors' engine on the same revisions (urgency 0.8287, `billing` 0.8442,
-score 1.102), the T4 in fp32 returns the same values to three decimals and the A10G in bf16 agrees within
-0.003. On the labelled Nova 2 Lite dataset the two endpoints score the same (urgent AUROC 0.91 on both):
+score 1.102), the T4 in fp32 returns the same values to three decimals and the L4 in bf16 agrees within
+0.001. On the labelled Nova 2 Lite dataset the two endpoints score the same:
 
-| Metric | T4 (fp32) | A10G (bf16) | Baseline |
+| Metric | T4 (fp32) | L4 (bf16) | Baseline |
 |---|---|---|---|
 | rank top-1 (8 options) | 92.1% | 92.1% | 12.5% chance |
-| urgent AUROC | 0.91 | 0.91 | 0.50 random |
-| department accuracy (5-way) | 85.0% | 85.0% | 20% chance |
-| frustration MAE (0-2 `score`) | 0.51 | 0.51 | 0.64 always guessing 1 |
+| urgent AUROC | 0.93 | 0.93 | 0.50 random |
+| department accuracy (5-way) | 76.7% | 76.7% | 20% chance |
+| frustration MAE (0-2 `score`) | 0.50 | 0.50 | 0.60 always guessing 1 |
 
 ### More questions per request cost little
 
@@ -134,10 +143,10 @@ The engine encodes the state once and shares that work across every question abo
 
 | Questions in one request | Engine time | Per question |
 |---|---|---|
-| 1 | 72 ms | 72 ms |
-| 5 | 153 ms | 31 ms |
-| 10 | 214 ms | 21 ms |
-| 20 | 338 ms | 17 ms |
+| 1 | 67 ms | 67 ms |
+| 5 | 137 ms | 27 ms |
+| 10 | 205 ms | 21 ms |
+| 20 | 380 ms | 19 ms |
 
 Ask an agent's related decisions together in one request rather than one request each.
 
