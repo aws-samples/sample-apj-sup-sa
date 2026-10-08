@@ -16,12 +16,16 @@ from collections.abc import Callable
 from typing import Any
 
 import boto3
+import httpx
 from botocore.config import Config
 
 # Tokens live up to 12 h; refresh well before that.
 _TOKEN_TTL_SECONDS = 11 * 3600
 #: Re-mint this long before temporary credentials expire.
 _CRED_MARGIN_SECONDS = 300
+#: Keep idle connections longer than the default 60 s request interval, so the
+#: bearer-token APIs reuse a warm TLS connection like the pooled boto3 clients do.
+_KEEPALIVE_SECONDS = 300
 
 
 class AuthBroker:
@@ -43,7 +47,9 @@ class AuthBroker:
             connect_timeout=15,
             max_pool_connections=max_pool_connections,
         )
+        self._read_timeout = read_timeout
         self._clients: dict[tuple[str, str], Any] = {}
+        self._http: dict[tuple[str, str], httpx.Client] = {}
         self._tokens: dict[str, tuple[str, float]] = {}
         self._lock = threading.Lock()
         self._gen: Any = None
@@ -57,6 +63,29 @@ class AuthBroker:
                     service, region_name=region, config=self._config
                 )
             return self._clients[key]
+
+    def http_client(self, endpoint: str, region: str) -> httpx.Client:
+        """Shared, pooled HTTP client per (endpoint, region) for the bearer-token APIs.
+
+        One client per host keeps connection reuse identical across cells and APIs,
+        so API-vs-API latency is not skewed by per-request TLS handshakes.
+        """
+        with self._lock:
+            key = (endpoint, region)
+            if key not in self._http:
+                self._http[key] = httpx.Client(
+                    timeout=httpx.Timeout(self._read_timeout, connect=15),
+                    limits=httpx.Limits(keepalive_expiry=_KEEPALIVE_SECONDS),
+                    follow_redirects=False,
+                )
+            return self._http[key]
+
+    def close(self) -> None:
+        """Close pooled HTTP clients (boto3 clients need no explicit close)."""
+        with self._lock:
+            for c in self._http.values():
+                c.close()
+            self._http.clear()
 
     def bedrock_runtime(self, region: str) -> Any:
         return self.client("bedrock-runtime", region)

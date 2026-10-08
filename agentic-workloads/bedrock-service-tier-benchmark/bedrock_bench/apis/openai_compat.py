@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import httpx
 from openai import OpenAI
 
 from .base import Measurement, Request, StreamRecorder, Usage, as_int
@@ -76,9 +77,16 @@ def _cache_extra(req: Request) -> dict[str, Any]:
 
 
 class _OpenAIBase:
-    def __init__(self, base_url: str, token_provider: Callable[[], str]):
+    def __init__(
+        self,
+        base_url: str,
+        token_provider: Callable[[], str],
+        http_client: httpx.Client | None = None,
+    ):
         self._token = token_provider
-        self._client = OpenAI(api_key=token_provider(), base_url=base_url, max_retries=0)
+        self._client = OpenAI(
+            api_key=token_provider(), base_url=base_url, max_retries=0, http_client=http_client
+        )
 
     def _prepare(self, req: Request) -> OpenAI:
         # Untimed: refresh the bearer token and apply the per-request timeout.

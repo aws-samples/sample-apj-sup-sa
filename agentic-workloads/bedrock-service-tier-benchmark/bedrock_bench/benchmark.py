@@ -180,7 +180,10 @@ class Benchmark:
             runner = Runner(
                 cfg, self.broker, on_sample=on_sample, reasoning_effort=self.reasoning_effort
             )
-            samples = runner.run(cells)
+            try:
+                samples = runner.run(cells)
+            finally:
+                self.broker.close()
         meta["finished"] = _utc_now()
         summaries = [
             summarize({**c.dims(), "label": c.label}, samples.get(c.label, [])) for c in cells

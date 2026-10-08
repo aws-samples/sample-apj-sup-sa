@@ -46,7 +46,10 @@ def build_adapter(cell: Cell, broker: AuthBroker) -> Any:
     api = cell.api
     if api is Api.MESSAGES:
         return anthropic_messages.Messages(
-            cell.endpoint.value, region, broker.token_provider(region)
+            cell.endpoint.value,
+            region,
+            broker.token_provider(region),
+            client=broker.http_client(cell.endpoint.value, region),
         )
     if api in (Api.CHAT_COMPLETIONS, Api.RESPONSES):
         if cell.endpoint is Endpoint.RUNTIME:
@@ -55,9 +58,10 @@ def build_adapter(cell: Cell, broker: AuthBroker) -> Any:
             base = openai_compat.mantle_base_url(
                 region, cell.offering.base_path or openai_compat.MANTLE_DEFAULT_PATH
             )
+        http = broker.http_client(cell.endpoint.value, region)
         if api is Api.CHAT_COMPLETIONS:
-            return openai_compat.ChatCompletions(base, broker.token_provider(region))
-        return openai_compat.Responses(base, broker.token_provider(region))
+            return openai_compat.ChatCompletions(base, broker.token_provider(region), http)
+        return openai_compat.Responses(base, broker.token_provider(region), http)
     client = broker.bedrock_runtime(region)
     style = cell.spec.body_style
     return {
