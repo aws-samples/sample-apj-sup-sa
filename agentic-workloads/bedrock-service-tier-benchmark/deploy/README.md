@@ -103,6 +103,20 @@ aws ecs run-task --cluster <Cluster> --task-definition <TaskDefinition> --capaci
   --network-configuration "awsvpcConfiguration={subnets=[<PublicSubnet>],securityGroups=[<TaskSg>],assignPublicIp=ENABLED}"
 ```
 
+## Verified deployment
+
+Deployed end to end on 2026-10-08 in us-east-1 (`auth_mode=cognito`, `worker_arch=x86_64`):
+
+| Step | Result |
+|---|---|
+| `cdk deploy --all` | 4 stacks created; cdk-nag 0, Checkov 0 failed |
+| First worker run (empty database) | Discovery agent stored 35 verified models and 216 offerings; the quick benchmark wrote 1 run with 140 cells, 70 comparisons and 699 samples; about 40 minutes |
+| Web app | Hosted-UI sign-in with password and TOTP MFA, then the comparison table showed all 70 rows from Aurora |
+
+Problems found on the way and fixed in this folder: the agent model rejects `temperature`; the worker
+role needed the Data API transaction actions; Fargate mounts the scratch volume as root, so a
+non-essential init container hands `/work` to the non-root worker user.
+
 ## Configuration (`cdk.json` context or `-c key=value`)
 
 | Key | Default | Meaning |
