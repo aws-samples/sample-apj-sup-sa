@@ -20,10 +20,11 @@ Only ``https://docs.aws.amazon.com/bedrock/`` URLs are fetched.
 from __future__ import annotations
 
 import re
-import urllib.request
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
+
+import httpx
 
 DOCS_BASE = "https://docs.aws.amazon.com/bedrock/latest/userguide/"
 AVAILABILITY_URL = DOCS_BASE + "models-endpoint-availability.html"
@@ -47,16 +48,26 @@ def _mark(alt: str) -> str:
 
 
 def fetch(url: str, timeout: float = 30.0) -> str:
-    """Fetch a Bedrock documentation page (HTTPS, docs.aws.amazon.com/bedrock/ only)."""
+    """Fetch a Bedrock documentation page (HTTPS, docs.aws.amazon.com/bedrock/ only).
+
+    Redirects are not followed, so a redirect cannot move the request off the
+    allowed host; the response size is capped.
+    """
     u = urlparse(url)
     if u.scheme != "https" or u.hostname != _ALLOWED_HOST or not u.path.startswith(_ALLOWED_PREFIX):
         raise ValueError(f"refusing to fetch non-Bedrock-docs URL: {url!r}")
-    req = urllib.request.Request(url, headers={"User-Agent": "bedrock-bench-discovery"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - https docs.aws.amazon.com/bedrock/ only, validated above
-        data = resp.read(_MAX_BYTES + 1)
-    if len(data) > _MAX_BYTES:
-        raise ValueError(f"page too large: {url}")
-    return data.decode("utf-8", errors="replace")
+    headers = {"User-Agent": "bedrock-bench-discovery"}
+    with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+        with client.stream("GET", url, headers=headers) as resp:
+            resp.raise_for_status()
+            chunks: list[bytes] = []
+            size = 0
+            for chunk in resp.iter_bytes():
+                size += len(chunk)
+                if size > _MAX_BYTES:
+                    raise ValueError(f"page too large: {url}")
+                chunks.append(chunk)
+    return b"".join(chunks).decode("utf-8", errors="replace")
 
 
 Cell = list[tuple[str, str]]  # (mark, text) items inside one table cell

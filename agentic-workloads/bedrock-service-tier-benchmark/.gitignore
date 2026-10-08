@@ -30,3 +30,4 @@ results/
 # Local-only notes (not published)
 .local-notes
 .local-notes/
+.ash/
