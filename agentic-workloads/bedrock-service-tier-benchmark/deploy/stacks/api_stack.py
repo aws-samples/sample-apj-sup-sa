@@ -139,9 +139,28 @@ class ApiStack(Stack):
                 "DB_NAME": DB_NAME,
             },
         )
-        data.cluster.grant_data_api_access(fn)
-        data.reader_secret.grant_read(fn)
-        data.key.grant_decrypt(fn)
+        # Identity-based grants only: the key policy (in the data stack) already delegates
+        # to IAM in this account, and editing it from here would create a stack cycle.
+        # Not cluster.grant_data_api_access(): that would also grant the *admin* secret.
+        role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["rds-data:ExecuteStatement", "rds-data:BatchExecuteStatement"],
+                resources=[data.cluster.cluster_arn],
+            )
+        )
+        role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+                resources=[data.reader_secret.secret_arn],
+            )
+        )
+        role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["kms:Decrypt"],
+                resources=[data.key.key_arn],
+                conditions={"StringEquals": {"kms:ViaService": f"secretsmanager.{self.region}.amazonaws.com"}},
+            )
+        )
 
         # ---- HTTP API with JWT authoriser on every route
         access_logs = logs.LogGroup(self, "ApiAccessLogs", retention=logs.RetentionDays.ONE_MONTH)
