@@ -18,11 +18,14 @@ class BedrockToAnthropicConverter:
     """Convert Converse and ConverseStream responses to Anthropic-compatible payloads."""
 
     def convert_response(
-        self, bedrock_resp: dict[str, Any], response_model: str
+        self,
+        bedrock_resp: dict[str, Any],
+        response_model: str,
+        tool_name_map: dict[str, str] | None = None,
     ) -> MessageResponse:
         output = bedrock_resp.get("output", {}).get("message", {})
         usage_info = self.extract_usage(bedrock_resp)
-        content = self._convert_output_content(output.get("content", []))
+        content = self._convert_output_content(output.get("content", []), tool_name_map)
         return MessageResponse(
             id=bedrock_resp.get("id")
             or bedrock_resp.get("ResponseMetadata", {}).get("RequestId", "msg_unknown"),
@@ -112,7 +115,9 @@ class BedrockToAnthropicConverter:
     def _coerce_usage_int(value: Any) -> int:
         return int(value or 0)
 
-    def _convert_output_content(self, content: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _convert_output_content(
+        self, content: list[dict[str, Any]], tool_name_map: dict[str, str] | None = None
+    ) -> list[dict[str, Any]]:
         converted: list[dict[str, Any]] = []
         for block in content:
             if "text" in block:
@@ -123,7 +128,7 @@ class BedrockToAnthropicConverter:
                     {
                         "type": "tool_use",
                         "id": tool_use.get("toolUseId"),
-                        "name": tool_use.get("name"),
+                        "name": self._restore_tool_name(tool_use.get("name"), tool_name_map),
                         "input": tool_use.get("input", {}),
                     }
                 )
@@ -268,6 +273,14 @@ class BedrockToAnthropicConverter:
     def _handle_metadata(self, metadata_event: dict[str, Any], state: StreamState) -> None:
         state.pending_usage = self.extract_usage(metadata_event)
 
+    @staticmethod
+    def _restore_tool_name(
+        name: str | None, tool_name_map: dict[str, str] | None
+    ) -> str | None:
+        if name is not None and tool_name_map:
+            return tool_name_map.get(name, name)
+        return name
+
     def _convert_stream_content_block_start(
         self, start: dict[str, Any], state: StreamState
     ) -> dict[str, Any]:
@@ -277,7 +290,7 @@ class BedrockToAnthropicConverter:
             return {
                 "type": "tool_use",
                 "id": tool_use.get("toolUseId"),
-                "name": tool_use.get("name"),
+                "name": self._restore_tool_name(tool_use.get("name"), state.tool_name_map),
                 "input": {},
             }
 
@@ -344,7 +357,7 @@ class BedrockToAnthropicConverter:
             return {
                 "type": "tool_use",
                 "id": tool_use.get("toolUseId"),
-                "name": tool_use.get("name"),
+                "name": self._restore_tool_name(tool_use.get("name"), state.tool_name_map),
                 "input": {},
             }
 
