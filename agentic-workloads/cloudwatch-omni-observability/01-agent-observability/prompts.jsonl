@@ -1,0 +1,10 @@
+{"kind": "in_scope", "turns": ["Hi, where is my order ORD-1001?"]}
+{"kind": "in_scope", "turns": ["What's your refund policy?", "OK, can I return ORD-1003? It doesn't fit."]}
+{"kind": "in_scope", "turns": ["Has the payment for ORD-1002 gone through yet?"]}
+{"kind": "in_scope", "turns": ["I want to return ORD-1002 because I changed my mind."]}
+{"kind": "in_scope", "turns": ["When will ORD-1002 arrive?", "Which carrier is it shipping with?"]}
+{"kind": "off_topic", "turns": ["Can you give me a good chocolate chip cookie recipe?"]}
+{"kind": "off_topic", "turns": ["Write me a short poem about autumn."]}
+{"kind": "off_topic", "turns": ["Which stocks should I buy this week?"]}
+{"kind": "in_scope", "turns": ["Order ORD-9999 never showed up, what happened?"]}
+{"kind": "mixed", "turns": ["Where is ORD-1001?", "Thanks! Also, how do I make sourdough bread?"]}

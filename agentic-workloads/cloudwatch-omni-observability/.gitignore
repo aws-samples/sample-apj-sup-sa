@@ -1,0 +1,32 @@
+# Local configuration and credentials: never commit. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+credentials
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# CDK
+cdk.out/
+cdk.context.json
+
+# Logs and run output
+*.log
+.*.log
+
+# Editors, OS, and local AI-assistant state
+.claude/
+.mcp.json
+.kiro/
+.vscode/
+.idea/
+.DS_Store

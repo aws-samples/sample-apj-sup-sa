@@ -1,0 +1,102 @@
+# Start with ./up.sh. It exports short-lived AWS credentials for the collector and
+# reads ../.env for AWS_REGION and SHOP_LOG_GROUP.
+
+x-otel-env: &otel-env
+  # Same variables as "Send application telemetry › Step 2" in the Omni docs.
+  # service.namespace groups the three services into one application on the map.
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: otlp
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
+  OTEL_METRIC_EXPORT_INTERVAL: "15000"
+  # Drop the per-request ASGI "http send/receive" internal spans.
+  OTEL_PYTHON_FASTAPI_EXCLUDE_SPANS: "receive,send"
+  # Don't trace the Compose healthcheck probes (one per service every 10 s).
+  OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "healthz"
+
+x-http-healthcheck: &http-healthcheck
+  # http.client, not urllib: it speaks only HTTP, never follows a redirect or uses a proxy,
+  # and anything but a 200 exits non-zero.
+  test: ["CMD", "python", "-c", "import http.client, sys; c = http.client.HTTPConnection('localhost', 8000, timeout=2); c.request('GET', '/healthz'); sys.exit(c.getresponse().status != 200)"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 10s
+
+services:
+  otel-collector:
+    # AWS Distro for OpenTelemetry (ADOT) Collector from ECR Public, pinned by digest.
+    # v0.50.0 is built on collector core v0.158.0. Before adding a component to
+    # ../common/otel-collector.yaml, check that this release includes it.
+    image: public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0@sha256:7968fb60db6a2390a47ba6a2df029745638486e285c9b2487da1b722d0855a3e
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../common/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      AWS_REGION: ${AWS_REGION:?set AWS_REGION in ../.env}
+      SHOP_LOG_GROUP: ${SHOP_LOG_GROUP:-/omni-samples/shop}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?run via ./up.sh}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?run via ./up.sh}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    # Published on 127.0.0.1 only. The collector signs whatever it receives with your AWS
+    # credentials, and payments exposes an unauthenticated /chaos switch.
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+
+  frontend:
+    build: .
+    command: opentelemetry-instrument uvicorn shop.frontend:app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: frontend
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=shop,deployment.environment.name=demo
+      ORDERS_URL: http://orders:8000
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck: *http-healthcheck
+    depends_on:
+      otel-collector:
+        condition: service_started
+      orders:
+        condition: service_healthy
+
+  orders:
+    build: .
+    command: opentelemetry-instrument uvicorn shop.orders:app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: orders
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=shop,deployment.environment.name=demo
+      PAYMENTS_URL: http://payments:8000
+    ports: ["127.0.0.1:8001:8000"]
+    healthcheck: *http-healthcheck
+    depends_on:
+      otel-collector:
+        condition: service_started
+      payments:
+        condition: service_healthy
+
+  payments:
+    build: .
+    command: opentelemetry-instrument uvicorn shop.payments:app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: payments
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=shop,deployment.environment.name=demo
+    ports: ["127.0.0.1:8002:8000"]
+    healthcheck: *http-healthcheck
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  loadgen:
+    build: .
+    command: python loadgen.py
+    environment:
+      FRONTEND_URL: http://frontend:8000
+      RPS: ${RPS:-2}
+    depends_on:
+      frontend:
+        condition: service_healthy
