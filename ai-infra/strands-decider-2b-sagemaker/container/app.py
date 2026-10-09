@@ -88,9 +88,9 @@ BUSY_SINCE: float | None = None          # when the engine thread started its cu
 UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
-IN_FLIGHT = 0                            # requests handed to RUNNER and not finished, the running one included
+IN_FLIGHT = 0                            # requests handed to RUNNER whose job has not finished, the running one included
 # Queued requests not started yet: a token per request -> when it was admitted, oldest first (dicts keep insertion
-# order). The event loop adds and removes entries, the engine thread removes them, so access holds WAITING_LOCK.
+# order). The event loop and the engine thread both change WAITING and IN_FLIGHT, so they hold WAITING_LOCK.
 WAITING: dict[object, float] = {}
 WAITING_LOCK = threading.Lock()
 RECENT: deque[float] = deque(maxlen=32)  # engine seconds of the latest requests (engine thread only)
@@ -243,19 +243,20 @@ async def invocations(request: Request) -> JSONResponse:
         # The header lets the front (serve.py) try another worker before it passes the 503 on.
         return JSONResponse({"error": f"busy: {busy}; retry later"}, status_code=503,
                             headers={"x-decider-worker": "busy"})
-    IN_FLIGHT += 1                    # only this event loop thread changes IN_FLIGHT
     token = object()
     with WAITING_LOCK:
+        IN_FLIGHT += 1
         WAITING[token] = time.monotonic()
     try:
         return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived, token)
     finally:
-        IN_FLIGHT -= 1
-        # Normally _evaluate has removed it already. If this handler was cancelled while the job was still queued (on
-        # shutdown, or a client disconnect that cancels the handler), the job never runs, and a leftover entry would
-        # make every later request look as if it had waited behind it.
+        # Normally the job has started, so _evaluate has removed the token and counts the request out when the job
+        # ends (even if this handler was cancelled meanwhile). If this handler was cancelled while the job was still
+        # queued (on shutdown, or a client disconnect that cancels the handler), the job never runs: remove the token
+        # and count it out here, or a leftover entry would make every later request look as if it had waited.
         with WAITING_LOCK:
-            WAITING.pop(token, None)
+            if WAITING.pop(token, None) is not None:
+                IN_FLIGHT -= 1
 
 
 def _busy() -> str | None:
@@ -273,7 +274,7 @@ def _busy() -> str | None:
 
 
 def _evaluate(req: SystemOneRequest, arrived: float, token: object) -> Response:
-    global BUSY_SINCE
+    global BUSY_SINCE, IN_FLIGHT
     with WAITING_LOCK:
         WAITING.pop(token, None)      # this request has left the queue
     BUSY_SINCE = time.monotonic()
@@ -281,6 +282,8 @@ def _evaluate(req: SystemOneRequest, arrived: float, token: object) -> Response:
         return _run(req, arrived)
     finally:
         BUSY_SINCE = None
+        with WAITING_LOCK:
+            IN_FLIGHT -= 1            # the job is done, whether or not its handler is still waiting for it
 
 
 def _run(req: SystemOneRequest, arrived: float) -> Response:
