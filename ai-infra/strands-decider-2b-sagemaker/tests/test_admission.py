@@ -9,7 +9,6 @@ while running, must not leave the worker refusing traffic or admitting more than
 import asyncio
 import importlib
 import json
-import os
 import sys
 import time
 import types
@@ -50,6 +49,7 @@ def app(monkeypatch):
     torch.dtype = object
     torch.bfloat16 = torch.float32 = object()
     monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "fla", None)      # app.py hides fla on CPU; restore it after the test
     for name in ("strands_decider", "strands_decider.infer", "strands_decider.modeling", "strands_decider.schema"):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
     sys.modules["strands_decider.schema"].SystemOneRequest = _Request
@@ -89,7 +89,8 @@ def test_cancelled_while_queued_leaves_no_stale_entry(app):
             assert len(app.WAITING) == 3
             queued[0].cancel()
             queued[1].cancel()
-            await asyncio.gather(running, queued[2], return_exceptions=True)
+            done = await asyncio.gather(running, queued[2])
+            assert [r.status_code for r in done] == [200, 200]
             await asyncio.sleep(0.2)
             assert len(app.WAITING) == 0 and app.IN_FLIGHT == 0
             await asyncio.sleep(app.MAX_QUEUE_WAIT_S + 0.5)   # a stale entry would now look older than the limit
@@ -107,6 +108,26 @@ def test_cancelled_while_running_is_counted_until_the_job_ends(app):
             assert app.IN_FLIGHT == 1                       # the engine is still busy with it
             await asyncio.sleep(1.0)
             assert app.IN_FLIGHT == 0
+    asyncio.run(run())
+
+
+def test_cancelled_as_the_job_starts_is_counted_out_once(app, monkeypatch):
+    """The handler is cancelled after the job left the executor queue but before it took its token."""
+    original = app._evaluate
+    def slow_start(*args):
+        time.sleep(0.3)               # the window between the executor starting the job and the token check
+        return original(*args)
+    monkeypatch.setattr(app, "_evaluate", slow_start)
+
+    async def run():
+        async with _client(app) as c:
+            req = asyncio.create_task(c.post("/invocations", content=_body(0.05)))
+            await asyncio.sleep(0.1)                         # inside slow_start's sleep
+            req.cancel()
+            await asyncio.gather(req, return_exceptions=True)
+            await asyncio.sleep(0.5)                         # the job has finished by now
+            assert len(app.WAITING) == 0 and app.IN_FLIGHT == 0
+            assert app.BUSY_SINCE is None                    # it did no engine work for a cancelled request
     asyncio.run(run())
 
 

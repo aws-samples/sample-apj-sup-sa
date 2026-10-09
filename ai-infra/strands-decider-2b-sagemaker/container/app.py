@@ -250,10 +250,11 @@ async def invocations(request: Request) -> JSONResponse:
     try:
         return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived, token)
     finally:
-        # Normally the job has started, so _evaluate has removed the token and counts the request out when the job
-        # ends (even if this handler was cancelled meanwhile). If this handler was cancelled while the job was still
-        # queued (on shutdown, or a client disconnect that cancels the handler), the job never runs: remove the token
-        # and count it out here, or a leftover entry would make every later request look as if it had waited.
+        # Whoever removes the token counts the request out, so it happens exactly once. Normally _evaluate removed it
+        # when the job started and counts the request out when the job ends, even if this handler was cancelled
+        # meanwhile. If this handler was cancelled first (on shutdown, or a client disconnect that cancels the handler),
+        # it removes the token here and _evaluate, if the job still starts, does no work; otherwise a leftover entry
+        # would make every later request look as if it had waited.
         with WAITING_LOCK:
             if WAITING.pop(token, None) is not None:
                 IN_FLIGHT -= 1
@@ -276,7 +277,9 @@ def _busy() -> str | None:
 def _evaluate(req: SystemOneRequest, arrived: float, token: object) -> Response:
     global BUSY_SINCE, IN_FLIGHT
     with WAITING_LOCK:
-        WAITING.pop(token, None)      # this request has left the queue
+        started = WAITING.pop(token, None) is not None    # this request has left the queue
+    if not started:                   # its handler was cancelled and has counted it out: nobody wants the answer
+        return JSONResponse({"error": "request cancelled"}, status_code=503)
     BUSY_SINCE = time.monotonic()
     try:
         return _run(req, arrived)
