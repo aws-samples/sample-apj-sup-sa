@@ -18,7 +18,7 @@ if auth_mode not in ("cognito", "midway"):
 env = cdk.Environment(account=app.node.try_get_context("account"), region="us-east-1")
 
 ctx = app.node.try_get_context
-data = DataStack(app, "BedrockTierBench-Data", env=env)
+data = DataStack(app, "BedrockTierBench-Data", min_acu=float(ctx("aurora_min_acu") or 0), env=env)
 web = WebStack(app, "BedrockTierBench-Web", domain_name=ctx("domain_name") or "", env=env)
 api = ApiStack(
     app,

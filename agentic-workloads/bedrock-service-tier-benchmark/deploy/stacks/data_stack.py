@@ -40,7 +40,7 @@ _LAMBDAS = Path(__file__).resolve().parent.parent / "lambdas"
 
 
 class DataStack(Stack):
-    def __init__(self, scope: Construct, cid: str, **kw) -> None:
+    def __init__(self, scope: Construct, cid: str, *, min_acu: float = 0, **kw) -> None:
         super().__init__(scope, cid, **kw)
 
         self.key = kms.Key(
@@ -94,10 +94,12 @@ class DataStack(Stack):
                 enable_performance_insights=True,
                 performance_insight_encryption_key=self.key,
             ),
-            serverless_v2_min_capacity=0,  # auto-pause when idle: no compute cost
+            # 0 = auto-pause when idle (no compute cost, a few seconds to resume on the next query);
+            # 0.5 keeps the database warm for about USD 43 a month (us-east-1 list price).
+            serverless_v2_min_capacity=min_acu,
             serverless_v2_max_capacity=2,
             monitoring_interval=Duration.seconds(60),
-            serverless_v2_auto_pause_duration=Duration.minutes(10),
+            serverless_v2_auto_pause_duration=Duration.minutes(10) if min_acu == 0 else None,
             vpc=self.vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_ISOLATED),
             security_groups=[db_sg],
