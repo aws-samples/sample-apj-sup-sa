@@ -142,7 +142,7 @@ embedded; only `ticket`'s 10 fixed option texts come from the cache after the fi
 | rank | 64 | **37.4** | 1,650 ms | 1,650 ms | 2,025 ms | 7,944 |
 
 Throughput flattens past 32 concurrent requests. Beyond that knee, extra concurrency only buys
-queueing latency (from 32 to 64 in flight `ticket` lost 5% and `rank` gained 0%, at about twice the latency). Pick the
+queueing latency (from 32 to 64 in flight `ticket` lost 5% and `rank` stayed within 1%, at about twice the latency). Pick the
 concurrency that fits your latency budget; section 11 of the notebook computes an autoscaling target at 70% of the measured peak (its scaling calls are
 commented out, so the endpoint stays at one instance unless you run them). Server-side CloudWatch metrics over the benchmark window:
 
