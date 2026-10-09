@@ -14,7 +14,7 @@ pipecat-ai[webrtc,deepgram,aws,silero]>=1.4.0,<1.5
 # The seams we still own (Pipecat pulls aiortc/websockets transitively via [webrtc]/[deepgram]):
 boto3>=1.34            # Bedrock direct/AgentCore providers + S3 SSE-KMS recording
 asyncpg>=0.29          # incremental per-turn persistence
-PyJWT>=2.8             # /offer media-join token verification
+PyJWT>=2.15.0             # /offer media-join token verification
 python-dotenv>=1.0     # config/env
 
 # websockets is also used DIRECTLY by harness/tts_deepgram.py (the harness's student-speech
