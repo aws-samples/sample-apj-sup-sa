@@ -11,6 +11,12 @@
       "source": "./ai-coding-assistants/skills/aws-bento-deck",
       "description": "Build AWS-branded BENTO presentations (self-contained .bento.html) from a plan file, with a three-phase PLAN -> BUILD -> QA workflow.",
       "keywords": ["aws", "presentation", "bento", "slides", "deck", "branding"]
+    },
+    {
+      "name": "sagemaker-marketplace-onboarding",
+      "source": "./ai-infra/sagemaker-marketplace-onboarding",
+      "description": "Interactive walkthrough that onboards a model provider's container onto the AWS SageMaker Marketplace container contract: /ping + /invocations, optional bidirectional WebSocket, optional per-inference metering, weights packaging, local testing, ECR push, and CreateModelPackage hand-off.",
+      "keywords": ["aws", "sagemaker", "marketplace", "ml", "container", "onboarding"]
     }
   ]
 }
