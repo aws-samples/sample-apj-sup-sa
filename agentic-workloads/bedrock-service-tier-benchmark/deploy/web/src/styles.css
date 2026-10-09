@@ -16,3 +16,15 @@ td.slower { color: #d91515; }
 td.ns { color: #5f6b7a; }
 .note { color: #5f6b7a; font-size: 0.85rem; }
 .error { color: #d91515; }
+.pcts { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0 1rem; font-size: 0.85rem; color: #5f6b7a; }
+.pcts button { background: #fff; color: #0972d3; padding: 0.3rem 0.8rem; }
+.pcts button.on { background: #0972d3; color: #fff; }
+.pcts small { opacity: 0.8; margin-left: 0.25rem; }
+tr.row { cursor: pointer; }
+tr.row:hover { background: #f8f8f8; }
+.caret { color: #5f6b7a; display: inline-block; width: 1em; }
+tr.detail > td { background: #fafafa; padding: 0.5rem 1rem 0.75rem 2rem; }
+table.pct-table { width: auto; font-size: 0.8rem; }
+table.pct-table th, table.pct-table td { padding: 0.2rem 0.75rem; text-align: right; border-bottom: none; }
+table.pct-table th:first-child, table.pct-table td:first-of-type { text-align: left; }
+table.pct-table tr.first > * { border-top: 1px solid #e9ebed; }
