@@ -7,3 +7,4 @@ AWS.
 | --- | --- |
 | [robotics-foundation-models-on-eks](robotics-foundation-models-on-eks/) | AWS sample for building robotics foundation model workflows on Amazon EKS, including NVIDIA OSMO deployment, infrastructure, examples, benchmarks, ingress, and observability guidance. |
 | [finetuning-on-eks](finetuning-on-eks/) | Reusable infrastructure scaffold for distributed LLM fine-tuning on Amazon EKS. |
+| [strands-decider-2b-sagemaker](strands-decider-2b-sagemaker/) | Deploy Strands Decider 2B (typed yes/no, choice and score answers for agents) on SageMaker AI real-time endpoints on a T4 and on the cheapest 24 GB GPU with capacity, with correctness checks and throughput, TTFT and cost benchmarks. |
