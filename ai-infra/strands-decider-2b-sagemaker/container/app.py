@@ -89,7 +89,10 @@ UNHEALTHY: str | None = None             # the GPU context is broken; this worke
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
 IN_FLIGHT = 0                            # requests handed to RUNNER and not finished, the running one included
-WAITING: deque[float] = deque()          # when each queued request was admitted, oldest first (RUNNER is FIFO)
+# Queued requests not started yet: a token per request -> when it was admitted, oldest first (dicts keep insertion
+# order). The event loop adds and removes entries, the engine thread removes them, so access holds WAITING_LOCK.
+WAITING: dict[object, float] = {}
+WAITING_LOCK = threading.Lock()
 RECENT: deque[float] = deque(maxlen=32)  # engine seconds of the latest requests (engine thread only)
 ENGINE_S = 0.5                           # their median, read by admission; seeded by warm-up
 # Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
@@ -240,22 +243,28 @@ async def invocations(request: Request) -> JSONResponse:
         # The header lets the front (serve.py) try another worker before it passes the 503 on.
         return JSONResponse({"error": f"busy: {busy}; retry later"}, status_code=503,
                             headers={"x-decider-worker": "busy"})
-    IN_FLIGHT += 1                    # only this event loop thread changes IN_FLIGHT and appends to WAITING
-    WAITING.append(time.monotonic())
+    IN_FLIGHT += 1                    # only this event loop thread changes IN_FLIGHT
+    token = object()
+    with WAITING_LOCK:
+        WAITING[token] = time.monotonic()
     try:
-        return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived)
+        return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived, token)
     finally:
         IN_FLIGHT -= 1
+        # Normally _evaluate has removed it already. If this handler was cancelled while the job was still queued (on
+        # shutdown, or a client disconnect that cancels the handler), the job never runs, and a leftover entry would
+        # make every later request look as if it had waited behind it.
+        with WAITING_LOCK:
+            WAITING.pop(token, None)
 
 
 def _busy() -> str | None:
     """Why a new request should be refused now, or None to admit it."""
     if IN_FLIGHT >= MAX_QUEUE:
         return f"{IN_FLIGHT} requests queued"
-    try:
-        waited = time.monotonic() - WAITING[0]
-    except IndexError:                # nothing queued (or the engine thread just took the last one)
-        waited = 0.0
+    with WAITING_LOCK:
+        oldest = next(iter(WAITING.values()), None)
+    waited = 0.0 if oldest is None else time.monotonic() - oldest
     if waited > MAX_QUEUE_WAIT_S:
         return f"the oldest queued request has waited {waited:.0f} s"
     if IN_FLIGHT * ENGINE_S > MAX_QUEUE_WAIT_S:
@@ -263,9 +272,10 @@ def _busy() -> str | None:
     return None
 
 
-def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
+def _evaluate(req: SystemOneRequest, arrived: float, token: object) -> Response:
     global BUSY_SINCE
-    WAITING.popleft()                 # this request has left the queue
+    with WAITING_LOCK:
+        WAITING.pop(token, None)      # this request has left the queue
     BUSY_SINCE = time.monotonic()
     try:
         return _run(req, arrived)
