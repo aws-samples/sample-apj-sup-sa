@@ -1,0 +1,10 @@
+# Model files and build context, downloaded by the notebook
+build/
+
+# Local run artifacts
+results.json
+.ipynb_checkpoints/
+__pycache__/
+
+# jupytext sources (the .ipynb files are the deliverable)
+0*-*.py
