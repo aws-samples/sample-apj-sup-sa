@@ -173,11 +173,11 @@ spread between runs):
 | Candidates | Request size | Cold | Warm | Speed-up |
 |---|---|---|---|---|
 | 8 | 0.4 KB | 164 ms | 55 ms | 3x |
-| 64 | 2.9 KB | 452 ms | 54 ms | 8x |
+| 64 | 2.7 KB | 452 ms | 54 ms | 8x |
 | 256 | 12 KB | 1,559 ms | 58 ms | 27x |
-| 1024 | 50 KB | 4,123 ms | 69 ms | 59x |
+| 1024 | 49 KB | 4,123 ms | 69 ms | 59x |
 
-Warm latency stays between 53 and 66 ms no matter how many candidates, because only the state is new. That is
+Warm latency stays between 54 and 69 ms no matter how many candidates, because only the state is new. That is
 the shape an agent loop wants: a fixed tool or action set costs almost nothing to re-score.
 
 ### Keep vLLM's default batch size
@@ -281,7 +281,7 @@ harmful input: if states come from users, put Amazon Bedrock Guardrails or an eq
 
 ## Production next steps
 
-Notebook 2 ends with a commented-out autoscaling snippet whose target comes from the benchmark; the other
+Section 11 of notebook 2 has a commented-out autoscaling snippet whose target comes from the benchmark; the other
 items are pointers.
 
 - **Autoscaling** on `SageMakerVariantInvocationsPerInstance`, with the target at 70% of the measured
