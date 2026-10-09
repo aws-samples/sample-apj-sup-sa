@@ -134,7 +134,7 @@ embedded; only `ticket`'s 10 fixed option texts come from the cache after the fi
 | ticket | 4 | 32.8 | 117 ms | 117 ms | 160 ms | 3,893 |
 | ticket | 16 | 52.0 | 295 ms | 295 ms | 407 ms | 6,325 |
 | ticket | 32 | **59.5** | 508 ms | 508 ms | 749 ms | 7,404 |
-| ticket | 64 | 2.9 KB | 452 ms | 54 ms | 8x | 7,011 |
+| ticket | 64 | 56.6 | 993 ms | 994 ms | 1,641 ms | 7,011 |
 | rank | 1 | 6.7 | 148 ms | 148 ms | 159 ms | 1,328 |
 | rank | 4 | 22.0 | 178 ms | 178 ms | 223 ms | 4,356 |
 | rank | 16 | 32.6 | 458 ms | 458 ms | 644 ms | 6,740 |
@@ -173,7 +173,7 @@ spread between runs):
 | Candidates | Request size | Cold | Warm | Speed-up |
 |---|---|---|---|---|
 | 8 | 0.4 KB | 164 ms | 55 ms | 3x |
-| 64 | 2.9 KB | 445 ms | 54 ms | 8x |
+| 64 | 2.9 KB | 452 ms | 54 ms | 8x |
 | 256 | 12 KB | 1,559 ms | 58 ms | 27x |
 | 1024 | 50 KB | 4,123 ms | 69 ms | 59x |
 
