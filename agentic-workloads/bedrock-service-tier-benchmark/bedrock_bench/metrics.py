@@ -1,9 +1,10 @@
 """Statistics for a cell's samples and for tier-vs-default comparisons.
 
-* Per metric: n, mean, stdev, min, max, p50, p90, p95, p99 (numpy 'linear').
-* Tier deltas: Δp50 = p50(tier) − p50(default) with a seeded bootstrap 95%
-  confidence interval. A delta whose interval contains 0 is reported as not
-  significant (``docs/DESIGN.md`` section 3).
+* Per metric: n, mean, stdev, min, max, p10, p50, p90, p95, p99 (numpy 'linear').
+* Tier deltas: Δpq = pq(tier) − pq(default) for q in 10, 50, 90, 99, each with a
+  seeded bootstrap 95% confidence interval. A delta whose interval contains 0 is
+  reported as not significant (``docs/DESIGN.md`` section 3). The top-level
+  fields of :class:`Delta` are the p50 values; ``by_percentile`` holds all four.
 """
 
 from __future__ import annotations
@@ -13,7 +14,10 @@ from typing import Any
 
 import numpy as np
 
-PERCENTILES = (50, 90, 95, 99)
+PERCENTILES = (10, 50, 90, 95, 99)
+#: Percentiles compared between tiers. Tail values need many samples: with n=5, p90 and p99
+#: are close to the slowest sample.
+DELTA_PERCENTILES = (10, 50, 90, 99)
 METRICS = ("ttft", "ttfat", "e2e", "itl", "output_tps")
 BOOTSTRAP_RESAMPLES = 10_000
 
@@ -30,6 +34,7 @@ class MetricStats:
     stdev: float | None = None
     min: float | None = None
     max: float | None = None
+    p10: float | None = None
     p50: float | None = None
     p90: float | None = None
     p95: float | None = None
@@ -47,16 +52,17 @@ class MetricStats:
             stdev=float(arr.std(ddof=1)) if arr.size > 1 else 0.0,
             min=float(arr.min()),
             max=float(arr.max()),
-            p50=float(p[0]),
-            p90=float(p[1]),
-            p95=float(p[2]),
-            p99=float(p[3]),
+            p10=float(p[0]),
+            p50=float(p[1]),
+            p90=float(p[2]),
+            p95=float(p[3]),
+            p99=float(p[4]),
         )
 
 
 @dataclass
 class Delta:
-    """p50 difference of a tier versus default for one metric."""
+    """Difference of a tier versus default for one metric (top-level fields: p50)."""
 
     metric: str
     default_p50: float | None
@@ -66,6 +72,8 @@ class Delta:
     ci_low: float | None = None
     ci_high: float | None = None
     significant: bool | None = None
+    #: "p10" / "p50" / "p90" / "p99" -> {default, tier, delta, pct, ci_low, ci_high, significant}
+    by_percentile: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def bootstrap_delta(
@@ -76,23 +84,35 @@ def bootstrap_delta(
     seed: int = 0,
     resamples: int = BOOTSTRAP_RESAMPLES,
 ) -> Delta:
-    """Δp50 with a percentile-bootstrap 95% CI (independent resampling of both groups)."""
+    """Δ at p10/p50/p90/p99 with percentile-bootstrap 95% CIs (independent resampling of both groups)."""
     a, b = _clean(default), _clean(tier)
     d = Delta(
         metric=metric,
         default_p50=float(np.median(a)) if a.size else None,
         tier_p50=float(np.median(b)) if b.size else None,
     )
-    if a.size < 2 or b.size < 2 or d.default_p50 is None or d.tier_p50 is None:
+    if a.size < 2 or b.size < 2:
         return d
-    d.delta = d.tier_p50 - d.default_p50
-    d.pct = (d.delta / d.default_p50 * 100.0) if d.default_p50 else None
     rng = np.random.default_rng(seed)
-    ma = np.median(rng.choice(a, size=(resamples, a.size), replace=True), axis=1)
-    mb = np.median(rng.choice(b, size=(resamples, b.size), replace=True), axis=1)
-    lo, hi = np.percentile(mb - ma, (2.5, 97.5))
-    d.ci_low, d.ci_high = float(lo), float(hi)
-    d.significant = not (lo <= 0.0 <= hi)
+    ra = rng.choice(a, size=(resamples, a.size), replace=True)
+    rb = rng.choice(b, size=(resamples, b.size), replace=True)
+    for q in DELTA_PERCENTILES:
+        da, db = float(np.percentile(a, q)), float(np.percentile(b, q))
+        diff = np.percentile(rb, q, axis=1) - np.percentile(ra, q, axis=1)
+        lo, hi = (float(x) for x in np.percentile(diff, (2.5, 97.5)))
+        delta = db - da
+        d.by_percentile[f"p{q}"] = {
+            "default": da,
+            "tier": db,
+            "delta": delta,
+            "pct": (delta / da * 100.0) if da else None,
+            "ci_low": lo,
+            "ci_high": hi,
+            "significant": not (lo <= 0.0 <= hi),
+        }
+    p50 = d.by_percentile["p50"]
+    d.delta, d.pct = p50["delta"], p50["pct"]
+    d.ci_low, d.ci_high, d.significant = p50["ci_low"], p50["ci_high"], p50["significant"]
     return d
 
 

@@ -366,3 +366,16 @@ def test_cold_sample_tolerates_template_prefix_cache():
         ttft=1, e2e=2, served_tier="default", usage=Usage(input_tokens=1350, cache_read_tokens=1024)
     )
     assert classify_sample(cold, document) == (False, "cache_contaminated")
+
+
+def test_bootstrap_delta_reports_each_percentile():
+    from bedrock_bench.metrics import bootstrap_delta
+
+    base = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9]
+    slow = [v + 2.0 for v in base]
+    d = bootstrap_delta(base, slow, metric="ttft", seed=1, resamples=2000)
+    assert set(d.by_percentile) == {"p10", "p50", "p90", "p99"}
+    for q in d.by_percentile.values():
+        assert abs(q["delta"] - 2.0) < 1e-9 and q["significant"] is True
+    # The top-level fields stay the p50 view for existing readers.
+    assert d.delta == d.by_percentile["p50"]["delta"] and d.significant is True
