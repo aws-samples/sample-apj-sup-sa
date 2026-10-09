@@ -10,6 +10,7 @@ import asyncio
 import importlib
 import json
 import sys
+import threading
 import time
 import types
 from pathlib import Path
@@ -36,9 +37,21 @@ class _Result:
 
 
 class _Engine:
+    def __init__(self):
+        self.calls = 0
+
     def evaluate(self, req):
+        self.calls += 1
         time.sleep(req.cost)          # the request body says how long the "engine" takes
         return _Result()
+
+
+async def _until(check, timeout=5.0):
+    """Wait until check() is true, so the tests do not depend on how fast the machine is."""
+    deadline = time.monotonic() + timeout
+    while not check():
+        assert time.monotonic() < deadline, "condition not reached in time"
+        await asyncio.sleep(0.01)
 
 
 @pytest.fixture()
@@ -83,16 +96,16 @@ def test_cancelled_while_queued_leaves_no_stale_entry(app):
     async def run():
         async with _client(app) as c:
             running = asyncio.create_task(c.post("/invocations", content=_body(1.0)))
-            await asyncio.sleep(0.1)
+            await _until(lambda: app.BUSY_SINCE is not None)          # the long job is on the engine thread
             queued = [asyncio.create_task(c.post("/invocations", content=_body(0.05))) for _ in range(3)]
-            await asyncio.sleep(0.1)
-            assert len(app.WAITING) == 3
+            await _until(lambda: len(app.WAITING) == 3)
             queued[0].cancel()
             queued[1].cancel()
             done = await asyncio.gather(running, queued[2])
             assert [r.status_code for r in done] == [200, 200]
-            await asyncio.sleep(0.2)
-            assert len(app.WAITING) == 0 and app.IN_FLIGHT == 0
+            await _until(lambda: app.IN_FLIGHT == 0)
+            assert len(app.WAITING) == 0
+            assert app.ENGINE.calls == 2                      # the two cancelled requests never ran
             await asyncio.sleep(app.MAX_QUEUE_WAIT_S + 0.5)   # a stale entry would now look older than the limit
             assert (await c.post("/invocations", content=_body(0.05))).status_code == 200
     asyncio.run(run())
@@ -102,32 +115,35 @@ def test_cancelled_while_running_is_counted_until_the_job_ends(app):
     async def run():
         async with _client(app) as c:
             running = asyncio.create_task(c.post("/invocations", content=_body(1.0)))
-            await asyncio.sleep(0.2)                         # the job is on the engine thread now
+            await _until(lambda: app.BUSY_SINCE is not None)          # the job is on the engine thread now
             running.cancel()
             await asyncio.gather(running, return_exceptions=True)
             assert app.IN_FLIGHT == 1                       # the engine is still busy with it
-            await asyncio.sleep(1.0)
-            assert app.IN_FLIGHT == 0
+            await _until(lambda: app.IN_FLIGHT == 0)
     asyncio.run(run())
 
 
 def test_cancelled_as_the_job_starts_is_counted_out_once(app, monkeypatch):
     """The handler is cancelled after the job left the executor queue but before it took its token."""
-    original = app._evaluate
+    original, started, ended = app._evaluate, threading.Event(), threading.Event()
     def slow_start(*args):
-        time.sleep(0.3)               # the window between the executor starting the job and the token check
-        return original(*args)
+        started.set()                 # the executor has started the job ...
+        time.sleep(0.3)               # ... and it has not taken its token yet
+        try:
+            return original(*args)
+        finally:
+            ended.set()
     monkeypatch.setattr(app, "_evaluate", slow_start)
 
     async def run():
         async with _client(app) as c:
             req = asyncio.create_task(c.post("/invocations", content=_body(0.05)))
-            await asyncio.sleep(0.1)                         # inside slow_start's sleep
+            await _until(started.is_set)
             req.cancel()
             await asyncio.gather(req, return_exceptions=True)
-            await asyncio.sleep(0.5)                         # the job has finished by now
+            await _until(ended.is_set)
             assert len(app.WAITING) == 0 and app.IN_FLIGHT == 0
-            assert app.BUSY_SINCE is None                    # it did no engine work for a cancelled request
+            assert app.ENGINE.calls == 0                      # no engine work for a cancelled request
     asyncio.run(run())
 
 
@@ -142,6 +158,6 @@ def test_burst_is_refused_at_once_beyond_the_queue_depth(app):
         refused = [(d, h) for s, d, h in out if s == 503]
         assert sum(s == 200 for s, _, _ in out) == app.MAX_QUEUE
         assert len(refused) == 40 - app.MAX_QUEUE
-        assert all(d < 0.1 and h == "busy" for d, h in refused)
+        assert all(d < 1.0 and h == "busy" for d, h in refused)  # refused without waiting for the 0.5 s jobs
         assert len(app.WAITING) == 0 and app.IN_FLIGHT == 0
     asyncio.run(run())

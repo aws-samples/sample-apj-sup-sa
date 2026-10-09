@@ -252,7 +252,7 @@ async def invocations(request: Request) -> JSONResponse:
     finally:
         # Whoever removes the token counts the request out, so it happens exactly once. Normally _evaluate removed it
         # when the job started and counts the request out when the job ends, even if this handler was cancelled
-        # meanwhile. If this handler was cancelled first (on shutdown, or a client disconnect that cancels the handler),
+        # meanwhile. If this handler was cancelled first (on shutdown, or by a server version that cancels on disconnect),
         # it removes the token here and _evaluate, if the job still starts, does no work; otherwise a leftover entry
         # would make every later request look as if it had waited.
         with WAITING_LOCK:
