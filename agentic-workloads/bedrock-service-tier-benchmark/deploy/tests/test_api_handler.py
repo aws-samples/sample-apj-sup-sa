@@ -82,3 +82,11 @@ def test_json_columns_are_decoded_and_resume_is_retried(monkeypatch):
     r = api.handler(_event("/comparisons", {"model": "m"}), None)
     assert r["statusCode"] == 200 and calls["n"] == 2
     assert json.loads(r["body"])[0]["deltas"]["ttft"]["delta"] == -0.1
+
+
+def test_filters_is_one_round_trip(rds, monkeypatch):
+    row = {d: json.dumps(["b", "a"] if d == "model" else []) for d in api.DIMENSIONS}
+    monkeypatch.setattr(rds, "execute_statement", lambda **kw: rds.calls.append(kw) or {"formattedRecords": json.dumps([row])})
+    r = api.handler(_event("/filters", {"run_id": "run-1"}), None)
+    assert r["statusCode"] == 200 and len(rds.calls) == 1
+    assert json.loads(r["body"])["model"] == ["b", "a"]

@@ -109,13 +109,13 @@ def runs(_qs: dict[str, str]) -> Any:
 
 
 def filters(qs: dict[str, str]) -> Any:
+    """Distinct values of every dimension in one scan (one Data API round trip, not one per dropdown)."""
     where, params = _filters({k: v for k, v in qs.items() if k == "run_id"})
-    out: dict[str, Any] = {}
-    for dim in DIMENSIONS:
-        sql = f"SELECT DISTINCT {dim} AS v FROM cells WHERE {where} ORDER BY 1"  # nosec B608 - column names from the DIMENSIONS allowlist; values are bind parameters
-        rows = _query(sql, params)
-        out[dim] = [r["v"] for r in rows]
-    return out
+    aggs = ", ".join(f"COALESCE(json_agg(DISTINCT {d} ORDER BY {d}), '[]')::text AS {d}" for d in DIMENSIONS)
+    sql = f"SELECT {aggs} FROM cells WHERE {where}"  # nosec B608 - column names from the DIMENSIONS allowlist; values are bind parameters
+    rows = _query(sql, params)
+    row = rows[0] if rows else {}
+    return {d: [v for v in json.loads(row.get(d) or "[]") if v is not None] for d in DIMENSIONS}
 
 
 def comparisons(qs: dict[str, str]) -> Any:
