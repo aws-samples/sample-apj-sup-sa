@@ -22,13 +22,12 @@
 // Tenant isolation job (only on tools/call):
 //   - STRIP any merchant_id / merchant / tenant the model put in the tool
 //     arguments (prompt-injection defense).
-//   - The tool Lambda independently re-applies the tenant filter from the
-//     trusted session context (defense-in-depth), and fails closed if absent.
-//
-// NOTE: the exact location of the trusted merchant_id inside the interceptor
-// event (identity/session/context) is confirmed by inspecting a real tools/call
-// payload — this handler logs the event to CloudWatch for that purpose. Once
-// pinned, inject the trusted value here (see INJECT marker below).
+//   - INJECT the trusted merchant_id — resolved from the Connect contact
+//     attributes via the x-amz-connect-contact-id header — under the reserved
+//     top-level argument key TRUSTED_ARG_KEY.
+//   - The tool Lambda independently re-applies the tenant filter, reading the
+//     tenant ONLY from that top-level key (defense-in-depth), and fails closed
+//     if absent.
 // ----------------------------------------------------------------------------
 
 import { ConnectClient, GetContactAttributesCommand } from "@aws-sdk/client-connect";

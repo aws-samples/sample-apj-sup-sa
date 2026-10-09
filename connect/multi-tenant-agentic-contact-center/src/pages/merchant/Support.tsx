@@ -18,6 +18,7 @@ import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { loadConnectConfig } from "@/connect/config";
 import SupportChat from "./SupportChat";
+import ScreenShareModal from "@/components/screenshare/ScreenShareModal";
 
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const COMMENT_PAGE = 5;
@@ -39,10 +40,16 @@ export default function MerchantSupport() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(false);
+  // Opt-in screen sharing (connect-screenshare/): shown only when configured.
+  const [screenShareEnabled, setScreenShareEnabled] = useState(false);
+  const [screenShareCaseId, setScreenShareCaseId] = useState<string | null>(null);
   const [chatCaseId, setChatCaseId] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadConnectConfig().then((cfg) => setChatEnabled(Boolean(cfg?.chatApiUrl)));
+    void loadConnectConfig().then((cfg) => {
+      setChatEnabled(Boolean(cfg?.chatApiUrl));
+      setScreenShareEnabled(Boolean(cfg?.screenShareApiUrl));
+    });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -152,6 +159,8 @@ export default function MerchantSupport() {
             detail={detail}
             chatEnabled={chatEnabled}
             onStartChat={(id) => setChatCaseId(id)}
+            screenShareEnabled={screenShareEnabled}
+            onStartScreenShare={(id) => setScreenShareCaseId(id)}
           />
         </div>
       </div>
@@ -165,6 +174,10 @@ export default function MerchantSupport() {
             await openCase(id);
           }}
         />
+      )}
+
+      {screenShareCaseId && (
+        <ScreenShareModal caseId={screenShareCaseId} onClose={() => setScreenShareCaseId(null)} />
       )}
 
       {chatCaseId && (
@@ -185,11 +198,15 @@ function DetailPanel({
   detail,
   chatEnabled,
   onStartChat,
+  screenShareEnabled,
+  onStartScreenShare,
 }: {
   loading: boolean;
   detail: CaseDetail | null;
   chatEnabled: boolean;
   onStartChat: (caseId: string) => void;
+  screenShareEnabled: boolean;
+  onStartScreenShare: (caseId: string) => void;
 }) {
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
@@ -249,10 +266,19 @@ function DetailPanel({
         title={loading ? "Loading…" : detail?.title || "Case"}
         subtitle={detail?.caseId}
         action={
-          chatEnabled && detail ? (
-            <Button size="sm" variant="secondary" onClick={() => onStartChat(detail.caseId)}>
-              Chat about this case
-            </Button>
+          detail && (chatEnabled || screenShareEnabled) ? (
+            <div className="flex gap-2">
+              {chatEnabled && (
+                <Button size="sm" variant="secondary" onClick={() => onStartChat(detail.caseId)}>
+                  Chat about this case
+                </Button>
+              )}
+              {screenShareEnabled && (
+                <Button size="sm" variant="secondary" onClick={() => onStartScreenShare(detail.caseId)}>
+                  Share screen
+                </Button>
+              )}
+            </div>
           ) : undefined
         }
       />

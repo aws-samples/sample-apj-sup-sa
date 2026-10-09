@@ -3,6 +3,14 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import type { ConnectChat } from "@/connect/useConnectChat";
 
+// Yes / No questions the merchant answers with buttons:
+//  - the AI assistant, when it can't complete a request (e.g. initiating a refund);
+//  - the flow, after hours, before logging the request as a support case.
+const QUICK_REPLIES: { question: RegExp; yes: string }[] = [
+  { question: /escalate (this|you|the conversation)? ?to a human agent\?/i, yes: "Yes, connect me to an agent" },
+  { question: /log this as a support case/i, yes: "Yes, log a case" },
+];
+
 interface ChatConversationProps {
   chat: ConnectChat;
   /** Prompt shown before a chat is started. */
@@ -27,6 +35,10 @@ export function ChatConversation({
 }: ChatConversationProps) {
   const { status, messages, input, setInput, error, active, begin, send, restart } = chat;
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Offer Yes / No only while the latest message is one of those questions.
+  const last = messages[messages.length - 1];
+  const quickReply =
+    active && last && last.role !== "customer" ? QUICK_REPLIES.find((q) => q.question.test(last.text)) : undefined;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -67,6 +79,16 @@ export function ChatConversation({
                 {m.text}
               </div>
             ))}
+            {quickReply && (
+              <div className="flex gap-2" data-testid="escalation-options">
+                <Button size="sm" variant="primary" onClick={() => send("Yes")}>
+                  {quickReply.yes}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => send("No")}>
+                  No, thanks
+                </Button>
+              </div>
+            )}
             {status === "ended" && <p className="text-center text-xs text-ink-400">{endedText}</p>}
           </div>
 

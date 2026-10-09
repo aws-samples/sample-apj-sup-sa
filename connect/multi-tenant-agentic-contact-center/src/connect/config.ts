@@ -8,6 +8,8 @@ export interface ConnectConfig {
   chatApiUrl?: string;
   /** Base URL of the transaction Search API (no trailing slash); client calls `${searchApiUrl}/transactions`. */
   searchApiUrl?: string;
+  /** Base URL of the opt-in Screen-share API (no trailing slash); client calls `${screenShareApiUrl}/screenshare/start`. */
+  screenShareApiUrl?: string;
 }
 
 let cached: ConnectConfig | null = null;
@@ -31,6 +33,7 @@ export async function loadConnectConfig(): Promise<ConnectConfig | null> {
           casesApiUrl: cfg.connect.casesApiUrl || undefined,
           chatApiUrl: cfg.connect.chatApiUrl || undefined,
           searchApiUrl: cfg.connect.searchApiUrl || undefined,
+          screenShareApiUrl: cfg.connect.screenShareApiUrl || undefined,
         };
         return cached;
       }

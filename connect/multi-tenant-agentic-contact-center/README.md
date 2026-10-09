@@ -4,10 +4,30 @@ This is a **Amazon Connect + Amazon Bedrock AgentCore** sample built on a paymen
 
 ![The AnyCompanyPay landing page, offering a merchant workspace and an admin/agent workspace](docs/images/homepage.png)
 
+### Amazon Connect features in this sample
+
+| Amazon Connect feature | How the sample uses it | Module |
+|---|---|---|
+| **Instance + embedded CCP** (Streams API) | Agents work from the CCP embedded in the admin workspace | `infra/` |
+| **Chat** (`StartChatContact`, Chat SDK, participant service) | Floating live-chat widget and "Chat about this case"; tenant stamped from the JWT as contact attributes | `infra/` |
+| **Contact flows** | Inbound chat, case chat, routed chat (tiers/owner/hours), after-hours task flow, screen-share flow, all defined in CDK | `infra/`, `connect-routing/`, `connect-screenshare/` |
+| **Amazon Connect Cases** | Support cases with a template and custom fields; merchants see only their own; comments + linked contacts; chat transcript on the case | `infra/` |
+| **Customer Profiles** | B2B model: account profile per merchant (with `tier`) + individual profiles per user | `infra/` |
+| **Amazon Q in Connect AI agents** | Self-service orchestrator with a custom prompt, an `Escalate` tool, and MCP tools (via **AgentCore Gateway**) that read only the caller's transactions | `connect-ai-agent/` |
+| **Amazon Lex V2 bots** | Hands chat to the AI agent; a small Yes/No bot asks after hours "log this as a support case?" | `connect-ai-agent/`, `connect-routing/` |
+| **Queues + routing profiles + contact priority** | Tier queues (VIP / key / shared) at priority 1 / 2 / 5; backlog and live-agent routing profiles | `connect-routing/` |
+| **Routing criteria (preferred agent)** | A chat on an open case is offered to the case owner first, then falls back to the queue | `connect-routing/` |
+| **Hours of operation** (incl. overrides, `GetEffectiveHoursOfOperations`) | AI chat 24/7; human hand-off only in business hours; next-opening time for follow-ups | `connect-routing/` |
+| **Tasks** (scheduled `StartTaskContact`) | After-hours requests become a case + one scheduled follow-up task at the next opening, VIP → key → shared | `connect-routing/` |
+| **Flow Lambda integration** | Contact context (tier, case owner) and after-hours case/task scheduling | `connect-routing/` |
+| **In-app web calling + screen sharing** (`StartWebRTCContact`, Chime SDK) | Merchant shares their screen from a case; agent watches live in the CCP | `connect-screenshare/` |
+| **Security profiles + users** | Agent permissions, the AI agent's MCP tool grant, video/screen-share access; demo agents provisioned by script | all |
+
 > **Documentation index** — this README is the conceptual guide. Everything else
 > lives in [`docs/`](docs/):
 > [`DEPLOYMENT.md`](docs/DEPLOYMENT.md) (deploy/operate),
-> [`connect-ai-agent/README.md`](connect-ai-agent/README.md) (the AI Q&A module).
+> [`connect-ai-agent/README.md`](connect-ai-agent/README.md) (the AI Q&A module),
+> [`connect-routing/README.md`](connect-routing/README.md) (opt-in case-owner routing + after-hours backlog).
 > The app also ships a public developer-docs page at `/docs` (`src/pages/Docs.tsx`).
 
 ---
@@ -134,6 +154,33 @@ can reset the orchestrator binding). Each script also accepts explicit overrides
 I have?"* You should get a tenant-correct answer, and the gateway + interceptor CloudWatch log groups
 should show a `tools/call` with the injected `merchant_id`.
 
+### Optional — case-owner routing + after-hours backlog
+```
+cd connect-routing
+bash deploy.sh             # routing stack + switch merchant chats to the routed flow
+bash provision-tiers.sh    # merchant tier on Customer Profiles (Luxe=VIP, Nova=key, rest shared)
+bash provision-agents.sh   # agent-live1/2 (RP-Live) + agent-ooh1 (RP-OOH-Backlog)
+```
+Opt-in and additive: new hours, tier queues, an after-hours task queue, two routing profiles, Cases
+fields, two Lambdas and two new flows; the existing flows are untouched and `agent1` / admin also get
+the tier queues. `DEMO_MODE=1 bash deploy.sh` forces the after-hours path during the day;
+`UNWIRE=1 bash deploy.sh` switches chats back to the original flows. See
+[`connect-routing/README.md`](connect-routing/README.md).
+
+### Optional — live screen sharing
+```
+cd connect-screenshare
+bash deploy.sh                  # queue + web-call flow + video security profile + start API
+bash provision-video-agents.sh  # VideoContact.Access for the agents
+cd ../infra && npx cdk deploy AnyCompanyPayAppStack   # ship the merchant "Share screen" UI + CSP
+```
+Merchants get a **Share screen** button on their cases (web call + screen share); agents see the
+shared screen in Admin → Contact Center or the Connect agent workspace. See
+[`connect-screenshare/README.md`](connect-screenshare/README.md).
+
+Redeploying `AnyCompanyPayConnectStack` for any opt-in module goes through
+`infra/deploy-connect-stack.sh`, which keeps the other modules (agentic, routing, screen share) as they are.
+
 ### 3. Clean up and tear down everything
 
 ```
@@ -169,8 +216,24 @@ Uses the same region/env resolution as deploy. Override with `REGION=<REGION>`, 
   **their own** transactions in natural language; Amazon Lex routes to a **Q in Connect** orchestrator
   that calls the `query_transactions` **MCP tool** through an **AgentCore Gateway**. A request
   interceptor injects the trusted `merchant_id` from the Connect contact so the tool only ever returns
-  the caller's rows — the tenant is **never** supplied by the model. The gateway, its tool target, and
-  the interceptor are native `AWS::BedrockAgentCore::*` CDK resources.
+  the caller's rows — the tenant is **never** supplied by the model (the tool reads it only from the
+  interceptor's top-level reserved key, so a model-nested value is ignored). The gateway, its tool
+  target, and the interceptor are native `AWS::BedrockAgentCore::*` CDK resources.
+  For requests it cannot complete (e.g. **initiating a refund**), the assistant asks **"Would you like
+  me to escalate this to a human agent?"** and the chat shows **Yes / No** buttons; only **Yes** hands
+  the chat to a human (an explicit "talk to a human" escalates straight away).
+- **Case-owner routing + after-hours backlog (opt-in, `connect-routing/`)** — merchants are routed by
+  **tier** (VIP / key / shared queue and contact priority 1 / 2 / 5). A chat on an **open case** is
+  offered to the **case owner** first (preferred-agent routing step with an expiry, then the queue) at
+  priority 1, ahead of new contacts. The **AI assistant is available 24/7**; only human agents follow
+  business hours. When a merchant asks for a human **out of hours**, the chat asks **"Would you like me
+  to log this as a support case…?"** (Yes / No). **Yes** creates a **new** case plus one **scheduled
+  task** for the next opening, offered to backlog agents VIP → key → shared; **No** logs nothing and
+  returns to the AI assistant.
+- **Live screen sharing (opt-in, `connect-screenshare/`)** — from a case, a merchant starts a
+  **web call** (Amazon Connect in-app/web calling, `StartWebRTCContact` + the Amazon Chime SDK) and
+  **shares their screen**; the agent answers in the embedded CCP and sees it live. Tenant and case
+  ownership are enforced server-side, as for chat.
 - **Customer Profiles (B2B model)** — merchants and their users mirrored into Amazon Connect Customer
   Profiles as account + individual profiles.
 - **Infrastructure as code, modular** — two independently-deployable AWS CDK stacks (app + Connect)
@@ -249,6 +312,8 @@ routing profile, and how the tenant threads through all of it — see [§6a](#6a
 | **OpenSearch Serverless collection** (`opensearch-zeroetl/`) | `SEARCH` collection `anycompany-pay-tx`, **VPC-only** (`AllowFromPublic:false`), reached via VPC endpoints | Fast search/filter over transactions without exposing the collection publicly |
 | **OpenSearch Ingestion (zero-ETL) pipeline** | `rds` source → serverless sink, Min1/Max2, attached to the Aurora VPC | Initial snapshot (Aurora→S3→index) + near-real-time CDC (WAL) with no custom ETL to maintain |
 | **Search API (`SearchApiFn`)** | HTTP API + Cognito JWT authorizer → Lambda **in the Aurora VPC** → the private collection; `GET /transactions`, `GET /transactions/{id}` | GET-only search; enforces tenant isolation by forcing `merchant_id` from the validated JWT |
+| **Routing module** (`connect-routing/`, opt-in) | CS hours (+ demo closed/open hours), tier chat queues + `ooh-followup` task queue, RP-Live / RP-OOH-Backlog, Cases fields `tier`/`ooh_task_pending`/`ooh_task_id` + OOH template, `ContactContextFn` + `OohSchedulerFn`, the routed chat flow and the OOH task flow, an SNS alert topic | A case is not routable: the flow reads the case owner and tier to set routing criteria + priority (Pattern A), and turns after-hours contacts into scheduled, prioritised tasks (Pattern B) |
+| **Screen-share module** (`connect-screenshare/`, opt-in) | Voice queue + web-call flow, `anycompany-pay-video-agent` security profile (`VideoContact.Access`), `ScreenShareApiFn` (`POST /screenshare/start`, `GET /screenshare/status/{id}`) | Native Connect web calling with customer screen sharing; the Lambda stamps the tenant from the JWT and verifies case ownership |
 | **SSM runtime-config parameter** | `/anycompany-pay/<env>/runtime-config` (Cognito + Connect + `searchApiUrl` values) | Decouples the stacks: the app reads it as a secret; the Connect and zero-ETL stacks merge their values in and force an ECS redeploy — no rebuild, no circular dependency |
 
 ---
@@ -285,7 +350,8 @@ Merchants are multi-tenant: many users per merchant, and a merchant must never s
 - **5 merchants × 2 users** are provisioned in Cognito (`infra/provision-merchants.sh`), each in the
   `merchant` group and tagged with their `custom:merchant_id` / `custom:merchant_name`.
 - The Cases Lambda enforces isolation off the **validated JWT claim** (never a client value):
-  - **List** — a merchant sees only cases whose `merchant_id` equals their claim.
+  - **List** — a merchant sees only cases whose `merchant_id` equals their claim; the filter is applied
+    **inside the Cases search** (paged), then re-checked per row.
   - **Create** — `merchant_id` is **forced** from the claim; the form doesn't collect it.
   - **Read / comment / update** — the Lambda checks the case's `merchant_id` first and returns
     **403** on cross-tenant access.
@@ -404,7 +470,9 @@ by the tenant key `merchant_id`.
 | **Agent softphone (CCP)** | `amazon-connect-streams` | Admin → Contact Center (iframe) | Connect agent login (separate) |
 | **Ticketing (Cases)** | `@aws-sdk/client-connectcases` via `CasesApiFn` | Admin Cases + Merchant Support | Cognito (reused) |
 | **Live chat** | `amazon-connect-chatjs` + `StartChatContact` via `ChatApiFn` | Merchant Support | Cognito (reused) |
-| **Customer Profiles** | `@aws-sdk/client-customer-profiles` | Agent workspace lookups | — (data plane) |
+| **Customer Profiles** | `@aws-sdk/client-customer-profiles` | Agent workspace lookups; merchant tier | — (data plane) |
+| **Routing (opt-in)** | Flows + `ContactContextFn` / `OohSchedulerFn` | `connect-routing/` | — (contact attributes from `ChatApiFn`) |
+| **Web call + screen share (opt-in)** | `amazon-chime-sdk-js` + `StartWebRTCContact` via `ScreenShareApiFn` | Merchant Support → Share screen; agent CCP | Cognito (reused) |
 
 **Two sides of a chat, two SDKs, one global.** The **customer** side (merchant dashboard) uses
 **ChatJS**; the **agent** side (admin CCP) uses **Streams**. Both libraries attach to the same
@@ -425,11 +493,29 @@ Contact flow (anycompany-pay-chat-inbound OR anycompany-pay-chat-case)
 Support queue ──(routing profile with the CHAT channel enabled)──▶ Agent (agent1) in the CCP
 ```
 
+With the routing module wired, both chat types start in `anycompany-pay-chat-routed` instead:
+
+```
+ContactContextFn (tier from Customer Profiles; case owner + status from Cases)
+  new issue → AI assistant (Lex / Q in Connect), 24/7 ── Escalate ──┐
+  case chat → Check hours ─ open → Set routing criteria: owner, 60 s → priority 1 → tier queue → agent
+                          └ closed → AI assistant (24/7) ── Escalate ──┤
+                                                                       ▼
+                               Check hours ─ open   → priority by tier (1/2/5) → tier queue → agent
+                                           └ closed → "log this as a support case?" (Yes / No, small Lex bot)
+                                                      No  → back to the AI assistant
+                                                      Yes → OohSchedulerFn: NEW case (or tonight's case with a
+                                                            pending follow-up), ONE task for the next opening
+                                                            → "logged as support case … follow up when we open"
+                                                      (task → anycompany-pay-ooh-task → ooh-followup queue)
+```
+
 Everything except the agent user is created in CDK (`connect-stack.ts`): the instance, the approved
 origin for the CCP iframe, the Cases domain + fields + template, the Cases-domain→instance
 association, the Customer Profiles domain + KMS key, the hours of operation, the support queue, the
-`CHAT` routing profile, and both chat flows. The **agent user is created out-of-band**
-(`provision-agent.sh`) so no password lands in the CloudFormation template.
+`CHAT` routing profile, both chat flows, and the `agent1` / admin Connect users (a custom resource
+reads a Secrets Manager **generated** password, so no password lands in the template;
+`provision-agent.sh` remains for extra agents).
 
 ### How multi-tenancy threads through Connect
 
@@ -450,9 +536,68 @@ The same `merchant_id` that isolates Cases also isolates chat — and it is alwa
   403 / 404). The transcript is later written back to that case via the same tenant-isolated comments
   endpoint.
 
+- **Routing never trusts a cross-tenant case.** The routing Lambdas route on the server-stamped
+  attributes and re-check the case's tenant: a contact whose `case_id` belongs to another merchant is
+  not linked to it, gets no owner step, and never gets an after-hours task on it.
+
 So a single claim — `custom:merchant_id` in the Cognito ID token — is the tenant boundary across
 Cases (a field on every case), chat (a contact attribute + the case-ownership check), and Customer
 Profiles (the `AccountNumber` join key), and it is enforced in the Lambdas, never in the browser.
+
+---
+
+## 6b. Live screen sharing (opt-in)
+
+From a support case, a merchant can start a short **web call** with support and **share their screen**
+so the agent sees exactly what they see. It is built on Amazon Connect's native in-app/web calling
+(WebRTC), so the call is a normal voice contact: queued, routed, and reported like any other.
+Module: [`connect-screenshare/`](connect-screenshare/README.md).
+
+**Merchant** — on a case: **Share screen** → **Start call** (allow the microphone) → "Connecting you to a
+support agent…" → once an agent answers, **Share my screen** and pick a screen, window or tab →
+**Stop sharing** or **Hang up** at any time.
+
+**Agent** — in Admin → Contact Center (or the Connect agent workspace): **Accept call** → talk as on a
+normal call → when the merchant shares, a **Screen sharing session** view shows their screen live.
+
+```mermaid
+sequenceDiagram
+  participant M as Merchant browser
+  participant API as ScreenShareApiFn (JWT)
+  participant C as Amazon Connect
+  participant A as Agent CCP
+  M->>API: POST /screenshare/start {caseId}
+  API->>API: tenant from the JWT, case ownership check
+  API->>C: StartWebRTCContact (Customer.ScreenShare = SEND)
+  C-->>API: contactId + Chime meeting/attendee (this call only)
+  API-->>M: meeting ticket
+  M->>C: join the call with audio (Amazon Chime SDK)
+  C->>A: web-call flow -> anycompany-pay-screenshare queue -> offer
+  A->>C: Accept call
+  loop every 3 s while waiting
+    M->>API: GET /screenshare/status/{contactId}
+    API->>C: DescribeContact (agent connected?)
+  end
+  M->>C: Share my screen (Chime content share)
+  C->>A: screen sharing session (live video)
+```
+
+| Piece | Role |
+|---|---|
+| `ScreenShareApiFn` (API Gateway + Cognito JWT authorizer) | Starts the call with `StartWebRTCContact`, stamping `merchant_id` / `merchant_name` / `email` (and a verified `case_id`) from the token; reports call status |
+| Amazon Chime SDK (browser, loaded only when used) | Carries the call audio and the shared-screen video |
+| `anycompany-pay-screenshare-inbound` flow + `anycompany-pay-screenshare` queue (VOICE) | Routes the call; agent1 / admin's `anycompany-pay-chat` profile takes it when the module is wired |
+| `anycompany-pay-video-agent` security profile | `VideoContact.Access` — needed for agents to take web calls with video / screen sharing |
+| Embedded CCP flags | `allowFramedVideoCall`, `allowFramedScreenSharing`, `allowFramedScreenSharingPopUp` in Admin → Contact Center |
+
+**"Connected" comes from Connect, not the meeting.** Connect places its own media participant in the
+call before any agent answers, so the merchant UI asks the backend (`DescribeContact` →
+agent connected) instead of trusting meeting presence; only then does **Share my screen** appear.
+
+**Isolation.** Only the `merchant` group can start a session; the tenant always comes from the
+validated JWT; a case of another tenant → 403; another tenant's call status → 404; the meeting ticket
+is valid only for that one call; nothing is shared until the merchant picks what to share, and sharing
+stops when they stop or hang up.
 
 ---
 
@@ -497,37 +642,17 @@ The practices this project deliberately follows (and why):
   credentials and the API has no CORS); `ChatApiFn` does, stamping the tenant from the JWT and
   returning only a per-contact `ParticipantToken`.
 - **Content Security Policy + XSS-safe rendering.** nginx sends a CSP scoped to Cognito, the API, and
-  the Connect participant `wss`/CCP origins (per AWS's chat security guidance); chat messages are
-  rendered as React text nodes (never `innerHTML`).
+  the Connect participant `wss`/CCP origins (per AWS's chat security guidance), plus `*.chime.aws` and
+  `worker-src blob:` for the screen-share web call's media; chat messages are rendered as React text
+  nodes (never `innerHTML`).
 - **ChatJS/Streams isolation.** The customer chat (ChatJS) and agent CCP (Streams) libraries are kept
   off each other's pages via lazy/dynamic imports, avoiding the shared-`window.connect` conflict.
-- **No secrets in the template.** The Connect agent user is created by a script, not CloudFormation,
-  so no agent password is ever stored in the stack.
+- **No secrets in the template.** Connect users are created by a custom resource that reads a
+  Secrets Manager-generated password at deploy time, so no password is ever stored in the stack.
 
 - **Data at rest encrypted.** Aurora storage, the S3 export bucket (SSE-S3 + `BlockAll` +
   `enforceSSL`), and every Secrets Manager secret are encrypted; the Aurora cluster sits in
   `PRIVATE_ISOLATED` subnets with no internet gateway or NAT route.
-
-### Static analysis and accepted deviations
-
-Every synthesized template plus the standalone CloudFormation template are scanned with
-[Checkov](https://www.checkov.io/). The remaining findings are **demo-scope trade-offs**, not
-defects — each is a hardening step you would add for production, listed here so nothing is silent:
-
-| Finding | Why it's accepted here | For production |
-|---|---|---|
-| Secrets/log groups use AWS-managed keys (`CKV_AWS_149`, `CKV_AWS_158`) | Encrypted at rest; a CMK adds key administration to a demo | Supply a customer-managed KMS key |
-| No access logs on ALB / CloudFront / API Gateway / S3 (`CKV_AWS_91`, `86`, `95`, `18`) | Avoids provisioning log buckets and their lifecycle for a teardown-in-a-day sample | Enable access logging with a retention policy |
-| No WAF on CloudFront (`CKV_AWS_68`) | Per-month cost with no demo value | Attach a WAF web ACL |
-| Lambdas not in a VPC, no DLQ, no reserved concurrency (`CKV_AWS_117`, `116`, `115`) | These call AWS control-plane APIs only, and most are CDK-generated custom-resource handlers | Add DLQs and concurrency caps for anything customer-facing |
-| ALB listener is HTTP, not HTTPS (`CKV_AWS_2`, `CKV_AWS_103`) | The ALB is **internal** and only reachable from CloudFront over a VPC origin; TLS terminates at the edge | Terminate TLS on the ALB too if the VPC is untrusted |
-| CloudFront viewer cert is the default (`CKV_AWS_174`) | No custom domain, so the minimum TLS version isn't settable | Bring a custom domain + ACM certificate |
-| Aurora has no IAM auth or enhanced monitoring (`CKV_AWS_162`, `CKV_AWS_118`) | Access is via the generated Secrets Manager credential from inside the VPC only | Enable IAM database authentication and Performance Insights |
-| The OSIS pipeline role allows unconstrained write on one service (`CKV_AWS_111`) | Its actions are account-scoped and accept no resource-level ARN; the statement carries an inline justification | Narrow as service support lands |
-
-Also documented but not enabled: SSO for the CCP softphone (would require recreating the Connect
-instance as SAML); self-hosting the web font to drop the Google Fonts CSP allowance; the native Cases
-`CreateRelatedItem` (`Contact`) link for the agent-workspace chat-transcript view.
 
 ---
 
@@ -546,85 +671,16 @@ instance as SAML); self-hosting the web font to drop the Google Fonts CSP allowa
   start](#2-one-time-connect-setup-agentic-self-service-only). Deeper hardening (AgentCore Identity
   for signed per-merchant tokens, AgentCore Policy) is documented as additive upgrades in
   [`connect-ai-agent/README.md`](connect-ai-agent/README.md).
+- **Screen sharing scope.** Merchant → agent only (no agent screen share), started from a case, not
+  recorded. The screen-share queue is always open (it does not follow the chat business hours). The
+  standalone `ccp-v2` page has no screen-share view — agents use Admin → Contact Center or the Connect
+  agent workspace.
+- **Routing module scope.** Chat + task channels only (no SES email identity on the instance, so the
+  design's email cases don't apply); Cases rules / SLA alerts and quick-connect transfer flows are not
+  built. Owner routing needs the owner to have the tier queue in their routing profile (both new
+  profiles and `anycompany-pay-chat` do). See [`connect-routing/README.md`](connect-routing/README.md).
 
 ---
-
-## 10. Repository layout
-
-```
-.
-├── src/                         # React + Vite SPA
-│   ├── auth/                    # Cognito PKCE auth (AuthProvider, tokens, pkce, authConfig)
-│   ├── connect/                 # Runtime config, Cases/Chat/Search API clients, useConnectChat hook, transactionsApi
-│   ├── components/              # layout (Sidebar/Topbar/nav), chat/ (FloatingChat + ChatConversation), ui primitives
-│   ├── pages/
-│   │   ├── PersonaSelect.tsx    # landing page (role picker)
-│   │   ├── AuthCallback.tsx     # Cognito PKCE callback handler
-│   │   ├── Docs.tsx             # public developer-docs page (/docs)
-│   │   ├── admin/               # CaseManagement, ContactCenter (lazy)
-│   │   └── merchant/            # Transactions (OpenSearch), Support, SupportChat
-│   ├── data/                    # shared types
-│   └── App.tsx                  # routes (admin/* and merchant/* under RequireAuth)
-├── database/                    # Aurora PostgreSQL module (own CDK app: AnyCompanyPayAuroraStack)
-│   ├── lib/aurora-stack.ts      # VPC (isolated subnets), Aurora PG 18.4, logical replication, seed trigger
-│   └── lambda/seed/             # in-VPC seeder: creates transactions table + 200 multi-tenant rows
-├── opensearch-zeroetl/          # Zero-ETL + search module (own CDK app: AnyCompanyPayZeroEtlStack)
-│   ├── lib/zeroetl-stack.ts     # private OpenSearch Serverless collection, OSIS pipeline, Search API, SSM config merge
-│   └── lambda/
-│       ├── search-api/          # SearchApiFn: GET-only, JWT-derived tenant filter -> private collection
-│       ├── commerce-api/        # CommerceApiFn: POST /transactions, refunds + disputes, dispute->Connect Case
-│       └── config-writer/       # merges searchApiUrl + commerceApiUrl into the SSM runtime config + ECS redeploy
-├── connect-ai-agent/            # AI transaction Q&A module (own CDK app: AnyCompanyPayConnectAiAgentStack)
-│   ├── lib/
-│   │   ├── connect-ai-agent-stack.ts  # AgentCore Gateway + target + interceptor (AWS::BedrockAgentCore::*)
-│   │   │                              #   + tool/interceptor Lambdas + gateway exec role
-│   │   ├── lex-stack.ts               # Lex bot + alias for Q in Connect routing
-│   │   └── qic-domain-stack.ts        # Q in Connect domain (CDK-managed alternative to console step 1)
-│   ├── lambda/
-│   │   ├── transaction-tool/    # MCP tool: tenant-filtered OpenSearch query (read-only)
-│   │   ├── gateway-interceptor/ # AgentCore Gateway request interceptor (tenant gate, fail-closed)
-│   │   └── gateway-audience/    # custom resource: sets allowedAudience=[gatewayId] (self-reference)
-│   ├── deploy.sh                # deploy the AI-agent CDK stack
-│   ├── deploy-lex.sh            # Lex bot -> Q in Connect; redeploys connect stack with Lex context
-│   ├── deploy-qic-domain.sh     # deploy Q in Connect domain stack
-│   ├── provision-ai-agent.sh    # create Q in Connect orchestration prompt + agent; bind Self-Service
-│   └── provision-gateway.sh     # DEPRECATED — gateway is CDK now; legacy CLI path, guarded off
-├── infra/
-│   ├── lib/
-│   │   ├── app-stack.ts         # Module 1: VPC, ALB, CloudFront, ECS+SPA, Cognito, SSM config
-│   │   └── connect-stack.ts     # Module 2: Connect instance, Cases, Customer Profiles, chat flows/queue/routing profile
-│   ├── bin/app.ts               # instantiates the app + Connect stacks
-│   ├── cloudformation/          # standalone CFN template (anycompany-pay.yaml) + build-and-push helper
-│   ├── lambda/
-│   │   ├── cases-api/           # Cases API Lambda (role/tenant-aware)
-│   │   ├── chat-api/            # StartChatContact Lambda (tenant-stamped; case binding)
-│   │   ├── connect-user/        # Connect user provisioning Lambda
-│   │   └── config-writer/       # custom resource: merges Connect values into the SSM param + ECS redeploy
-│   ├── provision-merchants.sh          # merchant tenants + users in Cognito
-│   ├── provision-customer-profiles.sh  # Customer Profiles (B2B) for merchants
-│   ├── provision-agent.sh              # Connect agent user (answers chats) — no password in CFN
-│   └── provision-phone-number.sh       # claim an inbound voice number + associate a voice flow (idempotent)
-├── Dockerfile                   # multi-stage: node build -> nginx serve
-├── nginx.conf                   # SPA fallback, /healthz, asset caching
-├── 40-auth-config.sh            # container entrypoint: writes /auth-config.json from env
-├── cleanup.sh                   # full teardown (dry-run by default; --apply to delete)
-└── docs/                        # all documentation, diagrams, and console screenshots
-    ├── DEPLOYMENT.md            # detailed deploy/operate guide
-    └── *.drawio                 # architecture diagrams
-```
-
----
-
-## 11. Tech stack
-
-- **Frontend:** React 18, Vite 5, React Router 6, TypeScript, Tailwind CSS, Recharts,
-  `amazon-connect-streams` (agent CCP), `amazon-connect-chatjs` (customer chat).
-- **Infra:** AWS CDK (`aws-cdk-lib` 2.267, TypeScript); Node 22 Lambdas using
-  `@aws-sdk/client-connectcases` and `@aws-sdk/client-connect`.
-- **Data & search:** Aurora PostgreSQL 18.4 (`pg` in the seed Lambda), Amazon OpenSearch Serverless
-  (private collection), Amazon OpenSearch Ingestion (zero-ETL `rds` source), and
-  `@opensearch-project/opensearch` with `AwsSigv4Signer` (service `aoss`) in the Search Lambda.
-- **Runtime:** nginx (Alpine) in ECS Fargate; base images from `public.ecr.aws`.
 
 ### Why these choices
 
@@ -652,7 +708,7 @@ instance as SAML); self-hosting the web font to drop the Google Fonts CSP allowa
 
 ---
 
-## 12. Local development
+## 10. Local development
 
 ```
 npm install
@@ -663,24 +719,6 @@ npm run build        # tsc -b && vite build  (also the typecheck/lint gate)
 For auth/Connect features locally, provide `VITE_CONNECT_CCP_URL` / `VITE_CONNECT_REGION` (see
 `src/connect/config.ts`); otherwise those features degrade gracefully. `localhost:5173` is already a
 registered Cognito callback/logout URL.
-
----
-
-## 13. Related docs
-
-All guides live under [`docs/`](docs/):
-
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — components, design decisions, users/groups,
-  multi-tenancy, Cases, Customer Profiles, CCP, teardown, and verification commands.
-- [§2. One-time Connect setup](#2-one-time-connect-setup-agentic-self-service-only) — console steps
-  for agentic self-service: create the Q in Connect AI domain and register the MCP server.
-- [`connect-ai-agent/README.md`](connect-ai-agent/README.md) — the AI transaction Q&A module
-  (Connect AI Agent Designer → AgentCore Gateway MCP → tenant-isolated OpenSearch tool): design,
-  trust chain, the AgentCore component decisions, and the CDK-managed gateway.
-- [`cleanup.sh`](cleanup.sh) — full, scoped teardown of everything this sample provisions
-  (dry-run by default).
-- Developer-docs page — a public `/docs` route in the app (`src/pages/Docs.tsx`) with the solution
-  architecture, agentic self-service, Amazon Connect, and tenant-isolation deep-dives and diagrams.
 
 ---
 

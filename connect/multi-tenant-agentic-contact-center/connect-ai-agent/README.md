@@ -300,3 +300,43 @@ directly from the Connect **contact** at `tools/call` time and injects it as the
 Prerequisite that remains: `merchant_id` must be a **contact attribute** (ChatApiFn sets it at chat
 start from the validated Cognito JWT). Override the attribute key with the interceptor's
 `MERCHANT_ATTR_KEY` env if it differs.
+
+## 12. Escalation to a human — ask first
+
+The assistant can only **look up** the merchant's transactions and explain policy. When a merchant
+asks for something it cannot do — e.g. **initiate a refund**, open or respond to a dispute, reverse a
+payment, change payout details — or a question it cannot answer, it does **not** hand off straight away:
+
+1. It says briefly that it can't do that in chat (sharing any facts it looked up, such as the
+   transaction's status).
+2. It ends its reply with **"Would you like me to escalate this to a human agent?"**
+3. The merchant app shows **Yes, connect me to an agent** / **No, thanks** under that question
+   (`src/components/chat/ChatConversation.tsx`; the buttons send "Yes" / "No").
+   - **Yes** → the assistant calls the `Escalate` tool → in business hours the flow transfers
+     the chat to the merchant's tier queue (or the support queue without the routing module);
+     outside business hours the flow asks whether to **log it as a support case** (Yes / No) —
+     see `connect-routing/README.md`. If the merchant declines, the chat returns to the
+     assistant, which escalates again whenever asked (it never promises an agent is joining).
+   - **No** → the chat stays with the assistant ("anything else I can help with?").
+
+An explicit "I want to talk to a human agent" still escalates immediately, without the question.
+In-scope questions (e.g. "how many failed transactions did I have?") are answered as before.
+
+Where it lives: the "Requests you cannot complete" section of `ai-agent/orchestration-prompt.yaml`
+and the `Escalate` tool instruction in `ai-agent/tool-escalate.json`.
+
+### Publishing prompt / tool changes
+
+`bash provision-ai-agent.sh --apply --set-default` now pushes edits end to end: when the prompt
+text differs from the live one it updates the prompt and creates a new **prompt version**, pins the
+agent to it, creates a new **agent version**, and binds the `Connect.SelfService` orchestrator to it.
+
+> **Security profiles attach per AI-agent version.** A new version starts with none, so its MCP
+> tool calls are refused and the assistant answers "I'm having trouble accessing the transaction
+> data". The script copies the agent's security profiles (including the MCP tool grant) onto each
+> new version it binds. Check with
+> `aws connect list-entity-security-profiles --entity-type AI_AGENT --entity-arn <agent-arn>:<version>`.
+
+Validated live (2026-10-08): refund request → question + Yes/No; **No** keeps the chat with the
+assistant; **Yes** reaches a live agent who accepts and replies; explicit human request escalates
+without the question; in-scope question answered with no escalation offer.

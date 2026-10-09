@@ -39,7 +39,15 @@ export default function ContactCenter() {
           loginPopupAutoClose: true,
           loginOptions: { autoClose: true, height: 600, width: 400 },
           region: cfg.region,
-          softphone: { allowFramedSoftphone: true },
+          softphone: {
+            allowFramedSoftphone: true,
+            // Web calls with video / screen sharing (opt-in connect-screenshare
+            // module): the embedded CCP renders the call's video, and the screen
+            // a merchant shares opens in a separate CCP window.
+            allowFramedVideoCall: true,
+            allowFramedScreenSharing: true,
+            allowFramedScreenSharingPopUp: true,
+          },
           pageOptions: {
             enableAudioDeviceSettings: true,
             enablePhoneTypeSettings: true,

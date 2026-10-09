@@ -106,15 +106,10 @@ echo "==> Wiring the inbound chat flow to agentic self-service"
 echo "    redeploying $CONNECT_STACK with the Lex alias + QIC assistant context"
 echo "    agenticBotAliasArn=$BOT_ALIAS_ARN"
 echo "    qicAssistantArn=$ASSISTANT_ARN"
-# --exclusively: deploy ONLY the connect stack, not its app-stack dependency.
-# The app stack is already deployed and its outputs (consumed here) are stable, so
-# there is no need to re-synth/rebuild its container image — which also avoids a
-# spurious Docker build on machines without public.ecr.aws pull access.
-( cd ../infra \
-  && npx cdk deploy "$CONNECT_STACK" --exclusively --require-approval never \
-       -c envName="$ENV_NAME" \
-       -c agenticBotAliasArn="$BOT_ALIAS_ARN" \
-       -c qicAssistantArn="$ASSISTANT_ARN" )
+# Shared redeploy: picks up the Lex alias + assistant from AnyCompanyPayLexStack
+# (deployed above) and keeps the other opt-in modules (routing, screen share) in
+# their current state.
+R="$R" ENV_NAME="$ENV_NAME" bash ../infra/deploy-connect-stack.sh
 
 echo
 echo "=== Done. Inbound chat flow (anycompany-pay-chat-inbound) now routes to the agentic ==="

@@ -80,8 +80,9 @@ export class ConnectAiAgentStack extends cdk.Stack {
     );
     const collectionArn = `arn:aws:aoss:${region}:${this.account}:collection/${collectionId}`;
     const indexName = ctx("indexName", "transactions");
-    // Where the interceptor injects, and the tool reads, the trusted tenant.
-    const tenantContextKey = ctx("tenantContextKey", "merchantId");
+    // Reserved tool-argument key the interceptor injects, and the tool reads,
+    // the trusted tenant under. Passed to BOTH Lambdas so they can't drift.
+    const trustedArgKey = ctx("trustedArgKey", "__trusted_merchant_id");
 
     // --- AgentCore Gateway inbound auth (Amazon Connect is the OIDC issuer) ---
     // The gateway's CUSTOM_JWT discovery URL is the Connect instance's OIDC
@@ -130,7 +131,7 @@ export class ConnectAiAgentStack extends cdk.Stack {
       environment: {
         COLLECTION_ENDPOINT: collectionEndpoint,
         INDEX_NAME: indexName,
-        TENANT_CONTEXT_KEY: tenantContextKey,
+        TRUSTED_ARG_KEY: trustedArgKey,
       },
     });
     // Sign/authorize requests to the collection data plane (least privilege:
@@ -178,7 +179,7 @@ export class ConnectAiAgentStack extends cdk.Stack {
       // merchant_id from the contact (Hop 2) regardless of runtime SDK contents.
       bundling: { minify: true, target: "node22", nodeModules: ["@aws-sdk/client-connect"] },
       environment: {
-        TENANT_CONTEXT_KEY: tenantContextKey,
+        TRUSTED_ARG_KEY: trustedArgKey,
         MERCHANT_ATTR_KEY: ctx("merchantAttrKey", "merchant_id"),
       },
     });
@@ -394,7 +395,7 @@ export class ConnectAiAgentStack extends cdk.Stack {
     new cdk.CfnOutput(this, "GatewayInterceptorFnArn", { value: interceptorFn.functionArn });
     new cdk.CfnOutput(this, "GatewayInterceptorFnName", { value: interceptorFn.functionName });
     new cdk.CfnOutput(this, "CollectionArn", { value: collectionArn });
-    new cdk.CfnOutput(this, "TenantContextKey", { value: tenantContextKey });
+    new cdk.CfnOutput(this, "TrustedArgKey", { value: trustedArgKey });
     new cdk.CfnOutput(this, "GatewayId", { value: gateway.attrGatewayIdentifier });
     new cdk.CfnOutput(this, "GatewayArn", { value: gateway.attrGatewayArn });
     new cdk.CfnOutput(this, "GatewayUrl", { value: gateway.attrGatewayUrl });

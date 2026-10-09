@@ -76,6 +76,10 @@ USE_CDK="${USE_CDK:-0}"
 # The CDK stacks, in the order they must be DESTROYED (dependents first).
 # Module dir | stack name.
 # Ordering rules (dependents first):
+#  - AnyCompanyPayConnectScreenShareStack (opt-in screen sharing: queue, flow,
+#    security profile, API) -> first.
+#  - AnyCompanyPayConnectRoutingStack (opt-in routing module: flows, queues, hours,
+#    routing profiles, Cases fields on the instance/domain) -> first.
 #  - AnyCompanyPayLexStack + AnyCompanyPayQicDomainStack (connect-ai-agent app) attach to the
 #    Connect instance -> remove before the Connect stack.
 #  - AnyCompanyPayConnectStack (the Connect INSTANCE) is deleted BEFORE AnyCompanyPayConnectAiAgentStack:
@@ -86,6 +90,8 @@ USE_CDK="${USE_CDK:-0}"
 #  - AnyCompanyPayConnectAiAgentStack (tool Lambda) must go before Aurora (its ENIs live in
 #    the Aurora VPC and block VPC/subnet deletion until they drain).
 STACKS=(
+  "connect-screenshare|AnyCompanyPayConnectScreenShareStack${ENV_NAME:+-${ENV_NAME}}"
+  "connect-routing|AnyCompanyPayConnectRoutingStack${ENV_NAME:+-${ENV_NAME}}"
   "connect-ai-agent|AnyCompanyPayLexStack"
   "connect-ai-agent|AnyCompanyPayQicDomainStack"
   "infra|AnyCompanyPayConnectStack${ENV_NAME:+-${ENV_NAME}}"

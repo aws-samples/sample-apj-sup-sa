@@ -6,6 +6,7 @@ import {
   UpdateCaseCommand,
   CreateRelatedItemCommand,
   SearchRelatedItemsCommand,
+  type SearchCasesResponseItem,
 } from "@aws-sdk/client-connectcases";
 
 // Fronted by API Gateway HTTP API with a Cognito JWT authorizer, so the token
@@ -36,6 +37,8 @@ const RETURN_FIELDS = [
   FIELD_MERCHANT_ID,
   CREATED,
 ];
+// Upper bound on cases returned by GET /cases (pages of 100 until reached).
+const MAX_LIST = 1000;
 
 const cases = new ConnectCasesClient({ region: REGION });
 
@@ -115,16 +118,29 @@ export const handler = async (event: any) => {
 
     // GET /cases  -> list
     if (method === "GET" && path.endsWith("/cases")) {
-      const res = await cases.send(
-        new SearchCasesCommand({
-          domainId: DOMAIN_ID,
-          maxResults: 100,
-          fields: RETURN_FIELDS.map((id) => ({ id })),
-          sorts: [{ fieldId: CREATED, sortOrder: "Desc" }],
-        })
-      );
-      let list = (res.cases ?? []).map((c) => ({ caseId: c.caseId, ...flatten(c.fields) }));
-      // Tenant isolation: merchants only see their own merchant's cases.
+      // Merchants: filter by tenant IN the search (not after it), so a page of
+      // other tenants' cases can't crowd theirs out. Page through all results.
+      const tenantFilter = isAdmin
+        ? undefined
+        : { field: { equalTo: { id: FIELD_MERCHANT_ID, value: str(callerMerchantId) } } };
+      const found: SearchCasesResponseItem[] = [];
+      let nextToken: string | undefined;
+      do {
+        const res = await cases.send(
+          new SearchCasesCommand({
+            domainId: DOMAIN_ID,
+            maxResults: 100,
+            nextToken,
+            ...(tenantFilter ? { filter: tenantFilter } : {}),
+            fields: RETURN_FIELDS.map((id) => ({ id })),
+            sorts: [{ fieldId: CREATED, sortOrder: "Desc" }],
+          })
+        );
+        found.push(...(res.cases ?? []));
+        nextToken = res.nextToken;
+      } while (nextToken && found.length < MAX_LIST);
+      let list = found.slice(0, MAX_LIST).map((c) => ({ caseId: c.caseId, ...flatten(c.fields) }));
+      // Tenant isolation (defense-in-depth): re-check the tenant on every row.
       if (!isAdmin) list = list.filter((c) => c.merchantId === callerMerchantId);
       return json(200, { cases: list });
     }

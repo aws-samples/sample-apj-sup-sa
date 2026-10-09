@@ -44,32 +44,19 @@ const MAX_LIMIT = 25;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractTrustedMerchantId(event: any): string | null {
   // The trusted tenant comes ONLY from the Gateway request interceptor, which
-  // resolves it from the Connect contact and injects it under TRUSTED_ARG_KEY
-  // (a reserved key the model can't set — the interceptor strips it first).
-  // We check that reserved key across the shapes the Gateway may forward, then
-  // a few well-known context locations for robustness. We NEVER read the tenant
-  // from an ordinary model-supplied argument (merchantId / merchant_id / ...).
-  // The Gateway flattens the model's tool arguments onto the top level of the
-  // event, so ANY tenant-looking field the model can name (merchantId,
-  // merchant_id, ...) is model-reachable and MUST NOT be trusted. The ONLY
-  // trustworthy value is TRUSTED_ARG_KEY, which the interceptor exclusively
-  // controls: it strips that key from the model args and re-injects the tenant
-  // it resolved from the Connect contact. We therefore read the tenant ONLY
-  // from TRUSTED_ARG_KEY (checked in the arg bag, at the top level, and in any
-  // gateway-provided context), and nowhere else. This keeps the tool a genuine,
-  // independent second gate even if the interceptor were bypassed.
-  const args = extractToolArgs(event);
-  const ctx =
-    event?.context ??
-    event?.requestContext ??
-    event?.sessionContext ??
-    event?.gatewayContext ??
-    {};
-  const candidates = [args?.[TRUSTED_ARG_KEY], event?.[TRUSTED_ARG_KEY], ctx?.[TRUSTED_ARG_KEY]];
-  for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) return c.trim();
-  }
-  return null;
+  // resolves it from the Connect contact and injects it under TRUSTED_ARG_KEY.
+  // The Gateway flattens the tool arguments onto the top level of the event, so
+  // the interceptor's injected key lands at event[TRUSTED_ARG_KEY].
+  //
+  // That top-level slot is the ONLY place we read. The interceptor strips the
+  // reserved key (and every tenant-looking key) from the TOP LEVEL of the model's
+  // arguments before injecting, but it does not walk nested objects. Any nested
+  // location (event.arguments / event.context / ...) is therefore fully
+  // model-controlled — e.g. { arguments: { __trusted_merchant_id: "<other>" } } —
+  // and MUST NOT be consulted, or the model could pick another tenant (and the
+  // fail-closed path would be bypassed when the interceptor injects nothing).
+  const v = event?.[TRUSTED_ARG_KEY];
+  return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
 // The model-supplied tool arguments. We use these ONLY for the question/filters

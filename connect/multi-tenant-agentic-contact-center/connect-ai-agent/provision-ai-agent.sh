@@ -123,8 +123,33 @@ echo "Assistant (domain): $ASSISTANT_ID"
 PROMPT_ID="$(aws qconnect list-ai-prompts --assistant-id "$ASSISTANT_ID" --region "$REGION" \
   --query "aiPromptSummaries[?name=='${PROMPT_NAME}'].aiPromptId | [0]" --output text 2>/dev/null || true)"
 
+PROMPT_VER=""
 if [[ -n "$PROMPT_ID" && "$PROMPT_ID" != "None" ]]; then
   echo "Reusing AI prompt: $PROMPT_ID"
+  # Push edits to ai-agent/orchestration-prompt.yaml: when the live text differs,
+  # update the prompt and cut a new version (the agent pins prompt id:version).
+  LIVE_TEXT="$(aws qconnect get-ai-prompt --assistant-id "$ASSISTANT_ID" --region "$REGION" --ai-prompt-id "$PROMPT_ID" \
+    --query 'aiPrompt.templateConfiguration.textFullAIPromptEditTemplateConfiguration.text' --output text 2>/dev/null || true)"
+  if [[ "$LIVE_TEXT" != "$(cat "$PROMPT_FILE")" ]]; then
+    echo "==> Prompt text changed — updating '$PROMPT_NAME' and creating a new version"
+    TEMPLATE_JSON="$(python3 -c "import json,sys; print(json.dumps({'textFullAIPromptEditTemplateConfiguration':{'text':open('$PROMPT_FILE').read()}}))")"
+    if [[ "$APPLY" == "1" ]]; then
+      aws qconnect update-ai-prompt --assistant-id "$ASSISTANT_ID" --region "$REGION" --ai-prompt-id "$PROMPT_ID" \
+        --visibility-status PUBLISHED --template-configuration "$TEMPLATE_JSON" >/dev/null
+      PROMPT_VER="$(aws qconnect create-ai-prompt-version --assistant-id "$ASSISTANT_ID" --region "$REGION" \
+        --ai-prompt-id "$PROMPT_ID" --query 'versionNumber' --output text)"
+      echo "Prompt version: $PROMPT_VER"
+    else
+      echo "+ aws qconnect update-ai-prompt ... && aws qconnect create-ai-prompt-version ..."
+    fi
+  else
+    echo "   prompt text unchanged"
+  fi
+  if [[ -z "$PROMPT_VER" ]]; then
+    PROMPT_VER="$(aws qconnect list-ai-prompt-versions --assistant-id "$ASSISTANT_ID" --region "$REGION" --ai-prompt-id "$PROMPT_ID" \
+      --query 'max_by(aiPromptVersionSummaries,&versionNumber).versionNumber' --output text 2>/dev/null || true)"
+    [[ "$PROMPT_VER" == "None" ]] && PROMPT_VER=""
+  fi
 else
   echo "==> Creating orchestration AI prompt '$PROMPT_NAME' from $PROMPT_FILE"
   TEMPLATE_JSON="$(python3 -c "import json,sys; print(json.dumps({'textFullAIPromptEditTemplateConfiguration':{'text':open('$PROMPT_FILE').read()}}))")"
@@ -137,6 +162,8 @@ else
       --template-configuration "$TEMPLATE_JSON" \
       --query 'aiPrompt.aiPromptId' --output text)"
     echo "Created AI prompt: $PROMPT_ID"
+    PROMPT_VER="$(aws qconnect create-ai-prompt-version --assistant-id "$ASSISTANT_ID" --region "$REGION" \
+      --ai-prompt-id "$PROMPT_ID" --query 'versionNumber' --output text)"
   else
     echo "+ aws qconnect create-ai-prompt --assistant-id $ASSISTANT_ID --name $PROMPT_NAME --type ORCHESTRATION --template-type TEXT --api-format $API_FORMAT --model-id $MODEL_ID --visibility-status PUBLISHED --template-configuration <text from $PROMPT_FILE>"
     PROMPT_ID="<new-prompt-id>"
@@ -152,6 +179,7 @@ fi
 # discovered gateway id so the tool config matches the tool this instance's MCP
 # integration actually discovered. (No SEA gateway id is baked in.)
 echo "==> Building AI-agent configuration (gateway id: $GATEWAY_ID; 3 tools)"
+PROMPT_REF="$PROMPT_ID"; [[ -n "$PROMPT_VER" ]] && PROMPT_REF="${PROMPT_ID}:${PROMPT_VER}"
 CONFIG_JSON="$(GATEWAY_ID="$GATEWAY_ID" python3 -c "
 import json, os
 raw = open('$TOOL_FILE').read().replace('GATEWAY_ID_PLACEHOLDER', os.environ['GATEWAY_ID'])
@@ -159,7 +187,7 @@ tool = json.loads(raw)
 complete = json.load(open('$COMPLETE_TOOL_FILE'))
 escalate = json.load(open('$ESCALATE_TOOL_FILE'))
 cfg={'orchestrationAIAgentConfiguration':{
-  'orchestrationAIPromptId':'$PROMPT_ID',
+  'orchestrationAIPromptId':'$PROMPT_REF',
   'toolConfigurations':[tool, complete, escalate],
   'connectInstanceArn':'$CONNECT_INSTANCE_ARN',
   'locale':'en_US'
@@ -201,6 +229,13 @@ else
   fi
 fi
 
+# Publish the agent change as a new version (the orchestrator binds id:version).
+if [[ "$APPLY" == "1" && "$AGENT_ID" != "<new-agent-id>" ]]; then
+  AGENT_VER="$(aws qconnect create-ai-agent-version --assistant-id "$ASSISTANT_ID" --region "$REGION" \
+    --ai-agent-id "$AGENT_ID" --query 'versionNumber' --output text)"
+  echo "AI agent version: $AGENT_VER"
+fi
+
 # ---- 3.5) Assign the tool security profile to the AI agent --------------------
 # THIS is what makes the MCP tool actually INVOCABLE (tools/call). Without it the
 # orchestrator can list the tool but never calls it. It IS scriptable via
@@ -225,6 +260,18 @@ if [[ "$APPLY" == "1" && "$AGENT_ID" != "<new-agent-id>" ]]; then
       --entity-arn "$AGENT_ARN" >/dev/null 2>&1 \
       && echo "   Assigned." \
       || echo "   (already assigned, or association returned non-zero — safe to ignore if idempotent)"
+    # Security profiles attach PER AI-AGENT VERSION: a new version starts with none,
+    # so its MCP tool calls would be refused. Copy the agent's profiles (incl. the
+    # MCP grant) onto the version the orchestrator is about to bind.
+    if [[ -n "${AGENT_VER:-}" && "$AGENT_VER" != "None" ]]; then
+      PROFILE_IDS="$(aws connect list-entity-security-profiles --region "$REGION" --instance-id "$CONNECT_INSTANCE_ID" \
+        --entity-type AI_AGENT --entity-arn "$AGENT_ARN" --query 'SecurityProfiles[].Id' --output text | tr '\t' ' ')"
+      SP_ARGS=(); for id in $PROFILE_IDS $SP_ID; do SP_ARGS+=("Id=$id"); done
+      aws connect associate-security-profiles --region "$REGION" --instance-id "$CONNECT_INSTANCE_ID" \
+        --security-profiles "${SP_ARGS[@]}" --entity-type AI_AGENT --entity-arn "${AGENT_ARN}:${AGENT_VER}" >/dev/null 2>&1 \
+        && echo "   Security profiles copied to version ${AGENT_VER}." \
+        || echo "   WARNING: could not associate security profiles with version ${AGENT_VER} (MCP tool calls will fail)"
+    fi
   fi
 else
   echo "+ (would) aws connect associate-security-profiles --instance-id $CONNECT_INSTANCE_ID --security-profiles Id=<id of $SECURITY_PROFILE_NAME> --entity-type AI_AGENT --entity-arn arn:aws:wisdom:$REGION:$ACCOUNT_ID:ai-agent/$ASSISTANT_ID/$AGENT_ID"

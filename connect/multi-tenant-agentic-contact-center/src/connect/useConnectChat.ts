@@ -67,7 +67,8 @@ export interface ConnectChat {
   error: string | null;
   active: boolean;
   begin: () => void;
-  send: () => void;
+  /** Send the typed input, or `text` (quick replies) when given. */
+  send: (text?: string) => void;
   end: () => void;
   restart: () => void;
 }
@@ -239,10 +240,12 @@ export function useConnectChat({ caseId, onEnded }: UseConnectChatOptions): Conn
     })();
   }, [caseId, openSession, sessionKey]);
 
-  const send = useCallback(() => {
-    const text = input.trim();
+  // Sends the typed input, or `override` (e.g. a quick-reply button) without
+  // touching what the merchant has typed.
+  const send = useCallback((override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || !sessionRef.current) return;
-    setInput("");
+    if (override === undefined) setInput("");
     void sessionRef.current
       .sendMessage({ contentType: "text/plain", message: text })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to send"));

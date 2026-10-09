@@ -12,10 +12,14 @@ infra
 database
 opensearch-zeroetl
 connect-ai-agent
+connect-routing
+connect-screenshare
 e2e
 
 # Docs, reference material, and the retired knowledge-base module.
 docs
+*.md
+*.docx
 references
 samples
 knowledge-base
