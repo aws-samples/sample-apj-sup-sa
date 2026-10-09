@@ -1,0 +1,21 @@
+[project]
+name = "claimpilot-server"
+version = "0.1.0"
+description = "ClaimPilot voice AI insurance claims agent (Pipecat + Deepgram + AWS Bedrock)"
+requires-python = ">=3.12"
+dependencies = [
+    "deepgram-sdk",
+    "pipecat-ai[aws,daily,deepgram,runner,sagemaker,silero,webrtc]",
+    "pipecatcloud",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.404,<2",
+    "ruff>=0.12.11,<1",
+]
+
+[tool.ruff]
+line-length = 100
+[tool.ruff.lint]
+select = ["I"]
