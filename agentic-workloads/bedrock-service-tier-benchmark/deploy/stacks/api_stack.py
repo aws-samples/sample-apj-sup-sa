@@ -86,9 +86,9 @@ class ApiStack(Stack):
                 name="Federate",
                 issuer_url=federate["issuer_url"],
                 client_id=federate["client_id"],
-                # The client secret is read from Secrets Manager at deploy time; it never
-                # appears in the template or the repository.
-                client_secret_value=SecretValue.secrets_manager(federate["client_secret_name"]),
+                # A CloudFormation dynamic reference: CloudFormation reads the secret from
+                # Secrets Manager at deploy time, so it never appears in the template or the repo.
+                client_secret=SecretValue.secrets_manager(federate["client_secret_name"]).unsafe_unwrap(),
                 scopes=["openid", "email"],
                 attribute_mapping=cognito.AttributeMapping(email=cognito.ProviderAttribute.other("email")),
             )
@@ -106,9 +106,11 @@ class ApiStack(Stack):
             ),
             supported_identity_providers=providers,
             prevent_user_existence_errors=True,
-            access_token_validity=Duration.hours(1),
+            # Federate's Cognito profile requires access 10 min, ID 1 h, refresh 10 h.
+            # The SPA sends the ID token and signs in again when it expires.
+            access_token_validity=Duration.minutes(10),
             id_token_validity=Duration.hours(1),
-            refresh_token_validity=Duration.hours(8),
+            refresh_token_validity=Duration.hours(10),
         )
         if idp is not None:
             self.client.node.add_dependency(idp)

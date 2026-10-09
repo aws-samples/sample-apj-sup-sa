@@ -65,6 +65,10 @@ class WebStack(Stack):
                 ],
             ).add_dependency(self.branch)
             self.origin = f"https://{domain_name}"
+            # Keep the default-domain export alive: a stack first deployed without a custom
+            # domain has the Api stack importing it, and CloudFormation refuses to drop an
+            # export that is still in use. (Two-step migration: deploy, then this can go.)
+            self.export_value(self.app.attr_default_domain)
         else:
             self.origin = f"https://main.{self.app.attr_default_domain}"
         CfnOutput(self, "AppId", value=self.app.attr_app_id)

@@ -112,6 +112,12 @@ Deployed end to end on 2026-10-08 in us-east-1 (`auth_mode=cognito`, `worker_arc
 | `cdk deploy --all` | 4 stacks created; cdk-nag 0, Checkov 0 failed |
 | First worker run (empty database) | Discovery agent stored 35 verified models and 216 offerings; the quick benchmark wrote 1 run with 140 cells, 70 comparisons and 699 samples; about 40 minutes |
 | Web app | Hosted-UI sign-in with password and TOTP MFA, then the comparison table showed all 70 rows from Aurora |
+| `auth_mode=midway` with a custom domain (2026-10-09) | Same stacks updated in place to an OIDC identity provider (Amazon's internal IdP) and an Amplify custom domain; single sign-on led straight to the dashboard with 69 comparison rows and no console errors |
+
+Switching an existing `cognito` deployment to a custom domain keeps the Web stack's default-domain
+export, because the Api stack still imports it during the update. An OIDC identity provider may
+require short Cognito token lifetimes; this app uses 10-minute access tokens, 1-hour ID tokens and
+10-hour refresh tokens, and the web app sends the ID token.
 
 Problems found on the way and fixed in this folder: the agent model rejects `temperature`; the worker
 role needed the Data API transaction actions; Fargate mounts the scratch volume as root, so a
