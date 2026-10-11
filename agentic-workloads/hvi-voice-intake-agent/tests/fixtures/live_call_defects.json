@@ -1,0 +1,224 @@
+{
+  "_comment": "SYNTHETIC answered turns, structurally equivalent to a call whose record was wrong while every suite was green. 'said' is the caller's transcribed words, 'stored' is what the record kept. All names, numbers and health facts are fabricated for this public sample; the turn shapes, language mix (en + Devanagari), answer types and the four known defects are preserved so the transcript-fidelity audit has a stable negative control. The audit MUST flag A520, A410, A920 and A990 and leave the other turns alone.",
+  "callId": "call-00000000-0000-0000-0000-000000000000",
+  "language": "en",
+  "formId": "arogya-sanjeevani-demo-v1",
+  "turns": [
+    {
+      "turnIndex": 7,
+      "itemId": "A010",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 9,
+      "itemId": "A020",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 11,
+      "itemId": "A030",
+      "said": "12 March 1990",
+      "stored": "1990-03-12"
+    },
+    {
+      "turnIndex": 13,
+      "itemId": "A100",
+      "said": "One seventy centimeters.",
+      "stored": 170
+    },
+    {
+      "turnIndex": 15,
+      "itemId": "A110",
+      "said": "68.",
+      "stored": 68
+    },
+    {
+      "turnIndex": 17,
+      "itemId": "A230",
+      "said": "हाँ",
+      "stored": true
+    },
+    {
+      "turnIndex": 23,
+      "itemId": "FU_DIAG_WHEN",
+      "said": "2016",
+      "stored": "2016"
+    },
+    {
+      "turnIndex": 25,
+      "itemId": "FU_TREATMENT",
+      "said": "Sumatriptan when a migraine starts.",
+      "stored": "Sumatriptan when a migraine starts"
+    },
+    {
+      "turnIndex": 27,
+      "itemId": "FU_CONTROLLED",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 29,
+      "itemId": "FU_INHALER_USE",
+      "said": "Twice a month.",
+      "stored": "Twice a month"
+    },
+    {
+      "turnIndex": 31,
+      "itemId": "FU_RESP_HOSPITALISATION",
+      "said": "No.",
+      "stored": false
+    },
+    {
+      "turnIndex": 33,
+      "itemId": "A250",
+      "said": "नहीं",
+      "stored": false
+    },
+    {
+      "turnIndex": 35,
+      "itemId": "A400",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 37,
+      "itemId": "A410",
+      "said": "Pipe tobacco a few times a week.",
+      "stored": [
+        "pipe tobacco",
+        "a few times a week",
+        "duration not specified"
+      ]
+    },
+    {
+      "turnIndex": 39,
+      "itemId": "A420",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 41,
+      "itemId": "A430",
+      "said": "Whiskey on weekends for 8 years.",
+      "stored": [
+        "Whiskey on weekends for 8 years"
+      ]
+    },
+    {
+      "turnIndex": 43,
+      "itemId": "A500",
+      "said": "Yes, kidney stone.",
+      "stored": true
+    },
+    {
+      "turnIndex": 45,
+      "itemId": "FU_DIAG_WHEN",
+      "said": "In 2018.",
+      "stored": "In 2018"
+    },
+    {
+      "turnIndex": 47,
+      "itemId": "FU_TREATMENT",
+      "said": "Tamsulosin 0.4 milligrams once a day.",
+      "stored": "Tamsulosin 0.4 milligrams once a day"
+    },
+    {
+      "turnIndex": 49,
+      "itemId": "FU_SURGERY_DONE",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 51,
+      "itemId": "FU_RECURRENCE",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 53,
+      "itemId": "A510",
+      "said": "उच्च रक्तचाप",
+      "stored": "उच्च रक्तचाप"
+    },
+    {
+      "turnIndex": 59,
+      "itemId": "A520",
+      "said": "2017, I already said.",
+      "stored": "2013"
+    },
+    {
+      "turnIndex": 61,
+      "itemId": "A530",
+      "said": "Yes.",
+      "stored": true
+    },
+    {
+      "turnIndex": 63,
+      "itemId": "A540",
+      "said": "नहीं",
+      "stored": false
+    },
+    {
+      "turnIndex": 65,
+      "itemId": "A600",
+      "said": "नहीं",
+      "stored": false
+    },
+    {
+      "turnIndex": 67,
+      "itemId": "A620",
+      "said": "नहीं",
+      "stored": false
+    },
+    {
+      "turnIndex": 69,
+      "itemId": "A640",
+      "said": "नहीं",
+      "stored": false
+    },
+    {
+      "turnIndex": 71,
+      "itemId": "A900",
+      "said": "Yes, I had Chikungunya in 2020.",
+      "stored": true
+    },
+    {
+      "turnIndex": 75,
+      "itemId": "diagnosed_when",
+      "said": "2020",
+      "stored": "2020"
+    },
+    {
+      "turnIndex": 77,
+      "itemId": "current_treatment",
+      "said": "Nothing, I recovered fully.",
+      "stored": "Nothing, I recovered fully."
+    },
+    {
+      "turnIndex": 79,
+      "itemId": "is_controlled",
+      "said": "Yes, it is.",
+      "stored": true
+    },
+    {
+      "turnIndex": 81,
+      "itemId": "A910",
+      "said": "It is fully recovered, I told you.",
+      "stored": "It is fully recovered, I told you."
+    },
+    {
+      "turnIndex": 83,
+      "itemId": "A920",
+      "said": "Skip.",
+      "stored": "Skip"
+    },
+    {
+      "turnIndex": 89,
+      "itemId": "A990",
+      "said": "Yes.",
+      "stored": "not_captured"
+    }
+  ]
+}

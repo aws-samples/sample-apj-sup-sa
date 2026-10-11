@@ -1,0 +1,313 @@
+{
+  "formId": "medical-history-v1",
+  "description": "Health insurance medical-history intake, collected over an outbound voice call.",
+  "items": [
+    {
+      "itemId": "Q010",
+      "order": 10,
+      "section": "consent",
+      "label": "identity_confirm",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Hello, this is the medical information line calling on behalf of {{insurerName}}. Am I speaking with {{customerName}}?",
+      "reprompt": "Sorry, I didn't catch that. Am I speaking with {{customerName}}? You can just say yes or no.",
+      "onFalse": "TERMINATE_POLITELY",
+      "active": true
+    },
+    {
+      "itemId": "Q020",
+      "order": 20,
+      "section": "consent",
+      "label": "recording_consent",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Thank you. This call is recorded and the information is used only to process your policy application. It should take about five minutes. Do I have your consent to continue?",
+      "reprompt": "I just need your consent to record and continue. Is that okay?",
+      "onFalse": "TERMINATE_POLITELY",
+      "active": true
+    },
+
+    {
+      "itemId": "Q100",
+      "order": 100,
+      "section": "biometrics",
+      "label": "height_cm",
+      "answerType": "number",
+      "unit": "cm",
+      "required": true,
+      "prompt": "Let's start with a couple of basics. What is your height?",
+      "reprompt": "Could you tell me your height, in feet and inches or in centimetres?",
+      "validation": { "min": 100, "max": 230, "coerceFromFeetInches": true },
+      "active": true
+    },
+    {
+      "itemId": "Q110",
+      "order": 110,
+      "section": "biometrics",
+      "label": "weight_kg",
+      "answerType": "number",
+      "unit": "kg",
+      "required": true,
+      "prompt": "And your current weight?",
+      "reprompt": "What is your approximate weight, in kilograms or pounds?",
+      "validation": { "min": 25, "max": 300, "coerceFromPounds": true },
+      "active": true
+    },
+
+    {
+      "itemId": "Q200",
+      "order": 200,
+      "section": "lifestyle",
+      "label": "tobacco_use",
+      "answerType": "enum",
+      "options": ["never", "former", "current"],
+      "required": true,
+      "prompt": "Do you currently use tobacco in any form, have you used it in the past, or never?",
+      "reprompt": "Would you say never, formerly, or currently for tobacco use?",
+      "active": true
+    },
+    {
+      "itemId": "Q210",
+      "order": 210,
+      "section": "lifestyle",
+      "label": "tobacco_quantity",
+      "answerType": "text",
+      "required": false,
+      "parentItemId": "Q200",
+      "showIf": { "itemId": "Q200", "operator": "in", "value": ["former", "current"] },
+      "prompt": "Roughly how much, and for how many years?",
+      "active": true
+    },
+    {
+      "itemId": "Q220",
+      "order": 220,
+      "section": "lifestyle",
+      "label": "alcohol_use",
+      "answerType": "enum",
+      "options": ["never", "occasional", "weekly", "daily"],
+      "required": true,
+      "prompt": "How often do you drink alcohol? Never, occasionally, weekly, or daily?",
+      "active": true
+    },
+
+    {
+      "itemId": "Q300",
+      "order": 300,
+      "section": "conditions",
+      "label": "has_chronic_condition",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Have you ever been diagnosed with any ongoing medical condition, such as diabetes, high blood pressure, asthma, heart disease, or a thyroid condition?",
+      "reprompt": "Have you been diagnosed with any long-term medical condition? Yes or no is fine.",
+      "active": true
+    },
+    {
+      "itemId": "Q310",
+      "order": 310,
+      "section": "conditions",
+      "label": "chronic_condition_list",
+      "answerType": "list",
+      "required": false,
+      "parentItemId": "Q300",
+      "showIf": { "itemId": "Q300", "operator": "eq", "value": true },
+      "prompt": "Could you tell me which conditions?",
+      "reprompt": "Which conditions have you been diagnosed with?",
+      "knowledgeGraph": { "enabled": true, "nodeType": "Condition", "normalise": true },
+      "active": true
+    },
+    {
+      "itemId": "Q320",
+      "order": 320,
+      "section": "conditions",
+      "label": "condition_diagnosed_year",
+      "answerType": "number",
+      "required": false,
+      "parentItemId": "Q300",
+      "showIf": { "itemId": "Q300", "operator": "eq", "value": true },
+      "prompt": "Around what year were you first diagnosed?",
+      "validation": { "min": 1930, "max": 2026 },
+      "active": true
+    },
+    {
+      "itemId": "Q330",
+      "order": 330,
+      "section": "conditions",
+      "label": "condition_controlled",
+      "answerType": "boolean",
+      "required": false,
+      "parentItemId": "Q300",
+      "showIf": { "itemId": "Q300", "operator": "eq", "value": true },
+      "prompt": "Is the condition currently well controlled with treatment?",
+      "active": true
+    },
+
+    {
+      "itemId": "Q400",
+      "order": 400,
+      "section": "medications",
+      "label": "takes_medication",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Are you currently taking any prescription medication?",
+      "active": true
+    },
+    {
+      "itemId": "Q410",
+      "order": 410,
+      "section": "medications",
+      "label": "medication_list",
+      "answerType": "list",
+      "required": false,
+      "parentItemId": "Q400",
+      "showIf": { "itemId": "Q400", "operator": "eq", "value": true },
+      "prompt": "Which medications are you taking, and roughly what dosage?",
+      "reprompt": "Could you name the medications you're currently on?",
+      "knowledgeGraph": { "enabled": true, "nodeType": "Medication", "normalise": true },
+      "active": true
+    },
+
+    {
+      "itemId": "Q500",
+      "order": 500,
+      "section": "hospitalization",
+      "label": "hospitalized_last_5_years",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Have you been admitted to a hospital in the last five years, for any reason?",
+      "reprompt": "In the past five years, have you spent a night or more in hospital?",
+      "active": true
+    },
+    {
+      "itemId": "Q510",
+      "order": 510,
+      "section": "hospitalization",
+      "label": "hospitalization_reason",
+      "answerType": "text",
+      "required": false,
+      "parentItemId": "Q500",
+      "showIf": { "itemId": "Q500", "operator": "eq", "value": true },
+      "prompt": "What were you admitted for?",
+      "knowledgeGraph": { "enabled": true, "nodeType": "Condition", "normalise": true },
+      "active": true
+    },
+    {
+      "itemId": "Q520",
+      "order": 520,
+      "section": "hospitalization",
+      "label": "hospitalization_when",
+      "answerType": "text",
+      "required": false,
+      "parentItemId": "Q500",
+      "showIf": { "itemId": "Q500", "operator": "eq", "value": true },
+      "prompt": "When was that, approximately?",
+      "active": true
+    },
+    {
+      "itemId": "Q530",
+      "order": 530,
+      "section": "hospitalization",
+      "label": "hospitalization_nights",
+      "answerType": "number",
+      "required": false,
+      "parentItemId": "Q500",
+      "showIf": { "itemId": "Q500", "operator": "eq", "value": true },
+      "prompt": "How many nights did you stay?",
+      "validation": { "min": 0, "max": 400 },
+      "active": true
+    },
+
+    {
+      "itemId": "Q600",
+      "order": 600,
+      "section": "surgery",
+      "label": "had_surgery",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Have you had any surgery or operation, at any point in your life?",
+      "active": true
+    },
+    {
+      "itemId": "Q610",
+      "order": 610,
+      "section": "surgery",
+      "label": "surgery_details",
+      "answerType": "text",
+      "required": false,
+      "parentItemId": "Q600",
+      "showIf": { "itemId": "Q600", "operator": "eq", "value": true },
+      "prompt": "What surgery was it, and roughly when?",
+      "knowledgeGraph": { "enabled": true, "nodeType": "Procedure", "normalise": true },
+      "active": true
+    },
+
+    {
+      "itemId": "Q700",
+      "order": 700,
+      "section": "family_history",
+      "label": "family_history",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Has any immediate family member, a parent or sibling, been diagnosed with heart disease, cancer, diabetes, or a stroke before the age of sixty?",
+      "reprompt": "Any heart disease, cancer, diabetes or stroke in your parents or siblings before age sixty?",
+      "active": true
+    },
+    {
+      "itemId": "Q710",
+      "order": 710,
+      "section": "family_history",
+      "label": "family_history_detail",
+      "answerType": "list",
+      "required": false,
+      "parentItemId": "Q700",
+      "showIf": { "itemId": "Q700", "operator": "eq", "value": true },
+      "prompt": "Which condition, and which relative?",
+      "knowledgeGraph": { "enabled": true, "nodeType": "Condition", "normalise": true },
+      "active": true
+    },
+
+    {
+      "itemId": "Q800",
+      "order": 800,
+      "section": "current_health",
+      "label": "current_symptoms",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Are you currently experiencing any symptoms that you haven't yet seen a doctor about?",
+      "active": true
+    },
+    {
+      "itemId": "Q810",
+      "order": 810,
+      "section": "current_health",
+      "label": "current_symptoms_detail",
+      "answerType": "text",
+      "required": false,
+      "parentItemId": "Q800",
+      "showIf": { "itemId": "Q800", "operator": "eq", "value": true },
+      "prompt": "Could you describe them for me?",
+      "active": true
+    },
+    {
+      "itemId": "Q900",
+      "order": 900,
+      "section": "current_health",
+      "label": "pending_investigations",
+      "answerType": "boolean",
+      "required": true,
+      "prompt": "Are you waiting on the results of any medical test, scan, or biopsy?",
+      "active": true
+    },
+
+    {
+      "itemId": "Q990",
+      "order": 990,
+      "section": "closing",
+      "label": "email_confirm",
+      "answerType": "email",
+      "required": true,
+      "prompt": "Almost done. I have your email as {{customerEmail}}. Should I send the confirmation summary there?",
+      "reprompt": "Which email address should I send your confirmation to?",
+      "active": true
+    }
+  ]
+}

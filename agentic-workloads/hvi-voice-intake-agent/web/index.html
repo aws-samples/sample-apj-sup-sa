@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<!--
+  The browser intake surface.
+
+  Deliberately dependency-free: no bundler, no framework, no CDN. Pipecat ships
+  JS client SDKs and they would be the obvious choice, but this page is served
+  off the same 2GB media host that runs VAD, STT and the call pipeline, and the
+  SmallWebRTC wire protocol is small enough to speak directly - an SDP POST, a
+  data channel the browser opens, and JSON messages labelled "rtvi-ai". Adding a
+  Node toolchain and a runtime CDN fetch to a health-data demo bought nothing.
+
+  The trade is stated so it is not discovered later: this page is coupled to the
+  RTVI message envelope. If Pipecat changes it, this breaks, and the fix is to
+  adopt the official client SDK. See web/app.js for every message type consumed.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Health Intake &middot; Voice</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="dot" id="conn-dot" aria-hidden="true"></span>
+      <h1>Health Intake</h1>
+      <span class="sub" id="conn-text">Not connected</span>
+    </div>
+    <div class="controls">
+      <label class="field">
+        <span>Registered number</span>
+        <input id="phone" type="tel" placeholder="+9198XXXXXXXX" autocomplete="off" />
+      </label>
+      <!-- Half-duplex by default. Without headphones the agent's voice reaches
+           the microphone and gets transcribed as the caller's answer, which is
+           worse than losing barge-in: it puts words the caller never said onto a
+           medical record. Ticking this restores interruption for anyone whose
+           speakers cannot be heard by their microphone. -->
+      <label class="check">
+        <input id="headphones" type="checkbox" />
+        <span>Headphones (allow interrupting)</span>
+      </label>
+      <!-- Cognito Hosted-UI sign-in. Hidden by default and only revealed by
+           app.js when HVI_AUTH is in cognito mode and there is no valid
+           id_token yet; the token/demo path never shows it. -->
+      <button id="sign-in" class="primary-consistent hidden">Sign in</button>
+      <button id="connect" class="primary">Start call</button>
+      <!-- Only shown if the browser refuses to autoplay. A second click counts
+           as a fresh user gesture, which is all the browser is asking for. -->
+      <button id="enable-sound" class="warn hidden">Enable sound</button>
+      <button id="hangup" class="ghost" disabled>End</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left: the call itself -->
+    <section class="panel call">
+      <div class="orb-wrap">
+        <!-- Three stacked rings: the outer two are driven by audio level, the
+             inner disc by who is speaking. Transform-only animation so it stays
+             on the compositor and never competes with the audio thread. -->
+        <div class="orb" id="orb">
+          <span class="ring ring-a" id="ring-a"></span>
+          <span class="ring ring-b" id="ring-b"></span>
+          <span class="core" id="core">
+            <span class="core-label" id="core-label">idle</span>
+          </span>
+        </div>
+        <div class="bars" id="bars" aria-hidden="true"></div>
+      </div>
+
+      <div class="meta">
+        <span class="chip" id="chip-lang">language &mdash;</span>
+        <span class="chip" id="chip-latency">latency &mdash;</span>
+        <span class="chip" id="chip-turn">turn &mdash;</span>
+        <!-- Distinguishes "no audio is arriving" from "audio is arriving and not
+             being played", which are different faults with different fixes. -->
+        <span class="chip" id="chip-audio">audio &mdash;</span>
+      </div>
+
+      <h2>Transcript</h2>
+      <div class="transcript" id="transcript" aria-live="polite">
+        <p class="empty">The agent speaks first. Start the call to begin.</p>
+      </div>
+    </section>
+
+    <!-- Right: the record being built -->
+    <section class="panel form">
+      <div class="progress-head">
+        <h2>Questionnaire</h2>
+        <span id="progress-text">&mdash;</span>
+      </div>
+      <div class="progress"><span id="progress-fill"></span></div>
+
+      <div id="record-link" class="record hidden">
+        <div>
+          <strong>Underwriting record written</strong>
+          <span id="record-id"></span>
+        </div>
+        <a id="record-anchor" target="_blank" rel="noopener noreferrer">Open in Salesforce</a>
+      </div>
+
+      <div class="items" id="items">
+        <p class="empty">The form loads with the first turn.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="note">
+    Audio and answers stay in <code>ap-south-1</code>. Use headphones if your
+    speakers are loud enough to be picked up by the microphone.
+  </footer>
+
+  <!-- The bot's audio. Autoplay needs a prior user gesture, which the Start
+       button provides, so playback is kicked off there rather than here. -->
+  <audio id="bot-audio" autoplay></audio>
+
+  <script src="/app.js"></script>
+</body>
+</html>

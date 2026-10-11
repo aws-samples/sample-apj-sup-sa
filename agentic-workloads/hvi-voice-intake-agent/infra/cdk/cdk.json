@@ -1,0 +1,33 @@
+{
+  "app": "python app.py",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "tests",
+      "**/__pycache__"
+    ]
+  },
+  "context": {
+    "hvi:account": "111122223333",
+    "hvi:region": "ap-south-1",
+    "hvi:enableNeptune": false,
+    "hvi:tts": "polly",
+    "hvi:enableWebMedia": false,
+    "hvi:skipNat": false,
+    "hvi:agentCompute": "lambda",
+    "hvi:bedrockModelId": "mistral.mistral-large-3-675b-instruct",
+    "hvi:opensearchInstanceType": "r6g.large.search",
+    "hvi:opensearchEngine": "OpenSearch_2.17",
+    "hvi:webCallbackUrl": "http://localhost:8095",
+    "hvi:enableTelephony": false,
+    "hvi:voiceConnectorId": "abcdefghij0123456789",
+    "hvi:outboundCallerId": "+12025550143",
+    "hvi:asteriskInstanceType": "t4g.medium",
+    "hvi:createVoiceConnector": false,
+    "hvi:tataSipHosts": "",
+    "hvi:tataSipDid": ""
+  }
+}

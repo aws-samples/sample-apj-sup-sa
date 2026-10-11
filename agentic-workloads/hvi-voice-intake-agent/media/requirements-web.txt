@@ -1,0 +1,45 @@
+# Extra dependencies for the BROWSER surface (media/bot_web.py) only.
+#
+# Kept separate from media/requirements.txt on purpose. That file is what the
+# phone call path needs, and the phone path takes real calls: it should not grow
+# a WebRTC stack, an ASGI server and an ffmpeg binding because a demo page wants
+# them. Install this file only on a host that serves the web surface.
+#
+# WEIGHT WARNING. av (PyAV) bundles ffmpeg shared libraries and is ~35MB on
+# aarch64; with aiortc's native deps the install adds roughly 60-80MB to
+# /opt/hvi/venv. scripts/72-media-deploy.sh already prints disk and memory
+# headroom before installing for exactly this reason - the media host is a 2GB
+# t4g.small that is simultaneously running VAD, STT and the call pipeline.
+#
+# All of these publish manylinux aarch64 wheels, so nothing compiles on the box.
+# If that ever stops being true the install will start building from source on a
+# 2GB instance, which will fail slowly rather than quickly.
+
+# WebRTC: ICE, DTLS, SRTP and the media plumbing behind SmallWebRTCTransport.
+aiortc==1.15.0
+# Codec and resampling layer aiortc depends on. Pinned explicitly because it is
+# the heavy one and the version decides whether a wheel exists.
+av==17.1.0
+pylibsrtp==1.0.0
+aioice==0.10.2
+cryptography==50.0.0
+pyee==13.0.1
+google-crc32c==1.8.0
+
+# Signalling endpoint and static file serving. FastAPI is already an AgentCore
+# runtime dependency (agent/app.py), so this is a familiar version, not a new
+# framework in the estate.
+fastapi==0.141.1
+uvicorn==0.52.1
+starlette==1.4.1
+pydantic==2.13.4
+
+# AUTH (HVI_WEB_AUTH=cognito) needs NO extra package: id-token signatures are
+# verified with `cryptography` above (common/hvi_web_auth.py rebuilds the RSA key
+# from the pool JWKS and checks RS256 directly). Configure via the environment:
+#   HVI_WEB_AUTH=cognito|token|none   (default: token if HVI_WEB_TOKEN set, else none)
+#   HVI_COGNITO_REGION                (defaults to DATA_REGION)
+#   HVI_COGNITO_USER_POOL_ID
+#   HVI_COGNITO_APP_CLIENT_ID
+#   HVI_COGNITO_PHONE_CLAIM           (default: phone_number)
+#   HVI_COGNITO_LEEWAY_SECS           (default: 60)

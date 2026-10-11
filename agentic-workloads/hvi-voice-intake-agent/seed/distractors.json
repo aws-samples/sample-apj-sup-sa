@@ -1,0 +1,90 @@
+{
+  "_comment": "The NULL CLASS for the hvi-icd-concepts index. Every phrase here is ordinary call conversation that is NOT a medical disclosure. They are embedded and indexed alongside the condition surface forms; when a caller's utterance retrieves one of these as its nearest neighbour, the classifier's answer is 'this is not a condition' - which a pure condition index could never say. Grown from REAL failures: each section lists garbage that a live call turned into a confident diagnosis (Epilepsy from 'Here they are.', Parkinson's from 'नहीं', Osteoarthritis from 'Jardiance.'). Add to this file whenever a conversational phrase classifies as a disease; never remove entries without checking the git log for which call added them.",
+  "distractors": [
+    {"group": "affirmations", "phrases": [
+      "yes", "yes.", "yeah", "yep", "okay", "ok", "sure", "correct", "right",
+      "indeed", "absolutely", "of course", "haan", "haan ji", "ji haan", "ji",
+      "bilkul", "theek hai", "sahi hai", "हाँ", "जी हाँ", "जी", "बिल्कुल",
+      "ठीक है", "सही है", "अच्छा", "समझ गया", "समझ गई", "uh-huh", "hmm"
+    ]},
+    {"group": "negations", "phrases": [
+      "no", "no.", "nope", "nah", "never", "not really", "nothing", "none",
+      "nahi", "nahin", "nahi ji", "kuch nahi", "नहीं", "नहीं जी", "कुछ नहीं",
+      "बिल्कुल नहीं", "kabhi nahi", "कभी नहीं"
+    ]},
+    {"group": "clarification_questions", "phrases": [
+      "what?", "what is this?", "what do you mean?", "which one?", "for what?",
+      "which disease?", "which disease are you talking about?",
+      "what are you asking?", "can you repeat that?", "repeat the list",
+      "say that again", "I did not understand", "kya?", "kya matlab?",
+      "kis cheez ke liye?", "kis bimari ki baat kar rahe ho?",
+      "kaun si bimari?", "phir se boliye", "samajh nahi aaya",
+      "क्या?", "क्या मतलब?", "किस चीज़ के लिए?", "किस चीज़ के लिए भाई?",
+      "किस बीमारी के बारे में बात कर रही हैं आप?", "कौन सी बीमारी?",
+      "फिर से बोलिए", "सूची दोबारा बताएं", "समझ नहीं आया",
+      "आप कहना क्या चाह रहे हैं?", "यह क्या था?", "इसका मतलब क्या है?"
+    ]},
+    {"group": "conversational_filler", "phrases": [
+      "here they are", "here you go", "there it is", "let me think",
+      "one minute", "one second", "wait", "hold on", "hello", "hello?",
+      "hi", "bye", "thank you", "thanks", "welcome", "good morning",
+      "ek minute", "ruko", "suniye", "आप बताइए", "मैं बताती हूँ",
+      "मैं आपको बताता हूँ", "एक मिनट", "रुकिए", "सुनिए", "नमस्ते", "धन्यवाद",
+      "अरे भाई", "अरे", "भाई", "well", "um", "uh", "so", "actually",
+      "let me see", "I will tell you", "I don't know", "not sure",
+      "pata nahi", "पता नहीं", "मुझे नहीं पता", "मालूम नहीं"
+    ]},
+    {"group": "call_mechanics", "phrases": [
+      "can you hear me?", "are you there?", "the line is bad",
+      "I said yes", "I said no", "I already told you", "you asked me already",
+      "maine haan kaha", "maine nahi bola", "आवाज़ नहीं आ रही",
+      "मैंने हाँ कहा", "मैंने नहीं बोला", "आप सुन रहे हैं?",
+      "पहले बता चुकी हूँ", "यह कॉल रिकॉर्ड की जा रही है",
+      "this call is not being recorded"
+    ]},
+    {"group": "numbers_and_measures", "_comment": "Bare measurements and dates only. Time-AGO phrases (paanch saal pehle) were here and swallowed a real disclosure - 'कैंसर था पाँच साल पहले' retrieved the distractor 'पाँच साल पहले' as its nearest neighbour and the cancer was nulled. Durations live inside genuine disclosures too often to be distractors.", "phrases": [
+      "five feet", "six feet", "seventy", "eighty", "fifty kilos", "sixty kg",
+      "one hundred", "2019", "2000", "1987", "5 september",
+      "एक हजार", "पचास किलो", "पाँच फीट", "छह फीट", "सत्तर किलो"
+    ]},
+    {"group": "medication_names_alone", "_comment": "A bare drug name is not a condition disclosure: 'Jardiance.' (a garbled height answer) classified confidently to a disease because drug names embed near their indication. Medications are handled by the treatment follow-ups and the med-consistency check, where they carry real signal; here they must not mint a diagnosis on their own.", "phrases": [
+      "Jardiance", "Thyronorm", "thyroxine", "levothyroxine", "Eltroxin",
+      "metformin", "Glycomet", "insulin", "glimepiride", "Januvia", "Janumet",
+      "atorvastatin", "rosuvastatin", "Ecosprin", "clopidogrel", "amlodipine",
+      "Amlokind", "telmisartan", "Telma", "losartan", "metoprolol", "atenolol",
+      "ramipril", "salbutamol", "Asthalin", "budesonide", "montelukast",
+      "Montair", "Foracort", "pantoprazole", "omeprazole", "tamoxifen",
+      "warfarin", "Wysolone", "prednisolone", "Shelcal", "थायरोनॉर्म",
+      "मेटफॉर्मिन", "इंसुलिन"
+    ]},
+    {"group": "stt_noise_observed_live", "phrases": [
+      "here they are.", "bye, josh", "white golden", "hi, golden", "my code",
+      "why coding?", "the age", "and so then", "it's tied up", "tired of it",
+      "enceladus", "seaman", "thai rock scene", "a judge", "what's up guys",
+      "hey steve", "feet, chain, feet", "i saw him suddenly"
+    ]},
+    {"group": "lifestyle_habits_alone", "_comment": "A HABIT IS NOT A DIAGNOSIS. The form asks about tobacco and alcohol on their own items (A400-A430) because a habit is priced as a risk factor, not recorded as a disease - but 'smoke' retrieved COPD's colloquial synonym \"smoker's lung\" at 0.8141, came back CORROBORATED by the graph, and therefore took the no-read-back path: answering yes to 'do you use tobacco?' silently wrote Chronic Obstructive Pulmonary Disease onto an underwriting record, with nobody ever asked. Found by tests/test_positive_disclosures.py. Only bare habit words belong here; 'smoker's lung' itself is a real disclosure and stays an exact J44 synonym, which the neptune_exact_synonym path resolves at 1.0 ahead of any of this.", "phrases": [
+      "smoke", "i smoke", "yes i smoke", "smoking", "i used to smoke",
+      "cigarette", "cigarettes", "a few cigarettes", "ten cigarettes a day",
+      "tobacco", "chewing tobacco", "bidi", "beedi", "gutkha", "khaini",
+      "paan", "paan masala", "hookah", "vape", "vaping",
+      "alcohol", "i drink", "yes i drink", "drinking", "i drink socially",
+      "beer", "whisky", "whiskey", "wine", "rum", "vodka", "brandy",
+      "socially", "occasionally", "only occasionally", "on weekends",
+      "सिगरेट", "तंबाकू", "बीड़ी", "गुटखा", "खैनी", "शराब", "दारू",
+      "पीता हूँ", "सिगरेट पीता हूँ", "शराब पीता हूँ", "कभी कभी",
+      "sharab", "daaru", "peeta hoon", "kabhi kabhi", "thoda peeta hoon"
+    ]},
+    {"group": "test_and_procedure_names_alone", "_comment": "A TEST IS NOT A DIAGNOSIS. A600/A610 exist to capture an abnormal investigation in the caller's own words, and that free text is what the underwriter reads - but the name of the test embeds next to the disease it investigates, so 'liver function test' retrieved Cirrhosis of Liver at 0.7948 (matchedVia the literal label) and asked a layperson 'is that Cirrhosis of Liver?'. The read-back does stop these reaching the record, but only if the caller knows enough to say no, and a leading clinical question is not one to put to someone who just told you their enzymes were high. Nulling them costs nothing: the verbatim answer is still recorded on the item. An OPERATION is different and belongs here only while the graph has no code for what was operated on: 'gallstone surgery' was nulled here until K80 Gallstones was added, and is now a real disclosure that resolves properly - the same will be true of appendix and cataract surgery if those conditions are ever added.", "phrases": [
+      "liver function test", "lft", "lipid profile", "thyroid profile",
+      "blood test", "blood tests", "sugar test", "urine test", "stool test",
+      "treadmill test", "tmt", "stress test", "echocardiogram", "echo test",
+      "angiography", "angiogram", "endoscopy", "colonoscopy", "ultrasound",
+      "sonography", "x-ray", "chest x-ray", "ct scan", "mri", "mri scan",
+      "biopsy", "fnac", "ecg", "eeg", "blood report", "the enzymes were high",
+      "appendix operation", "appendectomy", "cataract surgery",
+      "खून की जाँच", "पेशाब की जाँच", "अल्ट्रासाउंड", "एक्स-रे",
+      "khoon ki jaanch", "blood ki jaanch", "report normal tha"
+    ]}
+  ]
+}

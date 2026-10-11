@@ -1,0 +1,19 @@
+# Installed by the SageMaker PyTorch DLC at container start, before the handler
+# is imported.
+#
+# omnivoice pulls transformers>=5.3.0, and that is exactly why this endpoint uses
+# the PyTorch DLC rather than the HuggingFace one: the HF DLC ships transformers
+# 4.51.3 and its serving toolkit depends on it, so a major-version upgrade there
+# risks a container that installs fine and then fails the ping health check.
+# Nothing in the PyTorch DLC imports transformers, so here it is inert.
+#
+# It also pulls gradio, which is dead weight in an inference container but is a
+# hard dependency rather than an extra, so it cannot be excluded without
+# --no-deps and hand-resolving the rest. Accepted: it costs container start time,
+# not request latency.
+omnivoice==0.2.1
+
+# Used for the exact 24kHz -> 8kHz decimation in the handler. librosa (an
+# omnivoice dependency) already pulls scipy, but the resample is on the critical
+# path for every utterance so it is declared rather than inherited.
+scipy>=1.11

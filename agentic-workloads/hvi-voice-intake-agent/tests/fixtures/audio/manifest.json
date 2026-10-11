@@ -1,0 +1,700 @@
+[
+  {
+    "id": "en_bp_medication",
+    "scenario": "bp_medication",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "I have high blood pressure and I take Telmisartan forty milligrams daily.",
+    "note": "medication proper noun plus dose - hardest lexical case",
+    "expect_any": [
+      "blood pressure",
+      "bp",
+      "hypertension"
+    ],
+    "expect_any_2": [
+      "telmisartan",
+      "टेल्मीसार्टन"
+    ],
+    "expect_any_3": [
+      "forty",
+      "40"
+    ],
+    "file": "en_bp_medication.wav",
+    "durationSeconds": 4.08
+  },
+  {
+    "id": "hi_bp_medication",
+    "scenario": "bp_medication",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मुझे हाई ब्लड प्रेशर है और मैं रोज़ टेल्मीसार्टन चालीस एम जी लेती हूँ।",
+    "note": "medication proper noun plus dose - hardest lexical case",
+    "expect_any": [
+      "ब्लड प्रेशर",
+      "blood pressure",
+      "बीपी",
+      "रक्तचाप",
+      "उच्च रक्तचाप"
+    ],
+    "expect_any_2": [
+      "टेल्मीसार्टन",
+      "telmisartan"
+    ],
+    "expect_any_3": [
+      "चालीस",
+      "40"
+    ],
+    "file": "hi_bp_medication.wav",
+    "durationSeconds": 4.2
+  },
+  {
+    "id": "hinglish_bp_medication",
+    "scenario": "bp_medication",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मुझे BP high है, Telmisartan चालीस mg रोज़ लेती हूँ।",
+    "note": "medication proper noun plus dose - hardest lexical case",
+    "expect_any": [
+      "bp",
+      "बीपी",
+      "blood pressure",
+      "रक्तचाप",
+      "उच्च रक्तचाप"
+    ],
+    "expect_any_2": [
+      "telmisartan",
+      "टेल्मीसार्टन"
+    ],
+    "expect_any_3": [
+      "chalis",
+      "चालीस",
+      "40"
+    ],
+    "file": "hinglish_bp_medication.wav",
+    "durationSeconds": 3.77
+  },
+  {
+    "id": "hinglishroman_bp_medication",
+    "scenario": "bp_medication",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Mujhe BP high hai, Telmisartan chalis mg roz leti hoon.",
+    "note": "medication proper noun plus dose - hardest lexical case",
+    "expect_any": [
+      "bp",
+      "बीपी",
+      "blood pressure"
+    ],
+    "expect_any_2": [
+      "telmisartan",
+      "टेल्मीसार्टन"
+    ],
+    "expect_any_3": [
+      "chalis",
+      "चालीस",
+      "40"
+    ],
+    "file": "hinglishroman_bp_medication.wav",
+    "durationSeconds": 3.77
+  },
+  {
+    "id": "en_diabetes",
+    "scenario": "diabetes",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "Yes, I have diabetes for the last ten years and I take Metformin.",
+    "note": "condition plus duration plus medication, colloquial 'sugar'",
+    "expect_keywords": [
+      "diabetes"
+    ],
+    "expect_any": [
+      "ten",
+      "10"
+    ],
+    "expect_any_2": [
+      "metformin",
+      "मेटफॉर्मिन"
+    ],
+    "file": "en_diabetes.wav",
+    "durationSeconds": 3.99
+  },
+  {
+    "id": "hi_diabetes",
+    "scenario": "diabetes",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "हाँ, मुझे दस साल से शुगर है और मैं मेटफॉर्मिन लेती हूँ।",
+    "note": "condition plus duration plus medication, colloquial 'sugar'",
+    "expect_any": [
+      "शुगर",
+      "sugar",
+      "मधुमेह"
+    ],
+    "expect_any_2": [
+      "दस",
+      "10"
+    ],
+    "expect_any_3": [
+      "मेटफॉर्मिन",
+      "metformin"
+    ],
+    "file": "hi_diabetes.wav",
+    "durationSeconds": 3.6
+  },
+  {
+    "id": "hinglish_diabetes",
+    "scenario": "diabetes",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "हाँ मुझे sugar है, दस साल से। मैं Metformin लेती हूँ सुबह शाम।",
+    "note": "condition plus duration plus medication, colloquial 'sugar'",
+    "expect_any": [
+      "sugar",
+      "शुगर"
+    ],
+    "expect_any_2": [
+      "das",
+      "दस",
+      "10"
+    ],
+    "expect_any_3": [
+      "metformin",
+      "मेटफॉर्मिन"
+    ],
+    "file": "hinglish_diabetes.wav",
+    "durationSeconds": 4.87
+  },
+  {
+    "id": "hinglishroman_diabetes",
+    "scenario": "diabetes",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Haan mujhe sugar hai, das saal se. Main Metformin leti hoon subah shaam.",
+    "note": "condition plus duration plus medication, colloquial 'sugar'",
+    "expect_any": [
+      "sugar",
+      "शुगर"
+    ],
+    "expect_any_2": [
+      "das",
+      "दस",
+      "10"
+    ],
+    "expect_any_3": [
+      "metformin",
+      "मेटफॉर्मिन"
+    ],
+    "file": "hinglishroman_diabetes.wav",
+    "durationSeconds": 5.0
+  },
+  {
+    "id": "en_dont_know",
+    "scenario": "dont_know",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "I am not sure, I will have to check my reports.",
+    "note": "explicit uncertainty - must map to isDontKnow, not to a value",
+    "expect_any": [
+      "not sure",
+      "unsure",
+      "don't know",
+      "dont know"
+    ],
+    "expect_any_2": [
+      "report",
+      "reports"
+    ],
+    "file": "en_dont_know.wav",
+    "durationSeconds": 2.77
+  },
+  {
+    "id": "hi_dont_know",
+    "scenario": "dont_know",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मुझे ठीक से पता नहीं, मुझे अपनी रिपोर्ट देखनी पड़ेगी।",
+    "note": "explicit uncertainty - must map to isDontKnow, not to a value",
+    "expect_any": [
+      "पता नहीं",
+      "pata nahi"
+    ],
+    "expect_any_2": [
+      "रिपोर्ट",
+      "report"
+    ],
+    "file": "hi_dont_know.wav",
+    "durationSeconds": 3.49
+  },
+  {
+    "id": "hinglish_dont_know",
+    "scenario": "dont_know",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "पता नहीं exactly, मुझे अपनी report देखनी पड़ेगी।",
+    "note": "explicit uncertainty - must map to isDontKnow, not to a value",
+    "expect_any": [
+      "pata nahi",
+      "पता नहीं"
+    ],
+    "expect_any_2": [
+      "report",
+      "रिपोर्ट"
+    ],
+    "file": "hinglish_dont_know.wav",
+    "durationSeconds": 3.41
+  },
+  {
+    "id": "hinglishroman_dont_know",
+    "scenario": "dont_know",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Pata nahi exactly, mujhe apni report dekhni padegi.",
+    "note": "explicit uncertainty - must map to isDontKnow, not to a value",
+    "expect_any": [
+      "pata nahi",
+      "पता नहीं"
+    ],
+    "expect_any_2": [
+      "report",
+      "रिपोर्ट"
+    ],
+    "file": "hinglishroman_dont_know.wav",
+    "durationSeconds": 3.41
+  },
+  {
+    "id": "en_hospitalisation",
+    "scenario": "hospitalisation",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "I was hospitalised two years ago for a kidney stone operation.",
+    "note": "hospitalisation with reason and timing - drives follow-up questions",
+    "expect_any": [
+      "hospital",
+      "hospitalised",
+      "hospitalized",
+      "admitted"
+    ],
+    "expect_any_2": [
+      "kidney stone",
+      "stone",
+      "kidney"
+    ],
+    "expect_any_3": [
+      "two years",
+      "2 years",
+      "two"
+    ],
+    "file": "en_hospitalisation.wav",
+    "durationSeconds": 3.64
+  },
+  {
+    "id": "hi_hospitalisation",
+    "scenario": "hospitalisation",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मैं दो साल पहले अस्पताल में भर्ती हुई थी, पथरी के ऑपरेशन के लिए।",
+    "note": "hospitalisation with reason and timing - drives follow-up questions",
+    "expect_any": [
+      "अस्पताल",
+      "hospital"
+    ],
+    "expect_any_2": [
+      "पथरी",
+      "ऑपरेशन",
+      "operation"
+    ],
+    "expect_any_3": [
+      "दो साल",
+      "2 साल",
+      "दो"
+    ],
+    "file": "hi_hospitalisation.wav",
+    "durationSeconds": 4.34
+  },
+  {
+    "id": "hinglish_hospitalisation",
+    "scenario": "hospitalisation",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मैं दो साल पहले hospital में admit हुई थी, पथरी के operation के लिए।",
+    "note": "hospitalisation with reason and timing - drives follow-up questions",
+    "expect_any": [
+      "hospital",
+      "अस्पताल",
+      "admit"
+    ],
+    "expect_any_2": [
+      "pathri",
+      "पथरी",
+      "operation",
+      "ऑपरेशन"
+    ],
+    "expect_any_3": [
+      "do saal",
+      "दो साल",
+      "do"
+    ],
+    "file": "hinglish_hospitalisation.wav",
+    "durationSeconds": 4.33
+  },
+  {
+    "id": "hinglishroman_hospitalisation",
+    "scenario": "hospitalisation",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Main do saal pehle hospital mein admit hui thi, pathri ke operation ke liye.",
+    "note": "hospitalisation with reason and timing - drives follow-up questions",
+    "expect_any": [
+      "hospital",
+      "अस्पताल",
+      "admit"
+    ],
+    "expect_any_2": [
+      "pathri",
+      "पथरी",
+      "operation",
+      "ऑपरेशन"
+    ],
+    "expect_any_3": [
+      "do saal",
+      "दो साल",
+      "do"
+    ],
+    "file": "hinglishroman_hospitalisation.wav",
+    "durationSeconds": 4.39
+  },
+  {
+    "id": "en_identity",
+    "scenario": "identity",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "Yes, this is Priya Sharma speaking.",
+    "note": "identity confirmation - the CRM already holds the name",
+    "expect_keywords": [
+      "priya",
+      "sharma"
+    ],
+    "file": "en_identity.wav",
+    "durationSeconds": 2.36
+  },
+  {
+    "id": "hi_identity",
+    "scenario": "identity",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "जी हाँ, मैं प्रिया शर्मा बोल रही हूँ।",
+    "note": "identity confirmation - the CRM already holds the name",
+    "expect_any": [
+      "प्रिया",
+      "priya"
+    ],
+    "expect_any_2": [
+      "शर्मा",
+      "sharma"
+    ],
+    "file": "hi_identity.wav",
+    "durationSeconds": 2.5
+  },
+  {
+    "id": "hinglish_identity",
+    "scenario": "identity",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "हाँ जी, मैं Priya Sharma बोल रही हूँ।",
+    "note": "identity confirmation - the CRM already holds the name",
+    "expect_any": [
+      "priya",
+      "प्रिया"
+    ],
+    "expect_any_2": [
+      "sharma",
+      "शर्मा"
+    ],
+    "file": "hinglish_identity.wav",
+    "durationSeconds": 2.49
+  },
+  {
+    "id": "hinglishroman_identity",
+    "scenario": "identity",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Haan ji, main Priya Sharma bol rahi hoon.",
+    "note": "identity confirmation - the CRM already holds the name",
+    "expect_any": [
+      "priya",
+      "प्रिया"
+    ],
+    "expect_any_2": [
+      "sharma",
+      "शर्मा"
+    ],
+    "file": "hinglishroman_identity.wav",
+    "durationSeconds": 2.5
+  },
+  {
+    "id": "en_negation",
+    "scenario": "negation",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "No, I don't have any medical conditions.",
+    "note": "negation - mis-hearing this flips a medical answer to yes",
+    "expect_any": [
+      "no",
+      "not",
+      "don't",
+      "dont"
+    ],
+    "file": "en_negation.wav",
+    "durationSeconds": 2.75
+  },
+  {
+    "id": "hi_negation",
+    "scenario": "negation",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "नहीं, मुझे कोई बीमारी नहीं है।",
+    "note": "negation - mis-hearing this flips a medical answer to yes",
+    "expect_any": [
+      "नहीं",
+      "nahi"
+    ],
+    "file": "hi_negation.wav",
+    "durationSeconds": 2.24
+  },
+  {
+    "id": "hinglish_negation",
+    "scenario": "negation",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "नहीं, मुझे कोई medical problem नहीं है।",
+    "note": "negation - mis-hearing this flips a medical answer to yes",
+    "expect_any": [
+      "nahi",
+      "नहीं"
+    ],
+    "file": "hinglish_negation.wav",
+    "durationSeconds": 2.65
+  },
+  {
+    "id": "hinglishroman_negation",
+    "scenario": "negation",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Nahi, mujhe koi bimari nahi hai.",
+    "note": "negation - mis-hearing this flips a medical answer to yes",
+    "expect_any": [
+      "nahi",
+      "नहीं"
+    ],
+    "file": "hinglishroman_negation.wav",
+    "durationSeconds": 2.24
+  },
+  {
+    "id": "en_numerals",
+    "scenario": "numerals",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "My height is one hundred sixty two centimetres and my weight is fifty eight kilos.",
+    "note": "height and weight - numerals are a classic ASR failure mode",
+    "expect_any": [
+      "one hundred sixty two",
+      "162",
+      "sixty two"
+    ],
+    "expect_any_2": [
+      "fifty eight",
+      "58"
+    ],
+    "file": "en_numerals.wav",
+    "durationSeconds": 4.64
+  },
+  {
+    "id": "hi_numerals",
+    "scenario": "numerals",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मेरी लंबाई एक सौ बासठ सेंटीमीटर है और वजन अट्ठावन किलो है।",
+    "note": "height and weight - numerals are a classic ASR failure mode",
+    "expect_any": [
+      "बासठ",
+      "162",
+      "एक सौ बासठ"
+    ],
+    "expect_any_2": [
+      "अट्ठावन",
+      "58"
+    ],
+    "file": "hi_numerals.wav",
+    "durationSeconds": 4.14
+  },
+  {
+    "id": "hinglish_numerals",
+    "scenario": "numerals",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मेरी height एक सौ बासठ centimetre है और weight अट्ठावन kilo है।",
+    "note": "height and weight - numerals are a classic ASR failure mode",
+    "expect_any": [
+      "basath",
+      "बासठ",
+      "162"
+    ],
+    "expect_any_2": [
+      "attavan",
+      "अट्ठावन",
+      "58"
+    ],
+    "file": "hinglish_numerals.wav",
+    "durationSeconds": 3.99
+  },
+  {
+    "id": "hinglishroman_numerals",
+    "scenario": "numerals",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Meri height ek sau basath centimetre hai aur weight attavan kilo hai.",
+    "note": "height and weight - numerals are a classic ASR failure mode",
+    "expect_any": [
+      "basath",
+      "बासठ",
+      "162"
+    ],
+    "expect_any_2": [
+      "attavan",
+      "अट्ठावन",
+      "58"
+    ],
+    "file": "hinglishroman_numerals.wav",
+    "durationSeconds": 3.95
+  },
+  {
+    "id": "en_red_flag_chest_pain",
+    "scenario": "red_flag_chest_pain",
+    "mode": "english",
+    "language": "en-IN",
+    "voice": "Kajal",
+    "text": "I get chest pain when I walk, the doctor said it is a heart problem.",
+    "note": "red flag - must survive transcription to reach the classifier and force read-back confirmation at severityTier >= 4",
+    "expect_any": [
+      "chest pain",
+      "chest"
+    ],
+    "expect_any_2": [
+      "heart",
+      "हार्ट",
+      "cardiac"
+    ],
+    "expect_any_3": [
+      "walk",
+      "walking"
+    ],
+    "file": "en_red_flag_chest_pain.wav",
+    "durationSeconds": 3.86
+  },
+  {
+    "id": "hi_red_flag_chest_pain",
+    "scenario": "red_flag_chest_pain",
+    "mode": "hindi",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "चलने पर मुझे सीने में दर्द होता है, डॉक्टर ने दिल की बीमारी बताई थी।",
+    "note": "red flag - must survive transcription to reach the classifier and force read-back confirmation at severityTier >= 4",
+    "expect_any": [
+      "सीने",
+      "seene",
+      "chest",
+      "छाती"
+    ],
+    "expect_any_2": [
+      "दिल",
+      "heart",
+      "हार्ट"
+    ],
+    "expect_any_3": [
+      "चलने",
+      "chalne"
+    ],
+    "file": "hi_red_flag_chest_pain.wav",
+    "durationSeconds": 4.42
+  },
+  {
+    "id": "hinglish_red_flag_chest_pain",
+    "scenario": "red_flag_chest_pain",
+    "mode": "hinglish",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "मुझे चलने पर सीने में दर्द होता है, doctor ने heart की problem बोली थी।",
+    "note": "red flag - must survive transcription to reach the classifier and force read-back confirmation at severityTier >= 4",
+    "expect_any": [
+      "seene",
+      "सीने",
+      "chest",
+      "छाती"
+    ],
+    "expect_any_2": [
+      "heart",
+      "हार्ट",
+      "दिल"
+    ],
+    "expect_any_3": [
+      "chalne",
+      "चलने"
+    ],
+    "file": "hinglish_red_flag_chest_pain.wav",
+    "durationSeconds": 4.36
+  },
+  {
+    "id": "hinglishroman_red_flag_chest_pain",
+    "scenario": "red_flag_chest_pain",
+    "mode": "hinglish_roman",
+    "language": "hi-IN",
+    "voice": "Kajal",
+    "text": "Mujhe chalne par seene mein dard hota hai, doctor ne heart ki problem boli thi.",
+    "note": "red flag - must survive transcription to reach the classifier and force read-back confirmation at severityTier >= 4",
+    "expect_any": [
+      "seene",
+      "सीने",
+      "chest",
+      "छाती"
+    ],
+    "expect_any_2": [
+      "heart",
+      "हार्ट",
+      "दिल"
+    ],
+    "expect_any_3": [
+      "chalne",
+      "चलने"
+    ],
+    "file": "hinglishroman_red_flag_chest_pain.wav",
+    "durationSeconds": 4.36
+  }
+]

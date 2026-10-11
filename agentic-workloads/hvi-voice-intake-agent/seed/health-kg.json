@@ -1,0 +1,2001 @@
+{
+  "_comment": "Health-condition knowledge graph for Neptune. This graph ENFORCES the medical protocol: for any confirmed condition the agent MUST ask the follow-up questions reachable via REQUIRES edges. It is deterministic, so the same condition yields the same follow-ups on every call, and the traversal path is the audit evidence for 'why was this question asked?'. The medical team edits this graph directly - no model retraining, no redeployment.",
+  "conditions": [
+    {
+      "icd10": "E11",
+      "label_en": "Type 2 Diabetes Mellitus",
+      "label_hi": "मधुमेह (टाइप 2)",
+      "category": "endocrine",
+      "severityTier": 2,
+      "formItems": [
+        "A250"
+      ],
+      "colloquial": [
+        "sugar",
+        "sugar ki bimari",
+        "sugar problem",
+        "madhumeh",
+        "मधुमेह",
+        "shakkar ki bimari",
+        "sugar hai",
+        "diabetes hai",
+        "blood sugar",
+        "शुगर",
+        "शुगर है",
+        "शुगर की बीमारी",
+        "डायबिटीज",
+        "ब्लड शुगर"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_HBA1C",
+        "FU_ON_INSULIN",
+        "FU_DIAB_COMPLICATIONS"
+      ],
+      "notes": "Highest-frequency positive in the Indian market. Patients almost never say 'diabetes' - they say 'sugar'."
+    },
+    {
+      "icd10": "E10",
+      "label_en": "Type 1 Diabetes Mellitus",
+      "label_hi": "मधुमेह (टाइप 1)",
+      "category": "endocrine",
+      "severityTier": 3,
+      "formItems": [
+        "A250"
+      ],
+      "colloquial": [
+        "type 1 diabetes",
+        "insulin dependent diabetes",
+        "bachpan se sugar",
+        "टाइप वन शुगर",
+        "इंसुलिन लेता हूँ"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_HBA1C",
+        "FU_ON_INSULIN",
+        "FU_DIAB_COMPLICATIONS"
+      ]
+    },
+    {
+      "icd10": "I10",
+      "label_en": "Essential Hypertension",
+      "label_hi": "उच्च रक्तचाप",
+      "category": "cardiovascular",
+      "severityTier": 2,
+      "formItems": [
+        "A220"
+      ],
+      "colloquial": [
+        "BP",
+        "high BP",
+        "BP ki problem",
+        "blood pressure",
+        "उच्च रक्तचाप",
+        "BP high hai",
+        "pressure",
+        "pressure ki bimari",
+        "बीपी",
+        "ब्लड प्रेशर",
+        "हाई बीपी",
+        "बीपी की प्रॉब्लम",
+        "प्रेशर"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_BP_READING",
+        "FU_ORGAN_DAMAGE"
+      ]
+    },
+    {
+      "icd10": "E78",
+      "label_en": "Hyperlipidaemia",
+      "label_hi": "उच्च कोलेस्ट्रॉल",
+      "category": "metabolic",
+      "severityTier": 1,
+      "formItems": [
+        "A220"
+      ],
+      "colloquial": [
+        "cholesterol",
+        "high cholesterol",
+        "cholesterol badha hua"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED"
+      ]
+    },
+    {
+      "icd10": "I25",
+      "label_en": "Chronic Ischaemic Heart Disease",
+      "label_hi": "हृदय धमनी रोग",
+      "category": "cardiovascular",
+      "severityTier": 4,
+      "formItems": [
+        "A210"
+      ],
+      "colloquial": [
+        "heart problem",
+        "blockage",
+        "dil ki bimari",
+        "heart ki bimari",
+        "angina",
+        "seene mein dard",
+        "सीने में दर्द",
+        "हार्ट",
+        "हार्ट की बीमारी",
+        "दिल की बीमारी",
+        "ब्लॉकेज",
+        "एंजाइना"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_CARDIAC_INTERVENTION",
+        "FU_EJECTION_FRACTION",
+        "FU_HOSPITALISED_FOR"
+      ]
+    },
+    {
+      "icd10": "I21",
+      "label_en": "Acute Myocardial Infarction",
+      "label_hi": "दिल का दौरा",
+      "category": "cardiovascular",
+      "severityTier": 5,
+      "formItems": [
+        "A210"
+      ],
+      "colloquial": [
+        "heart attack",
+        "dil ka daura",
+        "attack aaya tha",
+        "MI"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CARDIAC_INTERVENTION",
+        "FU_EJECTION_FRACTION",
+        "FU_HOSPITALISED_FOR"
+      ],
+      "subtypeOf": "I25"
+    },
+    {
+      "icd10": "I50",
+      "label_en": "Heart Failure",
+      "label_hi": "हृदय गति रुकना",
+      "category": "cardiovascular",
+      "severityTier": 5,
+      "formItems": [
+        "A210"
+      ],
+      "colloquial": [
+        "heart failure",
+        "dil kamzor",
+        "weak heart",
+        "pumping kam hai",
+        "हार्ट फेल",
+        "दिल कमजोर",
+        "साँस फूलना"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_EJECTION_FRACTION",
+        "FU_HOSPITALISED_FOR"
+      ]
+    },
+    {
+      "icd10": "J45",
+      "label_en": "Asthma",
+      "label_hi": "दमा",
+      "category": "respiratory",
+      "severityTier": 2,
+      "formItems": [
+        "A230"
+      ],
+      "colloquial": [
+        "asthma",
+        "dama",
+        "दमा",
+        "saans ki bimari",
+        "saans phoolti hai",
+        "breathing problem",
+        "inhaler leta hoon",
+        "अस्थमा",
+        "साँस",
+        "साँस की तकलीफ",
+        "इनहेलर",
+        "पंप लेता हूँ",
+        "साँस फूलती है",
+        "saans ki takleef"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_INHALER_USE",
+        "FU_RESP_HOSPITALISATION"
+      ]
+    },
+    {
+      "icd10": "A15",
+      "label_en": "Pulmonary Tuberculosis",
+      "label_hi": "क्षय रोग (टीबी)",
+      "category": "infectious",
+      "severityTier": 3,
+      "formItems": [
+        "A230"
+      ],
+      "colloquial": [
+        "TB",
+        "tibi",
+        "tuberculosis",
+        "kshay rog",
+        "क्षय रोग",
+        "TB hui thi",
+        "chest TB"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_TB_COMPLETED",
+        "FU_TB_SPUTUM",
+        "FU_TB_DRUG_RESISTANT"
+      ],
+      "notes": "India carries roughly a quarter of the global TB burden. Underwriting hinges on whether the full DOTS course was completed, so the follow-ups are TB-specific rather than generic."
+    },
+    {
+      "icd10": "J44",
+      "label_en": "Chronic Obstructive Pulmonary Disease",
+      "label_hi": "सीओपीडी",
+      "category": "respiratory",
+      "severityTier": 3,
+      "formItems": [
+        "A230"
+      ],
+      "colloquial": [
+        "COPD",
+        "smoker's lung",
+        "chronic bronchitis",
+        "purani khaansi",
+        "साँस की बीमारी",
+        "खाँसी बलगम"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_INHALER_USE",
+        "FU_RESP_HOSPITALISATION",
+        "FU_SMOKING_LINK"
+      ]
+    },
+    {
+      "icd10": "J40",
+      "label_en": "Bronchitis",
+      "label_hi": "ब्रोंकाइटिस",
+      "category": "respiratory",
+      "severityTier": 1,
+      "notes": "Added because A230 asks about ब्रोंकाइटिस by name and the graph had no code for it, so a caller who said it was matched to the nearest thing available. Measured: 'पांच साल पहले ब्रॉन्काइटिस' scored J44 COPD at 0.7959 - too low to assert, so it was read back, rejected, and the walk then offered kidney disease and hepatitis until she agreed to one. SEPARATE FROM J44 ON PURPOSE. 'chronic bronchitis' stays a COPD synonym because clinically it is COPD, but a bare 'bronchitis' five years ago is an acute episode, and filing that as COPD would upgrade a past chest infection into a lifelong obstructive disease on an underwriting record. Tier 1, and no inhaler or hospitalisation follow-ups, because those questions only make sense for the chronic form.",
+      "formItems": [
+        "A230"
+      ],
+      "colloquial": [
+        "bronchitis",
+        "ब्रोंकाइटिस",
+        "ब्रॉन्काइटिस",
+        "bronchitis tha",
+        "ब्रोंकाइटिस हुआ था",
+        "chest infection",
+        "छाती में संक्रमण"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_RECURRENCE"
+      ]
+    },
+    {
+      "icd10": "E03",
+      "label_en": "Hypothyroidism",
+      "label_hi": "अल्पसक्रिय थायरॉइड",
+      "category": "endocrine",
+      "severityTier": 1,
+      "formItems": [
+        "A240"
+      ],
+      "colloquial": [
+        "thyroid",
+        "थायरॉइड",
+        "thyroid ki problem",
+        "gale ki gilti",
+        "thyroid ki dawa",
+        "थायराइड",
+        "थायरॉइड की प्रॉब्लम",
+        "गले की गिल्टी"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_TSH_LAST",
+        "FU_SURGERY_DONE"
+      ]
+    },
+    {
+      "icd10": "E05",
+      "label_en": "Hyperthyroidism",
+      "label_hi": "अतिसक्रिय थायरॉइड",
+      "category": "endocrine",
+      "severityTier": 2,
+      "formItems": [
+        "A240"
+      ],
+      "colloquial": [
+        "hyperthyroid",
+        "thyroid zyada",
+        "Graves disease"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_TSH_LAST"
+      ]
+    },
+    {
+      "icd10": "N18",
+      "label_en": "Chronic Kidney Disease",
+      "label_hi": "गुर्दे की पुरानी बीमारी",
+      "category": "renal",
+      "severityTier": 5,
+      "formItems": [
+        "A290"
+      ],
+      "colloquial": [
+        "kidney problem",
+        "kidney ki bimari",
+        "gurde ki bimari",
+        "creatinine badha hua",
+        "CKD",
+        "किडनी",
+        "किडनी की बीमारी",
+        "गुर्दा",
+        "डायलिसिस"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CKD_STAGE",
+        "FU_DIALYSIS",
+        "FU_TRANSPLANT"
+      ]
+    },
+    {
+      "icd10": "N20",
+      "label_en": "Kidney Stones",
+      "label_hi": "गुर्दे की पथरी",
+      "category": "renal",
+      "severityTier": 1,
+      "formItems": [
+        "A290"
+      ],
+      "colloquial": [
+        "kidney stone",
+        "pathri",
+        "पथरी",
+        "stone tha",
+        "gurde ki pathri",
+        "स्टोन",
+        "किडनी स्टोन"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_SURGERY_DONE",
+        "FU_RECURRENCE"
+      ]
+    },
+    {
+      "icd10": "K74",
+      "label_en": "Cirrhosis of Liver",
+      "label_hi": "यकृत सिरोसिस",
+      "category": "hepatic",
+      "severityTier": 5,
+      "formItems": [
+        "A280"
+      ],
+      "colloquial": [
+        "liver cirrhosis",
+        "liver kharab",
+        "liver ki bimari",
+        "fatty liver advanced"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_ALCOHOL_LINK",
+        "FU_HOSPITALISED_FOR",
+        "FU_TRANSPLANT"
+      ]
+    },
+    {
+      "icd10": "K80",
+      "label_en": "Gallstones",
+      "label_hi": "पित्ताशय की पथरी",
+      "category": "hepatic",
+      "severityTier": 1,
+      "notes": "Added because the graph had no biliary code at all, so every gallstone disclosure resolved to its nearest available neighbour instead. Measured: 'gallstone surgery' returned N20 Kidney Stones at 0.7738 - the wrong organ, offered to the caller as a read-back. A280 already asks about 'any condition of the liver, gall bladder', so the screen expected this code to exist. Tier 1 and the same follow-up set as N20: a common, benign, surgically resolved stone condition.",
+      "formItems": [
+        "A280"
+      ],
+      "colloquial": [
+        "gallstones",
+        "gallstone",
+        "gall stone",
+        "gallbladder stone",
+        "gall bladder stones",
+        "cholelithiasis",
+        "gallbladder removed",
+        "gall bladder nikala",
+        "pitt ki pathri",
+        "pittashay ki pathri",
+        "पित्त की पथरी",
+        "पित्ताशय की पथरी",
+        "पित्ताशय निकाला"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_SURGERY_DONE",
+        "FU_RECURRENCE"
+      ]
+    },
+    {
+      "icd10": "B18",
+      "label_en": "Chronic Viral Hepatitis",
+      "label_hi": "क्रोनिक वायरल हेपेटाइटिस",
+      "category": "hepatic",
+      "severityTier": 3,
+      "notes": "NO JAUNDICE SYNONYM HERE - FLAGGED FOR CLINICAL REVIEW. The list held 'peelia purana' (chronic jaundice), plus bare 'kamla' and bare 'पीलिया', which are just the word jaundice. Because an exact graph synonym is the authoritative fast path, 'मुझे पीलिया हुआ था' returned B18 corroborated at confidence 1.0 with no read-back. Jaundice is a SYMPTOM with many causes and in India usually means acute hepatitis A or E, which is self-limiting and carries no underwriting weight; B18 is chronic hepatitis B or C, tier 3 and loadable. Qualifying the synonym was tried first and does NOT work: the graph also matches a phrase WITHIN a synonym, so 'पीलिया' still matched 'पुराना पीलिया' and stayed corroborated. Removing the jaundice family entirely is what makes an unqualified disclosure fall to similarity search, arrive uncorroborated, and get read back to the patient before anything is recorded. Cost: a genuine chronic-jaundice disclosure now needs that read-back too. A clinician should decide whether 'peelia purana' deserves its own code (B15/B19 acute or unspecified viral hepatitis) rather than being folded into B18.",
+      "formItems": [
+        "A280"
+      ],
+      "colloquial": [
+        "hepatitis",
+        "hepatitis B",
+        "hepatitis C",
+        "हेपेटाइटिस",
+        "लिवर की बीमारी"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_HEP_TYPE",
+        "FU_VIRAL_LOAD"
+      ]
+    },
+    {
+      "icd10": "K85",
+      "label_en": "Acute Pancreatitis",
+      "label_hi": "अग्न्याशय की सूजन",
+      "category": "digestive",
+      "severityTier": 3,
+      "formItems": [
+        "A280"
+      ],
+      "colloquial": [
+        "pancreatitis",
+        "pancreas ki sujan"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_ALCOHOL_LINK",
+        "FU_RECURRENCE",
+        "FU_HOSPITALISED_FOR"
+      ]
+    },
+    {
+      "icd10": "K50",
+      "label_en": "Crohn's Disease",
+      "label_hi": "क्रोहन रोग",
+      "category": "digestive",
+      "severityTier": 3,
+      "formItems": [
+        "A280"
+      ],
+      "colloquial": [
+        "Crohns",
+        "IBD",
+        "aanton ki sujan"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_SURGERY_DONE",
+        "FU_IMMUNOSUPPRESSANT"
+      ]
+    },
+    {
+      "icd10": "K51",
+      "label_en": "Ulcerative Colitis",
+      "label_hi": "अल्सरेटिव कोलाइटिस",
+      "category": "digestive",
+      "severityTier": 3,
+      "formItems": [
+        "A280"
+      ],
+      "colloquial": [
+        "ulcerative colitis",
+        "colitis",
+        "khoon aata hai motion mein"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_SURGERY_DONE",
+        "FU_IMMUNOSUPPRESSANT"
+      ]
+    },
+    {
+      "icd10": "I63",
+      "label_en": "Cerebral Infarction (Stroke)",
+      "label_hi": "लकवा / स्ट्रोक",
+      "category": "neurological",
+      "severityTier": 5,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "stroke",
+        "lakwa",
+        "लकवा",
+        "paralysis",
+        "brain attack",
+        "adhrang",
+        "स्ट्रोक",
+        "पैरालिसिस",
+        "पक्षाघात"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_RESIDUAL_DEFICIT",
+        "FU_HOSPITALISED_FOR",
+        "FU_RECURRENCE"
+      ]
+    },
+    {
+      "icd10": "G45",
+      "label_en": "Transient Ischaemic Attack",
+      "label_hi": "क्षणिक इस्केमिक अटैक",
+      "category": "neurological",
+      "severityTier": 4,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "TIA",
+        "transient ischaemic attack",
+        "mini stroke",
+        "chhota stroke"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_RECURRENCE"
+      ]
+    },
+    {
+      "icd10": "G40",
+      "label_en": "Epilepsy",
+      "label_hi": "मिर्गी",
+      "category": "neurological",
+      "severityTier": 3,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "epilepsy",
+        "mirgi",
+        "मिर्गी",
+        "dora aata hai",
+        "fits",
+        "jhatke"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_SEIZURE_FREQUENCY",
+        "FU_LAST_SEIZURE"
+      ]
+    },
+    {
+      "icd10": "G20",
+      "label_en": "Parkinson's Disease",
+      "label_hi": "पार्किंसन रोग",
+      "category": "neurological",
+      "severityTier": 4,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "Parkinsons",
+        "Parkinson's",
+        "पार्किंसन",
+        "haath kaanpta hai",
+        "kampvat"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_FUNCTIONAL_STATUS"
+      ]
+    },
+    {
+      "_note": "A270 reads 'अल्जाइमर, डिमेंशिया' out to every caller. Until 2026-08-23 neither had a node here, so a caller who asked what the word meant could not be answered: resolve_condition found no exact synonym, the explanation lookup returned found=False, and the clarify prompt repeated until MAX_REPEATS. Any name spoken in a screen needs a node with colloquial forms in every language we speak, plus an authored explanation. tests/test_named_conditions_explainable.py enforces that.",
+      "icd10": "G30",
+      "label_en": "Alzheimer's Disease",
+      "label_hi": "अल्ज़ाइमर रोग",
+      "category": "neurological",
+      "severityTier": 5,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "Alzheimer's",
+        "Alzheimers",
+        "Alzheimer",
+        "Alzheimer's disease",
+        "Alzheimers disease",
+        "अल्जाइमर",
+        "अल्ज़ाइमर",
+        "अल्जाइमर रोग",
+        "अल्ज़ाइमर रोग",
+        "bhoolne ki bimari",
+        "yaaddasht chali jaana",
+        "भूलने की बीमारी",
+        "याददाश्त चली जाना"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_FUNCTIONAL_STATUS"
+      ]
+    },
+    {
+      "icd10": "F03",
+      "label_en": "Dementia",
+      "label_hi": "मनोभ्रंश",
+      "category": "neurological",
+      "severityTier": 5,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "dementia",
+        "डिमेंशिया",
+        "डिमेन्शिया",
+        "मनोभ्रंश",
+        "yaaddasht kam ho gayi",
+        "bhool jaate hain",
+        "याददाश्त कम हो गई",
+        "भूल जाते हैं"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_FUNCTIONAL_STATUS"
+      ]
+    },
+    {
+      "icd10": "G35",
+      "label_en": "Multiple Sclerosis",
+      "label_hi": "मल्टीपल स्क्लेरोसिस",
+      "category": "neurological",
+      "severityTier": 4,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "multiple sclerosis",
+        "मल्टीपल स्क्लेरोसिस",
+        "मल्टिपल स्क्लेरोसिस",
+        "एम एस",
+        "multiple sclerosis ki bimari"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_FUNCTIONAL_STATUS",
+        "FU_RESIDUAL_DEFICIT"
+      ]
+    },
+    {
+      "icd10": "F32",
+      "label_en": "Depressive Episode",
+      "label_hi": "अवसाद",
+      "category": "psychiatric",
+      "severityTier": 2,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "depression",
+        "avsad",
+        "mann udaas",
+        "tension ki dawa",
+        "डिप्रेशन",
+        "अवसाद",
+        "टेंशन",
+        "मन उदास"
+      ],
+      "sensitivity": "high",
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_PSYCH_HOSPITALISATION",
+        "FU_SELF_HARM"
+      ]
+    },
+    {
+      "icd10": "F41",
+      "label_en": "Anxiety Disorder",
+      "label_hi": "चिंता विकार",
+      "category": "psychiatric",
+      "severityTier": 1,
+      "formItems": [
+        "A270"
+      ],
+      "colloquial": [
+        "anxiety",
+        "ghabrahat",
+        "panic attack",
+        "bechaini"
+      ],
+      "sensitivity": "high",
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED"
+      ]
+    },
+    {
+      "icd10": "C50",
+      "label_en": "Malignant Neoplasm of Breast",
+      "label_hi": "स्तन कैंसर",
+      "category": "oncology",
+      "severityTier": 5,
+      "formItems": [
+        "A200"
+      ],
+      "colloquial": [
+        "breast cancer",
+        "chhaati ka cancer",
+        "gaanth thi"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_CANCER_STAGE",
+        "FU_CANCER_TREATMENT",
+        "FU_REMISSION",
+        "FU_RECURRENCE",
+        "FU_LAST_ONCOLOGY_REVIEW"
+      ]
+    },
+    {
+      "icd10": "C34",
+      "label_en": "Malignant Neoplasm of Bronchus and Lung",
+      "label_hi": "फेफड़े का कैंसर",
+      "category": "oncology",
+      "severityTier": 5,
+      "formItems": [
+        "A200"
+      ],
+      "colloquial": [
+        "lung cancer",
+        "phephde ka cancer"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_CANCER_STAGE",
+        "FU_CANCER_TREATMENT",
+        "FU_REMISSION",
+        "FU_RECURRENCE",
+        "FU_SMOKING_LINK"
+      ]
+    },
+    {
+      "icd10": "D25",
+      "label_en": "Uterine Fibroid",
+      "label_hi": "गर्भाशय फाइब्रॉइड",
+      "category": "benign_neoplasm",
+      "severityTier": 1,
+      "formItems": [
+        "A200"
+      ],
+      "colloquial": [
+        "fibroid",
+        "bacchedani mein gaanth",
+        "cyst"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_SURGERY_DONE"
+      ]
+    },
+    {
+      "icd10": "B20",
+      "label_en": "HIV Disease",
+      "label_hi": "एचआईवी",
+      "category": "infectious",
+      "severityTier": 5,
+      "formItems": [
+        "A300"
+      ],
+      "colloquial": [
+        "HIV",
+        "AIDS",
+        "retroviral"
+      ],
+      "sensitivity": "maximum",
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CD4_COUNT",
+        "FU_VIRAL_LOAD",
+        "FU_ART_ADHERENCE"
+      ],
+      "notes": "Sensitive personal data under DPDP. Must be encrypted with the medical-data CMK and excluded from any non-underwriting projection."
+    },
+    {
+      "icd10": "M06",
+      "label_en": "Rheumatoid Arthritis",
+      "label_hi": "रूमेटाइड गठिया",
+      "category": "autoimmune",
+      "severityTier": 3,
+      "formItems": [
+        "A300",
+        "A320"
+      ],
+      "colloquial": [
+        "rheumatoid arthritis",
+        "gathiya",
+        "joints mein dard aur sujan"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_IMMUNOSUPPRESSANT",
+        "FU_FUNCTIONAL_STATUS"
+      ]
+    },
+    {
+      "icd10": "M15",
+      "label_en": "Osteoarthritis",
+      "label_hi": "अस्थिसंधिशोथ",
+      "category": "musculoskeletal",
+      "severityTier": 1,
+      "formItems": [
+        "A320"
+      ],
+      "colloquial": [
+        "arthritis",
+        "ghutne ka dard",
+        "joint pain",
+        "knee problem"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_SURGERY_DONE",
+        "FU_FUNCTIONAL_STATUS"
+      ]
+    },
+    {
+      "icd10": "S72",
+      "label_en": "Fracture of Femur or Long Bone",
+      "label_hi": "हड्डी का फ्रैक्चर",
+      "category": "trauma",
+      "severityTier": 2,
+      "formItems": [
+        "A320",
+        "A500"
+      ],
+      "colloquial": [
+        "fracture",
+        "haddi tut gayi",
+        "bone break",
+        "plaster laga tha",
+        "rod daala tha",
+        "haddi ki chot",
+        "फ्रैक्चर",
+        "हड्डी टूटना",
+        "कूल्हे की हड्डी"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_SURGERY_DONE",
+        "FU_FUNCTIONAL_STATUS"
+      ],
+      "notes": "Added after testing: a fracture was being classified as osteoarthritis because no trauma concept existed. Distinct underwriting treatment - a healed fracture with full function is not a chronic joint disease."
+    },
+    {
+      "icd10": "L40",
+      "label_en": "Psoriasis",
+      "label_hi": "सोरायसिस",
+      "category": "dermatological",
+      "severityTier": 1,
+      "formItems": [
+        "A300"
+      ],
+      "colloquial": [
+        "psoriasis",
+        "chambal",
+        "skin ki bimari"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_IMMUNOSUPPRESSANT"
+      ]
+    },
+    {
+      "icd10": "D50",
+      "label_en": "Iron Deficiency Anaemia",
+      "label_hi": "आयरन की कमी से एनीमिया",
+      "category": "haematological",
+      "severityTier": 1,
+      "formItems": [
+        "A300"
+      ],
+      "colloquial": [
+        "anaemia",
+        "khoon ki kami",
+        "haemoglobin kam",
+        "kamzori"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_ANAEMIA_CAUSE"
+      ]
+    },
+    {
+      "icd10": "G12.2",
+      "label_en": "Motor Neuron Disease",
+      "label_hi": "मोटर न्यूरॉन रोग",
+      "category": "neuromuscular",
+      "severityTier": 5,
+      "formItems": [
+        "A260"
+      ],
+      "colloquial": [
+        "motor neuron disease",
+        "MND",
+        "ALS",
+        "muscle weakness getting worse",
+        "मोटर न्यूरॉन रोग",
+        "मांसपेशियों की बढ़ती कमजोरी"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_FUNCTIONAL_STATUS",
+        "FU_HOSPITALISED_FOR"
+      ]
+    },
+    {
+      "icd10": "H40",
+      "label_en": "Glaucoma",
+      "label_hi": "ग्लूकोमा / काला मोतिया",
+      "category": "ophthalmic",
+      "severityTier": 3,
+      "formItems": [
+        "A310"
+      ],
+      "colloquial": [
+        "glaucoma",
+        "kala motia",
+        "eye pressure",
+        "high pressure in the eye",
+        "ग्लूकोमा",
+        "काला मोतिया",
+        "आँख का दबाव"
+      ],
+      "followUps": [
+        "FU_DIAG_WHEN",
+        "FU_TREATMENT",
+        "FU_CONTROLLED",
+        "FU_SURGERY_DONE",
+        "FU_FUNCTIONAL_STATUS"
+      ]
+    }
+  ],
+  "conditionExplanations": {
+    "E11": {
+      "explain_en": "Type 2 diabetes means the body has difficulty controlling blood sugar. It may cause thirst or tiredness and usually needs food, activity, tablets, or insulin to keep it controlled.",
+      "explain_hi": "टाइप 2 मधुमेह में शरीर रक्त शर्करा को ठीक से नियंत्रित नहीं कर पाता। इससे प्यास या थकान हो सकती है और इसे भोजन, व्यायाम, दवा या इंसुलिन से नियंत्रित किया जाता है।"
+    },
+    "E10": {
+      "explain_en": "Type 1 diabetes means the body makes little or no insulin, so insulin is needed every day. Blood sugar must be monitored because high or low levels can affect daily activities.",
+      "explain_hi": "टाइप 1 मधुमेह में शरीर बहुत कम या बिल्कुल इंसुलिन नहीं बनाता, इसलिए रोज़ इंसुलिन लेना पड़ता है। रक्त शर्करा की नियमित जाँच ज़रूरी होती है।"
+    },
+    "I10": {
+      "explain_en": "Hypertension means blood pressure stays higher than it should. It often causes no symptoms, but regular checks and treatment help protect the heart, brain, and kidneys.",
+      "explain_hi": "उच्च रक्तचाप का मतलब है कि खून का दबाव सामान्य से अधिक रहता है। अक्सर कोई लक्षण नहीं होते, पर जाँच और इलाज हृदय, मस्तिष्क और गुर्दों की रक्षा करते हैं।"
+    },
+    "E78": {
+      "explain_en": "High cholesterol means there is too much fatty material in the blood. It usually has no symptoms but can increase the chance of blocked arteries over time.",
+      "explain_hi": "उच्च कोलेस्ट्रॉल में खून में वसा की मात्रा अधिक होती है। आमतौर पर लक्षण नहीं होते, लेकिन समय के साथ धमनियों में रुकावट का जोखिम बढ़ सकता है।"
+    },
+    "I25": {
+      "explain_en": "Ischaemic heart disease means the heart muscle receives less blood because its arteries are narrowed or blocked. It can cause chest pressure or breathlessness, especially with activity.",
+      "explain_hi": "हृदय धमनी रोग में दिल तक खून पहुँचाने वाली धमनियाँ संकरी या बंद हो जाती हैं। चलने या मेहनत करने पर सीने में दबाव या साँस फूल सकती है।"
+    },
+    "I21": {
+      "explain_en": "A heart attack happens when blood flow to part of the heart is suddenly blocked and the heart muscle is injured. Recovery and daily activity can depend on the damage and treatment received.",
+      "explain_hi": "दिल का दौरा तब होता है जब दिल के किसी हिस्से में खून अचानक रुक जाता है और मांसपेशी को नुकसान होता है। आगे की क्षमता नुकसान और इलाज पर निर्भर करती है।"
+    },
+    "I50": {
+      "explain_en": "Heart failure means the heart is not pumping blood as effectively as the body needs. It can cause breathlessness, ankle swelling, and tiredness during ordinary activities.",
+      "explain_hi": "हार्ट फेल्योर में दिल शरीर की ज़रूरत के अनुसार खून ठीक से पंप नहीं कर पाता। इससे साँस फूलना, पैरों में सूजन और रोज़मर्रा के काम में थकान हो सकती है।"
+    },
+    "J45": {
+      "explain_en": "Asthma is a condition in which the breathing tubes become inflamed and narrow at times. It may cause wheezing, cough, chest tightness, or breathlessness and often improves with inhalers.",
+      "explain_hi": "अस्थमा में साँस की नलियाँ कभी-कभी सूजकर संकरी हो जाती हैं। इससे घरघराहट, खाँसी, सीने में जकड़न या साँस फूल सकती है और इनहेलर से राहत मिलती है।"
+    },
+    "A15": {
+      "explain_en": "Pulmonary tuberculosis, or TB, is an infection that mainly affects the lungs. It can cause a long cough, fever, night sweats, or weight loss and requires a complete course of treatment.",
+      "explain_hi": "फेफड़ों की टीबी एक संक्रमण है जो मुख्य रूप से फेफड़ों को प्रभावित करता है। लंबे समय की खाँसी, बुखार, रात में पसीना या वजन घटना हो सकता है और पूरा इलाज ज़रूरी है।"
+    },
+    "J44": {
+      "explain_en": "COPD is a long-term lung condition in which airflow is reduced. It can cause persistent cough, phlegm, and breathlessness that may limit walking or other daily activities.",
+      "explain_hi": "सीओपीडी फेफड़ों की लंबे समय की बीमारी है जिसमें हवा का आना-जाना कम हो जाता है। लगातार खाँसी, बलगम और साँस फूलने से चलना या रोज़ के काम कठिन हो सकते हैं।"
+    },
+    "E03": {
+      "explain_en": "Hypothyroidism means the thyroid gland is underactive and makes too little thyroid hormone. It can cause tiredness, feeling cold, or weight gain and is commonly controlled with a daily tablet.",
+      "explain_hi": "हाइपोथायरॉइड में थायरॉइड ग्रंथि कम हार्मोन बनाती है। इससे थकान, ठंड लगना या वजन बढ़ना हो सकता है और इसे अक्सर रोज़ की दवा से नियंत्रित किया जाता है।"
+    },
+    "E05": {
+      "explain_en": "Hyperthyroidism means the thyroid gland makes too much thyroid hormone. It can cause a fast heartbeat, sweating, tremor, anxiety, or weight loss and usually needs treatment and monitoring.",
+      "explain_hi": "हाइपरथायरॉइड में थायरॉइड ग्रंथि ज़रूरत से अधिक हार्मोन बनाती है। तेज़ धड़कन, पसीना, हाथ काँपना, घबराहट या वजन घटना हो सकता है।"
+    },
+    "N18": {
+      "explain_en": "Chronic kidney disease means the kidneys have gradually lost some ability to filter waste and fluid from the blood. It may cause swelling or tiredness and can affect medicines, diet, and daily health care.",
+      "explain_hi": "क्रोनिक किडनी रोग में गुर्दों की खून से गंदगी और अतिरिक्त पानी छानने की क्षमता धीरे-धीरे कम होती है। सूजन या थकान हो सकती है और नियमित देखभाल ज़रूरी होती है।"
+    },
+    "N20": {
+      "explain_en": "Kidney stones are hard deposits that form in the kidney or urinary tract. They can cause severe side pain, nausea, or blood in the urine and may pass naturally or need a procedure.",
+      "explain_hi": "गुर्दे की पथरी कठोर जमाव है जो किडनी या पेशाब की नली में बनता है। इससे तेज़ कमर या पेट दर्द, मितली या पेशाब में खून हो सकता है।"
+    },
+    "J40": {
+      "explain_en": "Bronchitis is inflammation of the airways, usually after an infection. It causes a cough with phlegm for a few weeks and normally settles fully; when it keeps returning it is treated as a long-term lung condition instead.",
+      "explain_hi": "ब्रोंकाइटिस में सांस की नलियों में सूजन आ जाती है, आमतौर पर किसी संक्रमण के बाद। इसमें कुछ हफ़्तों तक बलगम वाली खाँसी रहती है और आमतौर पर पूरी तरह ठीक हो जाती है।"
+    },
+    "K74": {
+      "explain_en": "Cirrhosis means the liver has developed permanent scarring after long-term injury. It can affect digestion, energy, fluid balance, and the liver's ability to process medicines.",
+      "explain_hi": "लिवर सिरोसिस में लंबे समय की क्षति के कारण लिवर में स्थायी दाग बन जाते हैं। इससे पाचन, ऊर्जा, शरीर में पानी और दवाओं को सँभालने की क्षमता प्रभावित हो सकती है।"
+    },
+    "K80": {
+      "explain_en": "Gallstones are hard deposits that form in the gall bladder. They often cause pain in the upper right abdomen after fatty food, and are commonly treated by removing the gall bladder.",
+      "explain_hi": "पित्ताशय की पथरी पित्त की थैली में बनने वाले कठोर कण होते हैं। इससे अक्सर चिकना खाना खाने के बाद पेट के ऊपरी दाहिने हिस्से में दर्द होता है, और आमतौर पर पित्ताशय निकाल दिया जाता है।"
+    },
+    "B18": {
+      "explain_en": "Chronic viral hepatitis is a long-lasting hepatitis B or C infection that inflames the liver. Many people feel well, while others have tiredness or jaundice and need monitoring or antiviral treatment.",
+      "explain_hi": "क्रोनिक वायरल हेपेटाइटिस बी या सी का लंबे समय का संक्रमण है जो लिवर में सूजन करता है। थकान या पीलिया हो सकता है और जाँच या एंटीवायरल इलाज की ज़रूरत पड़ सकती है।"
+    },
+    "K85": {
+      "explain_en": "Acute pancreatitis is sudden inflammation of the pancreas, an organ that helps digestion and blood-sugar control. It usually causes strong upper-abdominal pain and often needs hospital treatment.",
+      "explain_hi": "एक्यूट पैंक्रियाटाइटिस अग्न्याशय की अचानक सूजन है। इससे पेट के ऊपरी हिस्से में तेज़ दर्द होता है और अक्सर अस्पताल में इलाज की ज़रूरत पड़ती है।"
+    },
+    "K50": {
+      "explain_en": "Crohn's disease is a long-term inflammation that can affect different parts of the digestive tract. It may cause abdominal pain, diarrhoea, weight loss, and periods when symptoms flare up.",
+      "explain_hi": "क्रोहन रोग पाचन नली के अलग-अलग हिस्सों में लंबे समय की सूजन है। पेट दर्द, दस्त, वजन घटना और बीच-बीच में लक्षण बढ़ना हो सकता है।"
+    },
+    "K51": {
+      "explain_en": "Ulcerative colitis is long-term inflammation and ulcers in the large intestine. It can cause frequent loose stools, urgency, abdominal pain, or blood in the stool, sometimes in flare-ups.",
+      "explain_hi": "अल्सरेटिव कोलाइटिस बड़ी आँत में लंबे समय की सूजन और घाव है। बार-बार दस्त, जल्दी शौच की ज़रूरत, पेट दर्द या मल में खून हो सकता है।"
+    },
+    "I63": {
+      "explain_en": "A stroke happens when blood supply to part of the brain is blocked and brain tissue is injured. It may leave weakness, speech difficulty, or changes in daily independence.",
+      "explain_hi": "स्ट्रोक तब होता है जब मस्तिष्क के किसी हिस्से में खून रुक जाता है और उसे नुकसान होता है। कमजोरी, बोलने में कठिनाई या रोज़मर्रा के काम में मदद की ज़रूरत रह सकती है।"
+    },
+    "G45": {
+      "explain_en": "A transient ischaemic attack, or mini-stroke, causes temporary stroke-like symptoms because brain blood flow is briefly reduced. Symptoms recover, but it is an important warning sign.",
+      "explain_hi": "टीआईए या मिनी-स्ट्रोक में थोड़े समय के लिए मस्तिष्क का खून कम होने से स्ट्रोक जैसे लक्षण आते हैं। लक्षण ठीक हो जाते हैं, पर यह महत्वपूर्ण चेतावनी है।"
+    },
+    "G40": {
+      "explain_en": "Epilepsy is a condition that causes repeated seizures due to sudden abnormal electrical activity in the brain. Seizures may affect awareness, movement, driving, work, or safety.",
+      "explain_hi": "मिर्गी में मस्तिष्क की विद्युत गतिविधि अचानक बदलने से बार-बार दौरे आते हैं। इससे होश, शरीर की हरकत, वाहन चलाना, काम या सुरक्षा प्रभावित हो सकती है।"
+    },
+    "G20": {
+      "explain_en": "Parkinson's disease affects movement because the brain makes less of a movement-control chemical. It may cause tremor, stiffness, slow movement, and difficulty with some daily tasks.",
+      "explain_hi": "पार्किंसन रोग मस्तिष्क में चलने-फिरने को नियंत्रित करने वाले रसायन की कमी से होता है। हाथ काँपना, जकड़न, धीमी चाल और रोज़ के काम में कठिनाई हो सकती है।"
+    },
+    "G30": {
+      "explain_en": "Alzheimer's disease is a condition in which memory and thinking gradually become weaker over time. It usually begins with forgetting recent things and can slowly make everyday tasks harder.",
+      "explain_hi": "अल्ज़ाइमर रोग में याददाश्त और सोचने-समझने की क्षमता धीरे-धीरे कमज़ोर होती जाती है। शुरुआत आमतौर पर हाल की बातें भूलने से होती है और समय के साथ रोज़मर्रा के काम कठिन हो सकते हैं।"
+    },
+    "F03": {
+      "explain_en": "Dementia is a general term for a lasting decline in memory, thinking, or judgement that affects daily life. It has several causes and is different from ordinary forgetfulness with age.",
+      "explain_hi": "डिमेंशिया या मनोभ्रंश में याददाश्त, सोच या निर्णय लेने की क्षमता लगातार कम होती जाती है और रोज़मर्रा के काम प्रभावित होते हैं। इसके कई कारण हो सकते हैं और यह उम्र के साथ होने वाली सामान्य भूलने की आदत से अलग है।"
+    },
+    "G35": {
+      "explain_en": "Multiple sclerosis is a condition in which the protective covering of the nerves is damaged, so signals between the brain and the body are disturbed. Symptoms such as weakness, numbness, or changes in vision may come and go over time.",
+      "explain_hi": "मल्टीपल स्क्लेरोसिस में तंत्रिकाओं की सुरक्षा परत को नुकसान होता है, जिससे मस्तिष्क और शरीर के बीच संकेत बाधित होते हैं। कमज़ोरी, सुन्नपन या दृष्टि में बदलाव जैसे लक्षण आते-जाते रह सकते हैं।"
+    },
+    "F32": {
+      "explain_en": "A depressive episode is a period of persistently low mood or loss of interest that affects sleep, energy, concentration, or daily functioning. It is a health condition and treatment can help.",
+      "explain_hi": "अवसाद में लंबे समय तक उदासी या रुचि की कमी रहती है, जिससे नींद, ऊर्जा, ध्यान या रोज़ के काम प्रभावित होते हैं। यह एक स्वास्थ्य समस्या है और इलाज मदद कर सकता है।"
+    },
+    "F41": {
+      "explain_en": "An anxiety disorder causes worry, fear, or panic that is stronger or more persistent than ordinary stress. It can affect sleep, concentration, travel, work, or other daily activities.",
+      "explain_hi": "चिंता विकार में चिंता, डर या घबराहट सामान्य तनाव से अधिक और लंबे समय तक रहती है। इससे नींद, ध्यान, यात्रा, काम या रोज़ की गतिविधियाँ प्रभावित हो सकती हैं।"
+    },
+    "C50": {
+      "explain_en": "Breast cancer is an abnormal growth of cells in breast tissue. Treatment and its effect on daily life depend on the stage and may include surgery, medicines, chemotherapy, or radiotherapy.",
+      "explain_hi": "स्तन कैंसर में स्तन के ऊतक की कोशिकाएँ असामान्य रूप से बढ़ती हैं। चरण के अनुसार सर्जरी, दवा, कीमोथेरेपी या रेडियोथेरेपी की ज़रूरत हो सकती है।"
+    },
+    "C34": {
+      "explain_en": "Lung cancer is an abnormal growth of cells in the lung. It may cause a persistent cough, chest symptoms, weight loss, or breathlessness, and treatment depends on its type and stage.",
+      "explain_hi": "फेफड़ों के कैंसर में फेफड़े की कोशिकाएँ असामान्य रूप से बढ़ती हैं। लगातार खाँसी, सीने की तकलीफ, वजन घटना या साँस फूलना हो सकता है।"
+    },
+    "D25": {
+      "explain_en": "A uterine fibroid is a non-cancerous growth in the muscle of the womb. It may cause heavy periods, pelvic pressure, or no symptoms at all and sometimes needs medicines or surgery.",
+      "explain_hi": "गर्भाशय फाइब्रॉइड बच्चेदानी की मांसपेशी में कैंसर-रहित गाँठ है। अधिक माहवारी, पेट के निचले हिस्से में दबाव हो सकता है या कोई लक्षण नहीं भी हो सकता।"
+    },
+    "B20": {
+      "explain_en": "HIV is a virus that weakens the immune system if it is not treated. Regular antiretroviral medicine can control the virus and allow most people to continue ordinary daily life.",
+      "explain_hi": "एचआईवी एक वायरस है जो बिना इलाज के रोग-प्रतिरोधक क्षमता को कम करता है। नियमित एंटीरेट्रोवायरल दवा से वायरस नियंत्रित रह सकता है और सामान्य जीवन संभव है।"
+    },
+    "M06": {
+      "explain_en": "Rheumatoid arthritis is an immune-system condition that causes inflammation in joints. It can cause pain, swelling, morning stiffness, and difficulty using the hands or moving around.",
+      "explain_hi": "रूमेटाइड गठिया में शरीर की प्रतिरक्षा प्रणाली जोड़ों में सूजन करती है। दर्द, सूजन, सुबह जकड़न और हाथों या चलने-फिरने में कठिनाई हो सकती है।"
+    },
+    "M15": {
+      "explain_en": "Osteoarthritis is wear and change in joint cartilage, commonly affecting knees, hips, hands, or the spine. It can cause pain and stiffness during movement or daily activities.",
+      "explain_hi": "ऑस्टियोआर्थराइटिस में जोड़ों की गद्दी घिसती या बदलती है, अक्सर घुटनों, कूल्हों, हाथों या रीढ़ में। चलने या रोज़ के काम में दर्द और जकड़न हो सकती है।"
+    },
+    "S72": {
+      "explain_en": "A femur or other long-bone fracture is a break in a major bone, often after an accident or fall. Recovery may involve plaster, surgery, physiotherapy, and temporary limits on walking or work.",
+      "explain_hi": "फीमर या लंबी हड्डी का फ्रैक्चर किसी बड़ी हड्डी का टूटना है। ठीक होने में प्लास्टर, सर्जरी, फिजियोथेरेपी और कुछ समय चलने या काम में सीमा हो सकती है।"
+    },
+    "L40": {
+      "explain_en": "Psoriasis is a long-term immune-related skin condition that causes thick, red, or scaly patches. It may itch or hurt and can flare up and settle down over time.",
+      "explain_hi": "सोरायसिस प्रतिरक्षा से जुड़ी लंबे समय की त्वचा की बीमारी है जिसमें लाल, मोटे या परतदार चकत्ते होते हैं। खुजली या दर्द हो सकता है और लक्षण बढ़-घट सकते हैं।"
+    },
+    "D50": {
+      "explain_en": "Iron-deficiency anaemia means the blood does not have enough healthy haemoglobin because iron is low. It can cause tiredness, weakness, breathlessness, or pale skin.",
+      "explain_hi": "आयरन की कमी वाले एनीमिया में कम आयरन के कारण खून में स्वस्थ हीमोग्लोबिन कम होता है। थकान, कमजोरी, साँस फूलना या त्वचा पीली लग सकती है।"
+    },
+    "G12.2": {
+      "explain_en": "Motor neuron disease gradually damages the nerves that control voluntary muscles. It can cause increasing weakness and may affect walking, speaking, swallowing, or breathing.",
+      "explain_hi": "मोटर न्यूरॉन रोग उन नसों को धीरे-धीरे नुकसान पहुँचाता है जो मांसपेशियों को चलाती हैं। कमजोरी बढ़ सकती है और चलना, बोलना, निगलना या साँस लेना प्रभावित हो सकता है।"
+    },
+    "H40": {
+      "explain_en": "Glaucoma is damage to the nerve that carries vision from the eye to the brain, often linked to raised eye pressure. It may slowly reduce side vision and needs regular drops, checks, or procedures.",
+      "explain_hi": "ग्लूकोमा में आँख से मस्तिष्क तक दृष्टि ले जाने वाली नस को नुकसान होता है, अक्सर आँख का दबाव बढ़ने से। किनारे की नज़र धीरे-धीरे कम हो सकती है और नियमित जाँच व इलाज ज़रूरी है।"
+    }
+  },
+  "followUpQuestions": [
+    {
+      "id": "FU_DIAG_WHEN",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "When were you first diagnosed with this?",
+      "prompt_hi": "इसका पहली बार निदान कब हुआ था?",
+      "prompt_hinglish": "Iska pehli baar diagnosis kab hua tha?",
+      "formField": "since"
+    },
+    {
+      "id": "FU_TREATMENT",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "What treatment or medication are you taking for it?",
+      "prompt_hi": "आप इसके लिए क्या इलाज या दवा ले रहे हैं?",
+      "prompt_hinglish": "Aap iske liye kya ilaaj ya dawa le rahe hain?"
+    },
+    {
+      "id": "FU_CONTROLLED",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Is it well controlled at the moment?",
+      "prompt_hi": "क्या यह अभी नियंत्रण में है?",
+      "prompt_hinglish": "Kya yeh abhi control mein hai?"
+    },
+    {
+      "id": "FU_HOSPITALISED_FOR",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Have you ever been admitted to hospital because of it?",
+      "prompt_hi": "क्या आप इसके कारण कभी अस्पताल में भर्ती हुए हैं?",
+      "prompt_hinglish": "Kya aap iske kaaran kabhi hospital mein admit hue hain?"
+    },
+    {
+      "id": "FU_RECURRENCE",
+      "mandatory": false,
+      "answerType": "boolean",
+      "prompt_en": "Has it recurred since then?",
+      "prompt_hi": "क्या तब से यह दोबारा हुआ है?",
+      "prompt_hinglish": "Kya tab se yeh dobara hua hai?"
+    },
+    {
+      "id": "FU_SURGERY_DONE",
+      "mandatory": false,
+      "answerType": "boolean",
+      "prompt_en": "Did you need surgery for it?",
+      "prompt_hi": "क्या इसके लिए सर्जरी की ज़रूरत पड़ी?",
+      "prompt_hinglish": "Kya iske liye surgery karani padi?"
+    },
+    {
+      "id": "FU_FUNCTIONAL_STATUS",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "Does it limit your daily activities in any way?",
+      "prompt_hi": "क्या यह आपकी दैनिक गतिविधियों को सीमित करता है?",
+      "prompt_hinglish": "Kya yeh aapke rozmarra ke kaam ko limit karta hai?"
+    },
+    {
+      "id": "FU_HBA1C",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "Do you know your most recent HbA1c or sugar reading?",
+      "prompt_hi": "क्या आपको अपना हाल का HbA1c या शुगर स्तर पता है?",
+      "prompt_hinglish": "Aapko apna recent HbA1c ya sugar level pata hai?"
+    },
+    {
+      "id": "FU_ON_INSULIN",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Are you on insulin?",
+      "prompt_hi": "क्या आप इंसुलिन लेते हैं?",
+      "prompt_hinglish": "Kya aap insulin lete hain?"
+    },
+    {
+      "id": "FU_DIAB_COMPLICATIONS",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "Has it affected your eyes, kidneys, or the sensation in your feet?",
+      "prompt_hi": "क्या इसने आपकी आँखों, गुर्दों, या पैरों की संवेदना को प्रभावित किया है?",
+      "prompt_hinglish": "Kya isne aapki aankhon, kidney, ya pairon ki sensation ko affect kiya hai?",
+      "clinicalNote": "Screens for retinopathy, nephropathy and neuropathy - the three complications that move the premium."
+    },
+    {
+      "id": "FU_BP_READING",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "What was your last blood pressure reading?",
+      "prompt_hi": "आपका पिछला रक्तचाप कितना था?",
+      "prompt_hinglish": "Aapka last BP reading kya tha?"
+    },
+    {
+      "id": "FU_ORGAN_DAMAGE",
+      "mandatory": false,
+      "answerType": "boolean",
+      "prompt_en": "Has your doctor mentioned any effect on your heart or kidneys from it?",
+      "prompt_hi": "क्या डॉक्टर ने इससे हृदय या गुर्दे पर असर बताया है?",
+      "prompt_hinglish": "Kya doctor ne isse heart ya kidney par asar bataya hai?"
+    },
+    {
+      "id": "FU_CARDIAC_INTERVENTION",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "Have you had an angioplasty, a stent, or bypass surgery?",
+      "prompt_hi": "क्या आपकी एंजियोप्लास्टी, स्टेंट, या बाईपास सर्जरी हुई है?",
+      "prompt_hinglish": "Kya aapki angioplasty, stent, ya bypass surgery hui hai?"
+    },
+    {
+      "id": "FU_EJECTION_FRACTION",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "Do you know your heart's pumping percentage, the ejection fraction?",
+      "prompt_hi": "क्या आपको हृदय की पंपिंग प्रतिशत पता है?",
+      "prompt_hinglish": "Aapko heart ki pumping percentage ya ejection fraction pata hai?"
+    },
+    {
+      "id": "FU_INHALER_USE",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "How often do you use an inhaler?",
+      "prompt_hi": "आप इनहेलर कितनी बार इस्तेमाल करते हैं?",
+      "prompt_hinglish": "Aap inhaler kitni baar use karte hain?"
+    },
+    {
+      "id": "FU_RESP_HOSPITALISATION",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Have you needed hospital treatment or a nebuliser for breathing in the last two years?",
+      "prompt_hi": "क्या पिछले दो वर्षों में साँस के लिए अस्पताल या नेबुलाइज़र की ज़रूरत पड़ी?",
+      "prompt_hinglish": "Kya pichhle do saal mein saans ke liye hospital ya nebuliser ki zaroorat padi?"
+    },
+    {
+      "id": "FU_SMOKING_LINK",
+      "mandatory": false,
+      "answerType": "boolean",
+      "prompt_en": "Do you smoke, or have you smoked in the past?",
+      "prompt_hi": "क्या आप धूम्रपान करते हैं या करते थे?",
+      "prompt_hinglish": "Kya aap smoking karte hain ya pehle karte the?"
+    },
+    {
+      "id": "FU_TB_COMPLETED",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Did you complete the full course of TB treatment?",
+      "prompt_hi": "क्या आपने टीबी के इलाज का पूरा कोर्स पूरा किया?",
+      "prompt_hinglish": "Kya aapne TB ke treatment ka poora course complete kiya?",
+      "clinicalNote": "An incomplete DOTS course is the single most important TB underwriting factor."
+    },
+    {
+      "id": "FU_TB_SPUTUM",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Was your sputum test negative at the end of treatment?",
+      "prompt_hi": "क्या इलाज के अंत में आपका थूक परीक्षण नकारात्मक था?",
+      "prompt_hinglish": "Kya treatment ke end mein aapka sputum test negative tha?"
+    },
+    {
+      "id": "FU_TB_DRUG_RESISTANT",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Were you told it was drug-resistant TB, sometimes called MDR?",
+      "prompt_hi": "क्या आपको बताया गया कि यह दवा-प्रतिरोधी टीबी थी?",
+      "prompt_hinglish": "Kya aapko bataya gaya ki yeh drug-resistant ya MDR TB thi?"
+    },
+    {
+      "id": "FU_TSH_LAST",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "Do you know your last thyroid test result?",
+      "prompt_hi": "क्या आपको अपनी पिछली थायरॉइड जाँच का परिणाम पता है?",
+      "prompt_hinglish": "Aapko apni last thyroid test ki report pata hai?"
+    },
+    {
+      "id": "FU_CKD_STAGE",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "Do you know what stage your kidney disease is, or your creatinine level?",
+      "prompt_hi": "क्या आपको गुर्दे की बीमारी का चरण या क्रिएटिनिन स्तर पता है?",
+      "prompt_hinglish": "Aapko kidney disease ki stage ya creatinine level pata hai?"
+    },
+    {
+      "id": "FU_DIALYSIS",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Are you on dialysis, or have you been advised to start?",
+      "prompt_hi": "क्या आप डायलिसिस पर हैं, या शुरू करने की सलाह दी गई है?",
+      "prompt_hinglish": "Kya aap dialysis par hain, ya start karne ki salah di gayi hai?"
+    },
+    {
+      "id": "FU_TRANSPLANT",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Have you had a transplant, or are you on a waiting list?",
+      "prompt_hi": "क्या आपका प्रत्यारोपण हुआ है, या आप प्रतीक्षा सूची में हैं?",
+      "prompt_hinglish": "Kya aapka transplant hua hai, ya aap waiting list par hain?"
+    },
+    {
+      "id": "FU_ALCOHOL_LINK",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Was alcohol a contributing factor, according to your doctor?",
+      "prompt_hi": "क्या डॉक्टर के अनुसार शराब एक कारण थी?",
+      "prompt_hinglish": "Kya doctor ke according alcohol ek reason thi?",
+      "sensitivity": "high"
+    },
+    {
+      "id": "FU_HEP_TYPE",
+      "mandatory": true,
+      "answerType": "enum",
+      "options": [
+        "B",
+        "C",
+        "other",
+        "unknown"
+      ],
+      "prompt_en": "Was it hepatitis B or hepatitis C?",
+      "prompt_hi": "यह हेपेटाइटिस बी था या सी?",
+      "prompt_hinglish": "Yeh hepatitis B tha ya C?"
+    },
+    {
+      "id": "FU_VIRAL_LOAD",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "Do you know your most recent viral load result?",
+      "prompt_hi": "क्या आपको अपना हाल का वायरल लोड पता है?",
+      "prompt_hinglish": "Aapko apna recent viral load pata hai?"
+    },
+    {
+      "id": "FU_IMMUNOSUPPRESSANT",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Are you taking steroids or any medication that suppresses the immune system?",
+      "prompt_hi": "क्या आप स्टेरॉयड या प्रतिरक्षा दबाने वाली दवा ले रहे हैं?",
+      "prompt_hinglish": "Kya aap steroids ya immunity kam karne wali dawa le rahe hain?"
+    },
+    {
+      "id": "FU_RESIDUAL_DEFICIT",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "Has any weakness or speech difficulty remained since then?",
+      "prompt_hi": "क्या तब से कोई कमज़ोरी या बोलने में कठिनाई बची है?",
+      "prompt_hinglish": "Kya tab se koi kamzori ya bolne mein dikkat bachi hai?"
+    },
+    {
+      "id": "FU_SEIZURE_FREQUENCY",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "How often do the seizures happen?",
+      "prompt_hi": "दौरे कितनी बार आते हैं?",
+      "prompt_hinglish": "Dore kitni baar aate hain?"
+    },
+    {
+      "id": "FU_LAST_SEIZURE",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "When was the most recent one?",
+      "prompt_hi": "सबसे हाल का कब था?",
+      "prompt_hinglish": "Sabse recent kab tha?"
+    },
+    {
+      "id": "FU_PSYCH_HOSPITALISATION",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Has it ever required hospital admission?",
+      "prompt_hi": "क्या इसके लिए कभी अस्पताल में भर्ती होना पड़ा?",
+      "prompt_hinglish": "Kya iske liye kabhi hospital mein admit hona pada?",
+      "sensitivity": "high"
+    },
+    {
+      "id": "FU_SELF_HARM",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "I have to ask one sensitive question for the medical record. Has there ever been any self-harm or an attempt to end your life?",
+      "prompt_hi": "मुझे चिकित्सा रिकॉर्ड के लिए एक संवेदनशील प्रश्न पूछना है। क्या कभी आत्म-हानि या जीवन समाप्त करने का प्रयास हुआ है?",
+      "prompt_hinglish": "Mujhe medical record ke liye ek sensitive sawaal poochhna hai. Kya kabhi self-harm ya jeevan samapt karne ki koshish hui hai?",
+      "sensitivity": "maximum",
+      "clinicalNote": "If yes, the agent must express support, stop probing, and escalate to a human clinician. Never continue the questionnaire immediately after a positive answer here."
+    },
+    {
+      "id": "FU_CANCER_STAGE",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "What stage was it when diagnosed?",
+      "prompt_hi": "निदान के समय यह किस चरण में था?",
+      "prompt_hinglish": "Diagnosis ke time yeh kis stage mein tha?"
+    },
+    {
+      "id": "FU_CANCER_TREATMENT",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "What treatment did you have - surgery, chemotherapy, radiotherapy?",
+      "prompt_hi": "आपका क्या इलाज हुआ - सर्जरी, कीमोथेरेपी, रेडियोथेरेपी?",
+      "prompt_hinglish": "Aapka kya treatment hua - surgery, chemotherapy, radiotherapy?"
+    },
+    {
+      "id": "FU_REMISSION",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "How long have you been in remission?",
+      "prompt_hi": "आप कितने समय से रोगमुक्त हैं?",
+      "prompt_hinglish": "Aap kitne samay se remission mein hain?"
+    },
+    {
+      "id": "FU_LAST_ONCOLOGY_REVIEW",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "When was your last oncology check-up?",
+      "prompt_hi": "आपकी पिछली कैंसर जाँच कब हुई थी?",
+      "prompt_hinglish": "Aapki last oncology checkup kab hui thi?"
+    },
+    {
+      "id": "FU_CD4_COUNT",
+      "mandatory": true,
+      "answerType": "text",
+      "prompt_en": "Do you know your most recent CD4 count?",
+      "prompt_hi": "क्या आपको अपना हाल का सीडी4 काउंट पता है?",
+      "prompt_hinglish": "Aapko apna recent CD4 count pata hai?",
+      "sensitivity": "maximum"
+    },
+    {
+      "id": "FU_ART_ADHERENCE",
+      "mandatory": true,
+      "answerType": "boolean",
+      "prompt_en": "Are you taking your antiretroviral medication regularly?",
+      "prompt_hi": "क्या आप अपनी एंटीरेट्रोवायरल दवा नियमित रूप से ले रहे हैं?",
+      "prompt_hinglish": "Kya aap apni antiretroviral dawa regularly le rahe hain?",
+      "sensitivity": "maximum"
+    },
+    {
+      "id": "FU_ANAEMIA_CAUSE",
+      "mandatory": false,
+      "answerType": "text",
+      "prompt_en": "Did your doctor find a cause for the anaemia?",
+      "prompt_hi": "क्या डॉक्टर ने एनीमिया का कारण पाया?",
+      "prompt_hinglish": "Kya doctor ne anaemia ka reason pata kiya?"
+    }
+  ],
+  "medications": [
+    {
+      "name": "Metformin",
+      "generic": "metformin hydrochloride",
+      "label_hi": "मेटफॉर्मिन",
+      "drugClass": "biguanide",
+      "treats": [
+        "E11"
+      ]
+    },
+    {
+      "name": "Insulin",
+      "generic": "insulin",
+      "label_hi": "इंसुलिन",
+      "drugClass": "hormone",
+      "treats": [
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "name": "Glimepiride",
+      "generic": "glimepiride",
+      "label_hi": "ग्लिमेपिराइड",
+      "drugClass": "sulfonylurea",
+      "treats": [
+        "E11"
+      ]
+    },
+    {
+      "name": "Amlodipine",
+      "generic": "amlodipine besylate",
+      "label_hi": "एम्लोडिपाइन",
+      "drugClass": "calcium-channel-blocker",
+      "treats": [
+        "I10"
+      ]
+    },
+    {
+      "name": "Telmisartan",
+      "generic": "telmisartan",
+      "label_hi": "टेल्मिसार्टन",
+      "drugClass": "ARB",
+      "treats": [
+        "I10"
+      ]
+    },
+    {
+      "name": "Atorvastatin",
+      "generic": "atorvastatin calcium",
+      "label_hi": "एटोरवास्टेटिन",
+      "drugClass": "statin",
+      "treats": [
+        "E78",
+        "I25"
+      ]
+    },
+    {
+      "name": "Levothyroxine",
+      "generic": "levothyroxine sodium",
+      "label_hi": "लेवोथायरोक्सिन",
+      "drugClass": "thyroid-hormone",
+      "treats": [
+        "E03"
+      ]
+    },
+    {
+      "name": "Salbutamol",
+      "generic": "salbutamol",
+      "label_hi": "साल्बुटामोल",
+      "drugClass": "SABA",
+      "treats": [
+        "J45",
+        "J44"
+      ]
+    },
+    {
+      "name": "Budesonide",
+      "generic": "budesonide",
+      "label_hi": "बुडेसोनाइड",
+      "drugClass": "inhaled-corticosteroid",
+      "treats": [
+        "J45",
+        "J44"
+      ]
+    },
+    {
+      "name": "Isoniazid",
+      "generic": "isoniazid",
+      "label_hi": "आइसोनियाज़िड",
+      "drugClass": "anti-tubercular",
+      "treats": [
+        "A15"
+      ]
+    },
+    {
+      "name": "Rifampicin",
+      "generic": "rifampicin",
+      "label_hi": "रिफैम्पिसिन",
+      "drugClass": "anti-tubercular",
+      "treats": [
+        "A15"
+      ]
+    },
+    {
+      "name": "Aspirin",
+      "generic": "acetylsalicylic acid",
+      "label_hi": "एस्पिरिन",
+      "drugClass": "antiplatelet",
+      "treats": [
+        "I25",
+        "I21",
+        "I63"
+      ]
+    },
+    {
+      "name": "Clopidogrel",
+      "generic": "clopidogrel",
+      "label_hi": "क्लोपिडोग्रेल",
+      "drugClass": "antiplatelet",
+      "treats": [
+        "I25",
+        "I21",
+        "I63"
+      ]
+    },
+    {
+      "name": "Warfarin",
+      "generic": "warfarin sodium",
+      "label_hi": "वारफेरिन",
+      "drugClass": "anticoagulant",
+      "treats": [
+        "I50"
+      ]
+    },
+    {
+      "name": "Prednisolone",
+      "generic": "prednisolone",
+      "label_hi": "प्रेडनिसोलोन",
+      "drugClass": "corticosteroid",
+      "treats": [
+        "M06",
+        "K50",
+        "K51",
+        "L40"
+      ]
+    }
+  ],
+  "interactions": [
+    {
+      "a": "Aspirin",
+      "b": "Clopidogrel",
+      "severity": "moderate",
+      "effect": "Additive bleeding risk. Dual antiplatelet therapy is often intentional post-stent, so confirm rather than flag as an error."
+    },
+    {
+      "a": "Aspirin",
+      "b": "Warfarin",
+      "severity": "major",
+      "effect": "Significantly raised bleeding risk."
+    },
+    {
+      "a": "Warfarin",
+      "b": "Rifampicin",
+      "severity": "major",
+      "effect": "Rifampicin induces hepatic enzymes and reduces warfarin efficacy."
+    },
+    {
+      "a": "Metformin",
+      "b": "Prednisolone",
+      "severity": "moderate",
+      "effect": "Corticosteroids raise blood glucose and can destabilise diabetic control."
+    },
+    {
+      "a": "Insulin",
+      "b": "Prednisolone",
+      "severity": "moderate",
+      "effect": "Steroid-induced hyperglycaemia may require an insulin dose review."
+    }
+  ],
+  "_symptomNote": "Condition names and synonyms are not enough. A patient says 'chalne par chhaati mein dard hota hai', not 'ischaemic heart disease'. Testing surfaced two clinically serious misses from name-only indexing: exertional chest pain classified as joint pain, and haemoptysis with weight loss classified as hepatitis rather than TB. These symptom phrases are indexed alongside the labels so a described presentation reaches the right condition. Entries marked redFlag must never be silently accepted on a low-confidence match - the agent escalates instead of guessing.",
+  "symptomPhrases": [
+    {
+      "phrase": "chest pain on walking or exertion",
+      "icd10": "I25",
+      "redFlag": true
+    },
+    {
+      "phrase": "chalne par chhaati mein dard hota hai",
+      "icd10": "I25",
+      "redFlag": true
+    },
+    {
+      "phrase": "seene mein dard aur bhaari lagta hai chalne par",
+      "icd10": "I25",
+      "redFlag": true
+    },
+    {
+      "phrase": "tightness in the chest when I exert myself",
+      "icd10": "I25",
+      "redFlag": true
+    },
+    {
+      "phrase": "chest pain spreading to the left arm or jaw",
+      "icd10": "I21",
+      "redFlag": true
+    },
+    {
+      "phrase": "sudden severe chest pain with sweating",
+      "icd10": "I21",
+      "redFlag": true
+    },
+    {
+      "phrase": "breathless when lying flat, swollen ankles",
+      "icd10": "I50",
+      "redFlag": true
+    },
+    {
+      "phrase": "coughing up blood",
+      "icd10": "A15",
+      "redFlag": true
+    },
+    {
+      "phrase": "khoon ki khaansi aati hai",
+      "icd10": "A15",
+      "redFlag": true
+    },
+    {
+      "phrase": "persistent cough for weeks with weight loss and night sweats",
+      "icd10": "A15",
+      "redFlag": true
+    },
+    {
+      "phrase": "lambi khaansi, vazan kam ho raha hai, raat ko paseena",
+      "icd10": "A15",
+      "redFlag": true
+    },
+    {
+      "phrase": "evening fever with cough for more than three weeks",
+      "icd10": "A15",
+      "redFlag": true
+    },
+    {
+      "phrase": "breathless climbing stairs, wheezing",
+      "icd10": "J45"
+    },
+    {
+      "phrase": "saans phoolti hai seedhi chadhne par",
+      "icd10": "J45"
+    },
+    {
+      "phrase": "whistling sound when breathing out",
+      "icd10": "J45"
+    },
+    {
+      "phrase": "long term smoker with morning cough and phlegm",
+      "icd10": "J44"
+    },
+    {
+      "phrase": "passing urine very often and always thirsty",
+      "icd10": "E11"
+    },
+    {
+      "phrase": "baar baar peshab aata hai aur pyaas lagti hai",
+      "icd10": "E11"
+    },
+    {
+      "phrase": "wound on the foot that will not heal",
+      "icd10": "E11",
+      "redFlag": true
+    },
+    {
+      "phrase": "numbness and tingling in the feet",
+      "icd10": "E11"
+    },
+    {
+      "phrase": "blurred vision and losing weight without trying",
+      "icd10": "E11"
+    },
+    {
+      "phrase": "headache at the back of the head with dizziness",
+      "icd10": "I10"
+    },
+    {
+      "phrase": "sir mein dard aur chakkar aata hai",
+      "icd10": "I10"
+    },
+    {
+      "phrase": "sudden weakness on one side of the body",
+      "icd10": "I63",
+      "redFlag": true
+    },
+    {
+      "phrase": "ek taraf ka haath pair kaam nahi kar raha",
+      "icd10": "I63",
+      "redFlag": true
+    },
+    {
+      "phrase": "face drooping and slurred speech",
+      "icd10": "I63",
+      "redFlag": true
+    },
+    {
+      "phrase": "brief loss of vision or speech that recovered",
+      "icd10": "G45",
+      "redFlag": true
+    },
+    {
+      "phrase": "sudden jerking movements and loss of consciousness",
+      "icd10": "G40"
+    },
+    {
+      "phrase": "behoshi aur jhatke aate hain",
+      "icd10": "G40"
+    },
+    {
+      "phrase": "hand tremor and slow movement",
+      "icd10": "G20"
+    },
+    {
+      "phrase": "low mood, no interest in anything, cannot sleep",
+      "icd10": "F32"
+    },
+    {
+      "phrase": "mann nahi lagta, udaas rehta hoon, neend nahi aati",
+      "icd10": "F32"
+    },
+    {
+      "phrase": "palpitations and panic with restlessness",
+      "icd10": "F41"
+    },
+    {
+      "phrase": "bahut ghabrahat hoti hai aur bechaini",
+      "icd10": "F41"
+    },
+    {
+      "phrase": "a lump in the breast",
+      "icd10": "C50",
+      "redFlag": true
+    },
+    {
+      "phrase": "chhaati mein gaanth mehsoos hoti hai",
+      "icd10": "C50",
+      "redFlag": true
+    },
+    {
+      "phrase": "growth removed from the breast",
+      "icd10": "C50",
+      "redFlag": true
+    },
+    {
+      "phrase": "a mole that changed colour and started bleeding",
+      "icd10": "C50",
+      "redFlag": true
+    },
+    {
+      "phrase": "severe pain in the side radiating to the groin",
+      "icd10": "N20"
+    },
+    {
+      "phrase": "kamar se pet ki taraf tez dard, peshab mein jalan",
+      "icd10": "N20"
+    },
+    {
+      "phrase": "pain in the upper right abdomen after fatty food",
+      "icd10": "K80"
+    },
+    {
+      "phrase": "khana khane ke baad pet ke daayein upar dard, gall bladder ka operation",
+      "icd10": "K80"
+    },
+    {
+      "phrase": "stone in the kidney, had an operation",
+      "icd10": "N20"
+    },
+    {
+      "phrase": "swelling in the face and legs with reduced urine",
+      "icd10": "N18",
+      "redFlag": true
+    },
+    {
+      "phrase": "creatinine is high, doctor mentioned dialysis",
+      "icd10": "N18",
+      "redFlag": true
+    },
+    {
+      "phrase": "yellowing of the eyes and dark urine",
+      "icd10": "B18",
+      "redFlag": true
+    },
+    {
+      "phrase": "aankhon mein peelapan, peshab gehra",
+      "icd10": "B18",
+      "redFlag": true
+    },
+    {
+      "phrase": "swollen abdomen with fluid, liver problem",
+      "icd10": "K74",
+      "redFlag": true
+    },
+    {
+      "phrase": "severe upper abdominal pain going to the back after alcohol",
+      "icd10": "K85",
+      "redFlag": true
+    },
+    {
+      "phrase": "blood in the stool with frequent loose motions",
+      "icd10": "K51",
+      "redFlag": true
+    },
+    {
+      "phrase": "weight gain, feeling cold and tired all the time",
+      "icd10": "E03"
+    },
+    {
+      "phrase": "vazan badh raha hai, thakan rehti hai, thand lagti hai",
+      "icd10": "E03"
+    },
+    {
+      "phrase": "tablets every day for the thyroid",
+      "icd10": "E03"
+    },
+    {
+      "phrase": "pain and swelling in the small joints of the hands in the morning",
+      "icd10": "M06"
+    },
+    {
+      "phrase": "subah haath ke joints mein dard aur sujan",
+      "icd10": "M06"
+    },
+    {
+      "phrase": "knee pain when climbing stairs, worse with age",
+      "icd10": "M15"
+    },
+    {
+      "phrase": "ghutne mein dard, seedhi chadhne mein takleef",
+      "icd10": "M15"
+    },
+    {
+      "phrase": "broken a bone in an accident",
+      "icd10": "S72"
+    },
+    {
+      "phrase": "haddi tut gayi thi accident mein",
+      "icd10": "S72"
+    },
+    {
+      "phrase": "fracture, had a plate and screws put in",
+      "icd10": "S72"
+    },
+    {
+      "phrase": "always tired and pale, low haemoglobin",
+      "icd10": "D50"
+    },
+    {
+      "phrase": "khoon ki kami, kamzori lagti hai",
+      "icd10": "D50"
+    },
+    {
+      "phrase": "scaly red patches on the elbows and knees",
+      "icd10": "L40"
+    }
+  ],
+  "_designNote": "Two things this graph buys us that a prompt cannot. First, determinism: E11 always yields the same six follow-ups, so two calls about the same condition collect the same data and an auditor can reproduce the decision. Second, editability: a medical officer adds an edge to change the protocol, with no model retraining and no redeployment - the same property the dynamic form schema has."
+}

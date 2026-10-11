@@ -1,0 +1,10 @@
+# HVI CDK app — runtime dependencies.
+# Pinned to the versions resolved and installed into the project virtualenv
+# (Python 3.12+).
+aws-cdk-lib==2.273.0
+constructs==10.8.1
+# boto3 is already present in the repo venv and used by the custom-resource
+# handlers; it is not re-pinned here.
+
+# Test-only (not required to deploy):
+pytest==9.1.1

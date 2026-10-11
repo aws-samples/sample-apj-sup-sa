@@ -1,0 +1,36 @@
+# Runtime dependencies for the call media pipeline (media/bot.py).
+#
+# Installed into /opt/hvi/venv on the Asterisk instance by
+# scripts/72-media-deploy.sh. Pinned to the versions the local test suite was
+# measured against, so the box runs what was tested.
+#
+# NOTE ON SILERO: there is no torch here on purpose. pipecat's SileroVADAnalyzer
+# runs the VAD through onnxruntime against a model bundled in the package
+# (pipecat/audio/vad/data/silero_vad.onnx). That is what makes this deployable
+# on a 2GB t4g.small at all - a torch install would not fit, and the bundled
+# model means no download on the first call.
+#
+# onnxruntime, resampy and soxr are already base requirements of pipecat-ai, so
+# the [silero] extra adds nothing. They are pinned explicitly anyway because
+# they are the ones that decide whether the audio path works.
+
+pipecat-ai==1.7.0
+
+# VAD inference. CPU execution provider; aarch64 wheels exist.
+onnxruntime==1.24.4
+
+# Audio resampling used by the pipecat audio utilities.
+resampy==0.4.3
+soxr==1.0.0
+numpy==2.4.6
+scipy==1.18.0
+
+# AWS: bedrock-agentcore (orchestrator), bedrock-runtime (Voxtral STT),
+# sagemaker-runtime (Whisper arbiter, OmniVoice TTS), polly (interim TTS).
+boto3==1.43.65
+botocore==1.43.65
+
+# audioop moved out of the stdlib in Python 3.13. Ubuntu 24.04 ships 3.12 where
+# it is still built in, so this is only needed if the box is ever moved to a
+# newer interpreter. The marker keeps one file correct for both.
+audioop-lts==0.2.2; python_version >= "3.13"
