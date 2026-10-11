@@ -154,17 +154,24 @@ def record_event(kind: str, model_key: str | None, detail: dict[str, Any]) -> No
 _CTX = ("model", "endpoint", "api", "scope", "region", "prompt_size", "cache")
 
 
-def load_summary(summary: dict[str, Any]) -> int:
-    """Insert one benchmark run (summary.json, schema 2). Returns the number of cells written."""
+def load_summary(
+    summary: dict[str, Any], *, run_id: str | None = None, started: str | None = None, finish: bool = True
+) -> int:
+    """Insert one benchmark run (summary.json, schema 2). Returns the number of cells written.
+
+    A long run can be loaded in batches into one ``run_id``: pass the same ``run_id`` and
+    ``started`` for every batch and ``finish=True`` only for the last one.
+    """
     meta = summary["meta"]
-    run_id = meta["run_id"]
+    run_id = run_id or meta["run_id"]
+    started = started or meta.get("started")
     execute(
         "INSERT INTO runs (run_id, started, finished, version, config, meta) VALUES (:run_id, "
         "CAST(:started AS timestamptz), NULL, :version, CAST(:config AS jsonb), "
         "CAST(:meta AS jsonb)) ON CONFLICT (run_id) DO NOTHING",
         {
             "run_id": run_id,
-            "started": meta.get("started"),
+            "started": started,
             "version": meta.get("version"),
             "config": json.dumps(summary.get("config", {}), default=str),
             "meta": json.dumps({**meta, "cells": len(summary.get("cells", []))}, default=str),
@@ -200,6 +207,8 @@ def load_summary(summary: dict[str, Any]) -> int:
         )
     # Mark the run finished only after every row is in: the API serves the latest
     # *finished* run, so a partial load is never shown as the default.
+    if not finish:
+        return len(summary.get("cells", []))
     execute(
         "UPDATE runs SET finished = CAST(:finished AS timestamptz) WHERE run_id = :run_id",
         {"run_id": run_id, "finished": meta.get("finished") or meta.get("started")},

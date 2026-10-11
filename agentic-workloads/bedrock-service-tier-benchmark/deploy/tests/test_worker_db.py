@@ -65,3 +65,27 @@ def test_upsert_refuses_unverified_and_is_transactional(rds):
     db.upsert_spec(replace(spec, verified_at="2026-10-08"))
     assert rds.committed == 1 and rds.rolled_back == 0
     assert sum("INSERT INTO offerings" in s for s, _ in rds.sql) == len(spec.offerings)
+
+
+def test_batched_run_loads_each_model_and_finishes_once(monkeypatch, tmp_path):
+    from worker import main as worker_main
+
+    calls = []
+
+    def fake_cli(argv):
+        out = Path(argv[argv.index("--output-dir") + 1]) / "run-x"
+        out.mkdir(parents=True)
+        key = argv[argv.index("--keys") + 1]
+        (out / "summary.json").write_text(json.dumps({"meta": {"run_id": f"own-{key}"}, "cells": [{}]}))
+        return 0
+
+    def fake_load(summary, *, run_id, started, finish):
+        calls.append((run_id, finish))
+        return 1
+
+    monkeypatch.setattr(worker_main.cli, "main", fake_cli)
+    monkeypatch.setattr(worker_main.db, "load_summary", fake_load)
+    rc = worker_main._run_batched(["--preset", "full"], tmp_path / "m.json", tmp_path, ["a", "b", "c"])
+    assert rc == 0
+    assert len({r for r, _ in calls}) == 1 and calls[0][0].endswith("-periodic")
+    assert [f for _, f in calls] == [False, False, True]

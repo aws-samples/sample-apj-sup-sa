@@ -36,6 +36,8 @@ class WorkerStack(Stack):
         benchmark_args: str,
         agent_model_id: str,
         arch: str = "arm64",
+        periodic_schedule: str = "",
+        periodic_args: str = "",
         **kw,
     ) -> None:
         super().__init__(scope, cid, **kw)
@@ -64,52 +66,65 @@ class WorkerStack(Stack):
         log_group = logs.LogGroup(self, "Logs", retention=logs.RetentionDays.THREE_MONTHS)
         task_role = iam.Role(self, "TaskRole", assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"))
         exec_role = iam.Role(self, "ExecRole", assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"))
-        task = ecs.FargateTaskDefinition(
-            self,
-            "Task",
-            cpu=1024,
-            memory_limit_mib=2048,
-            runtime_platform=ecs.RuntimePlatform(
-                cpu_architecture=ecs.CpuArchitecture.ARM64 if arm else ecs.CpuArchitecture.X86_64,
-                operating_system_family=ecs.OperatingSystemFamily.LINUX,
-            ),
-            task_role=task_role,
-            execution_role=exec_role,
-        )
-        task.add_container(
-            "worker",
-            image=ecs.ContainerImage.from_docker_image_asset(image),
-            logging=ecs.LogDrivers.aws_logs(stream_prefix="worker", log_group=log_group),
-            readonly_root_filesystem=True,
-            environment={
-                "CLUSTER_ARN": data.cluster.cluster_arn,
-                "WRITER_SECRET_ARN": data.writer_secret.secret_arn,
-                "DB_NAME": DB_NAME,
-                "BENCHMARK_ARGS": benchmark_args,
-                "AGENT_MODEL_ID": agent_model_id,
-                "AWS_REGION": self.region,
-            },
-        )
-        # Writable scratch on a read-only root filesystem. Fargate mounts ephemeral volumes owned
-        # by root, so a short-lived init container (same image, no network use) hands /work to the
-        # non-root worker user before the worker starts.
-        task.add_volume(name="work")
-        worker = task.default_container
-        work_mount = ecs.MountPoint(container_path="/work", source_volume="work", read_only=False)
-        worker.add_mount_points(work_mount)
-        init = task.add_container(
-            "init-scratch",
-            image=ecs.ContainerImage.from_docker_image_asset(image),
-            essential=False,
-            user="0",
-            entry_point=["/bin/sh", "-c"],
-            command=["chown 10001:10001 /work && chmod 0700 /work"],
-            readonly_root_filesystem=True,
-            logging=ecs.LogDrivers.aws_logs(stream_prefix="init", log_group=log_group),
-        )
-        init.add_mount_points(work_mount)
-        worker.add_container_dependencies(
-            ecs.ContainerDependency(container=init, condition=ecs.ContainerDependencyCondition.SUCCESS)
+        def make_task(tid: str, extra_env: dict[str, str]) -> ecs.FargateTaskDefinition:
+            task = ecs.FargateTaskDefinition(
+                self,
+                tid,
+                cpu=1024,
+                memory_limit_mib=2048,
+                runtime_platform=ecs.RuntimePlatform(
+                    cpu_architecture=ecs.CpuArchitecture.ARM64 if arm else ecs.CpuArchitecture.X86_64,
+                    operating_system_family=ecs.OperatingSystemFamily.LINUX,
+                ),
+                task_role=task_role,
+                execution_role=exec_role,
+            )
+            task.add_container(
+                "worker",
+                image=ecs.ContainerImage.from_docker_image_asset(image),
+                logging=ecs.LogDrivers.aws_logs(stream_prefix="worker", log_group=log_group),
+                readonly_root_filesystem=True,
+                environment={
+                    "CLUSTER_ARN": data.cluster.cluster_arn,
+                    "WRITER_SECRET_ARN": data.writer_secret.secret_arn,
+                    "DB_NAME": DB_NAME,
+                    "BENCHMARK_ARGS": benchmark_args,
+                    "AGENT_MODEL_ID": agent_model_id,
+                    "AWS_REGION": self.region,
+                    **extra_env,
+                },
+            )
+            # Writable scratch on a read-only root filesystem. Fargate mounts ephemeral volumes owned
+            # by root, so a short-lived init container (same image, no network use) hands /work to the
+            # non-root worker user before the worker starts.
+            task.add_volume(name="work")
+            worker = task.default_container
+            work_mount = ecs.MountPoint(container_path="/work", source_volume="work", read_only=False)
+            worker.add_mount_points(work_mount)
+            init = task.add_container(
+                "init-scratch",
+                image=ecs.ContainerImage.from_docker_image_asset(image),
+                essential=False,
+                user="0",
+                entry_point=["/bin/sh", "-c"],
+                command=["chown 10001:10001 /work && chmod 0700 /work"],
+                readonly_root_filesystem=True,
+                logging=ecs.LogDrivers.aws_logs(stream_prefix="init", log_group=log_group),
+            )
+            init.add_mount_points(work_mount)
+            worker.add_container_dependencies(
+                ecs.ContainerDependency(container=init, condition=ecs.ContainerDependencyCondition.SUCCESS)
+            )
+            return task
+
+        task = make_task("Task", {})
+        # Optional second, longer benchmark on its own schedule (for example `--preset full` every few
+        # days). It skips discovery (the daily run keeps the registry current) and runs one model at a
+        # time, loading each batch as it finishes, so an interrupted run keeps what it measured.
+        periodic = (
+            make_task("PeriodicTask", {"BENCHMARK_ARGS": periodic_args, "SKIP_DISCOVERY": "1", "BATCH_BY_MODEL": "1"})
+            if periodic_schedule
+            else None
         )
 
         # ---- least-privilege task role
@@ -177,46 +192,55 @@ class WorkerStack(Stack):
             )
         )
 
-        # ---- daily schedule (EventBridge Scheduler -> ECS RunTask on Fargate Spot)
+        # ---- schedules (EventBridge Scheduler -> ECS RunTask)
+        tasks = [task] + ([periodic] if periodic else [])
         sched_role = iam.Role(self, "SchedulerRole", assumed_by=iam.ServicePrincipal("scheduler.amazonaws.com"))
         sched_role.add_to_policy(
             iam.PolicyStatement(
                 actions=["ecs:RunTask"],
-                resources=[task.task_definition_arn],
+                resources=[t.task_definition_arn for t in tasks],
                 conditions={"ArnEquals": {"ecs:cluster": cluster.cluster_arn}},
             )
         )
         sched_role.add_to_policy(
             iam.PolicyStatement(actions=["iam:PassRole"], resources=[task_role.role_arn, exec_role.role_arn])
         )
-        scheduler.CfnSchedule(
-            self,
-            "Daily",
-            schedule_expression=schedule_expression,
-            schedule_expression_timezone="UTC",
-            flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"),
-            target=scheduler.CfnSchedule.TargetProperty(
-                arn=cluster.cluster_arn,
-                role_arn=sched_role.role_arn,
-                retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_retry_attempts=1),
-                ecs_parameters=scheduler.CfnSchedule.EcsParametersProperty(
-                    task_definition_arn=task.task_definition_arn,
-                    task_count=1,
-                    capacity_provider_strategy=[
-                        scheduler.CfnSchedule.CapacityProviderStrategyItemProperty(
-                            capacity_provider="FARGATE_SPOT", weight=1
-                        )
-                    ],
-                    network_configuration=scheduler.CfnSchedule.NetworkConfigurationProperty(
-                        awsvpc_configuration=scheduler.CfnSchedule.AwsVpcConfigurationProperty(
-                            subnets=[s.subnet_id for s in data.vpc.public_subnets],
-                            security_groups=[sg.security_group_id],
-                            assign_public_ip="ENABLED",
-                        )
+
+        def make_schedule(sid: str, expression: str, td: ecs.FargateTaskDefinition, capacity: str) -> None:
+            scheduler.CfnSchedule(
+                self,
+                sid,
+                schedule_expression=expression,
+                schedule_expression_timezone="UTC",
+                flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"),
+                target=scheduler.CfnSchedule.TargetProperty(
+                    arn=cluster.cluster_arn,
+                    role_arn=sched_role.role_arn,
+                    retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_retry_attempts=1),
+                    ecs_parameters=scheduler.CfnSchedule.EcsParametersProperty(
+                        task_definition_arn=td.task_definition_arn,
+                        task_count=1,
+                        capacity_provider_strategy=[
+                            scheduler.CfnSchedule.CapacityProviderStrategyItemProperty(
+                                capacity_provider=capacity, weight=1
+                            )
+                        ],
+                        network_configuration=scheduler.CfnSchedule.NetworkConfigurationProperty(
+                            awsvpc_configuration=scheduler.CfnSchedule.AwsVpcConfigurationProperty(
+                                subnets=[s.subnet_id for s in data.vpc.public_subnets],
+                                security_groups=[sg.security_group_id],
+                                assign_public_ip="ENABLED",
+                            )
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
+
+        # Daily run: about 40 minutes, so Spot is fine.
+        make_schedule("Daily", schedule_expression, task, "FARGATE_SPOT")
+        if periodic:
+            # Multi-day runs on on-demand Fargate: a Spot interruption would cut the run short.
+            make_schedule("Periodic", periodic_schedule, periodic, "FARGATE")
         self.cluster, self.task, self.security_group = cluster, task, sg
         checkov.skip(log_group, checkov.LOGS_DEFAULT_KEY)
 
@@ -243,7 +267,8 @@ class WorkerStack(Stack):
             ],
             apply_to_children=True,
         )
-        NagSuppressions.add_resource_suppressions(
-            task,
-            [{"id": "AwsSolutions-ECS2", "reason": "Environment holds only ARNs and options, no secrets."}],
-        )
+        for t in tasks:
+            NagSuppressions.add_resource_suppressions(
+                t,
+                [{"id": "AwsSolutions-ECS2", "reason": "Environment holds only ARNs and options, no secrets."}],
+            )

@@ -133,6 +133,8 @@ non-essential init container hands `/work` to the non-root worker user.
 | `schedule_expression` | `cron(0 18 * * ? *)` | When the worker runs (UTC) |
 | `benchmark_args` | `--preset quick` | Arguments passed to `bedrock-bench`; the cost scales with this |
 | `worker_arch` | `arm64` | Worker CPU architecture. `arm64` (Graviton) is cheaper; use `x86_64` if your build host cannot build arm64 images (no `docker buildx` arm64 emulation) |
+| `periodic_schedule` | empty | Optional second, longer benchmark, for example `rate(5 days)`. It runs on on-demand Fargate, skips discovery, and benchmarks one model at a time, loading each into the same run as it finishes |
+| `periodic_benchmark_args` | `--preset full` | Arguments for the periodic run. Run `bedrock-bench --dry-run --preset full` first: over 35 models it is about 79,000 requests and 2.9 billion input tokens, and takes about 3.5 days |
 | `aurora_min_acu` | `0` | Aurora Serverless v2 minimum capacity. `0` pauses the database when idle (the first page load after a pause waits a few seconds); `0.5` keeps it warm for about USD 43 per month |
 | `agent_model_id` | `us.anthropic.claude-sonnet-5-5` | Bedrock model for the discovery agent |
 

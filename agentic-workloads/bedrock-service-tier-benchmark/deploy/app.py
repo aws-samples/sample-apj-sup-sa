@@ -41,6 +41,8 @@ WorkerStack(
     benchmark_args=ctx("benchmark_args") or "--preset quick",
     agent_model_id=ctx("agent_model_id") or "us.anthropic.claude-sonnet-5-5",
     arch=ctx("worker_arch") or "arm64",
+    periodic_schedule=ctx("periodic_schedule") or "",
+    periodic_args=ctx("periodic_benchmark_args") or "--preset full",
     env=env,
 )
 
