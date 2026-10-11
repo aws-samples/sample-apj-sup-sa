@@ -1,416 +1,318 @@
-"""Discover which Bedrock text models serve which service tiers, and (re)generate
-the model registry (:data:`bedrock_bench.registry.MODELS_FILE`).
+"""Discover benchmarkable models and regenerate the registry (``bedrock-bench-discover``).
 
-The Bedrock control plane exposes no "which tiers does this model support" field,
-so the only reliable signal is to *probe*: send one tiny streaming request per
-(model, transport, tier) and record whether it is accepted and which tier is
-actually served. A model is included in the registry only if it serves
-**flex and/or priority** on at least one transport (default-only models have
-nothing to compare).
+No Bedrock API reports which service tiers, APIs or inference scopes a model
+supports. Discovery therefore combines:
 
-Run as a module to refresh ``models.json``::
+1. **Documentation** — the endpoint-availability page and each model card
+   (parsed by :mod:`bedrock_bench.catalog`): APIs per endpoint, tiers, model and
+   inference-profile ids, regions per scope, prompt-caching support.
+2. **Live probes** (``--probe``, recommended) — one tiny request per
+   (model, endpoint, scope, tier) on a representative API, in one source
+   region. A tier is kept only if Bedrock accepts it and reports serving it (or
+   reports nothing, for the default tier). Probes also detect reasoning models.
 
-    python -m bedrock_bench.discovery --profile my-aws-profile --regions us-west-2,us-east-1
-
-This is intentionally separate from the benchmark run: discovery is cheap and
-infrequent (catalog changes), while benchmarking is the expensive, paced part.
+Only text-output models documented with more than one on-demand tier are kept.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
-import re
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-import boto3
-from botocore.config import Config
-
+from . import catalog
+from .apis.base import Request
 from .auth import AuthBroker
-from .config import validate_region
-from .registry import MODELS_FILE
+from .cells import Cell
+from .config import Api, CacheMode, Endpoint, PromptSize, Scope, Tier, validate_region
+from .registry import (
+    MODELS_FILE,
+    CacheSupport,
+    ModelSpec,
+    Offering,
+    load_registry,
+    save_registry,
+)
+from .runner import build_adapter, served_matches
 
 logger = logging.getLogger("bedrock_bench.discovery")
 
-# A tiny, cheap probe. We only need to know the request is accepted and what
-# tier is served — not to measure anything.
-_PROBE_PROMPT = "Reply with the single character: y"
-_PROBE_MAX_TOKENS = 8
-_PROBE_TIERS: tuple[str | None, ...] = (None, "flex", "priority")  # None == default
+#: Card "APIs supported" labels -> streaming APIs benchmarked by default.
+_CARD_APIS: dict[str, tuple[Api, ...]] = {
+    "Converse": (Api.CONVERSE_STREAM, Api.CONVERSE),
+    "Invoke": (Api.INVOKE_STREAM, Api.INVOKE),
+    "Chat Completions": (Api.CHAT_COMPLETIONS,),
+    "Responses": (Api.RESPONSES,),
+    "Messages": (Api.MESSAGES,),
+}
+_CARD_TIERS = {"Standard": Tier.DEFAULT, "Flex": Tier.FLEX, "Priority": Tier.PRIORITY}
+_ENDPOINTS = {"bedrock-runtime": Endpoint.RUNTIME, "bedrock-mantle": Endpoint.MANTLE}
+#: Per-probe deadline (s): long enough for flex queueing on a tiny prompt.
+_PROBE_TIMEOUT = 300
+_PROBE_API = {Endpoint.RUNTIME: Api.CONVERSE_STREAM, Endpoint.MANTLE: Api.CHAT_COMPLETIONS}
 
-# Utility / non-chat families to skip (rerankers, vision-only, audio).
-_SKIP_SUBSTRINGS = ("rerank", "pegasus", "palmyra-vision", "voxtral", "embed")
 
-# Provider prefix -> family label for reports.
-_PROVIDER_FAMILY = {
-    "amazon": "Amazon Nova",
-    "anthropic": "Anthropic Claude",
-    "deepseek": "DeepSeek",
-    "google": "Google Gemma",
-    "minimax": "MiniMax",
-    "mistral": "Mistral",
-    "moonshotai": "Kimi (Moonshot)",
-    "moonshot": "Kimi (Moonshot)",
-    "nvidia": "NVIDIA Nemotron",
-    "openai": "OpenAI GPT-OSS",
-    "qwen": "Qwen",
-    "zai": "GLM (Z.AI)",
+#: Geo inference-profile prefix -> source-region prefixes it serves. A model card lists
+#: one "Geo" column for all of its geo profiles, so each profile is narrowed to its
+#: own geography (sending ``apac.*`` from us-east-1 fails with "model identifier is invalid").
+_GEO_REGION_PREFIXES: dict[str, tuple[str, ...]] = {
+    "us": ("us-",),
+    "eu": ("eu-",),
+    "apac": ("ap-",),
+    "jp": ("ap-northeast-1", "ap-northeast-3"),
+    "au": ("ap-southeast-2", "ap-southeast-4"),
+    "ca": ("ca-",),
+    "in": ("ap-south-1", "ap-south-2"),
 }
 
 
-def _canonical_key(model_id: str) -> str:
-    """Collapse a transport-specific model id to a stable logical key.
-
-    InvokeModel and Mantle use different id strings for the same model
-    (``...-v1:0`` suffixes, ``moonshot.`` vs ``moonshotai.``, Mantle's
-    ``-instruct``/``-it`` suffixes). This normalises them so the two transports
-    of one model share a registry entry.
-    """
-    s = re.sub(r"^moonshot\.", "moonshotai.", model_id)
-    s = re.sub(r"-v\d+(:\d+)?$", "", s)  # -v1, -v1:0
-    s = re.sub(r"-\d+:\d+$", "", s)  # -1:0 (e.g. gpt-oss-120b-1:0)
-    s = re.sub(r":\d+$", "", s)  # trailing :0
-    s = re.sub(r"-1$", "", s)  # leftover -1
-    s = re.sub(r"-instruct$", "", s)
-    s = re.sub(r"-it$", "", s)
-    return s
+def geo_regions(profile_id: str, regions: tuple[str, ...]) -> tuple[str, ...]:
+    """The subset of ``regions`` a geo profile id (``us.``, ``eu.``, ...) can be called from."""
+    prefixes = _GEO_REGION_PREFIXES.get(profile_id.split(".", 1)[0])
+    if prefixes is None:
+        return regions
+    return tuple(r for r in regions if r.startswith(prefixes))
 
 
-def _family(model_id: str) -> str:
-    provider = model_id.split(".", 1)[0]
-    return _PROVIDER_FAMILY.get(provider, provider.title())
-
-
-def _display_name(key: str) -> str:
-    """Human label like 'Qwen3 235B A22B 2507' from a logical key.
-
-    Includes the provider token so names are unambiguous in reports (e.g.
-    'Deepseek V3.2', not just 'V3.2').
-    """
-    provider, _, body = key.partition(".")  # split only the provider prefix
-    body_words = body.replace("-", " ").replace("_", " ")
-    # Avoid duplication when the model name already carries the brand
-    # (e.g. 'qwen.qwen3-...', 'minimax.minimax-m2', 'moonshotai.kimi-...').
-    first = body_words.split(" ", 1)[0].lower()
-    brand_in_body = first.startswith(provider.lower()[:4]) or (
-        provider == "moonshotai" and first.startswith("kimi")
+def _body_style(model_id: str) -> str:
+    base = (
+        model_id.split(".", 1)[-1]
+        if model_id.split(".", 1)[0] in ("us", "eu", "apac", "jp", "au", "ca", "in", "global")
+        else model_id
     )
-    pretty = (body_words if brand_in_body else f"{provider} {body_words}").title()
-    for a, b in (
-        ("Glm", "GLM"),
-        ("Gpt", "GPT"),
-        ("Oss", "OSS"),
-        ("Vl", "VL"),
-        ("Zai", "Z.AI"),
-        ("Deepseek", "DeepSeek"),
-        ("Minimax", "MiniMax"),
-        ("Nvidia", "NVIDIA"),
-        ("Openai", "OpenAI"),
-    ):
-        pretty = pretty.replace(a, b)
-    return pretty
+    if base.startswith("anthropic."):
+        return "anthropic"
+    if base.startswith("amazon.nova"):
+        return "nova"
+    return "openai"
 
 
-def _is_nova(model_id: str) -> bool:
-    return model_id.startswith("amazon.nova")
-
-
-def _find_profile(profiles: dict[str, dict], model_arn: str) -> str | None:
-    """Best inference-profile id for ``model_arn`` (prefer global.* then us.*)."""
-    matches = [
-        pid
-        for pid, prof in profiles.items()
-        for m in prof.get("models", [])
-        if m.get("modelArn") == model_arn
-    ]
-    matches.sort(key=lambda x: (not x.startswith("global."), not x.startswith("us."), x))
-    return matches[0] if matches else None
-
-
-@dataclass
-class Candidate:
-    """A (model, transport, region) we will probe for tier support."""
-
-    model_id: str
-    transport: str  # "invoke" | "mantle"
-    region: str
-    nova: bool = False
-
-
-@dataclass
-class ProbeOutcome:
-    """Result of probing one candidate across all tiers."""
-
-    candidate: Candidate
-    has_flex: bool = False
-    has_priority: bool = False
-    tier_detail: dict = field(default_factory=dict)
-
-
-class Discoverer:
-    """Enumerates candidates and probes each for served tiers."""
-
-    def __init__(self, profile: str, regions: tuple[str, ...], max_workers: int = 12):
-        self._broker = AuthBroker(profile=profile)
-        self._session = boto3.Session(profile_name=profile)
-        self._regions = regions
-        self._max_workers = max_workers
-        self._probe_cfg = Config(retries={"max_attempts": 1}, read_timeout=60, connect_timeout=10)
-
-    # --- enumeration -------------------------------------------------------
-    def candidates(self) -> list[Candidate]:
-        """All text-in/text-out models worth probing, on each transport."""
-        return self._invoke_candidates() + self._mantle_candidates()
-
-    def _invoke_candidates(self) -> list[Candidate]:
-        out: dict[str, Candidate] = {}
-        for region in self._regions:
-            bedrock = self._session.client("bedrock", region_name=region)
-            fms = bedrock.list_foundation_models(byOutputModality="TEXT")["modelSummaries"]
-            profiles = {
-                p["inferenceProfileId"]: p
-                for p in bedrock.list_inference_profiles(maxResults=1000).get(
-                    "inferenceProfileSummaries", []
-                )
-            }
-
-            for m in fms:
-                mid = m["modelId"]
-                if not m.get("responseStreamingSupported"):
-                    continue
-                if "TEXT" not in m.get("inputModalities", []) or "TEXT" not in m.get(
-                    "outputModalities", []
+def offerings_from_card(card: catalog.ModelCard) -> tuple[str, list[Offering]]:
+    """Derive (model key, offerings) from a parsed model card (documentation only)."""
+    tiers = tuple(t for label, t in _CARD_TIERS.items() if card.tiers.get(label))
+    if Tier.DEFAULT not in tiers:
+        tiers = (Tier.DEFAULT, *tiers)
+    apis = [a for label in card.apis for a in _CARD_APIS.get(label, ())]
+    endpoints = [_ENDPOINTS[e] for e in card.endpoints if e in _ENDPOINTS]
+    key = ""
+    offs: list[Offering] = []
+    for row in card.access:
+        ep = _ENDPOINTS.get(str(row.get("Endpoint", "")).strip())
+        model_id = str(row.get("Model ID", "")).strip()
+        if not ep or not model_id or ep not in endpoints:
+            continue
+        key = key or model_id
+        scope_ids: list[tuple[Scope, str, str]] = []
+        in_regions = [r for r, v in card.regions.items() if v.get("In-Region")]
+        if in_regions:
+            scope_ids.append((Scope.IN_REGION, model_id, "In-Region"))
+        for gid in row.get("geo_ids") or []:  # type: ignore[union-attr]
+            scope_ids.append((Scope.GEO, str(gid), "Geo"))
+        gl = str(row.get("Global inference ID", "")).strip()
+        if gl.startswith("global."):
+            scope_ids.append((Scope.GLOBAL, gl, "Global"))
+        for scope, mid, col in scope_ids:
+            regions = tuple(sorted(r for r, v in card.regions.items() if v.get(col)))
+            if scope is Scope.GEO:
+                regions = geo_regions(mid, regions)
+            if not regions:
+                continue
+            for api in apis:
+                if api not in (
+                    {Api.CHAT_COMPLETIONS, Api.RESPONSES, Api.MESSAGES}
+                    if ep is Endpoint.MANTLE
+                    else set(Api)
                 ):
                     continue
-                if any(s in mid for s in _SKIP_SUBSTRINGS):
-                    continue
-                its = m.get("inferenceTypesSupported", [])
-                if "ON_DEMAND" in its:
-                    invoke_id: str | None = mid
-                elif "INFERENCE_PROFILE" in its:
-                    invoke_id = _find_profile(profiles, m["modelArn"])
-                else:
-                    continue  # PROVISIONED-only / not invokable on-demand
-                if not invoke_id or invoke_id in out:
-                    continue
-                out[invoke_id] = Candidate(
-                    model_id=invoke_id, transport="invoke", region=region, nova=_is_nova(invoke_id)
-                )
-        return list(out.values())
+                offs.append(Offering(ep, api, scope, mid, regions, tiers))
+    return key, offs
 
-    def _mantle_candidates(self) -> list[Candidate]:
-        from openai import OpenAI
 
-        out: dict[str, Candidate] = {}
-        for region in self._regions:
-            try:
-                client = OpenAI(
-                    api_key=self._broker.mantle_token(region),
-                    base_url=self._broker.mantle_base_url(region),
-                )
-                for model in client.models.list().data:
-                    mid = model.id
-                    if any(s in mid for s in _SKIP_SUBSTRINGS) or mid in out:
-                        continue
-                    out[mid] = Candidate(model_id=mid, transport="mantle", region=region)
-            except Exception as e:  # pragma: no cover - network/permission dependent
-                logger.warning("Mantle catalog unavailable in %s: %s", region, e)
-        return list(out.values())
-
-    # --- probing -----------------------------------------------------------
-    def _probe_invoke(self, c: Candidate, tier: str | None) -> dict:
-        client = self._session.client(
-            "bedrock-runtime", region_name=c.region, config=self._probe_cfg
-        )
-        body: dict[str, Any]
-        if c.nova:
-            body = {
-                "messages": [{"role": "user", "content": [{"text": _PROBE_PROMPT}]}],
-                "inferenceConfig": {"maxTokens": _PROBE_MAX_TOKENS},
-            }
-        else:
-            body = {
-                "messages": [{"role": "user", "content": _PROBE_PROMPT}],
-                "max_tokens": _PROBE_MAX_TOKENS,
-            }
-        kwargs = dict(
-            modelId=c.model_id,
-            body=json.dumps(body),
-            accept="application/json",
-            contentType="application/json",
-        )
-        if tier:
-            kwargs["serviceTier"] = tier
+def discover_from_docs(only: set[str] | None = None) -> list[ModelSpec]:
+    """Build specs from the documentation (no AWS calls)."""
+    rows = catalog.parse_endpoint_availability(catalog.fetch(catalog.AVAILABILITY_URL))
+    specs: list[ModelSpec] = []
+    for row in rows:
+        if not row.card_url or (only and row.model_name not in only):
+            continue
         try:
-            resp = client.invoke_model_with_response_stream(**kwargs)
-            served = (
-                resp.get("ResponseMetadata", {})
-                .get("HTTPHeaders", {})
-                .get("x-amzn-bedrock-service-tier")
+            card = catalog.parse_model_card(catalog.fetch(row.card_url), row.card_url)
+        except Exception as e:  # noqa: BLE001 - one bad page must not stop discovery
+            logger.warning("skipping %s: %s", row.model_name, e)
+            continue
+        if "Text" not in card.output_modalities or not card.features.get("Response streaming"):
+            continue
+        if sum(card.tiers.get(t, False) for t in ("Standard", "Flex", "Priority")) < 2:
+            continue
+        key, offs = offerings_from_card(card)
+        if not offs:
+            continue
+        specs.append(
+            ModelSpec(
+                key=key,
+                family=row.section,
+                display_name=card.title or row.model_name,
+                offerings=tuple(offs),
+                body_style=_body_style(key),
+                cache=CacheSupport(
+                    implicit=card.implicit_cache,
+                    explicit=bool(
+                        card.explicit_cache and card.explicit_cache.get("supported") == "Yes"
+                    ),
+                    min_tokens=card.cache_min_tokens,
+                ),
+                sources=(row.card_url,),
+                notes="documentation only (not probed)",
             )
-            for _event in resp["body"]:  # touch the stream so errors surface
-                break
-            return {"ok": True, "served": served}
-        except Exception as e:
-            return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:140]}"}
+        )
+    return specs
 
-    def _probe_mantle(self, c: Candidate, tier: str | None) -> dict:
-        from openai import OpenAI
 
-        try:
-            client = OpenAI(
-                api_key=self._broker.mantle_token(c.region),
-                base_url=self._broker.mantle_base_url(c.region),
-                max_retries=0,
-                timeout=60,
-            )
-            kwargs: dict[str, Any] = dict(
-                model=c.model_id,
-                messages=[{"role": "user", "content": _PROBE_PROMPT}],
-                max_tokens=_PROBE_MAX_TOKENS,
-                stream=True,
-            )
-            if tier:
-                kwargs["extra_body"] = {"service_tier": tier}
-            served = None
-            for chunk in client.chat.completions.create(**kwargs):
-                served = getattr(chunk, "service_tier", served) or served
-                break
-            return {"ok": True, "served": served}
-        except Exception as e:
-            return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:140]}"}
-
-    def _probe_candidate(self, c: Candidate) -> ProbeOutcome:
-        outcome = ProbeOutcome(candidate=c)
-        for tier in _PROBE_TIERS:
-            label = tier or "default"
-            if c.transport == "invoke":
-                res = self._probe_invoke(c, tier)
-            else:
-                res = self._probe_mantle(c, tier)
-            outcome.tier_detail[label] = res
-            time.sleep(0.05)  # be gentle even on probes
-
-        # A tier "counts" only if accepted AND actually served as requested.
-        def served_as(name: str) -> bool:
-            r = outcome.tier_detail.get(name, {})
-            return bool(r.get("ok")) and (r.get("served") or "").lower() == name
-
-        outcome.has_flex = served_as("flex")
-        outcome.has_priority = served_as("priority")
-        return outcome
-
-    def probe_all(self, candidates: list[Candidate]) -> list[ProbeOutcome]:
-        results: list[ProbeOutcome] = []
-        with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
-            futures = {pool.submit(self._probe_candidate, c): c for c in candidates}
-            for done, future in enumerate(as_completed(futures), 1):
-                outcome = future.result()
-                results.append(outcome)
-                logger.info(
-                    "[%d/%d] %s %s flex=%s priority=%s",
-                    done,
-                    len(candidates),
-                    outcome.candidate.transport,
-                    outcome.candidate.model_id,
-                    outcome.has_flex,
-                    outcome.has_priority,
-                )
-        return results
-
-    # --- registry assembly -------------------------------------------------
-    @staticmethod
-    def build_registry(outcomes: list[ProbeOutcome]) -> list[dict]:
-        """Fold probe outcomes into logical models with per-transport tiers.
-
-        Only models serving flex and/or priority on some transport are kept.
-        """
-        models: dict[str, dict] = {}
-        for o in outcomes:
-            if not (o.has_flex or o.has_priority):
+def probe(specs: list[ModelSpec], broker: AuthBroker, regions: tuple[str, ...]) -> list[ModelSpec]:
+    """Verify tiers live: one request per (model, endpoint, scope, tier) on a probe API."""
+    out: list[ModelSpec] = []
+    today = datetime.now(timezone.utc).date().isoformat()
+    for spec in specs:
+        verified: dict[tuple[Endpoint, Scope, str], tuple[Tier, ...]] = {}
+        reasoning = False
+        for off in spec.offerings:
+            group = (off.endpoint, off.scope, off.model_id)
+            if group in verified or off.api is not _PROBE_API[off.endpoint]:
                 continue
-            c = o.candidate
-            key = _canonical_key(c.model_id)
-            model = models.setdefault(
-                key,
-                {
-                    "key": key,
-                    "family": _family(c.model_id),
-                    "display_name": _display_name(key),
-                    "invoke_id": None,
-                    "invoke_region": None,
-                    "invoke_tiers": [],
-                    "mantle_id": None,
-                    "mantle_region": None,
-                    "mantle_tiers": [],
-                    "payload_style": "nova" if c.nova else "openai",
-                    "notes": "",
-                },
+            region = next((r for r in regions if r in off.regions), None)
+            if region is None:
+                continue
+            ok: list[Tier] = []
+            for tier in off.tiers:
+                cell = Cell(spec, off, region, PromptSize.SMALL, CacheMode.COLD, tier)
+                m = build_adapter(cell, broker).send(
+                    Request(
+                        off.model_id,
+                        region,
+                        "Probe.",
+                        "Reply with the single word: ok",
+                        32,
+                        None if tier.is_default else tier.value,
+                        temperature=None,
+                        timeout=_PROBE_TIMEOUT,
+                    )
+                )
+                served = served_matches(tier, m.served_tier)
+                # A non-default tier counts only when Bedrock reports serving it.
+                if m.error is None and (served is True or (tier.is_default and served is None)):
+                    ok.append(tier)
+                streamed_reasoning = m.ttft is not None and m.ttft != m.ttfat
+                reasoning = reasoning or bool(m.usage.reasoning_tokens) or streamed_reasoning
+                logger.info(
+                    "probe %s %s %s %s -> %s",
+                    spec.key,
+                    off.endpoint.value,
+                    off.scope.value,
+                    tier.value,
+                    "ok" if m.error is None else m.error_kind,
+                )
+            verified[group] = tuple(ok)
+        offs = tuple(
+            Offering(
+                o.endpoint,
+                o.api,
+                o.scope,
+                o.model_id,
+                o.regions,
+                verified.get((o.endpoint, o.scope, o.model_id), ()),
+                o.base_path,
             )
-            tiers = ["default"]
-            if o.has_flex:
-                tiers.append("flex")
-            if o.has_priority:
-                tiers.append("priority")
-            if c.transport == "invoke":
-                model["invoke_id"] = c.model_id
-                model["invoke_region"] = c.region
-                model["invoke_tiers"] = tiers
-            else:
-                model["mantle_id"] = c.model_id
-                model["mantle_region"] = c.region
-                model["mantle_tiers"] = tiers
-        return sorted(models.values(), key=lambda m: (m["family"], m["key"]))
+            for o in spec.offerings
+            if verified.get((o.endpoint, o.scope, o.model_id))
+        )
+        if not any(len(o.tiers) > 1 for o in offs):
+            logger.info("dropping %s: fewer than two tiers verified", spec.key)
+            continue
+        out.append(
+            ModelSpec(
+                spec.key,
+                spec.family,
+                spec.display_name,
+                offs,
+                reasoning,
+                spec.body_style,
+                spec.cache,
+                spec.sources,
+                today,
+                "probed live",
+            )
+        )
+    return out
 
-    def run(self) -> list[dict]:
-        cands = self.candidates()
-        logger.info("Probing %d (model, transport) candidates ...", len(cands))
-        outcomes = self.probe_all(cands)
-        registry = self.build_registry(outcomes)
-        logger.info("%d models qualify (serve flex and/or priority).", len(registry))
-        return registry
+
+def overwrite_refusal(new: list[ModelSpec], existing: list[ModelSpec]) -> str | None:
+    """Why writing ``new`` over ``existing`` would lose verified data (``None`` = safe).
+
+    A throttled probe can drop models, and a docs-only run replaces live-verified
+    tiers with documented ones; both need ``--force``.
+    """
+    if not new:
+        return "no models discovered"
+    if len(new) < len(existing):
+        return f"would shrink the registry from {len(existing)} to {len(new)} models"
+    if any(s.verified_at for s in existing) and not any(s.verified_at for s in new):
+        return "would replace live-probed entries with documentation-only ones"
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="bedrock_bench.discovery",
-        description=(
-            "Probe Bedrock text models for flex/priority support and regenerate models.json."
-        ),
-    )
-    parser.add_argument(
+    p = argparse.ArgumentParser(prog="bedrock-bench-discover", description=__doc__.splitlines()[0])
+    p.add_argument(
+        "--aws-profile",
         "--profile",
+        dest="aws_profile",
         default=os.environ.get("BEDROCK_BENCH_PROFILE"),
-        help="AWS named profile. Defaults to $BEDROCK_BENCH_PROFILE, else the "
-        "standard boto3 credential chain.",
     )
-    parser.add_argument("--regions", default="us-west-2,us-east-1", help="Comma-separated regions.")
-    parser.add_argument("--max-workers", type=int, default=12, help="Concurrent probes.")
-    parser.add_argument(
-        "--output", default=str(MODELS_FILE), help="Where to write the generated registry JSON."
+    p.add_argument("--regions", default="us-east-1,us-west-2", help="Probe source regions.")
+    p.add_argument(
+        "--models", help="Comma-separated model names as shown in the docs (e.g. 'GLM 5.3')."
     )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Print the registry to stdout, do not write."
+    p.add_argument(
+        "--probe",
+        action="store_true",
+        help="Verify tiers with live requests (incurs a small cost).",
     )
-    args = parser.parse_args(argv)
+    p.add_argument("--output", type=Path, default=MODELS_FILE)
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Write even if the result is empty or smaller than the existing registry.",
+    )
+    p.add_argument("--dry-run", action="store_true", help="Print a summary; do not write.")
+    a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-    regions = tuple(validate_region(r.strip()) for r in args.regions.split(",") if r.strip())
-    discoverer = Discoverer(profile=args.profile, regions=regions, max_workers=args.max_workers)
-    registry = discoverer.run()
-
-    payload = json.dumps(registry, indent=2)
-    if args.dry_run:
-        print(payload)
-    else:
-        Path(args.output).write_text(payload)
-        logger.info("Wrote %d models to %s", len(registry), args.output)
+    regions = tuple(validate_region(r.strip()) for r in a.regions.split(",") if r.strip())
+    only = {m.strip() for m in a.models.split(",")} if a.models else None
+    specs = discover_from_docs(only)
+    logger.info("%d multi-tier text models documented", len(specs))
+    if a.probe:
+        # Socket read timeout just above the probe deadline, so a stalled request ends.
+        broker = AuthBroker(profile=a.aws_profile, read_timeout=_PROBE_TIMEOUT + 30)
+        specs = probe(specs, broker, regions)
+    for s in specs:
+        tiers = sorted({t.value for o in s.offerings for t in o.tiers})
+        print(
+            f"{s.key:40s} {s.display_name:28s} offerings={len(s.offerings):3d} "
+            f"tiers={','.join(tiers)}"
+        )
+    if not a.dry_run:
+        try:
+            existing = load_registry(a.output) if a.output.exists() else []
+        except ValueError:
+            existing = []  # old schema: always replaceable
+        reason = overwrite_refusal(specs, existing)
+        if reason and not a.force:
+            logger.error("%s; refusing to overwrite %s (use --force)", reason, a.output)
+            return 1
+        save_registry(specs, a.output, datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        logger.info("wrote %d models to %s", len(specs), a.output)
     return 0
 
 

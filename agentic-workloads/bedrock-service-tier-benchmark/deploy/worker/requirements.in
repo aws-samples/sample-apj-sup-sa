@@ -1,0 +1,2 @@
+strands-agents>=1,<2
+defusedxml>=0.7,<1
