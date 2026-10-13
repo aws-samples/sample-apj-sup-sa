@@ -1,0 +1,3 @@
+[submodule "agentic-workloads/sample-per-model-bedrock"]
+	path = agentic-workloads/sample-per-model-bedrock
+	url = https://github.com/aws-samples/sample-per-model-bedrock.git

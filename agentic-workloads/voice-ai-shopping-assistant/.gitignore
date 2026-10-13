@@ -1,0 +1,73 @@
+.DS_Store
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env
+.env
+.env.*
+!.env.example
+
+# dependencies
+node_modules/
+**/node_modules/
+
+# build output
+.next/
+out/
+build/
+coverage/
+dist/
+**/.next/
+**/out/
+**/build/
+**/coverage/
+**/dist/
+
+# tooling
+.vercel/
+**/.vercel/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# local nested repo backup
+tavus-avatar/.git.local-backup/
+
+# wallet-hub: separate Next.js app with its own git repo + .env.local (Privy
+# app secret). Managed independently; never commit into this repo.
+wallet-hub/
+
+# local references not intended for deployment repo
+src-reference/
+.vercel
+
+# local working notes (kept on-disk, not for the shared branch)
+tasks.md
+CODEBASE-EXPLAINER.html
+
+# local Next.js starter files not used in this repo
+tavus-avatar/README.md
+tavus-avatar/public/file.svg
+tavus-avatar/public/globe.svg
+tavus-avatar/public/next.svg
+tavus-avatar/public/vercel.svg
+tavus-avatar/public/window.svg
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# local agent integration guide (not for the deployment repo)
+backend/AGENT.md
+backend/AGENTS.md
+
+# Office lock/temp files
+~$*
+
+# CDK context cache (regenerable; pins account/AZ lookups — do not commit)
+backend/infra/cdk.context.json
+cdk.context.json

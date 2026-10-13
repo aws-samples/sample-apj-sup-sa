@@ -1,0 +1,1810 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Top-Up Stack (WORKSHOP) - participant builds the agent layer by uncommenting one fenced section per step, then `make deploy`'
+
+# =============================================================================
+#  WORKSHOP TOP-UP STACK — how this file works
+# =============================================================================
+#  You deploy this ONE stack on top of the pre-provisioned base infrastructure
+#  (Aurora, Cognito, Glue, Bedrock KB, EC2 Code Editor). Each workshop step asks
+#  you to UNCOMMENT one clearly-fenced block (or flip one value), then redeploy
+#  with `make deploy`. Fences look like:
+#
+#      # --- UNCOMMENT FROM HERE (Step 4: Prebaked SQL toolset) ---
+#      # <resource YAML, each line prefixed with "# ">
+#      # --- UNCOMMENT TO HERE (Step 4) ---
+#
+#  To uncomment a fence: delete the leading "# " on every line BETWEEN the two
+#  markers (leave the marker lines themselves). The exact result is always shown
+#  in the workshop page's "💡 solution" expander, so you can copy it if needed.
+#
+#  Base values (VPC, secrets, Cognito, Glue DB, KB id) are pulled automatically
+#  via Fn::ImportValue from the base stacks' exports — you don't wire any ARNs.
+#  This file is KEPT IN SYNC with infrastructure/stacks/agentcore-stack.yaml
+#  (the demo "deploy everything" stack): the tool schemas, Cedar statements, the
+#  build chain and the guardrail body are identical; the only differences are
+#  the import-vs-nested-param inputs, the per-step comment fences, and a
+#  workshop-simplified GatewayRole. Edit both when changing tools.
+# =============================================================================
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+    Description: Resource name prefix; MUST match the base stack so Fn::ImportValue names resolve.
+
+  ArtifactsBucket:
+    Type: String
+    Description: S3 bucket holding the Lambda/agent code zips (from config.env, passed by `make`).
+
+  ArtifactsPrefix:
+    Type: String
+    Default: ''
+    Description: S3 key prefix for the artifacts (from config.env, passed by `make`).
+
+  DataFoundationLambdaKey:
+    Type: String
+    Default: lambda/datafoundation_lambda.zip
+
+  InterceptorLambdaKey:
+    Type: String
+    Default: lambdas/gateway_interceptor.zip
+    Description: S3 key for the Gateway interceptor Lambda (use hash-versioned key)
+
+  ApiIntegLambdaKey:
+    Type: String
+    Default: lambdas/api_integration_toolset.zip
+    Description: S3 key for the API integration toolset Lambda (use hash-versioned key)
+
+  CustomSqlLambdaKey:
+    Type: String
+    Default: lambdas/custom_sql_toolset.zip
+    Description: S3 key for the custom SQL toolset Lambda (use hash-versioned key)
+
+  PolicyMode:
+    Type: String
+    Default: LOG_ONLY
+    AllowedValues:
+      - LOG_ONLY
+      - ENFORCE
+    Description: Cedar policy enforcement mode. Step 7.1 flips this to ENFORCE via `make deploy POLICY_MODE=ENFORCE`.
+
+  AgentCodeS3Key:
+    Type: String
+    Default: agent/agent_code.zip
+    Description: S3 key for agent code ZIP (unicorn_rental_agent.py + deps)
+
+  AgentImageTag:
+    Type: String
+    Default: latest
+    Description: >-
+      Container image tag the Runtime points at. A bare `make deploy` leaves this
+      as-is; `make build` bumps it to a fresh value (e.g. build-20260625-143000)
+      after a code edit, so CloudFormation rebuilds the image and rolls the
+      Runtime to a new version — re-applying auth/VPC/env from this template (no
+      out-of-band update-agent-runtime needed).
+
+  Psycopg2LayerArn:
+    Type: String
+    Default: ''
+    Description: ARN of existing psycopg2 Lambda layer (leave empty to create one)
+
+  PyJwtLayerArn:
+    Type: String
+    Default: ''
+    Description: ARN of existing PyJWT+cryptography Lambda layer (leave empty to create one)
+
+  GatewayName:
+    Type: String
+    Default: AgenticAnalyticsMCPGateway
+
+# Base infrastructure values are imported from the pre-deployed base stacks'
+# exports (see infrastructure/stacks/{aurora,cognito,glue,database-init,bedrock-kb}-stack.yaml).
+# Centralized here so the resource bodies below read `!Sub '${ImportedAuroraEndpoint}'`
+# style values are resolved via these mappings — but CFN has no "import alias", so we
+# import inline at each use site via Fn::ImportValue with the names below:
+#   ${EnvironmentName}-AuroraClusterEndpoint   -> Aurora writer endpoint
+#   ${EnvironmentName}-DatabaseSecretArn       -> postgres owner secret (RLS bypassed)
+#   ${EnvironmentName}-AppDatabaseSecretArn    -> app_user secret (RLS enforced)
+#   ${EnvironmentName}-PrivateSubnet1Id / -PrivateSubnet2Id -> Lambda VPC subnets
+#   ${EnvironmentName}-LambdaSecurityGroupId   -> Lambda security group
+#   ${EnvironmentName}-KnowledgeBaseId         -> Bedrock KB id (custom-SQL RAG)
+#   ${EnvironmentName}-GlueDatabaseName        -> Glue catalog db (custom-SQL schema)
+#   ${EnvironmentName}-UserPoolId / -UserLoginClientId -> Cognito JWT authorizer
+
+Conditions:
+  NeedsPsycopg2Layer: !Equals [!Ref Psycopg2LayerArn, '']
+  NeedsPyJwtLayer: !Equals [!Ref PyJwtLayerArn, '']
+
+Resources:
+
+  #============================================================================
+  # Row-Level Security feature flag (runtime toggle — TODO 7.2)
+  #
+  # RLS is switched at RUNTIME, not by a redeploy. The three SQL Lambdas are
+  # wired with BOTH database secrets (postgres owner + app_user) and read this
+  # SSM parameter to decide which to use: 'enabled' -> app_user (RLS enforced),
+  # 'disabled' -> postgres owner (RLS bypassed). In Step 7.2 the participant
+  # changes this value in the SSM console (no `make deploy`); the Lambdas pick it
+  # up within ~60s. Keeping the toggle out of the template means flipping RLS
+  # never changes a Lambda's config — so the published version + provisioned
+  # concurrency alias stay valid (no stale-version risk).
+  #============================================================================
+  RlsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/rls-mode
+      Type: String
+      Value: disabled            # Step 7.2 flips this to 'enabled' in the console
+      Description: RLS enforcement toggle read at runtime by the SQL tool Lambdas (enabled|disabled)
+
+  #============================================================================
+  # Gateway Interceptor Lambda
+  # Propagates Authorization header from incoming requests to Lambda targets
+  # so the targets can extract JWT claims (account_id, role) for RLS.
+  #============================================================================
+  InterceptorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-gateway-interceptor-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  InterceptorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-gateway-interceptor
+      Description: Propagates Authorization header from Gateway to Lambda targets
+      Runtime: python3.12
+      Handler: interceptor_lambda.lambda_handler
+      Role: !GetAtt InterceptorLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Sub ${ArtifactsPrefix}${InterceptorLambdaKey}
+
+  InterceptorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref InterceptorLambda
+      Action: lambda:InvokeFunction
+      Principal: bedrock-agentcore.amazonaws.com
+
+  # NOTE: The optional Cube SemanticLayer toolset is intentionally NOT part of
+  # this top-up. The semantic-layer lab keeps its own parallel two-agent
+  # comparison (deploy_semantic_layer_stack.py) as a documented script exception.
+
+  #============================================================================
+  # Gateway IAM Role
+  #============================================================================
+  GatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-gateway-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GatewayPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # WORKSHOP SIMPLIFICATION: the demo stack lists each toolset Lambda
+              # ARN explicitly (!GetAtt ...). Here the toolset Lambdas are added
+              # progressively (Steps 4/5/6), so listing them by !GetAtt would make
+              # this role reference resources that don't exist yet and fail the
+              # template. Instead we scope by the shared name prefix — every
+              # toolset Lambda is named ${EnvironmentName}-*, so the Gateway can
+              # invoke each one as you uncomment it, with no edit to this role.
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-*
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:*
+                Resource: '*'
+
+  #============================================================================
+  # AgentCore Gateway (native CFN)
+  #============================================================================
+  Gateway:
+    Type: AWS::BedrockAgentCore::Gateway
+    DependsOn:
+      - GatewayRole
+      - InterceptorLambdaPermission
+    Properties:
+      Name: !Ref GatewayName
+      ProtocolType: MCP
+      RoleArn: !GetAtt GatewayRole.Arn
+      AuthorizerType: CUSTOM_JWT
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl:
+            Fn::Sub:
+              - https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}/.well-known/openid-configuration
+              - PoolId:
+                  Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+          AllowedClients:
+            - Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+      # --- Step 7a: ALSO uncomment these 3 lines (the Gateway -> Policy Engine wiring) ---
+      # PolicyEngineConfiguration:
+      #   Arn: !GetAtt PolicyEngine.PolicyEngineArn
+      #   Mode: !Ref PolicyMode
+      InterceptorConfigurations:
+        - Interceptor:
+            Lambda:
+              Arn: !GetAtt InterceptorLambda.Arn
+          InterceptionPoints:
+            - REQUEST
+          InputConfiguration:
+            PassRequestHeaders: true
+      Description: AgentCore Gateway for Agentic Analytics
+
+  # ===== UNCOMMENT FROM HERE (Step 4: Prebaked SQL toolset (Lambda + Gateway target)) ======
+
+#   #============================================================================
+#   # DataFoundation Lambda (27 analytics tools)
+#   #============================================================================
+#   DataFoundationLambdaRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       RoleName: !Sub ${EnvironmentName}-datafoundation-role
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal:
+#               Service: lambda.amazonaws.com
+#             Action: sts:AssumeRole
+#       ManagedPolicyArns:
+#         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+#       Policies:
+#         - PolicyName: DataFoundationPolicy
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               - Effect: Allow
+#                 Action: secretsmanager:GetSecretValue
+#                 Resource:
+#                   - Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecretArn'
+#                   - Fn::ImportValue: !Sub '${EnvironmentName}-AppDatabaseSecretArn'
+#               # Read the runtime RLS feature flag (TODO 7.2 toggle).
+#               - Effect: Allow
+#                 Action: ssm:GetParameter
+#                 Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/rls-mode
+#               - Effect: Allow
+#                 Action:
+#                   - bedrock:InvokeModel
+#                   - bedrock-agent-runtime:Retrieve
+#                 Resource: '*'
+
+#   DataFoundationLambda:
+#     Type: AWS::Lambda::Function
+#     Properties:
+#       FunctionName: !Sub ${EnvironmentName}-datafoundation
+#       Runtime: python3.12
+#       Handler: prebaked_sql_toolset_lambda.lambda_handler
+#       Role: !GetAtt DataFoundationLambdaRole.Arn
+#       Timeout: 120
+#       MemorySize: 256
+#       Code:
+#         S3Bucket: !Ref ArtifactsBucket
+#         S3Key: !Sub ${ArtifactsPrefix}${DataFoundationLambdaKey}
+#       Layers:
+#         - !If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]
+#         - !If [NeedsPyJwtLayer, !Ref PyJwtLayer, !Ref PyJwtLayerArn]
+#       VpcConfig:
+#         SubnetIds:
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet1Id'
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet2Id'
+#         SecurityGroupIds:
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-LambdaSecurityGroupId'
+#       Environment:
+#         Variables:
+#           AURORA_ENDPOINT:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-AuroraClusterEndpoint'
+#           # RLS toggle is at RUNTIME (TODO 7.2): both secrets are wired here and
+#           # the Lambda picks one based on the RlsParameter SSM flag. No redeploy
+#           # to flip RLS — so this config never changes and the published version
+#           # stays valid for provisioned concurrency.
+#           AURORA_SECRET_ARN:                                    # postgres owner (RLS bypassed)
+#             Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecretArn'
+#           APP_AURORA_SECRET_ARN:                                # app_user (RLS enforced)
+#             Fn::ImportValue: !Sub '${EnvironmentName}-AppDatabaseSecretArn'
+#           RLS_PARAM_NAME: !Sub /${EnvironmentName}/rls-mode
+#           AURORA_DATABASE: timely_unicorn
+#           AURORA_USERNAME: postgres
+#           KNOWLEDGE_BASE_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-KnowledgeBaseId'
+#           # JWT verification: validate the propagated Cognito access token
+#           # before trusting account_id/role for RLS.
+#           COGNITO_USER_POOL_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+#           COGNITO_USER_LOGIN_CLIENT_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+
+#   # Lambda permission for Gateway to invoke
+#   # Published version + 'live' alias with provisioned concurrency, so the
+#   # Gateway invokes a warm instance (no cold start). The Gateway target points
+#   # at the alias ARN. The RLS toggle is a runtime SSM flag (not an env change),
+#   # so this version stays valid across a Step-7.2 flip.
+#   DataFoundationVersion:
+#     Type: AWS::Lambda::Version
+#     Properties:
+#       FunctionName: !Ref DataFoundationLambda
+#       Description: Version fronted by the live alias for provisioned concurrency
+
+#   DataFoundationAlias:
+#     Type: AWS::Lambda::Alias
+#     Properties:
+#       FunctionName: !Ref DataFoundationLambda
+#       FunctionVersion: !GetAtt DataFoundationVersion.Version
+#       Name: live
+#       ProvisionedConcurrencyConfig:
+#         ProvisionedConcurrentExecutions: 1
+
+#   DataFoundationLambdaPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       FunctionName: !Ref DataFoundationAlias
+#       Action: lambda:InvokeFunction
+#       Principal: bedrock-agentcore.amazonaws.com
+
+#   # psycopg2 layer (created only if not provided)
+#   Psycopg2Layer:
+#     Type: AWS::Lambda::LayerVersion
+#     Condition: NeedsPsycopg2Layer
+#     Properties:
+#       LayerName: !Sub ${EnvironmentName}-psycopg2
+#       Description: psycopg2-binary for Python 3.12
+#       Content:
+#         S3Bucket: !Ref ArtifactsBucket
+#         S3Key: !Sub ${ArtifactsPrefix}layers/psycopg2-py312.zip
+#       CompatibleRuntimes:
+#         - python3.12
+
+#   # PyJWT + cryptography layer (created only if not provided). The tool Lambdas
+#   # verify the propagated Cognito access token (RS256 via JWKS) before trusting
+#   # account_id/role for RLS.
+#   PyJwtLayer:
+#     Type: AWS::Lambda::LayerVersion
+#     Condition: NeedsPyJwtLayer
+#     Properties:
+#       LayerName: !Sub ${EnvironmentName}-pyjwt
+#       Description: PyJWT + cryptography for Python 3.12
+#       Content:
+#         S3Bucket: !Ref ArtifactsBucket
+#         S3Key: !Sub ${ArtifactsPrefix}layers/pyjwt-py312.zip
+#       CompatibleRuntimes:
+#         - python3.12
+
+#   #============================================================================
+#   # Gateway Target — DataTools (29 analytics tools)
+#   #============================================================================
+#   DataToolsTarget:
+#     Type: AWS::BedrockAgentCore::GatewayTarget
+#     DependsOn:
+#       - Gateway
+#       - DataFoundationLambdaPermission
+#     Properties:
+#       GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
+#       Name: PrebakedSQL
+#       Description: 29 prebaked SQL analytics tools backed by Aurora PostgreSQL views
+#       CredentialProviderConfigurations:
+#         - CredentialProviderType: GATEWAY_IAM_ROLE
+#       TargetConfiguration:
+#         Mcp:
+#           Lambda:
+#             LambdaArn: !Ref DataFoundationAlias
+#             ToolSchema:
+#               InlinePayload:
+#                 - Name: check_db_status_tool
+#                   Description: Check Aurora PostgreSQL database status
+#                   InputSchema: { Type: object }
+#                 - Name: list_tables_tool
+#                   Description: List all database tables
+#                   InputSchema: { Type: object }
+#                 - Name: get_accounts_tool
+#                   Description: Get unicorn rental business accounts
+#                   InputSchema: { Type: object }
+#                 - Name: get_unicorns_tool
+#                   Description: Get unicorns with optional filters
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       available_only: { Type: boolean }
+#                 - Name: get_customers_tool
+#                   Description: Get customers
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       customer_type: { Type: string }
+#                       limit: { Type: integer }
+#                 - Name: get_bookings_tool
+#                   Description: Get bookings with date range
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       start_date: { Type: string }
+#                       end_date: { Type: string }
+#                       limit: { Type: integer }
+#                 - Name: get_transactions_tool
+#                   Description: Get transactions
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       transaction_type: { Type: string }
+#                       limit: { Type: integer }
+#                 - Name: get_unicorn_availability_tool
+#                   Description: Get unicorn availability history
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       unicorn_id: { Type: string }
+#                     Required: [unicorn_id]
+#                 - Name: get_users_tool
+#                   Description: Get system users
+#                   InputSchema: { Type: object }
+#                 - Name: get_subscription_plans_tool
+#                   Description: Get subscription plans
+#                   InputSchema: { Type: object }
+#                 - Name: search_unicorns_tool
+#                   Description: Search unicorns by name/breed/color
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       query: { Type: string }
+#                     Required: [query]
+#                 - Name: search_customers_tool
+#                   Description: Search customers
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       query: { Type: string }
+#                     Required: [query]
+#                 - Name: get_booking_summary_tool
+#                   Description: Get booking analytics summary
+#                   InputSchema: { Type: object }
+#                 - Name: get_revenue_summary_tool
+#                   Description: Get monthly revenue summary
+#                   InputSchema: { Type: object }
+#                 - Name: get_daily_bookings_summary_tool
+#                   Description: Get daily bookings with customer/unicorn details
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       limit: { Type: integer }
+#                 - Name: get_monthly_revenue_summary_tool
+#                   Description: Get monthly revenue breakdown
+#                   InputSchema: { Type: object }
+#                 - Name: get_current_unicorn_availability_tool
+#                   Description: Get real-time unicorn availability status
+#                   InputSchema: { Type: object }
+#                 - Name: get_calendar_bookings_tool
+#                   Description: Get calendar-friendly booking view
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       start_date: { Type: string }
+#                       end_date: { Type: string }
+#                 - Name: get_customer_retention_metrics_tool
+#                   Description: Get customer retention segments
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       segment: { Type: string }
+#                 - Name: get_top_revenue_breeds_tool
+#                   Description: Get top unicorn breeds by revenue
+#                   InputSchema: { Type: object }
+#                 - Name: get_top_revenue_customers_tool
+#                   Description: Get top customers by revenue
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       limit: { Type: integer }
+#                 - Name: get_revenue_by_time_and_day_tool
+#                   Description: Get revenue patterns by hour/day
+#                   InputSchema: { Type: object }
+#                 - Name: get_unicorns_due_maintenance_tool
+#                   Description: Get unicorns due for maintenance
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       urgency: { Type: string }
+#                 - Name: get_account_subscription_status_tool
+#                   Description: Get account subscription status
+#                   InputSchema: { Type: object }
+#                 - Name: get_my_account_info_tool
+#                   Description: Get the current tenant account details (name, plan, storage, user count)
+#                   InputSchema: { Type: object }
+#                 - Name: get_customer_lifetime_value_tool
+#                   Description: Get customer lifetime value metrics
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       limit: { Type: integer }
+#                 - Name: get_seasonal_trends_tool
+#                   Description: Get seasonal booking trends
+#                   InputSchema: { Type: object }
+#                 - Name: get_customer_segmentation_tool
+#                   Description: Get customer segmentation by revenue
+#                   InputSchema: { Type: object }
+#                 - Name: semantic_search_tool
+#                   Description: Search database metadata using natural language
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       query: { Type: string }
+#                       top_k: { Type: integer }
+#                     Required: [query]
+  # ===== UNCOMMENT TO HERE (Step 4) ======
+
+  # ===== UNCOMMENT FROM HERE (Step 5: API integration toolset (create_booking)) ======
+
+#   #============================================================================
+#   # APIInteg Lambda (create_booking write tool)
+#   #============================================================================
+#   ApiIntegLambdaRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       RoleName: !Sub ${EnvironmentName}-api-integ-role
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal:
+#               Service: lambda.amazonaws.com
+#             Action: sts:AssumeRole
+#       ManagedPolicyArns:
+#         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+#       Policies:
+#         - PolicyName: ApiIntegPolicy
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               - Effect: Allow
+#                 Action: secretsmanager:GetSecretValue
+#                 Resource:
+#                   - Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecretArn'
+#                   - Fn::ImportValue: !Sub '${EnvironmentName}-AppDatabaseSecretArn'
+#               # Read the runtime RLS feature flag (TODO 7.2 toggle).
+#               - Effect: Allow
+#                 Action: ssm:GetParameter
+#                 Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/rls-mode
+
+#   ApiIntegLambda:
+#     Type: AWS::Lambda::Function
+#     Properties:
+#       FunctionName: !Sub ${EnvironmentName}-api-integration-toolset
+#       Runtime: python3.12
+#       Handler: api_integration_toolset_lambda.lambda_handler
+#       Role: !GetAtt ApiIntegLambdaRole.Arn
+#       Timeout: 60
+#       MemorySize: 256
+#       Code:
+#         S3Bucket: !Ref ArtifactsBucket
+#         S3Key: !Sub ${ArtifactsPrefix}${ApiIntegLambdaKey}
+#       Layers:
+#         - !If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]
+#         - !If [NeedsPyJwtLayer, !Ref PyJwtLayer, !Ref PyJwtLayerArn]
+#       VpcConfig:
+#         SubnetIds:
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet1Id'
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet2Id'
+#         SecurityGroupIds:
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-LambdaSecurityGroupId'
+#       Environment:
+#         Variables:
+#           AURORA_ENDPOINT:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-AuroraClusterEndpoint'
+#           # RLS toggle is at RUNTIME (TODO 7.2): both secrets are wired here and
+#           # the Lambda picks one based on the RlsParameter SSM flag. No redeploy
+#           # to flip RLS — so this config never changes and the published version
+#           # stays valid for provisioned concurrency.
+#           AURORA_SECRET_ARN:                                    # postgres owner (RLS bypassed)
+#             Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecretArn'
+#           APP_AURORA_SECRET_ARN:                                # app_user (RLS enforced)
+#             Fn::ImportValue: !Sub '${EnvironmentName}-AppDatabaseSecretArn'
+#           RLS_PARAM_NAME: !Sub /${EnvironmentName}/rls-mode
+#           AURORA_DATABASE: timely_unicorn
+#           # JWT verification: validate the propagated Cognito access token
+#           # before trusting account_id/role for RLS.
+#           COGNITO_USER_POOL_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+#           COGNITO_USER_LOGIN_CLIENT_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+
+#   ApiIntegVersion:
+#     Type: AWS::Lambda::Version
+#     Properties:
+#       FunctionName: !Ref ApiIntegLambda
+#       Description: Version fronted by the live alias for provisioned concurrency
+
+#   ApiIntegAlias:
+#     Type: AWS::Lambda::Alias
+#     Properties:
+#       FunctionName: !Ref ApiIntegLambda
+#       FunctionVersion: !GetAtt ApiIntegVersion.Version
+#       Name: live
+#       ProvisionedConcurrencyConfig:
+#         ProvisionedConcurrentExecutions: 1
+
+#   ApiIntegLambdaPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       FunctionName: !Ref ApiIntegAlias
+#       Action: lambda:InvokeFunction
+#       Principal: bedrock-agentcore.amazonaws.com
+
+#   #============================================================================
+#   # Gateway Target — APIInteg (create_booking write tool)
+#   #============================================================================
+#   ApiIntegTarget:
+#     Type: AWS::BedrockAgentCore::GatewayTarget
+#     DependsOn:
+#       - Gateway
+#       - ApiIntegLambdaPermission
+#     Properties:
+#       GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
+#       Name: APIInteg
+#       Description: API integration tools (booking creation)
+#       CredentialProviderConfigurations:
+#         - CredentialProviderType: GATEWAY_IAM_ROLE
+#       TargetConfiguration:
+#         Mcp:
+#           Lambda:
+#             LambdaArn: !Ref ApiIntegAlias
+#             ToolSchema:
+#               InlinePayload:
+#                 - Name: create_booking_tool
+#                   Description: Create a new unicorn booking. Validates unicorn availability and calculates cost based on hourly rate and duration.
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       customer_id: { Type: string, Description: The customer ID making the booking }
+#                       unicorn_id: { Type: string, Description: The unicorn ID to book }
+#                       start_datetime: { Type: string, Description: 'Booking start time in ISO format (e.g., 2026-02-01T10:00:00)' }
+#                       end_datetime: { Type: string, Description: 'Booking end time in ISO format (e.g., 2026-02-01T14:00:00)' }
+#                       special_requests: { Type: string, Description: Optional special requests }
+#                       pickup_location: { Type: string, Description: Optional pickup location }
+#                       dropoff_location: { Type: string, Description: Optional dropoff location }
+#                     Required: [customer_id, unicorn_id, start_datetime, end_datetime]
+  # ===== UNCOMMENT TO HERE (Step 5) ======
+
+  # ===== UNCOMMENT FROM HERE (Step 6: Custom SQL toolset (text-to-SQL + Glue + KB RAG)) ======
+
+#   #============================================================================
+#   # CustomSQL Lambda (text-to-SQL with Glue schema + Bedrock KB RAG)
+#   #============================================================================
+#   CustomSqlLambdaRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       RoleName: !Sub ${EnvironmentName}-custom-sql-role
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal:
+#               Service: lambda.amazonaws.com
+#             Action: sts:AssumeRole
+#       ManagedPolicyArns:
+#         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+#       Policies:
+#         - PolicyName: CustomSqlPolicy
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               - Effect: Allow
+#                 Action: secretsmanager:GetSecretValue
+#                 Resource:
+#                   - Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecretArn'
+#                   - Fn::ImportValue: !Sub '${EnvironmentName}-AppDatabaseSecretArn'
+#               # Read the runtime RLS feature flag (TODO 7.2 toggle).
+#               - Effect: Allow
+#                 Action: ssm:GetParameter
+#                 Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/rls-mode
+#               - Effect: Allow
+#                 Action:
+#                   - glue:GetTables
+#                   - glue:GetTable
+#                   - glue:GetDatabase
+#                 Resource: '*'
+#               - Effect: Allow
+#                 Action:
+#                   - bedrock:Retrieve
+#                   - bedrock:InvokeModel
+#                   - bedrock-agent-runtime:Retrieve
+#                 Resource: '*'
+
+#   CustomSqlLambda:
+#     Type: AWS::Lambda::Function
+#     Properties:
+#       FunctionName: !Sub ${EnvironmentName}-custom-sql-toolset
+#       Runtime: python3.12
+#       Handler: custom_sql_toolset_lambda.lambda_handler
+#       Role: !GetAtt CustomSqlLambdaRole.Arn
+#       Timeout: 60
+#       MemorySize: 256
+#       Code:
+#         S3Bucket: !Ref ArtifactsBucket
+#         S3Key: !Sub ${ArtifactsPrefix}${CustomSqlLambdaKey}
+#       Layers:
+#         - !If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]
+#         - !If [NeedsPyJwtLayer, !Ref PyJwtLayer, !Ref PyJwtLayerArn]
+#       VpcConfig:
+#         SubnetIds:
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet1Id'
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-PrivateSubnet2Id'
+#         SecurityGroupIds:
+#           - Fn::ImportValue: !Sub '${EnvironmentName}-LambdaSecurityGroupId'
+#       Environment:
+#         Variables:
+#           AURORA_ENDPOINT:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-AuroraClusterEndpoint'
+#           # RLS toggle is at RUNTIME (TODO 7.2): both secrets are wired here and
+#           # the Lambda picks one based on the RlsParameter SSM flag. No redeploy
+#           # to flip RLS — so this config never changes and the published version
+#           # stays valid for provisioned concurrency.
+#           AURORA_SECRET_ARN:                                    # postgres owner (RLS bypassed)
+#             Fn::ImportValue: !Sub '${EnvironmentName}-DatabaseSecretArn'
+#           APP_AURORA_SECRET_ARN:                                # app_user (RLS enforced)
+#             Fn::ImportValue: !Sub '${EnvironmentName}-AppDatabaseSecretArn'
+#           RLS_PARAM_NAME: !Sub /${EnvironmentName}/rls-mode
+#           AURORA_DATABASE: timely_unicorn
+#           GLUE_DATABASE:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-GlueDatabaseName'
+#           BEDROCK_KB_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-KnowledgeBaseId'
+#           # JWT verification: validate the propagated Cognito access token
+#           # before trusting account_id/role for RLS.
+#           COGNITO_USER_POOL_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+#           COGNITO_USER_LOGIN_CLIENT_ID:
+#             Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+
+#   CustomSqlVersion:
+#     Type: AWS::Lambda::Version
+#     Properties:
+#       FunctionName: !Ref CustomSqlLambda
+#       Description: Version fronted by the live alias for provisioned concurrency
+
+#   CustomSqlAlias:
+#     Type: AWS::Lambda::Alias
+#     Properties:
+#       FunctionName: !Ref CustomSqlLambda
+#       FunctionVersion: !GetAtt CustomSqlVersion.Version
+#       Name: live
+#       ProvisionedConcurrencyConfig:
+#         ProvisionedConcurrentExecutions: 1
+
+#   CustomSqlLambdaPermission:
+#     Type: AWS::Lambda::Permission
+#     Properties:
+#       FunctionName: !Ref CustomSqlAlias
+#       Action: lambda:InvokeFunction
+#       Principal: bedrock-agentcore.amazonaws.com
+
+#   #============================================================================
+#   # Gateway Target — CustomSQL (text-to-SQL with human approval)
+#   #============================================================================
+#   CustomSqlTarget:
+#     Type: AWS::BedrockAgentCore::GatewayTarget
+#     DependsOn:
+#       - Gateway
+#       - CustomSqlLambdaPermission
+#     Properties:
+#       GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
+#       Name: CustomSQL
+#       Description: Custom SQL tools backed by Glue catalog and Bedrock KB RAG
+#       CredentialProviderConfigurations:
+#         - CredentialProviderType: GATEWAY_IAM_ROLE
+#       TargetConfiguration:
+#         Mcp:
+#           Lambda:
+#             LambdaArn: !Ref CustomSqlAlias
+#             ToolSchema:
+#               InlinePayload:
+#                 - Name: text_to_sql_tool
+#                   Description: Convert natural language question to SQL context. Use when user asks analytics questions not covered by existing tools. Returns schema, business context, and a suggested SQL query for user approval.
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       question: { Type: string, Description: Natural language analytics question }
+#                     Required: [question]
+#                 - Name: get_schema_context_tool
+#                   Description: Get database table schemas from Glue catalog. Use to understand available tables and columns.
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       tables:
+#                         Type: array
+#                         Items: { Type: string }
+#                         Description: List of table names (empty for all)
+#                 - Name: execute_sql_tool
+#                   Description: Execute an approved SQL query against the database. Only use after user has approved the SQL query. Only SELECT queries are allowed.
+#                   InputSchema:
+#                     Type: object
+#                     Properties:
+#                       sql: { Type: string, Description: 'The SQL query to execute (must be SELECT only)' }
+#                     Required: [sql]
+  # ===== UNCOMMENT TO HERE (Step 6) ======
+
+  # ===== UNCOMMENT FROM HERE (Step 7a: Cedar policy engine + RBAC policies) ======
+
+#   # (The Cube SemanticLayer Gateway target lives only in the demo stack; the
+#   # workshop's semantic-layer lab uses its own parallel stack — see the note above.)
+
+#   #============================================================================
+#   # Policy Engine + Cedar Policies
+#   #============================================================================
+#   PolicyEngine:
+#     Type: AWS::BedrockAgentCore::PolicyEngine
+#     Properties:
+#       Name: AgenticAnalyticsPolicyEngine
+#       Description: Cedar policy engine for Agentic Analytics RBAC
+
+#   AllowAllToolsPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn: PolicyEngine
+#     Properties:
+#       Name: allow_all_tools
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Base permit — allow all tools for any authenticated principal
+#       Definition:
+#         Cedar:
+#           Statement: !Sub |
+#             permit(
+#               principal,
+#               action,
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             );
+
+#   # Cedar action names use triple underscore: TargetName___tool_name.
+#   # These two policies enforce role-based access on top of allow_all_tools.
+#   # Take effect when the Gateway's PolicyMode is ENFORCE; logged-only when LOG_ONLY.
+#   ForbidWriteAnalystPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn:
+#       - AllowAllToolsPolicy
+#       - ApiIntegTarget
+#     Properties:
+#       Name: forbid_write_analyst
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Forbid create_booking for analyst role
+#       Definition:
+#         Cedar:
+#           Statement: !Sub |
+#             forbid(
+#               principal is AgentCore::OAuthUser,
+#               action == AgentCore::Action::"APIInteg___create_booking_tool",
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             )
+#             when {
+#               principal.hasTag("custom:role") &&
+#               principal.getTag("custom:role") == "analyst"
+#             };
+
+#   ForbidCustomSqlStaffPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn:
+#       - AllowAllToolsPolicy
+#       - CustomSqlTarget
+#     Properties:
+#       Name: forbid_text2sql_staff
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Forbid Custom SQL tools for staff role
+#       Definition:
+#         Cedar:
+#           Statement: !Sub |
+#             forbid(
+#               principal is AgentCore::OAuthUser,
+#               action in [
+#                 AgentCore::Action::"CustomSQL___text_to_sql_tool",
+#                 AgentCore::Action::"CustomSQL___get_schema_context_tool",
+#                 AgentCore::Action::"CustomSQL___execute_sql_tool"
+#               ],
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             )
+#             when {
+#               principal.hasTag("custom:role") &&
+#               principal.getTag("custom:role") == "staff"
+#             };
+  # ===== UNCOMMENT TO HERE (Step 7a) ======
+
+  #============================================================================
+  # AgentCore Observability — vended-log + trace delivery
+  # Mirrors deploy_observability.py: for each AgentCore resource (Gateway and
+  # Memory), creates two pipelines:
+  #   1. APPLICATION_LOGS → CloudWatch Logs group (CFN-native)
+  #   2. TRACES → X-Ray (custom resource — CFN's AWS::Logs::DeliveryDestination
+  #      doesn't accept deliveryDestinationType='XRAY')
+  # Account-wide Transaction Search is enabled by ObservabilityStack.
+  #============================================================================
+
+  # ---- Gateway: APPLICATION_LOGS to CloudWatch Logs (CFN-native) ----
+  GatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/bedrock-agentcore/gateway/APPLICATION_LOGS/${Gateway.GatewayIdentifier}
+      RetentionInDays: 30
+
+  GatewayLogsDeliverySource:
+    Type: AWS::Logs::DeliverySource
+    DependsOn: Gateway
+    Properties:
+      Name: !Sub ${EnvironmentName}-gw-logs-src
+      LogType: APPLICATION_LOGS
+      ResourceArn: !GetAtt Gateway.GatewayArn
+
+  GatewayLogsDeliveryDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: !Sub ${EnvironmentName}-gw-logs-dst
+      DestinationResourceArn: !GetAtt GatewayLogGroup.Arn
+
+  GatewayLogsDelivery:
+    Type: AWS::Logs::Delivery
+    Properties:
+      DeliverySourceName: !Ref GatewayLogsDeliverySource
+      DeliveryDestinationArn: !GetAtt GatewayLogsDeliveryDestination.Arn
+
+  # ---- Memory: APPLICATION_LOGS to CloudWatch Logs (CFN-native) ----
+  MemoryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/bedrock-agentcore/memory/APPLICATION_LOGS/${AgentMemory.MemoryId}
+      RetentionInDays: 30
+
+  MemoryLogsDeliverySource:
+    Type: AWS::Logs::DeliverySource
+    DependsOn: AgentMemory
+    Properties:
+      Name: !Sub ${EnvironmentName}-mem-logs-src
+      LogType: APPLICATION_LOGS
+      ResourceArn: !GetAtt AgentMemory.MemoryArn
+
+  MemoryLogsDeliveryDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: !Sub ${EnvironmentName}-mem-logs-dst
+      DestinationResourceArn: !GetAtt MemoryLogGroup.Arn
+
+  MemoryLogsDelivery:
+    Type: AWS::Logs::Delivery
+    Properties:
+      DeliverySourceName: !Ref MemoryLogsDeliverySource
+      DeliveryDestinationArn: !GetAtt MemoryLogsDeliveryDestination.Arn
+
+  # ---- TRACES → X-Ray (custom resource for both Gateway and Memory) ----
+  TracesSetupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-traces-setup-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TracesSetupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Logs delivery management — same surface as logs:DeliveryDestination handler
+              - Effect: Allow
+                Action:
+                  - logs:PutDeliverySource
+                  - logs:GetDeliverySource
+                  - logs:DeleteDeliverySource
+                  - logs:PutDeliveryDestination
+                  - logs:GetDeliveryDestination
+                  - logs:DeleteDeliveryDestination
+                  - logs:PutDeliveryDestinationPolicy
+                  - logs:GetDeliveryDestinationPolicy
+                  - logs:DeleteDeliveryDestinationPolicy
+                  - logs:CreateDelivery
+                  - logs:DeleteDelivery
+                  - logs:GetDelivery
+                  - logs:DescribeDeliveries
+                  - logs:DescribeDeliverySources
+                  - logs:DescribeDeliveryDestinations
+                  - logs:AllowVendedLogDeliveryForResource
+                  - logs:TagResource
+                  - logs:ListTagsForResource
+                Resource: '*'
+              # Source-resource permission — required by put_delivery_source for vended logs
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:AllowVendedLogDeliveryForResource
+                Resource: '*'
+              # X-Ray destination permissions (workshop's deploy_observability.py runs
+              # as Admin, which has these implicitly; our Lambda needs them explicit)
+              - Effect: Allow
+                Action:
+                  - xray:PutResourcePolicy
+                  - xray:GetResourcePolicy
+                  - xray:DeleteResourcePolicy
+                  - xray:ListResourcePolicies
+                  - xray:PutTraceSegments
+                  - xray:GetTraceSummaries
+                Resource: '*'
+
+  TracesSetupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-traces-setup
+      Description: Wires APPLICATION_LOGS/TRACES delivery for AgentCore resources (mirrors deploy_observability.py)
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt TracesSetupRole.Arn
+      Timeout: 120
+      Code:
+        ZipFile: |
+          import boto3, json, urllib.request
+          def send(event, context, status, data=None, reason=None):
+              body = json.dumps({
+                  'Status': status,
+                  'Reason': reason or f'See {context.log_stream_name}',
+                  'PhysicalResourceId': event.get('PhysicalResourceId') or event['ResourceProperties'].get('SrcName', 'traces'),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data or {}
+              })
+              urllib.request.urlopen(urllib.request.Request(
+                  event['ResponseURL'], data=body.encode(),
+                  headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              try:
+                  props = event['ResourceProperties']
+                  src_name = props['SrcName']
+                  dst_name = props['DstName']
+                  resource_arn = props['ResourceArn']
+                  logs = boto3.client('logs')
+                  if event['RequestType'] == 'Delete':
+                      try:
+                          for d in logs.describe_deliveries().get('deliveries', []):
+                              if d.get('deliverySourceName') == src_name:
+                                  logs.delete_delivery(id=d['id'])
+                          logs.delete_delivery_destination(name=dst_name)
+                          logs.delete_delivery_source(name=src_name)
+                      except Exception as e:
+                          print(f'Delete warning: {e}')
+                      send(event, context, 'SUCCESS')
+                      return
+                  # Create / Update — idempotent. Mirrors deploy_observability.py.
+                  try:
+                      logs.put_delivery_source(name=src_name, logType='TRACES', resourceArn=resource_arn)
+                      print(f'put_delivery_source ok: {src_name}')
+                  except Exception as e:
+                      msg = str(e).lower()
+                      if 'conflict' not in msg and 'already exists' not in msg:
+                          raise
+                      print(f'source exists: {src_name}')
+                  try:
+                      dst = logs.put_delivery_destination(name=dst_name, deliveryDestinationType='XRAY')
+                      dst_arn = dst['deliveryDestination']['arn']
+                      print(f'put_delivery_destination ok: {dst_name}')
+                  except Exception as e:
+                      msg = str(e).lower()
+                      if 'conflict' not in msg and 'already exists' not in msg:
+                          raise
+                      dst = logs.describe_delivery_destinations(name=dst_name)
+                      dst_arn = dst['deliveryDestinations'][0]['arn']
+                      print(f'destination exists: {dst_name}')
+                  # Two-statement vended-log policy as documented by AWS.
+                  account_id = context.invoked_function_arn.split(':')[4]
+                  policy = json.dumps({
+                      'Version': '2012-10-17',
+                      'Statement': [
+                          {
+                              'Sid': 'AllowVendedLogDelivery',
+                              'Effect': 'Allow',
+                              'Principal': {'Service': 'delivery.logs.amazonaws.com'},
+                              'Action': ['logs:CreateDelivery'],
+                              'Resource': dst_arn,
+                              'Condition': {
+                                  'StringEquals': {'aws:SourceAccount': account_id}
+                              }
+                          },
+                          {
+                              'Sid': 'AllowAccountDelivery',
+                              'Effect': 'Allow',
+                              'Principal': {'AWS': f'arn:aws:iam::{account_id}:root'},
+                              'Action': [
+                                  'logs:CreateDelivery',
+                                  'logs:GetDelivery',
+                                  'logs:DeleteDelivery'
+                              ],
+                              'Resource': dst_arn
+                          }
+                      ]
+                  })
+                  try:
+                      logs.put_delivery_destination_policy(
+                          deliveryDestinationName=dst_name,
+                          deliveryDestinationPolicy=policy
+                      )
+                      print('destination policy attached')
+                  except Exception as e:
+                      print(f'put_delivery_destination_policy warning: {e}')
+                  try:
+                      logs.create_delivery(deliverySourceName=src_name, deliveryDestinationArn=dst_arn)
+                      print(f'create_delivery ok')
+                  except Exception as e:
+                      msg = str(e).lower()
+                      if 'conflict' not in msg and 'already exists' not in msg:
+                          raise
+                      print(f'delivery exists')
+                  send(event, context, 'SUCCESS', {'DestinationArn': dst_arn})
+              except Exception as e:
+                  print(f'Error: {e}')
+                  send(event, context, 'FAILED', reason=str(e)[:200])
+
+  GatewayTracesSetup:
+    Type: Custom::TracesSetup
+    DependsOn: Gateway
+    Properties:
+      ServiceToken: !GetAtt TracesSetupFunction.Arn
+      SrcName: !Sub ${EnvironmentName}-gw-traces-src
+      DstName: !Sub ${EnvironmentName}-gw-traces-dst
+      ResourceArn: !GetAtt Gateway.GatewayArn
+
+  MemoryTracesSetup:
+    Type: Custom::TracesSetup
+    DependsOn: AgentMemory
+    Properties:
+      ServiceToken: !GetAtt TracesSetupFunction.Arn
+      SrcName: !Sub ${EnvironmentName}-mem-traces-src
+      DstName: !Sub ${EnvironmentName}-mem-traces-dst
+      ResourceArn: !GetAtt AgentMemory.MemoryArn
+
+  #============================================================================
+  # AgentCore Memory — short-term conversation history within sessions.
+  # The agent reads MEMORY_ID from its environment and uses MemoryHookProvider
+  # to load/save events. Mirrors deploy_memory.py (no strategies, 7-day expiry).
+  #============================================================================
+  AgentMemory:
+    Type: AWS::BedrockAgentCore::Memory
+    Properties:
+      Name: unicorn_rental_agent_memory
+      Description: Short-term conversation memory for unicorn rental analytics agent
+      EventExpiryDuration: 7
+
+  # ===== UNCOMMENT FROM HERE (Step 8: Bedrock Guardrail) ======
+
+#   #============================================================================
+#   # Bedrock Guardrail (optional — controlled by EnableGuardrail param)
+#   # Wires into the agent at runtime via GUARDRAIL_ID + GUARDRAIL_VERSION env
+#   # vars (read by app/agentcore_strands/unicorn_rental_agent.py).
+#   #============================================================================
+#   Guardrail:
+#     Type: AWS::Bedrock::Guardrail
+#     Properties:
+#       Name: !Sub ${EnvironmentName}-guardrail
+#       Description: Guardrail for Unicorn Rental Analytics agent — blocks off-topic, harmful content, sensitive PII, and database schema leakage
+#       BlockedInputMessaging: I can only help with unicorn rental analytics questions. Please ask about bookings, revenue, customers, or unicorn management.
+#       BlockedOutputsMessaging: I'm unable to provide that response as it may contain inappropriate or restricted content.
+#       TopicPolicyConfig:
+#         TopicsConfig:
+#           - Name: DangerousAdvice
+#             Type: DENY
+#             Definition: Requests for medical diagnosis or treatment, financial investment advice, legal counsel, tax guidance, or any professional advice that requires licensed expertise.
+#             Examples:
+#               - Should I invest in this stock?
+#               - What medication should I take for my headache?
+#               - Is this contract legally binding?
+#               - How should I file my taxes?
+#               - Can you diagnose my symptoms?
+#       ContentPolicyConfig:
+#         FiltersConfig:
+#           - Type: HATE
+#             InputStrength: LOW
+#             OutputStrength: MEDIUM
+#           - Type: INSULTS
+#             InputStrength: LOW
+#             OutputStrength: MEDIUM
+#           - Type: VIOLENCE
+#             InputStrength: LOW
+#             OutputStrength: MEDIUM
+#           - Type: SEXUAL
+#             InputStrength: LOW
+#             OutputStrength: MEDIUM
+#           - Type: MISCONDUCT
+#             InputStrength: LOW
+#             OutputStrength: MEDIUM
+#           - Type: PROMPT_ATTACK
+#             InputStrength: HIGH
+#             OutputStrength: NONE
+#       SensitiveInformationPolicyConfig:
+#         PiiEntitiesConfig:
+#           - Type: PHONE
+#             Action: BLOCK
+#           - Type: US_SOCIAL_SECURITY_NUMBER
+#             Action: BLOCK
+#           - Type: CREDIT_DEBIT_CARD_NUMBER
+#             Action: BLOCK
+#           - Type: CREDIT_DEBIT_CARD_CVV
+#             Action: BLOCK
+#           - Type: CREDIT_DEBIT_CARD_EXPIRY
+#             Action: BLOCK
+#           - Type: US_BANK_ACCOUNT_NUMBER
+#             Action: BLOCK
+#           - Type: US_BANK_ROUTING_NUMBER
+#             Action: BLOCK
+#           - Type: PIN
+#             Action: BLOCK
+#           - Type: PASSWORD
+#             Action: BLOCK
+#       WordPolicyConfig:
+#         ManagedWordListsConfig:
+#           - Type: PROFANITY
+  # ===== UNCOMMENT TO HERE (Step 8) ======
+
+  #============================================================================
+  # AgentCore Runtime IAM Role
+  #============================================================================
+  AgentRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-agent-runtime-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AgentRuntimePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:ApplyGuardrail
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:CreateEvent
+                  - bedrock-agentcore:GetEvent
+                  - bedrock-agentcore:ListEvents
+                  - bedrock-agentcore:ListSessions
+                  - bedrock-agentcore:GetMemoryRecord
+                  - bedrock-agentcore:ListMemoryRecords
+                  - bedrock-agentcore:RetrieveMemoryRecords
+                Resource: !GetAtt AgentMemory.MemoryArn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+              # Chart code interpreter: the runtime role must be allowed to START
+              # and drive sessions on the custom CI (the CI's OWN execution role only
+              # governs what the sandbox can do once running — it does NOT grant the
+              # agent permission to invoke it). Without this the agent gets
+              # AccessDeniedException on StartCodeInterpreterSession and charts fail.
+              # Scoped to the chart CI and its sessions (not '*').
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:StartCodeInterpreterSession
+                  - bedrock-agentcore:InvokeCodeInterpreter
+                  - bedrock-agentcore:StopCodeInterpreterSession
+                  - bedrock-agentcore:GetCodeInterpreterSession
+                  - bedrock-agentcore:ListCodeInterpreterSessions
+                Resource:
+                  - !GetAtt ChartCodeInterpreter.CodeInterpreterArn
+                  - !Sub '${ChartCodeInterpreter.CodeInterpreterArn}/*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              # Observability: the agent runs under opentelemetry-instrument (see the
+              # Dockerfile CMD) and exports spans to the AgentCore-provided OTLP
+              # collector, which delivers to X-Ray / CloudWatch Transaction Search.
+              # Without these the runtime emits NO agent/LLM spans, so the GenAI
+              # Observability "Agents" view is empty and `agentcore eval` (Step 10)
+              # finds nothing to score. (AgentCore runtime execution-role contract.)
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: bedrock-agentcore
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: !GetAtt AgentECRRepo.Arn
+
+  #============================================================================
+  # ECR Repository for Agent Container
+  #============================================================================
+  AgentECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${EnvironmentName}-agent
+      # Let delete-stack remove the repo even though CodeBuild pushed images into it
+      # — otherwise teardown fails with "repository still contains images" (mirrors
+      # the voice ECR repo in voice-agentcore-stack.yaml).
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: false
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
+
+  #============================================================================
+  # CodeBuild Role
+  #============================================================================
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-codebuild-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                Resource: !GetAtt AgentECRRepo.Arn
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+
+  #============================================================================
+  # CodeBuild Project — builds agent Docker image
+  #============================================================================
+  AgentBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${EnvironmentName}-agent-build
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Environment:
+        Type: ARM_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: ECR_REPO_URI
+            Value: !GetAtt AgentECRRepo.RepositoryUri
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: IMAGE_TAG
+            Value: !Ref AgentImageTag
+      Source:
+        Type: S3
+        Location: !Sub ${ArtifactsBucket}/${ArtifactsPrefix}${AgentCodeS3Key}
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+            build:
+              commands:
+                - |
+                  cat > Dockerfile << 'DOCKERFILE'
+                  FROM public.ecr.aws/docker/library/python:3.12-slim
+                  WORKDIR /app
+                  COPY requirements.txt .
+                  RUN pip install --no-cache-dir -r requirements.txt
+                  COPY unicorn_rental_agent.py .
+                  COPY unicorn_rental_analytics.sop.md .
+                  EXPOSE 8080
+                  # Launch under opentelemetry-instrument so AgentCore Runtime
+                  # exports agent/LLM spans to CloudWatch (aws/spans) — mirrors
+                  # AgentCore's own build when aws-opentelemetry-distro is present.
+                  # Without it the runtime emits NO spans, so Step 9 shows no agent
+                  # traces and Step 10 `agentcore eval` finds nothing to score.
+                  CMD ["opentelemetry-instrument", "python", "unicorn_rental_agent.py"]
+                  DOCKERFILE
+                - docker build -t $ECR_REPO_URI:$IMAGE_TAG .
+            post_build:
+              commands:
+                - docker push $ECR_REPO_URI:$IMAGE_TAG
+                - echo $ECR_REPO_URI:$IMAGE_TAG > /tmp/image_uri.txt
+      Artifacts:
+        Type: NO_ARTIFACTS
+      TimeoutInMinutes: 15
+
+  #============================================================================
+  # Custom Resource Lambda — triggers CodeBuild and waits
+  #============================================================================
+  BuildTriggerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-build-trigger-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BuildTriggerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !GetAtt AgentBuildProject.Arn
+
+  BuildTriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-build-trigger
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt BuildTriggerRole.Arn
+      Timeout: 900
+      Code:
+        ZipFile: |
+          import boto3, json, time, urllib.request
+          def send(event, context, status, data=None, reason=None):
+              body = json.dumps({'Status': status, 'Reason': reason or 'OK',
+                  'PhysicalResourceId': event.get('PhysicalResourceId', 'build'),
+                  'StackId': event['StackId'], 'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'], 'Data': data or {}})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'],
+                  data=body.encode(), headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS'); return
+              try:
+                  props = event['ResourceProperties']
+                  cb = boto3.client('codebuild')
+                  build = cb.start_build(projectName=props['ProjectName'])
+                  build_id = build['build']['id']
+                  while True:
+                      time.sleep(15)
+                      r = cb.batch_get_builds(ids=[build_id])
+                      status = r['builds'][0]['buildStatus']
+                      if status == 'SUCCEEDED':
+                          send(event, context, 'SUCCESS', {'ImageUri': props['ImageUri']})
+                          return
+                      elif status in ('FAILED', 'FAULT', 'STOPPED', 'TIMED_OUT'):
+                          send(event, context, 'FAILED', reason=f'Build {status}')
+                          return
+              except Exception as e:
+                  send(event, context, 'FAILED', reason=str(e)[:200])
+
+  BuildTrigger:
+    Type: Custom::BuildTrigger
+    DependsOn:
+      - AgentBuildProject
+      - BuildTriggerFunction
+      - AgentECRRepo
+    Properties:
+      ServiceToken: !GetAtt BuildTriggerFunction.Arn
+      ProjectName: !Ref AgentBuildProject
+      # Including the tag here means a `make build` (which bumps AgentImageTag)
+      # changes this custom resource's properties → CloudFormation re-invokes the
+      # Lambda → CodeBuild rebuilds + pushes the new tag before the Runtime updates.
+      ImageTag: !Ref AgentImageTag
+      ImageUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-agent:${AgentImageTag}
+
+  #============================================================================
+  # Chart Code Interpreter (custom — renders matplotlib PNGs and uploads to S3)
+  #
+  # The agent calls this sandbox to render charts; the SOP (Step 4b) has it write
+  # the PNG to s3://${ArtifactsBucket}/charts/ and print only the S3 key. A CUSTOM
+  # interpreter is required because the default aws.codeinterpreter.v1 has NO
+  # execution role and therefore cannot reach S3. The agent then presigns the key
+  # for the UI (its runtime role already has s3:GetObject on the bucket).
+  #============================================================================
+  ChartCodeInterpreterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-chart-ci-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ChartUploadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/charts/*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  ChartCodeInterpreter:
+    Type: AWS::BedrockAgentCore::CodeInterpreterCustom
+    Properties:
+      # AgentCore names must match [a-zA-Z][a-zA-Z0-9_]{0,47} — no hyphens. Hardcoded
+      # with underscores (like AgentRuntimeName above) since ${EnvironmentName}
+      # contains a hyphen (agentic-analytics).
+      Name: agentic_analytics_chart_ci
+      Description: Renders matplotlib charts and uploads them to S3 for the analytics agent
+      NetworkConfiguration:
+        NetworkMode: PUBLIC   # needs egress to reach S3
+      ExecutionRoleArn: !GetAtt ChartCodeInterpreterRole.Arn
+
+  #============================================================================
+  # AgentCore Runtime (Container mode — pre-built image, fast cold start)
+  #============================================================================
+  #============================================================================
+  # AgentCore Runtime (Container mode — pre-built image, fast cold start)
+  #============================================================================
+  # ==========================================================================
+  # Model subscription — accept the Bedrock Marketplace agreement for the agent's
+  # model at deploy time, so the runtime can invoke it. Fresh sandbox accounts do
+  # NOT come pre-subscribed to every model; without this, ConverseStream fails with
+  # "not authorized to perform aws-marketplace:Subscribe ... to enable access to
+  # this model" and the agent errors on every turn. Idempotent: no-op if already
+  # AVAILABLE. Best-effort (never fails the stack — a model that needs no agreement
+  # simply has no offer).
+  # ==========================================================================
+  ModelSubscriptionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-model-subscription-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ModelSubscriptionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:GetFoundationModelAvailability
+                  - bedrock:ListFoundationModelAgreementOffers
+                  - bedrock:CreateFoundationModelAgreement
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                Resource: '*'
+
+  ModelSubscriptionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-model-subscription
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt ModelSubscriptionRole.Arn
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import boto3, json, time, urllib.request
+          def send(event, context, status, reason=None):
+              body = json.dumps({'Status': status, 'Reason': (reason or 'OK')[:300],
+                  'PhysicalResourceId': event.get('PhysicalResourceId', 'model-subscription'),
+                  'StackId': event['StackId'], 'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'], 'Data': {}})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'],
+                  data=body.encode(), headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS'); return
+              try:
+                  # ModelIds: comma-separated BASE model ids (e.g. anthropic.claude-sonnet-4-6),
+                  # NOT the global./us. inference-profile ids.
+                  ids = [m.strip() for m in event['ResourceProperties'].get('ModelIds','').split(',') if m.strip()]
+                  br = boto3.client('bedrock')
+                  for mid in ids:
+                      try:
+                          st = br.get_foundation_model_availability(modelId=mid)['agreementAvailability']['status']
+                      except Exception as e:
+                          print(f'{mid}: availability check failed ({e}); attempting subscribe anyway'); st = 'NOT_AVAILABLE'
+                      if st == 'AVAILABLE':
+                          print(f'{mid}: already AVAILABLE'); continue
+                      offers = br.list_foundation_model_agreement_offers(modelId=mid).get('offers', [])
+                      if not offers:
+                          print(f'{mid}: no agreement offer (no subscription needed)'); continue
+                      br.create_foundation_model_agreement(modelId=mid, offerToken=offers[0]['offerToken'])
+                      print(f'{mid}: agreement submitted')
+                      for _ in range(20):
+                          time.sleep(6)
+                          if br.get_foundation_model_availability(modelId=mid)['agreementAvailability']['status'] == 'AVAILABLE':
+                              print(f'{mid}: now AVAILABLE'); break
+                  send(event, context, 'SUCCESS')
+              except Exception as e:
+                  # Best-effort: do not block the stack on a subscription hiccup.
+                  print(f'model subscription warning: {e}')
+                  send(event, context, 'SUCCESS', reason=f'best-effort: {e}')
+
+  ModelSubscription:
+    Type: Custom::ModelSubscription
+    DependsOn:
+      - ModelSubscriptionFunction
+    Properties:
+      ServiceToken: !GetAtt ModelSubscriptionFunction.Arn
+      # Base model id behind the global.anthropic.claude-opus-4-6-v1 inference profile.
+      ModelIds: anthropic.claude-opus-4-6-v1
+
+  AgentRuntime:
+    Type: AWS::BedrockAgentCore::Runtime
+    DependsOn:
+      - AgentRuntimeRole
+      - BuildTrigger
+      - ChartCodeInterpreter
+      - ModelSubscription
+    Properties:
+      AgentRuntimeName: agentic_analytics_agent
+      Description: Strands agent for Agentic Analytics demo
+      RoleArn: !GetAtt AgentRuntimeRole.Arn
+      AgentRuntimeArtifact:
+        ContainerConfiguration:
+          # Tag is a parameter (AgentImageTag). A `make build` bumps it, which
+          # changes this URI → CloudFormation rolls the Runtime to a new version,
+          # re-applying the AuthorizerConfiguration / NetworkConfiguration /
+          # EnvironmentVariables below from the template (no replace-trap).
+          ContainerUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-agent:${AgentImageTag}
+      NetworkConfiguration:
+        NetworkMode: PUBLIC
+      # JWT-native inbound auth: callers (SPA + voice bot) present the signed-in
+      # user's Cognito ACCESS token as `Authorization: Bearer`. The runtime validates
+      # signature/issuer/client_id before invoking the agent — replacing IAM/SigV4.
+      # Cognito access tokens carry no 'aud', so we validate on client_id (AllowedClients),
+      # matching the Gateway authorizer above. The request-header allowlist passes the
+      # Authorization header through so the agent can read claims (context.request_headers).
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl:
+            Fn::Sub:
+              - https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}/.well-known/openid-configuration
+              - PoolId:
+                  Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+          AllowedClients:
+            - Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+      RequestHeaderConfiguration:
+        RequestHeaderAllowlist:
+          - Authorization
+      EnvironmentVariables:
+        GATEWAY_URL: !GetAtt Gateway.GatewayUrl
+        AWS_REGION: !Ref AWS::Region
+        # Opus 4.6: Opus 4.8/4.7 require account Containment Score >=350 to invoke
+        # (a gate separate from model access); fresh Workshop Studio sandbox accounts
+        # start below that, so 4.8 is AccessDenied for participants. 4.6-v1 has no
+        # C-Score gate and works in every fresh account.
+        BEDROCK_MODEL_ID: global.anthropic.claude-opus-4-6-v1
+        BYPASS_TOOL_CONSENT: 'true'
+        # --- Observability (OTEL → CloudWatch Transaction Search / aws/spans) ---
+        # These activate the ADOT distro the image installs; the AgentCore Runtime
+        # service injects the OTLP collector endpoint (localhost:4318) + default
+        # resource attributes (incl. cloud.resource_id = runtime/<id>/...) into the
+        # microVM, so we do NOT set OTEL_EXPORTER_OTLP_ENDPOINT. always_on guards the
+        # platform Sampled=0 case that otherwise drops child (model/tool) spans.
+        # Combined with the Dockerfile's `opentelemetry-instrument` CMD + the X-Ray
+        # IAM on AgentRuntimeRole, this is what makes Step 9 show agent traces and
+        # Step 10 `agentcore eval` find spans.
+        AGENT_OBSERVABILITY_ENABLED: 'true'
+        OTEL_PYTHON_DISTRO: aws_distro
+        OTEL_PYTHON_CONFIGURATOR: aws_configurator
+        OTEL_TRACES_SAMPLER: always_on
+        GUARDRAIL_ID: ''        # Step 8: replace '' with  !Ref Guardrail
+        GUARDRAIL_VERSION: ''   # Step 8: replace '' with  'DRAFT'
+        MEMORY_ID: !GetAtt AgentMemory.MemoryId
+        SOP_S3_BUCKET: !Ref ArtifactsBucket
+        # Charts: the agent renders matplotlib PNGs in the custom Code Interpreter
+        # below (which can write to S3), then presigns the key for the UI. The agent
+        # role already has s3:GetObject on the bucket, so it can presign.
+        ENABLE_CHART_TOOL: 'true'
+        CHART_CI_ID: !GetAtt ChartCodeInterpreter.CodeInterpreterId
+        CHART_BUCKET: !Ref ArtifactsBucket
+
+  #============================================================================
+  # AgentCore Runtime Endpoint
+  #============================================================================
+  AgentRuntimeEndpoint:
+    Type: AWS::BedrockAgentCore::RuntimeEndpoint
+    DependsOn: AgentRuntime
+    Properties:
+      AgentRuntimeId: !GetAtt AgentRuntime.AgentRuntimeId
+      AgentRuntimeVersion: !GetAtt AgentRuntime.AgentRuntimeVersion
+      Name: agentic_analytics_endpoint
+      Description: Production endpoint for Agentic Analytics agent
+
+Outputs:
+  GatewayId:
+    Description: AgentCore Gateway ID
+    Value: !GetAtt Gateway.GatewayIdentifier
+
+  GatewayArn:
+    Description: AgentCore Gateway ARN
+    Value: !GetAtt Gateway.GatewayArn
+
+  GatewayUrl:
+    Description: AgentCore Gateway URL
+    Value: !GetAtt Gateway.GatewayUrl
+
+  AgentRuntimeId:
+    Description: AgentCore Runtime ID
+    Value: !GetAtt AgentRuntime.AgentRuntimeId
+
+  AgentRuntimeArn:
+    Description: AgentCore Runtime ARN (what the voice bot invokes)
+    Value: !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentRuntime.AgentRuntimeId}'
+
+  AgentRuntimeEndpointId:
+    Description: AgentCore Runtime Endpoint ID
+    Value: !GetAtt AgentRuntimeEndpoint.Id
+
+  AgentRuntimeEndpointArn:
+    Description: AgentCore Runtime Endpoint ARN
+    Value: !GetAtt AgentRuntimeEndpoint.AgentRuntimeEndpointArn

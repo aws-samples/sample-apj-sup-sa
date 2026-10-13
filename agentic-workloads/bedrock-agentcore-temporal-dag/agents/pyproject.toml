@@ -1,0 +1,21 @@
+[project]
+name = "daf-agents"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "strands-agents[a2a]>=0.3.0",
+    "bedrock-agentcore>=1.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "langfuse>=2.0.0",
+    "boto3>=1.35.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["gather*", "analyze*", "evaluate*", "synthesize*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]

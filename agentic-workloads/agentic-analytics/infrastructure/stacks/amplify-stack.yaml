@@ -55,6 +55,11 @@ Parameters:
     Default: ''
     Description: AgentCore Runtime endpoint
 
+  VoiceSignalingUrl:
+    Type: String
+    Default: ''
+    Description: WebRTC signaling proxy base URL (set when EnableVoice=true). Blank → UI hides the Voice button. The SPA POSTs SDP offers / PATCHes ICE to {this}/api/offer.
+
   LambdaS3Key:
     Type: String
     Default: lambda/amplify_hosting.zip
@@ -145,6 +150,7 @@ Resources:
         REACT_APP_COGNITO_DOMAIN: !Ref CognitoDomain
         REACT_APP_COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
         REACT_APP_AGENTCORE_RUNTIME_ENDPOINT: !Ref AgentCoreRuntimeEndpoint
+        REACT_APP_VOICE_SIGNALING_URL: !Ref VoiceSignalingUrl
 
 Outputs:
   AmplifyAppId:

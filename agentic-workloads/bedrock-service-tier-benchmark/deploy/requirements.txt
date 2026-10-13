@@ -1,0 +1,3 @@
+aws-cdk-lib>=2.270,<3
+constructs>=10.4,<11
+cdk-nag>=2.38,<3

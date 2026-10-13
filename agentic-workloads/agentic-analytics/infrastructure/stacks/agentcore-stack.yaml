@@ -73,8 +73,12 @@ Parameters:
 
   CubeApiSecret:
     Type: String
+    Default: ''
     NoEcho: true
-    Description: Shared secret for Cube API authentication
+    Description: Shared secret for Cube API authentication. Empty in demo mode (the
+      SemanticLayer Lambda is gated on CubePrivateIp, also empty in demo). main-stack
+      does not pass this in demo mode, so a Default is required for stack UPDATE to
+      succeed (CFN rejects an untouched nested param with no value).
 
   GlueDatabaseName:
     Type: String
@@ -105,17 +109,36 @@ Parameters:
     Default: ''
     Description: ARN of existing psycopg2 Lambda layer (leave empty to create one)
 
+  PyJwtLayerArn:
+    Type: String
+    Default: ''
+    Description: ARN of existing PyJWT+cryptography Lambda layer (leave empty to create one)
+
   GatewayName:
     Type: String
     Default: AgenticAnalyticsMCPGateway
 
 Conditions:
   NeedsPsycopg2Layer: !Equals [!Ref Psycopg2LayerArn, '']
+  NeedsPyJwtLayer: !Equals [!Ref PyJwtLayerArn, '']
   HasKnowledgeBase: !Not [!Equals [!Ref KnowledgeBaseId, '']]
   HasSemanticLayer: !Not [!Equals [!Ref CubePrivateIp, '']]
   GuardrailEnabled: !Equals [!Ref EnableGuardrail, 'true']
 
 Resources:
+  #============================================================================
+  # Row-Level Security feature flag (runtime toggle, read by the SQL Lambdas).
+  # Demo mode seeds this 'enabled' so RLS is enforced from the start. The tool
+  # Lambdas read it at runtime (cached) and pick the app_user vs postgres secret.
+  #============================================================================
+  RlsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${EnvironmentName}/rls-mode
+      Type: String
+      Value: enabled
+      Description: RLS enforcement toggle read at runtime by the SQL tool Lambdas (enabled|disabled)
+
   #============================================================================
   # DataFoundation Lambda (27 analytics tools)
   #============================================================================
@@ -142,6 +165,10 @@ Resources:
                 Resource:
                   - !Ref DatabaseSecretArn
                   - !Ref AppDatabaseSecretArn
+              # Read the runtime RLS feature flag.
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/rls-mode
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
@@ -162,6 +189,7 @@ Resources:
         S3Key: !Sub ${ArtifactsPrefix}${DataFoundationLambdaKey}
       Layers:
         - !If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]
+        - !If [NeedsPyJwtLayer, !Ref PyJwtLayer, !Ref PyJwtLayerArn]
       VpcConfig:
         SubnetIds: !Ref SubnetIds
         SecurityGroupIds:
@@ -169,16 +197,48 @@ Resources:
       Environment:
         Variables:
           AURORA_ENDPOINT: !Ref AuroraEndpoint
-          AURORA_SECRET_ARN: !Ref AppDatabaseSecretArn
+          # RLS toggle is at RUNTIME via the RlsParameter SSM flag (seeded
+          # 'enabled' for demo). Both secrets wired; the Lambda picks one.
+          AURORA_SECRET_ARN: !Ref DatabaseSecretArn            # postgres owner (RLS bypassed)
+          APP_AURORA_SECRET_ARN: !Ref AppDatabaseSecretArn     # app_user (RLS enforced)
+          RLS_PARAM_NAME: !Sub /${EnvironmentName}/rls-mode
           AURORA_DATABASE: timely_unicorn
           AURORA_USERNAME: postgres
           KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
+          # JWT verification: validate the propagated Cognito access token
+          # before trusting account_id/role for RLS.
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_USER_LOGIN_CLIENT_ID: !Ref CognitoClientId
 
-  # Lambda permission for Gateway to invoke
+  # Published version + 'live' alias with provisioned concurrency, so the Gateway
+  # invokes a warm instance (no cold start, so the PyJWT import + first-call JWKS
+  # fetch never hit the request path). The Gateway target points at the alias ARN;
+  # AgentCore's lambdaArn pattern accepts a qualifier. AWS::Lambda::Version snapshots
+  # the function at deploy — CloudFormation republishes it when the function's
+  # code/config changes (the Lambda S3 key is hash-versioned, so a code edit flips
+  # the key → new Version → alias rolls forward; no stale-code trap).
+  DataFoundationVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref DataFoundationLambda
+      Description: Version fronted by the live alias for provisioned concurrency
+
+  DataFoundationAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref DataFoundationLambda
+      FunctionVersion: !GetAtt DataFoundationVersion.Version
+      Name: live
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 1
+
+  # Lambda permission for Gateway to invoke. Granted on the alias (qualified): the
+  # Gateway invokes the 'live' alias, so the resource policy must be on that
+  # qualifier. !Ref <Alias> resolves to the qualified ARN (…:function:name:live).
   DataFoundationLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref DataFoundationLambda
+      FunctionName: !Ref DataFoundationAlias
       Action: lambda:InvokeFunction
       Principal: bedrock-agentcore.amazonaws.com
 
@@ -192,6 +252,21 @@ Resources:
       Content:
         S3Bucket: !Ref ArtifactsBucket
         S3Key: !Sub ${ArtifactsPrefix}layers/psycopg2-py312.zip
+      CompatibleRuntimes:
+        - python3.12
+
+  # PyJWT + cryptography layer (created only if not provided). The tool Lambdas
+  # verify the propagated Cognito access token (RS256 via JWKS) before trusting
+  # account_id/role for RLS.
+  PyJwtLayer:
+    Type: AWS::Lambda::LayerVersion
+    Condition: NeedsPyJwtLayer
+    Properties:
+      LayerName: !Sub ${EnvironmentName}-pyjwt
+      Description: PyJWT + cryptography for Python 3.12
+      Content:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: !Sub ${ArtifactsPrefix}layers/pyjwt-py312.zip
       CompatibleRuntimes:
         - python3.12
 
@@ -261,6 +336,10 @@ Resources:
                 Resource:
                   - !Ref DatabaseSecretArn
                   - !Ref AppDatabaseSecretArn
+              # Read the runtime RLS feature flag.
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/rls-mode
 
   ApiIntegLambda:
     Type: AWS::Lambda::Function
@@ -276,6 +355,7 @@ Resources:
         S3Key: !Sub ${ArtifactsPrefix}${ApiIntegLambdaKey}
       Layers:
         - !If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]
+        - !If [NeedsPyJwtLayer, !Ref PyJwtLayer, !Ref PyJwtLayerArn]
       VpcConfig:
         SubnetIds: !Ref SubnetIds
         SecurityGroupIds:
@@ -283,13 +363,39 @@ Resources:
       Environment:
         Variables:
           AURORA_ENDPOINT: !Ref AuroraEndpoint
-          AURORA_SECRET_ARN: !Ref AppDatabaseSecretArn
+          # RLS toggle is at RUNTIME via the RlsParameter SSM flag (seeded
+          # 'enabled' for demo). Both secrets wired; the Lambda picks one.
+          AURORA_SECRET_ARN: !Ref DatabaseSecretArn            # postgres owner (RLS bypassed)
+          APP_AURORA_SECRET_ARN: !Ref AppDatabaseSecretArn     # app_user (RLS enforced)
+          RLS_PARAM_NAME: !Sub /${EnvironmentName}/rls-mode
           AURORA_DATABASE: timely_unicorn
+          # JWT verification: validate the propagated Cognito access token
+          # before trusting account_id/role for RLS.
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_USER_LOGIN_CLIENT_ID: !Ref CognitoClientId
+
+  # Published version + 'live' alias with provisioned concurrency (warm; no cold
+  # start on the PyJWT import / JWKS fetch). See DataFoundationVersion for the
+  # hash-versioned-key / republish rationale.
+  ApiIntegVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref ApiIntegLambda
+      Description: Version fronted by the live alias for provisioned concurrency
+
+  ApiIntegAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref ApiIntegLambda
+      FunctionVersion: !GetAtt ApiIntegVersion.Version
+      Name: live
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 1
 
   ApiIntegLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref ApiIntegLambda
+      FunctionName: !Ref ApiIntegAlias
       Action: lambda:InvokeFunction
       Principal: bedrock-agentcore.amazonaws.com
 
@@ -319,6 +425,10 @@ Resources:
                 Resource:
                   - !Ref DatabaseSecretArn
                   - !Ref AppDatabaseSecretArn
+              # Read the runtime RLS feature flag.
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/rls-mode
               - Effect: Allow
                 Action:
                   - glue:GetTables
@@ -346,6 +456,7 @@ Resources:
         S3Key: !Sub ${ArtifactsPrefix}${CustomSqlLambdaKey}
       Layers:
         - !If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]
+        - !If [NeedsPyJwtLayer, !Ref PyJwtLayer, !Ref PyJwtLayerArn]
       VpcConfig:
         SubnetIds: !Ref SubnetIds
         SecurityGroupIds:
@@ -353,15 +464,41 @@ Resources:
       Environment:
         Variables:
           AURORA_ENDPOINT: !Ref AuroraEndpoint
-          AURORA_SECRET_ARN: !Ref AppDatabaseSecretArn
+          # RLS toggle is at RUNTIME via the RlsParameter SSM flag (seeded
+          # 'enabled' for demo). Both secrets wired; the Lambda picks one.
+          AURORA_SECRET_ARN: !Ref DatabaseSecretArn            # postgres owner (RLS bypassed)
+          APP_AURORA_SECRET_ARN: !Ref AppDatabaseSecretArn     # app_user (RLS enforced)
+          RLS_PARAM_NAME: !Sub /${EnvironmentName}/rls-mode
           AURORA_DATABASE: timely_unicorn
           GLUE_DATABASE: !Ref GlueDatabaseName
           BEDROCK_KB_ID: !Ref KnowledgeBaseId
+          # JWT verification: validate the propagated Cognito access token
+          # before trusting account_id/role for RLS.
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_USER_LOGIN_CLIENT_ID: !Ref CognitoClientId
+
+  # Published version + 'live' alias with provisioned concurrency (warm; no cold
+  # start on the PyJWT import / JWKS fetch). See DataFoundationVersion for the
+  # hash-versioned-key / republish rationale.
+  CustomSqlVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref CustomSqlLambda
+      Description: Version fronted by the live alias for provisioned concurrency
+
+  CustomSqlAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref CustomSqlLambda
+      FunctionVersion: !GetAtt CustomSqlVersion.Version
+      Name: live
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 1
 
   CustomSqlLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref CustomSqlLambda
+      FunctionName: !Ref CustomSqlAlias
       Action: lambda:InvokeFunction
       Principal: bedrock-agentcore.amazonaws.com
 
@@ -436,10 +573,19 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource:
+                  # The 3 SQL/API tools are invoked via their 'live' alias (provisioned
+                  # concurrency). In IAM a Lambda alias ARN (…:function:name:live) is a
+                  # DISTINCT resource from the unqualified function ARN, so the Gateway
+                  # role must be granted on the alias — otherwise AgentCore reports
+                  # "Gateway execution role lacks permission to invoke …:live". Keep the
+                  # unqualified ARNs too (Interceptor has no alias; harmless for the rest).
                   - !GetAtt DataFoundationLambda.Arn
+                  - !Ref DataFoundationAlias
                   - !GetAtt InterceptorLambda.Arn
                   - !GetAtt ApiIntegLambda.Arn
+                  - !Ref ApiIntegAlias
                   - !GetAtt CustomSqlLambda.Arn
+                  - !Ref CustomSqlAlias
                   - !If
                     - HasSemanticLayer
                     - !GetAtt SemanticLayerLambda.Arn
@@ -485,7 +631,9 @@ Resources:
   #============================================================================
   DataToolsTarget:
     Type: AWS::BedrockAgentCore::GatewayTarget
-    DependsOn: Gateway
+    DependsOn:
+      - Gateway
+      - DataFoundationLambdaPermission
     Properties:
       GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
       Name: PrebakedSQL
@@ -495,7 +643,7 @@ Resources:
       TargetConfiguration:
         Mcp:
           Lambda:
-            LambdaArn: !GetAtt DataFoundationLambda.Arn
+            LambdaArn: !Ref DataFoundationAlias
             ToolSchema:
               InlinePayload:
                 - Name: check_db_status_tool
@@ -655,7 +803,7 @@ Resources:
       TargetConfiguration:
         Mcp:
           Lambda:
-            LambdaArn: !GetAtt ApiIntegLambda.Arn
+            LambdaArn: !Ref ApiIntegAlias
             ToolSchema:
               InlinePayload:
                 - Name: create_booking_tool
@@ -689,7 +837,7 @@ Resources:
       TargetConfiguration:
         Mcp:
           Lambda:
-            LambdaArn: !GetAtt CustomSqlLambda.Arn
+            LambdaArn: !Ref CustomSqlAlias
             ToolSchema:
               InlinePayload:
                 - Name: text_to_sql_tool
@@ -1230,12 +1378,47 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+              # Chart code interpreter: the runtime role must be allowed to START
+              # and drive sessions on the custom CI (the CI's OWN execution role only
+              # governs what the sandbox can do once running — it does NOT grant the
+              # agent permission to invoke it). Without this the agent gets
+              # AccessDeniedException on StartCodeInterpreterSession and charts fail.
+              # Scoped to the chart CI and its sessions (not '*').
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:StartCodeInterpreterSession
+                  - bedrock-agentcore:InvokeCodeInterpreter
+                  - bedrock-agentcore:StopCodeInterpreterSession
+                  - bedrock-agentcore:GetCodeInterpreterSession
+                  - bedrock-agentcore:ListCodeInterpreterSessions
+                Resource:
+                  - !GetAtt ChartCodeInterpreter.CodeInterpreterArn
+                  - !Sub '${ChartCodeInterpreter.CodeInterpreterArn}/*'
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: '*'
+              # Observability: the agent runs under opentelemetry-instrument and
+              # exports spans to the AgentCore-provided OTLP collector → X-Ray /
+              # CloudWatch Transaction Search. Without these the runtime emits no
+              # agent/LLM spans (GenAI Observability "Agents" empty; agentcore eval
+              # finds nothing). AgentCore runtime execution-role contract.
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: bedrock-agentcore
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -1254,6 +1437,10 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub ${EnvironmentName}-agent
+      # Let delete-stack remove the repo even though CodeBuild pushed images into it
+      # — otherwise teardown fails with "repository still contains images" (mirrors
+      # the voice ECR repo in voice-agentcore-stack.yaml).
+      EmptyOnDelete: true
       ImageScanningConfiguration:
         ScanOnPush: false
       LifecyclePolicy:
@@ -1342,7 +1529,12 @@ Resources:
                   COPY unicorn_rental_agent.py .
                   COPY unicorn_rental_analytics.sop.md .
                   EXPOSE 8080
-                  CMD ["python", "unicorn_rental_agent.py"]
+                  # opentelemetry-instrument so the Runtime exports agent/LLM
+                  # spans to CloudWatch (aws/spans) — mirrors AgentCore's own
+                  # build when aws-opentelemetry-distro is present. Without it the
+                  # runtime emits no spans (GenAI Observability + agentcore eval
+                  # see only Gateway/Memory spans, never the agent's).
+                  CMD ["opentelemetry-instrument", "python", "unicorn_rental_agent.py"]
                   DOCKERFILE
                 - docker build -t $ECR_REPO_URI:latest .
             post_build:
@@ -1431,13 +1623,159 @@ Resources:
       ImageUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-agent:latest
 
   #============================================================================
+  # Chart Code Interpreter (custom — renders matplotlib PNGs and uploads to S3)
+  #
+  # The agent calls this sandbox to render charts; the SOP (Step 4b) has it write
+  # the PNG to s3://${ArtifactsBucket}/charts/ and print only the S3 key. A CUSTOM
+  # interpreter is required because the default aws.codeinterpreter.v1 has NO
+  # execution role and therefore cannot reach S3. The agent then presigns the key
+  # for the UI (its runtime role already has s3:GetObject on the bucket).
+  #============================================================================
+  ChartCodeInterpreterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-chart-ci-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ChartUploadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/charts/*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  ChartCodeInterpreter:
+    Type: AWS::BedrockAgentCore::CodeInterpreterCustom
+    Properties:
+      # AgentCore names must match [a-zA-Z][a-zA-Z0-9_]{0,47} — no hyphens. Hardcoded
+      # with underscores (like AgentRuntimeName above) since ${EnvironmentName}
+      # contains a hyphen (agentic-analytics).
+      Name: agentic_analytics_chart_ci
+      Description: Renders matplotlib charts and uploads them to S3 for the analytics agent
+      NetworkConfiguration:
+        NetworkMode: PUBLIC   # needs egress to reach S3
+      ExecutionRoleArn: !GetAtt ChartCodeInterpreterRole.Arn
+
+  #============================================================================
   # AgentCore Runtime (Container mode — pre-built image, fast cold start)
   #============================================================================
+  #============================================================================
+  # AgentCore Runtime (Container mode — pre-built image, fast cold start)
+  #============================================================================
+  # ==========================================================================
+  # Model subscription — accept the Bedrock Marketplace agreement for the agent's
+  # model at deploy time, so the runtime can invoke it. Fresh sandbox accounts do
+  # NOT come pre-subscribed to every model; without this, ConverseStream fails with
+  # "not authorized to perform aws-marketplace:Subscribe ... to enable access to
+  # this model" and the agent errors on every turn. Idempotent: no-op if already
+  # AVAILABLE. Best-effort (never fails the stack — a model that needs no agreement
+  # simply has no offer).
+  # ==========================================================================
+  ModelSubscriptionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-model-subscription-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ModelSubscriptionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:GetFoundationModelAvailability
+                  - bedrock:ListFoundationModelAgreementOffers
+                  - bedrock:CreateFoundationModelAgreement
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                Resource: '*'
+
+  ModelSubscriptionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-model-subscription
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt ModelSubscriptionRole.Arn
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import boto3, json, time, urllib.request
+          def send(event, context, status, reason=None):
+              body = json.dumps({'Status': status, 'Reason': (reason or 'OK')[:300],
+                  'PhysicalResourceId': event.get('PhysicalResourceId', 'model-subscription'),
+                  'StackId': event['StackId'], 'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'], 'Data': {}})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'],
+                  data=body.encode(), headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS'); return
+              try:
+                  # ModelIds: comma-separated BASE model ids (e.g. anthropic.claude-sonnet-4-6),
+                  # NOT the global./us. inference-profile ids.
+                  ids = [m.strip() for m in event['ResourceProperties'].get('ModelIds','').split(',') if m.strip()]
+                  br = boto3.client('bedrock')
+                  for mid in ids:
+                      try:
+                          st = br.get_foundation_model_availability(modelId=mid)['agreementAvailability']['status']
+                      except Exception as e:
+                          print(f'{mid}: availability check failed ({e}); attempting subscribe anyway'); st = 'NOT_AVAILABLE'
+                      if st == 'AVAILABLE':
+                          print(f'{mid}: already AVAILABLE'); continue
+                      offers = br.list_foundation_model_agreement_offers(modelId=mid).get('offers', [])
+                      if not offers:
+                          print(f'{mid}: no agreement offer (no subscription needed)'); continue
+                      br.create_foundation_model_agreement(modelId=mid, offerToken=offers[0]['offerToken'])
+                      print(f'{mid}: agreement submitted')
+                      for _ in range(20):
+                          time.sleep(6)
+                          if br.get_foundation_model_availability(modelId=mid)['agreementAvailability']['status'] == 'AVAILABLE':
+                              print(f'{mid}: now AVAILABLE'); break
+                  send(event, context, 'SUCCESS')
+              except Exception as e:
+                  # Best-effort: do not block the stack on a subscription hiccup.
+                  print(f'model subscription warning: {e}')
+                  send(event, context, 'SUCCESS', reason=f'best-effort: {e}')
+
+  ModelSubscription:
+    Type: Custom::ModelSubscription
+    DependsOn:
+      - ModelSubscriptionFunction
+    Properties:
+      ServiceToken: !GetAtt ModelSubscriptionFunction.Arn
+      # Base model id behind the global.anthropic.claude-opus-4-6-v1 inference profile.
+      ModelIds: anthropic.claude-opus-4-6-v1
+
   AgentRuntime:
     Type: AWS::BedrockAgentCore::Runtime
     DependsOn:
       - AgentRuntimeRole
       - BuildTrigger
+      - ChartCodeInterpreter
+      - ModelSubscription
     Properties:
       AgentRuntimeName: agentic_analytics_agent
       Description: Strands agent for Agentic Analytics demo
@@ -1447,14 +1785,51 @@ Resources:
           ContainerUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-agent:latest
       NetworkConfiguration:
         NetworkMode: PUBLIC
+      # JWT-native inbound auth: callers (SPA + voice bot) present the signed-in
+      # user's Cognito ACCESS token as `Authorization: Bearer`. The runtime validates
+      # signature/issuer/client_id before invoking the agent — replacing IAM/SigV4.
+      # Cognito access tokens carry no 'aud', so we validate on client_id (AllowedClients),
+      # matching the Gateway authorizer above. The request-header allowlist passes the
+      # Authorization header through so the agent can read claims (context.request_headers).
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPoolId}/.well-known/openid-configuration
+          AllowedClients:
+            - !Ref CognitoClientId
+      RequestHeaderConfiguration:
+        RequestHeaderAllowlist:
+          - Authorization
       EnvironmentVariables:
         GATEWAY_URL: !GetAtt Gateway.GatewayUrl
         AWS_REGION: !Ref AWS::Region
+        # Opus 4.6: Opus 4.8/4.7 require account Containment Score >=350 to invoke
+        # (a gate separate from model access); fresh Workshop Studio sandbox accounts
+        # start below that, so 4.8 is AccessDenied for participants. 4.6-v1 has no
+        # C-Score gate and works in every fresh account.
         BEDROCK_MODEL_ID: global.anthropic.claude-opus-4-6-v1
         BYPASS_TOOL_CONSENT: 'true'
+        # --- Observability (OTEL → CloudWatch Transaction Search / aws/spans) ---
+        # Activate the ADOT distro the image installs; the AgentCore Runtime service
+        # injects the OTLP collector endpoint + default resource attributes
+        # (cloud.resource_id = runtime/<id>/...) into the microVM, so we do NOT set
+        # OTEL_EXPORTER_OTLP_ENDPOINT. always_on guards the platform Sampled=0 case.
+        # With the Dockerfile's opentelemetry-instrument CMD + the X-Ray IAM on
+        # AgentRuntimeRole, this makes the runtime emit agent/LLM spans (GenAI
+        # Observability + agentcore eval). Previously absent → only Gateway/Memory spans.
+        AGENT_OBSERVABILITY_ENABLED: 'true'
+        OTEL_PYTHON_DISTRO: aws_distro
+        OTEL_PYTHON_CONFIGURATOR: aws_configurator
+        OTEL_TRACES_SAMPLER: always_on
         GUARDRAIL_ID: !If [GuardrailEnabled, !Ref Guardrail, '']
         GUARDRAIL_VERSION: !If [GuardrailEnabled, 'DRAFT', '']
         MEMORY_ID: !GetAtt AgentMemory.MemoryId
+        SOP_S3_BUCKET: !Ref ArtifactsBucket
+        # Charts: the agent renders matplotlib PNGs in the custom Code Interpreter
+        # below (which can write to S3), then presigns the key for the UI. The agent
+        # role already has s3:GetObject on the bucket, so it can presign.
+        ENABLE_CHART_TOOL: 'true'
+        CHART_CI_ID: !GetAtt ChartCodeInterpreter.CodeInterpreterId
+        CHART_BUCKET: !Ref ArtifactsBucket
 
   #============================================================================
   # AgentCore Runtime Endpoint
@@ -1492,6 +1867,10 @@ Outputs:
   AgentRuntimeId:
     Description: AgentCore Runtime ID
     Value: !GetAtt AgentRuntime.AgentRuntimeId
+
+  AgentRuntimeArn:
+    Description: AgentCore Runtime ARN (what the voice bot invokes)
+    Value: !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/${AgentRuntime.AgentRuntimeId}'
 
   AgentRuntimeEndpointId:
     Description: AgentCore Runtime Endpoint ID

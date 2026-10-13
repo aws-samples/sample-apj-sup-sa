@@ -1,0 +1,32 @@
+{
+  "gatewayHost": "claude-gateway.corp.example.com",
+  "hostedZoneName": "corp.example.com",
+  "allowedClientCidrs": [
+    "10.0.0.0/8"
+  ],
+  "allowedEmailDomains": [
+    "corp.example.com"
+  ],
+  "availableModels": [
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-haiku-4-5",
+    "claude-fable-5"
+  ],
+  "claudeVersion": "2.1.285",
+  "cognitoDomainPrefix": "claude-gateway-example",
+  "bedrockRegion": "us-east-1",
+  "awsAccount": "111122223333",
+  "awsRegion": "us-east-1",
+  "databaseName": "claude_gateway",
+  "desiredCount": 2,
+  "maxAzs": 2,
+  "natGateways": 1,
+  "createVpcEndpoints": true,
+  "enableTelemetry": true,
+  "telemetryResourceAttributes": {
+    "organization": "example-org"
+  },
+  "collectorImage": "public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0",
+  "collectorDesiredCount": 2
+}

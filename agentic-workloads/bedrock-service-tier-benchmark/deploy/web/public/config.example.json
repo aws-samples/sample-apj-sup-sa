@@ -1,0 +1,6 @@
+{
+  "apiUrl": "https://abc123.execute-api.us-east-1.amazonaws.com",
+  "cognitoDomain": "https://bench-tiers-111122223333.auth.us-east-1.amazoncognito.com",
+  "clientId": "example-client-id",
+  "identityProvider": ""
+}

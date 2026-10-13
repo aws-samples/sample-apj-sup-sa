@@ -1,0 +1,325 @@
+[
+  {
+    "species": "Malayan Tapir",
+    "scientific_name": "Tapirus indicus",
+    "iucn_status": "Endangered",
+    "iucn_trend": "Decreasing",
+    "typical_detection_range": {
+      "min": 2,
+      "max": 5,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Lowland dipterocarp forest",
+      "Riparian forest",
+      "Secondary growth near water"
+    ],
+    "activity_pattern": "Crepuscular to nocturnal",
+    "home_range_km2": 12.5,
+    "sensitivity_to_disturbance": "High - avoids areas with noise, lights, and human activity",
+    "known_threats": [
+      "Habitat fragmentation",
+      "Road mortality",
+      "Illegal hunting (rare)",
+      "Logging disturbance"
+    ],
+    "seasonal_variation": "Slight increase during fruiting season (Mar-May). Reduced movement during heavy flood events.",
+    "population_estimate_johor": "120-180 individuals (2023 Perhilitan survey)",
+    "notes": "Highly sensitive to habitat disturbance. Logging activity within 1-2km causes displacement within 2-4 weeks. Key indicator species for forest integrity."
+  },
+  {
+    "species": "Red Junglefowl",
+    "scientific_name": "Gallus gallus",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Decreasing",
+    "typical_detection_range": {
+      "min": 5,
+      "max": 14,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Forest edge",
+      "Secondary growth",
+      "Bamboo thickets"
+    ],
+    "activity_pattern": "Diurnal",
+    "home_range_km2": 0.5,
+    "sensitivity_to_disturbance": "Low - tolerant of moderate human presence",
+    "known_threats": [
+      "Hybridization with domestic chickens",
+      "Snaring"
+    ],
+    "seasonal_variation": "Higher detections during breeding season (Feb-Apr).",
+    "population_estimate_johor": "Abundant, not quantified",
+    "notes": "Resilient species. Decline in junglefowl typically indicates severe habitat loss or intensive trapping."
+  },
+  {
+    "species": "Lesser Mouse-Deer",
+    "scientific_name": "Tragulus kanchil",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 1,
+      "max": 5,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Dense undergrowth",
+      "Riparian edges",
+      "Lowland forest"
+    ],
+    "activity_pattern": "Nocturnal",
+    "home_range_km2": 0.08,
+    "sensitivity_to_disturbance": "Moderate - relies on dense ground cover",
+    "known_threats": [
+      "Snaring",
+      "Habitat clearing of undergrowth",
+      "Feral dogs"
+    ],
+    "seasonal_variation": "Relatively stable year-round.",
+    "population_estimate_johor": "Common, not quantified",
+    "notes": "Small home range means localized threats can eliminate local population quickly."
+  },
+  {
+    "species": "Southern Red Muntjac",
+    "scientific_name": "Muntiacus muntjak",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 0,
+      "max": 2,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Hill forest",
+      "Dense undergrowth",
+      "Forest margins"
+    ],
+    "activity_pattern": "Crepuscular",
+    "home_range_km2": 0.6,
+    "sensitivity_to_disturbance": "Moderate",
+    "known_threats": [
+      "Hunting",
+      "Feral dogs",
+      "Habitat loss"
+    ],
+    "seasonal_variation": "Slightly more active during fruiting season.",
+    "population_estimate_johor": "Uncommon in lowlands, more frequent in hills",
+    "notes": "Low detection rates at Desaru stations are normal - species prefers hilly terrain."
+  },
+  {
+    "species": "Malayan Porcupine",
+    "scientific_name": "Hystrix brachyura",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 2,
+      "max": 10,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "All forest types",
+      "Forest edge",
+      "Agricultural margins"
+    ],
+    "activity_pattern": "Strictly nocturnal",
+    "home_range_km2": 0.3,
+    "sensitivity_to_disturbance": "Low - highly adaptable",
+    "known_threats": [
+      "Road mortality",
+      "Snaring (for bushmeat)"
+    ],
+    "seasonal_variation": "Higher activity in drier months when foraging range increases.",
+    "population_estimate_johor": "Common",
+    "notes": "Very resilient. Maintains presence even in degraded habitats. Decline would indicate severe, widespread disturbance."
+  },
+  {
+    "species": "Wild Boar",
+    "scientific_name": "Sus scrofa",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 0,
+      "max": 2,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Forest floor",
+      "Riparian areas",
+      "Agricultural fringe"
+    ],
+    "activity_pattern": "Nocturnal (near human areas), otherwise diurnal",
+    "home_range_km2": 5.0,
+    "sensitivity_to_disturbance": "Very low - thrives near human activity",
+    "known_threats": [
+      "Culling programs (crop pest)",
+      "African Swine Fever"
+    ],
+    "seasonal_variation": "Higher near oil palm during fruiting.",
+    "population_estimate_johor": "Abundant, considered pest in agricultural areas",
+    "notes": "Low detection at Desaru stations is unusual for the species - may reflect low camera density in their preferred wallowing areas, or local control measures."
+  },
+  {
+    "species": "Long-tailed Macaque",
+    "scientific_name": "Macaca fascicularis",
+    "iucn_status": "Vulnerable",
+    "iucn_trend": "Decreasing",
+    "typical_detection_range": {
+      "min": 10,
+      "max": 25,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Mangroves",
+      "Coastal forest",
+      "Forest edge",
+      "Near water"
+    ],
+    "activity_pattern": "Diurnal",
+    "home_range_km2": 1.2,
+    "sensitivity_to_disturbance": "Very low - highly commensal with humans",
+    "known_threats": [
+      "Biomedical trade",
+      "Conflict with humans",
+      "Habitat loss"
+    ],
+    "seasonal_variation": "Relatively stable. Higher at mangrove stations.",
+    "population_estimate_johor": "Abundant in coastal and urban-fringe areas",
+    "notes": "Most commonly detected species. Stable macaque populations indicate functioning forest edge ecosystem."
+  },
+  {
+    "species": "Malayan Civet",
+    "scientific_name": "Viverra tangalunga",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 1,
+      "max": 5,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Primary and secondary forest",
+      "Riparian corridors"
+    ],
+    "activity_pattern": "Nocturnal",
+    "home_range_km2": 1.5,
+    "sensitivity_to_disturbance": "Moderate",
+    "known_threats": [
+      "Snaring",
+      "Road mortality",
+      "Civet coffee farms (capture)"
+    ],
+    "seasonal_variation": "Minimal variation.",
+    "population_estimate_johor": "Moderate density in forested areas",
+    "notes": "Ground-dwelling civet. Good indicator of forest floor integrity."
+  },
+  {
+    "species": "Asian Palm Civet",
+    "scientific_name": "Paradoxurus hermaphroditus",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 1,
+      "max": 4,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "All forest types",
+      "Fruit orchards",
+      "Urban-forest interface"
+    ],
+    "activity_pattern": "Nocturnal, arboreal",
+    "home_range_km2": 0.4,
+    "sensitivity_to_disturbance": "Low - highly adaptable to modified habitats",
+    "known_threats": [
+      "Civet coffee industry (capture)",
+      "Road mortality"
+    ],
+    "seasonal_variation": "Higher during fruit season.",
+    "population_estimate_johor": "Common",
+    "notes": "Arboreal civet, so camera trap detection is lower than actual abundance. Very adaptable."
+  },
+  {
+    "species": "White-breasted Waterhen",
+    "scientific_name": "Amaurornis phoenicurus",
+    "iucn_status": "Least Concern",
+    "iucn_trend": "Stable",
+    "typical_detection_range": {
+      "min": 5,
+      "max": 15,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Wetlands",
+      "Mangrove edges",
+      "Riparian vegetation",
+      "Flooded areas"
+    ],
+    "activity_pattern": "Diurnal and crepuscular",
+    "home_range_km2": 0.1,
+    "sensitivity_to_disturbance": "Low",
+    "known_threats": [
+      "Wetland drainage",
+      "Pollution"
+    ],
+    "seasonal_variation": "Higher during wet season when flooded habitat expands.",
+    "population_estimate_johor": "Common in wetland habitats",
+    "notes": "Indicator species for wetland health. Highest at mangrove and riparian stations."
+  },
+  {
+    "species": "Asian Elephant",
+    "scientific_name": "Elephas maximus",
+    "iucn_status": "Endangered",
+    "iucn_trend": "Decreasing",
+    "typical_detection_range": {
+      "min": 1,
+      "max": 3,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Lowland dipterocarp forest",
+      "Forest clearings",
+      "Riparian corridors"
+    ],
+    "activity_pattern": "Cathemeral (active day and night)",
+    "home_range_km2": 250,
+    "sensitivity_to_disturbance": "Very high - avoids construction noise, night lighting, and road traffic",
+    "known_threats": [
+      "Habitat fragmentation",
+      "Human-elephant conflict",
+      "Road mortality",
+      "Corridor severance"
+    ],
+    "seasonal_variation": "Movement patterns shift with food availability. May move to coastal areas during dry spells.",
+    "population_estimate_johor": "150-200 individuals statewide (2024 Perhilitan aerial survey). Small ranging group (~8-12) uses Tanjung Balau-Panti corridor.",
+    "notes": "Johor had 253 human-elephant conflict cases in 2024. Elephants at Desaru use a narrow corridor between Panti Forest Reserve and coastal forest. Any development that blocks this corridor causes immediate displacement. Construction noise alone (>60dB) triggers avoidance within 1-2km radius."
+  },
+  {
+    "species": "Sunda Pangolin",
+    "scientific_name": "Manis javanica",
+    "iucn_status": "Critically Endangered",
+    "iucn_trend": "Decreasing",
+    "typical_detection_range": {
+      "min": 1,
+      "max": 3,
+      "unit": "detections/month/station"
+    },
+    "habitat_preference": [
+      "Primary and secondary forest",
+      "Forest edge",
+      "All elevation types"
+    ],
+    "activity_pattern": "Nocturnal",
+    "home_range_km2": 0.15,
+    "sensitivity_to_disturbance": "Moderate (habitat) but extremely vulnerable to targeted poaching",
+    "known_threats": [
+      "Poaching for scales (traditional medicine trade)",
+      "Trafficking syndicates",
+      "Snaring",
+      "Habitat loss"
+    ],
+    "seasonal_variation": "Minimal natural variation. Solitary and cryptic.",
+    "population_estimate_johor": "Unknown - Critically Endangered, populations depleted across range",
+    "notes": "World's most trafficked mammal. Malaysian populations under intense pressure from organized trafficking networks supplying Chinese and Vietnamese traditional medicine markets. Decline pattern across multiple stations simultaneously is signature of systematic poaching (versus localized habitat disturbance which affects single stations). Even 1-2 detections/month represents meaningful population at a site."
+  }
+]

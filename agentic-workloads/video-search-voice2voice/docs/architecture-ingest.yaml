@@ -1,0 +1,209 @@
+## Source for docs/architecture-ingest.png
+##
+## Rendered with the AWS diagram-as-code tool (awsdac):
+##   awsdac docs/architecture-ingest.yaml -o docs/architecture-ingest.png
+##
+## Ingest runs offline on the laptop, once per video (talk2vid/ingest.py). Every
+## enrichment step degrades gracefully: without Pegasus, captions or embeddings you
+## still get a talkable video from the transcript and timeline alone.
+
+Diagram:
+  DefinitionFiles:
+    - Type: URL
+      Url: https://raw.githubusercontent.com/awslabs/diagram-as-code/main/definitions/definition-for-aws-icons-light.yaml
+
+  Links:
+    - Source: Operator
+      SourcePosition: E
+      Target: Cli
+      TargetPosition: W
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "1 mp4"
+
+    - Source: Cli
+      SourcePosition: E
+      Target: Deepgram
+      TargetPosition: W
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "2 transcribe"
+
+    - Source: Cli
+      SourcePosition: SW
+      Target: Bucket
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "3 upload mp4"
+
+    - Source: Cli
+      SourcePosition: SE
+      Target: Pegasus
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "4 overview + chapters"
+
+    - Source: Cli
+      SourcePosition: SE
+      Target: NovaLite
+      TargetPosition: E
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "5 dense captions per segment"
+
+    - Source: Cli
+      SourcePosition: SE
+      Target: NovaMME
+      TargetPosition: E
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "6 async segment embeddings"
+
+    - Source: NovaMME
+      SourcePosition: W
+      Target: Bucket
+      TargetPosition: SE
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceLeft:
+          Title: "vectors out"
+
+    - Source: Cli
+      SourcePosition: S
+      Target: IndexFile
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "7 write"
+
+    - Source: IndexFile
+      SourcePosition: S
+      Target: Bucket
+      TargetPosition: NE
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceRight:
+          Title: "8 sync"
+
+  Resources:
+    Canvas:
+      Type: AWS::Diagram::Canvas
+      Direction: vertical
+      Children:
+        - TopRow
+        - AWSCloud
+
+    TopRow:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - Operator
+        - Laptop
+        - ThirdParty
+
+    Operator:
+      Type: AWS::Diagram::Resource
+      Preset: "User"
+      Title: "Presenter"
+
+    Laptop:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Laptop - talk2vid-ingest (offline, once per video)"
+      Direction: vertical
+      Children:
+        - Cli
+        - IndexFile
+
+    Cli:
+      Type: AWS::Diagram::Resource
+      Preset: "Toolkit"
+      Title: "ffprobe + ffmpeg: probe, scene cuts, audio"
+
+    IndexFile:
+      Type: AWS::Diagram::Resource
+      Preset: "JSON script"
+      Title: "index.json + .npz vectors"
+
+    ThirdParty:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Third party"
+      Children:
+        - Deepgram
+
+    Deepgram:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic application"
+      Title: "Deepgram Nova-3: word timings + speakers"
+
+    AWSCloud:
+      Type: AWS::Diagram::Cloud
+      Preset: AWSCloudNoLogo
+      Direction: vertical
+      Children:
+        - Region
+
+    Region:
+      Type: AWS::Region
+      Title: "us-east-1"
+      Children:
+        - Bucket
+        - ModelStack
+
+    Bucket:
+      Type: AWS::S3::Bucket
+      Title: "S3: private bucket, SSE-S3"
+
+    ModelStack:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Amazon Bedrock"
+      Direction: vertical
+      Children:
+        - Pegasus
+        - NovaLite
+        - NovaMME
+
+    Pegasus:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Bedrock"
+      Title: "TwelveLabs Pegasus 1.2 (Nova fallback)"
+
+    NovaLite:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Nova"
+      Title: "Amazon Nova 2 Lite: vision"
+
+    NovaMME:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Nova"
+      Title: "Amazon Nova 2 MME: multimodal embeddings"

@@ -28,14 +28,28 @@ def build_react_app(ui_dir, env_vars=None):
     """
     ui_dir = Path(ui_dir)
     print(f"Building React application in {ui_dir}")
-    
-    # Write environment variables to .env file for build
+
+    # Merge environment variables into the .env file for the build. We MERGE rather
+    # than overwrite so a partial env-file (e.g. just REACT_APP_VOICE_SIGNALING_URL on
+    # a voice redeploy) cannot silently drop config a previous deploy already wrote
+    # (REACT_APP_AGENT_RUNTIME_ARN, Cognito vars, ...). New keys win; existing keys not
+    # present in env_vars are preserved.
     if env_vars:
         env_file = ui_dir / ".env"
+        merged = {}
+        if env_file.exists():
+            with open(env_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        merged[k.strip()] = v.strip()
+        merged.update(env_vars)
         with open(env_file, "w") as f:
-            for key, value in env_vars.items():
+            for key, value in merged.items():
                 f.write(f"{key}={value}\n")
-        print(f"  Written {len(env_vars)} env vars to .env")
+        print(f"  Wrote {len(merged)} env vars to .env "
+              f"({len(env_vars)} new/updated, {len(merged) - len(env_vars)} preserved)")
     
     # Run npm install
     result = subprocess.run(
@@ -76,7 +90,10 @@ def create_deployment_zip(source_dir, output_path=None):
     print(f"Creating deployment ZIP from {source_dir}")
     
     if output_path is None:
-        output_path = tempfile.mktemp(suffix=".zip")
+        # mkstemp (not the deprecated, race-prone mktemp) atomically creates the
+        # file and returns an open fd; close it since we re-open by path to write.
+        fd, output_path = tempfile.mkstemp(suffix=".zip")
+        os.close(fd)
     
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for file_path in source_dir.rglob('*'):

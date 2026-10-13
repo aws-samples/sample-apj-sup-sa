@@ -1,0 +1,27 @@
+# Node / TypeScript
+node_modules
+dist
+*.js
+*.d.ts
+!jest.config.js
+
+# CDK
+cdk.out
+.cdk.staging
+
+# Secrets / local env
+*.env
+*.env.local
+
+# Python (cli/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# macOS
+.DS_Store
+*.drawio.bkp
+
+*.venv

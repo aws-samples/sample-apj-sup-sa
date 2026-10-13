@@ -1,0 +1,49 @@
+{
+  "toolName": "query_transactions___query_transactions",
+  "toolType": "MODEL_CONTEXT_PROTOCOL",
+  "title": "gateway_GATEWAY_ID_PLACEHOLDER__query-transactions___query_transactions",
+  "toolId": "gateway_GATEWAY_ID_PLACEHOLDER__query-transactions___query_transactions",
+  "description": "Look up the authenticated merchant's OWN payment transactions (status, amount, method, date, transaction id). Read-only and always filtered to the caller's merchant_id, which is injected server-side by the gateway interceptor.",
+  "instruction": {
+    "instruction": "Call this to answer questions about the caller's transactions. NEVER pass merchant_id, merchant, tenant, or account id - the system injects the caller's merchant_id from the verified session. Never request or accept another merchant's id. Pass only the narrowing fields the user provided.",
+    "examples": [
+      "User: \"show my failed payments\" -> call with { \"status\": \"FAILED\" }",
+      "User: \"what is the status of transaction txn_123\" -> call with { \"transactionId\": \"txn_123\" }",
+      "User: \"did my refunds go through this week\" -> call with { \"query\": \"refunds this week\" }"
+    ]
+  },
+  "inputSchema": {
+    "title": "QueryTransactionsInput",
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string",
+        "description": "Optional transaction status filter.",
+        "enum": ["succeeded", "pending", "in_progress", "failed", "refunded", "authorized"]
+      },
+      "transactionId": {
+        "type": "string",
+        "description": "Optional specific transaction id to look up."
+      },
+      "query": {
+        "type": "string",
+        "description": "Optional free-text description of what the merchant is asking about."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Max number of transactions to return.",
+        "minimum": 1,
+        "maximum": 25,
+        "default": 10
+      }
+    },
+    "additionalProperties": false
+  },
+  "annotations": {
+    "title": "Query merchant transactions",
+    "destructiveHint": false
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

@@ -1,0 +1,31 @@
+# Bandit configuration for the agentic-analytics workshop.
+#
+# Scope: SHIPPED application + infrastructure code. We deliberately exclude
+# directories that are NOT shipped to participants and NOT part of the
+# educational material, so the scan signal stays on code that actually runs in
+# a deployed account:
+#
+#   * .venv / node_modules / build / __pycache__ — third-party + build artifacts.
+#   * **/tests, app/*/tests, infrastructure/tests — pytest
+#     suites. These are riddled with B101 (assert_used), which is the correct,
+#     idiomatic way to write pytest assertions; flagging them is pure noise.
+#   * dev/ — local-only developer tooling (ground-truth generation, eval probes)
+#     that never deploys. Its B608 findings are hardcoded analytic SQL over a
+#     trusted local DB, not user-facing.
+#
+# Everything a participant deploys — app/agentcore_strands (agent, tools, infra),
+# app/voice (the bot), common/, infrastructure/custom-resource-lambdas,
+# infrastructure/voice-proxy, infrastructure/voice-pcc-cr — REMAINS in scope.
+# Findings in those paths are remediated in code (real fixes), with a documented
+# inline `# nosec <ID>` only where a genuine mitigation is already in place.
+
+exclude_dirs:
+  - '.venv'
+  - 'node_modules'
+  - '__pycache__'
+  - 'build'
+  - 'dist'
+  - '.pytest_cache'
+  - '.hypothesis'
+  - 'dev'
+  - 'tests'

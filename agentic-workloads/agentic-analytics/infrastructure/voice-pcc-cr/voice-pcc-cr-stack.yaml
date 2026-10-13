@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Voice Analytics — Pipecat Cloud agent as a CloudFormation custom resource.
+  Binds the PCC agent's lifecycle to this stack: create/update cloud-builds the
+  bot image and deploys the service with MinAgents/MaxAgents; delete tears the
+  agent down (no orphaned billing). PCC is Daily's SaaS, so this drives its REST
+  API from a Lambda (the PAT lives in Secrets Manager, never in the template).
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: agentic-analytics
+  AgentName:
+    Type: String
+    Default: voice-analytics-agent
+    Description: >
+      Name of the PCC agent this stack OWNS. delete-stack deletes this agent —
+      so use a CFN-owned name, not a pre-existing agent you want to keep.
+  SecretSet:
+    Type: String
+    Default: voice-analytics-secrets
+    Description: PCC secret set name holding the bot's runtime config (created out of band)
+  MinAgents:
+    Type: Number
+    Default: 0
+    Description: Warm instances kept running (0 = scale-to-zero, no idle billing; 1 = always-on)
+  MaxAgents:
+    Type: Number
+    Default: 5
+  AgentProfile:
+    Type: String
+    Default: agent-1x
+  PccPrivateApiKey:
+    Type: String
+    NoEcho: true
+    Description: >
+      Pipecat Cloud PRIVATE API key (sk_...), from Dashboard → Settings → API Keys
+      → Private. The documented /v1/agents + /v1/builds API authenticates with
+      this, NOT the pcc_pat_ PAT (the PAT 401s on /v1/agents). Stored in Secrets Manager.
+  SourceHash:
+    Type: String
+    Default: ''
+    Description: >
+      Hash of the bot source (bot.py/analytics_processor.py/auth.py/deps/Dockerfile),
+      computed by deploy.sh. Passed as a CustomResource property so a CODE-ONLY change
+      flips this value → CFN fires the CR Update handler → the bot image is rebuilt.
+      Without it, CFN sees no property change for a code edit and never rebuilds.
+
+Resources:
+  PatSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${EnvironmentName}-pcc-pat'
+      SecretString: !Ref PccPrivateApiKey
+
+  ManagerFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${EnvironmentName}-pcc-agent-manager'
+      Runtime: python3.12
+      Handler: index.handler
+      CodeUri: ./build/          # index.py + bot_context/ (bundled by deploy.sh)
+      Timeout: 780               # cloud build can take a few minutes
+      MemorySize: 512
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref PatSecret
+
+  PccAgent:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ManagerFn.Arn
+      # Any change to these re-invokes the Lambda (Update) — so changing MinAgents
+      # and re-deploying the stack rescales the agent.
+      PatSecretArn: !Ref PatSecret
+      AgentName: !Ref AgentName
+      SecretSet: !Ref SecretSet
+      MinAgents: !Ref MinAgents
+      MaxAgents: !Ref MaxAgents
+      AgentProfile: !Ref AgentProfile
+      # Code-change trigger: when the bot source changes, deploy.sh passes a new
+      # SourceHash here, which makes CFN fire the Update handler (rebuild). Without
+      # this, a code-only edit changes no CR property and the agent is never rebuilt.
+      SourceHash: !Ref SourceHash
+      KrispAudioFilter: tel
+
+Outputs:
+  AgentName:
+    Value: !Ref AgentName
+  PatSecretArn:
+    Value: !Ref PatSecret

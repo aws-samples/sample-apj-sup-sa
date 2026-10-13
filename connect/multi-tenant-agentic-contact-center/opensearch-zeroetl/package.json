@@ -1,0 +1,31 @@
+{
+  "name": "anycompany-pay-opensearch-zeroetl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AnyCompanyPay zero-ETL: replicate Aurora PostgreSQL -> private OpenSearch Serverless via OpenSearch Ingestion",
+  "scripts": {
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --require-approval never",
+    "destroy": "cdk destroy",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-ecs": "^3.700.0",
+    "@aws-sdk/client-ssm": "^3.700.0",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.0",
+    "aws-cdk": "2.1139.0",
+    "esbuild": "0.28.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@aws-sdk/client-connectcases": "^3.700.0",
+    "@aws-sdk/client-secrets-manager": "^3.700.0",
+    "@aws-sdk/credential-provider-node": "^3.700.0",
+    "@opensearch-project/opensearch": "^3.5.0",
+    "aws-cdk-lib": "2.267.0",
+    "constructs": "^10.3.0",
+    "pg": "^8.13.0"
+  }
+}

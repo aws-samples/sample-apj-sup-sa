@@ -1,7 +1,8 @@
 #
 # Copyright (c) 2024-2025, Daily
+# Copyright Amazon.com, Inc. or its affiliates.
 #
-# SPDX-License-Identifier: BSD 2-Clause License
+# SPDX-License-Identifier: BSD-2-Clause
 #
 
 """Ambient Voice QA for Manufacturing/Warehouse Workers - Pipecat Voice Agent.

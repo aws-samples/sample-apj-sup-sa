@@ -1,0 +1,7642 @@
+[
+  {
+    "product_id": "9106fea9-bf0a-5d34-a306-54dfa7c02dd9",
+    "name": "Hearthstone Full Cream Milk",
+    "brand": "Hearthstone",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 365,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5c3df463-5a11-5291-a27c-2dff3a064888",
+    "name": "Hearthstone Full Cream Milk Lactose Free",
+    "brand": "Hearthstone",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 299,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2b71ee52-0824-5117-87bd-a53bf130631b",
+    "name": "Hearthstone Full Cream Milk Light",
+    "brand": "Hearthstone",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 419,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1ebcd0f6-3191-5dfa-94cf-8fe5e9e2f58c",
+    "name": "Aisle Value Full Cream Milk",
+    "brand": "Aisle Value",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 269,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "466ee844-e172-5412-9115-9c3bd0dda5f6",
+    "name": "Aisle Value Full Cream Milk Lactose Free",
+    "brand": "Aisle Value",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 319,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ed05ba59-c260-5855-aa2b-afd1aec67936",
+    "name": "Aisle Value Full Cream Milk Light",
+    "brand": "Aisle Value",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 335,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a8718b57-a332-5c9e-88fb-5c7da7d49a90",
+    "name": "Bellavita Full Cream Milk",
+    "brand": "Bellavita",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 439,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "760f9dd2-c0cd-5c47-9173-e33f535a63e6",
+    "name": "Bellavita Full Cream Milk Lactose Free",
+    "brand": "Bellavita",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 395,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e60763a2-1513-5048-8233-908e79dc3c8f",
+    "name": "Bellavita Full Cream Milk Light",
+    "brand": "Bellavita",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 475,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5ba74b01-bae5-56ad-b151-1b92f10874e5",
+    "name": "Green Fork Full Cream Milk",
+    "brand": "Green Fork",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 319,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "92b9bceb-4bee-5bb1-88ca-0ce24411d742",
+    "name": "Green Fork Full Cream Milk Lactose Free",
+    "brand": "Green Fork",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 395,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "51c9586d-48e7-557d-adaf-3c8fb2af1c4e",
+    "name": "Green Fork Full Cream Milk Light",
+    "brand": "Green Fork",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 379,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6b89fdb8-4be5-570a-8c31-cf117aeaab7c",
+    "name": "Vista Greek Yoghurt Natural",
+    "brand": "Vista",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 789,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c95c5304-ea29-566c-affe-4d32f305591e",
+    "name": "Vista Greek Yoghurt Vanilla",
+    "brand": "Vista",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 645,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3c21d2ba-3ddb-5d6b-8143-5fe93b027cd7",
+    "name": "Vista Greek Yoghurt Honey",
+    "brand": "Vista",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 809,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "13110032-c9fe-5cfc-921e-fd6abe0a6ef3",
+    "name": "Coastline Greek Yoghurt Natural",
+    "brand": "Coastline",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 835,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2198d8b1-e4a8-586b-9d7c-161575ebeae6",
+    "name": "Coastline Greek Yoghurt Vanilla",
+    "brand": "Coastline",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 545,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "703ad71b-9a34-5d9f-bbc2-da3d29fd930f",
+    "name": "Coastline Greek Yoghurt Honey",
+    "brand": "Coastline",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 769,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ccdac20e-50a3-5aa0-bcb9-3198ea8a3536",
+    "name": "Everyday Basics Greek Yoghurt Natural",
+    "brand": "Everyday Basics",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 429,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b9992b17-b08b-56fa-b454-8d018a1a9795",
+    "name": "Everyday Basics Greek Yoghurt Vanilla",
+    "brand": "Everyday Basics",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 409,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7982aa30-24d4-5704-bd44-89e64e02c9a5",
+    "name": "Everyday Basics Greek Yoghurt Honey",
+    "brand": "Everyday Basics",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 519,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c90f9e6f-8231-50de-bf6b-395d09a7ed4e",
+    "name": "Maison Lutece Greek Yoghurt Natural",
+    "brand": "Maison Lutece",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 1035,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "24858b02-d030-5ca5-bd35-ecbcb14f6b4b",
+    "name": "Maison Lutece Greek Yoghurt Vanilla",
+    "brand": "Maison Lutece",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 595,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7cbbd55e-510a-50b4-ab43-3af27844170a",
+    "name": "Maison Lutece Greek Yoghurt Honey",
+    "brand": "Maison Lutece",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 915,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e70f1405-de69-5d91-896b-6714a5065a7c",
+    "name": "Heritage Select Block Cheese Tasty",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 1489,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "dd9a5ee0-ecc7-5882-92b0-073c019ba139",
+    "name": "Heritage Select Block Cheese Light",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 1019,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "44289dbb-df57-5082-a253-746d0d1926ac",
+    "name": "Heritage Select Block Cheese Vintage",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 1159,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d19c4bc4-69c7-5f86-8295-f1bce1cee8c0",
+    "name": "Golden Field Block Cheese Tasty",
+    "brand": "Golden Field",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 1085,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "95735c6a-069f-5510-8cc1-2abdda5db3f7",
+    "name": "Golden Field Block Cheese Light",
+    "brand": "Golden Field",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 1009,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d97f7275-33ec-5a76-8110-45c841ca9ee5",
+    "name": "Golden Field Block Cheese Vintage",
+    "brand": "Golden Field",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 1189,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5d114c08-5b21-541c-8be6-af93b61686dd",
+    "name": "Thrift Larder Block Cheese Tasty",
+    "brand": "Thrift Larder",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 555,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "732a804e-6f9d-54d5-98c0-8a99ebd7a16a",
+    "name": "Thrift Larder Block Cheese Light",
+    "brand": "Thrift Larder",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 595,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "dc27383d-d98f-513b-a248-de0ec27ecaba",
+    "name": "Thrift Larder Block Cheese Vintage",
+    "brand": "Thrift Larder",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 595,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ee4a7fd9-2dc0-5e00-a4ff-789848173432",
+    "name": "Coastline Block Cheese Tasty",
+    "brand": "Coastline",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 789,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a01faa65-33af-5b1c-b32d-93102da89235",
+    "name": "Coastline Block Cheese Light",
+    "brand": "Coastline",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 829,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d447f985-b875-5634-93a9-63bd8d91bb6b",
+    "name": "Coastline Block Cheese Vintage",
+    "brand": "Coastline",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 935,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4927d811-56af-5ef4-b228-e46577820cb8",
+    "name": "Brookfield Block Cheese Tasty",
+    "brand": "Brookfield",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 859,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8311740b-5d4f-5971-9cf0-e1fb2456b943",
+    "name": "Brookfield Block Cheese Light",
+    "brand": "Brookfield",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 819,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6aca8fae-4b69-5d55-87d3-6f41c45b14f4",
+    "name": "Brookfield Block Cheese Vintage",
+    "brand": "Brookfield",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 1005,
+    "unit": "500g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "efd57afa-8f22-5e5a-9fc7-7bad8b4e9f44",
+    "name": "Hearthstone Salted Butter Salted",
+    "brand": "Hearthstone",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 579,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "cace9a34-e01a-566c-a633-80fb9da998db",
+    "name": "Hearthstone Salted Butter Unsalted",
+    "brand": "Hearthstone",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 659,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b497cb75-a66d-50a6-a0c1-837ae02bce71",
+    "name": "Pantry Essentials Salted Butter Salted",
+    "brand": "Pantry Essentials",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 369,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2f396317-8a61-5f1f-98c5-0f56d51de5a1",
+    "name": "Pantry Essentials Salted Butter Unsalted",
+    "brand": "Pantry Essentials",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 605,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6c8d801c-de9f-5117-aa5e-203506eca24d",
+    "name": "Cedar Grove Salted Butter Salted",
+    "brand": "Cedar Grove",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 525,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6fda0cc1-ecf9-5fe5-801c-ebf04aed75c1",
+    "name": "Cedar Grove Salted Butter Unsalted",
+    "brand": "Cedar Grove",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 465,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "faba0c7c-b053-5428-9650-a7516a9a9de1",
+    "name": "Heritage Select Salted Butter Salted",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 579,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8b04818b-fea6-54cf-9a84-6ee19be601eb",
+    "name": "Heritage Select Salted Butter Unsalted",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 685,
+    "unit": "250g",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d03e5ab2-6296-5ea1-a7ee-abb64a7cdd63",
+    "name": "Thrift Larder Pure Cream Thickened",
+    "brand": "Thrift Larder",
+    "category": "dairy",
+    "aisle": "cheese",
+    "price_cents": 309,
+    "unit": "300ml",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "58d20119-ade0-53eb-81f7-5814b941ba55",
+    "name": "Thrift Larder Pure Cream Pouring",
+    "brand": "Thrift Larder",
+    "category": "dairy",
+    "aisle": "butter & spreads",
+    "price_cents": 245,
+    "unit": "300ml",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e80b0988-997c-5ff5-90c7-17b6141c57a3",
+    "name": "Maple & Oat Pure Cream Thickened",
+    "brand": "Maple & Oat",
+    "category": "dairy",
+    "aisle": "yoghurt",
+    "price_cents": 409,
+    "unit": "300ml",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "87c0d8e0-f5fa-5ed3-8b4a-a61fe54cf2f3",
+    "name": "Maple & Oat Pure Cream Pouring",
+    "brand": "Maple & Oat",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 245,
+    "unit": "300ml",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "539e21fb-13cf-5955-8607-2447228d8f21",
+    "name": "Heritage Select Pure Cream Thickened",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 359,
+    "unit": "300ml",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d13a0d47-3513-59bc-874e-ebedd6793e40",
+    "name": "Heritage Select Pure Cream Pouring",
+    "brand": "Heritage Select",
+    "category": "dairy",
+    "aisle": "milk & cream",
+    "price_cents": 289,
+    "unit": "300ml",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3b20bd74-43be-5e20-b37c-35f3f071da19",
+    "name": "Thrift Larder Royal Gala Apples",
+    "brand": "Thrift Larder",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 349,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "15d67f48-6070-5fa4-a997-962d8209ded8",
+    "name": "Honest Crumb Royal Gala Apples",
+    "brand": "Honest Crumb",
+    "category": "fruit & vegetables",
+    "aisle": "fresh fruit",
+    "price_cents": 645,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7c40ea15-634a-5641-b7d4-67920afae79c",
+    "name": "Nordstrom Larder Royal Gala Apples",
+    "brand": "Nordstrom Larder",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 549,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "edd97748-f0c5-5789-98ed-89e8158d5057",
+    "name": "Everyday Basics Cavendish Bananas",
+    "brand": "Everyday Basics",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 365,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a35d29c1-2e4a-5f1b-8598-2a202733181e",
+    "name": "Artisan Reserve Cavendish Bananas",
+    "brand": "Artisan Reserve",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 569,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "971c2708-ac10-5817-9cb8-f87ce6a5cfc6",
+    "name": "Pantry Essentials Truss Tomatoes",
+    "brand": "Pantry Essentials",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 455,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "3d50c3c8-5e0b-5af1-9592-328e1472556f",
+    "name": "Cuvée Noir Truss Tomatoes",
+    "brand": "Cuvée Noir",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 529,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "61b3ce29-dc85-5a0a-b875-af0be94d260e",
+    "name": "Pantry Essentials Baby Spinach",
+    "brand": "Pantry Essentials",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 385,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "organic"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f6105ebb-a8d5-5236-89c7-f27cec7e8f46",
+    "name": "Pantry Essentials Baby Spinach Organic",
+    "brand": "Pantry Essentials",
+    "category": "fruit & vegetables",
+    "aisle": "fresh fruit",
+    "price_cents": 359,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "organic"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c15c1e51-81f4-599d-8113-0b0aedf1268b",
+    "name": "Cuvée Noir Baby Spinach",
+    "brand": "Cuvée Noir",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 369,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "organic"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "697af019-c8ba-5f9c-8b8b-130d15150c4d",
+    "name": "Cuvée Noir Baby Spinach Organic",
+    "brand": "Cuvée Noir",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 389,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "organic"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c6a0f3c8-2793-5c3e-acd8-4d6b761b49d0",
+    "name": "Green Fork Baby Spinach",
+    "brand": "Green Fork",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 449,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "organic"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "fb0f3760-27d6-5e53-b3a5-901e36ccf6e1",
+    "name": "Green Fork Baby Spinach Organic",
+    "brand": "Green Fork",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 345,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "organic"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "07be29d5-3d49-50ae-a10a-318b02b2d49b",
+    "name": "Aisle Value Brushed Potatoes",
+    "brand": "Aisle Value",
+    "category": "fruit & vegetables",
+    "aisle": "fresh fruit",
+    "price_cents": 349,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "46d8949b-b144-543c-9fea-295715e8826c",
+    "name": "Vista Brushed Potatoes",
+    "brand": "Vista",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 665,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a67eb8ae-6246-50c0-bacd-a4010f9adaba",
+    "name": "Maison Lutece Avocado",
+    "brand": "Maison Lutece",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 375,
+    "unit": "each",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d597de19-b5c5-5bcd-a4d0-fb6d1cf72d08",
+    "name": "Maple & Oat Avocado",
+    "brand": "Maple & Oat",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 329,
+    "unit": "each",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "68d0e2bc-b8a0-555a-bffa-b29ab173c98f",
+    "name": "The Gilded Spoon Carrots",
+    "brand": "The Gilded Spoon",
+    "category": "fruit & vegetables",
+    "aisle": "salads & herbs",
+    "price_cents": 315,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4f01be27-a91d-554b-abe1-b89eb5cd93b9",
+    "name": "Aisle Value Carrots",
+    "brand": "Aisle Value",
+    "category": "fruit & vegetables",
+    "aisle": "fresh vegetables",
+    "price_cents": 255,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e3d9b4a4-f42a-57e5-ae6d-23ed94142381",
+    "name": "Vista White Sandwich Loaf White",
+    "brand": "Vista",
+    "category": "bakery",
+    "aisle": "sweet bakery",
+    "price_cents": 445,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9505de33-cf02-5d3a-98f2-4f7f0eb45064",
+    "name": "Vista White Sandwich Loaf Wholemeal",
+    "brand": "Vista",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 365,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f2baaa24-9f81-58da-abe0-c66856877986",
+    "name": "Vista White Sandwich Loaf Multigrain",
+    "brand": "Vista",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 339,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "19bb6a86-c6a8-5160-b988-4f7b9a10bc07",
+    "name": "Copper Pot White Sandwich Loaf White",
+    "brand": "Copper Pot",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 329,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d9434c4d-4ef2-5fd0-97ac-749b034b9b0d",
+    "name": "Copper Pot White Sandwich Loaf Wholemeal",
+    "brand": "Copper Pot",
+    "category": "bakery",
+    "aisle": "sweet bakery",
+    "price_cents": 335,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9c0f27a0-45aa-53b9-b99d-27d4984e69fc",
+    "name": "Copper Pot White Sandwich Loaf Multigrain",
+    "brand": "Copper Pot",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 315,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "67a265ff-7239-5395-b437-cf666b2bdf77",
+    "name": "Pantry Essentials White Sandwich Loaf White",
+    "brand": "Pantry Essentials",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 275,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e96be141-ef9f-52a8-84b6-82730f489b3e",
+    "name": "Pantry Essentials White Sandwich Loaf Wholemeal",
+    "brand": "Pantry Essentials",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 269,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "88f8ccbe-596a-5f99-8cfc-498149065160",
+    "name": "Pantry Essentials White Sandwich Loaf Multigrain",
+    "brand": "Pantry Essentials",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 245,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e2751696-4324-5993-8ee4-bbb80edeb409",
+    "name": "Artisan Reserve White Sandwich Loaf White",
+    "brand": "Artisan Reserve",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 439,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "227032d3-9e29-5d69-8641-74b1c5c645bf",
+    "name": "Artisan Reserve White Sandwich Loaf Wholemeal",
+    "brand": "Artisan Reserve",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 609,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d4c20bd1-2dd8-5725-918a-38258f0f1c85",
+    "name": "Artisan Reserve White Sandwich Loaf Multigrain",
+    "brand": "Artisan Reserve",
+    "category": "bakery",
+    "aisle": "sweet bakery",
+    "price_cents": 609,
+    "unit": "700g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a907d456-c7a6-5587-b170-78282d1cc805",
+    "name": "The Gilded Spoon Wraps Plain",
+    "brand": "The Gilded Spoon",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 469,
+    "unit": "8 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "27d56d17-67b6-5e72-818e-9cd4aa0238f4",
+    "name": "The Gilded Spoon Wraps Wholemeal",
+    "brand": "The Gilded Spoon",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 545,
+    "unit": "8 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f92a509c-037d-506c-8181-89202fd15d20",
+    "name": "Cedar Grove Wraps Plain",
+    "brand": "Cedar Grove",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 279,
+    "unit": "8 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "83d16970-ccae-5a42-a032-508a454c615b",
+    "name": "Cedar Grove Wraps Wholemeal",
+    "brand": "Cedar Grove",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 415,
+    "unit": "8 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ae11067d-7cfa-5bae-8701-7ddbb6798a45",
+    "name": "Pantry Essentials Wraps Plain",
+    "brand": "Pantry Essentials",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 309,
+    "unit": "8 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "28d7c7e2-f68b-5450-ba7e-e5860391dec0",
+    "name": "Pantry Essentials Wraps Wholemeal",
+    "brand": "Pantry Essentials",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 285,
+    "unit": "8 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "09d27955-5dac-5ece-8e64-7f3f4b801b2c",
+    "name": "Pantry Essentials Dinner Rolls",
+    "brand": "Pantry Essentials",
+    "category": "bakery",
+    "aisle": "sweet bakery",
+    "price_cents": 219,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1431c039-cb40-50fe-8cb0-39511e016de7",
+    "name": "Two Rivers Dinner Rolls",
+    "brand": "Two Rivers",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 355,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8df802e0-e290-5de5-aaf3-5836959df832",
+    "name": "Maison Lutece Dinner Rolls",
+    "brand": "Maison Lutece",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 395,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "75433a44-36b5-51ed-b753-c146c843e387",
+    "name": "Everyday Basics Croissants",
+    "brand": "Everyday Basics",
+    "category": "bakery",
+    "aisle": "wraps & rolls",
+    "price_cents": 525,
+    "unit": "4 pack",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "56166bf9-7401-530a-bd03-3b18cca39bce",
+    "name": "Nordstrom Larder Croissants",
+    "brand": "Nordstrom Larder",
+    "category": "bakery",
+    "aisle": "sweet bakery",
+    "price_cents": 555,
+    "unit": "4 pack",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "871c4736-c104-531a-9dbe-4fb82ee6120b",
+    "name": "Vista Croissants",
+    "brand": "Vista",
+    "category": "bakery",
+    "aisle": "bread",
+    "price_cents": 539,
+    "unit": "4 pack",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8c7c7a85-8fae-5564-ac69-194da039fe91",
+    "name": "Artisan Reserve Spaghetti",
+    "brand": "Artisan Reserve",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 345,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e7f8a232-0635-5e40-a5c9-a4d14e6d2626",
+    "name": "Artisan Reserve Spaghetti Wholemeal",
+    "brand": "Artisan Reserve",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 215,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9cd825be-f172-5159-abb1-8bc152e258c4",
+    "name": "Artisan Reserve Spaghetti Gluten Free",
+    "brand": "Artisan Reserve",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 435,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e04711db-e5be-548d-a1cc-496304da14f6",
+    "name": "Thrift Larder Spaghetti",
+    "brand": "Thrift Larder",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 245,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "882e8e62-2fff-5821-95c8-03baa869fae1",
+    "name": "Thrift Larder Spaghetti Wholemeal",
+    "brand": "Thrift Larder",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 295,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d822ad65-c2d3-5c71-a033-c063307885c0",
+    "name": "Thrift Larder Spaghetti Gluten Free",
+    "brand": "Thrift Larder",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 269,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8fddf963-854c-5ca7-9397-d76ccad64687",
+    "name": "Two Rivers Spaghetti",
+    "brand": "Two Rivers",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 179,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "82d1e2c2-7aa6-51e0-b317-77514e2cd347",
+    "name": "Two Rivers Spaghetti Wholemeal",
+    "brand": "Two Rivers",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 229,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "eee629df-7f3c-583d-a16e-3a7e8f21a2fd",
+    "name": "Two Rivers Spaghetti Gluten Free",
+    "brand": "Two Rivers",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 329,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "643debc7-959e-5bb6-92bb-511ca8eb7e57",
+    "name": "Honest Crumb Spaghetti",
+    "brand": "Honest Crumb",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 195,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0da697aa-623e-58e7-a8b5-218eb60b71a7",
+    "name": "Honest Crumb Spaghetti Wholemeal",
+    "brand": "Honest Crumb",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 185,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "771dca4e-ad6a-5226-bb43-f7a5a3328cb0",
+    "name": "Honest Crumb Spaghetti Gluten Free",
+    "brand": "Honest Crumb",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 159,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7d57c504-6ef1-51ef-b31d-fb3327e44c97",
+    "name": "Heritage Select Penne",
+    "brand": "Heritage Select",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 375,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6510297a-2e97-5b71-b242-a863650b9e05",
+    "name": "Heritage Select Penne Gluten Free",
+    "brand": "Heritage Select",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 329,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "36dc0cc7-338c-5405-a1ef-7e1dcc1c0f19",
+    "name": "Thrift Larder Penne",
+    "brand": "Thrift Larder",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 155,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a102c67e-b2e7-5c8e-9b24-ef466600d168",
+    "name": "Thrift Larder Penne Gluten Free",
+    "brand": "Thrift Larder",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 165,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "01a2a864-e72b-5184-886a-23e54e37d5ad",
+    "name": "Riverbend Penne",
+    "brand": "Riverbend",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 139,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5a980321-7e93-54a1-a9af-cda641d21bdc",
+    "name": "Riverbend Penne Gluten Free",
+    "brand": "Riverbend",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 155,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7e31b31e-94c8-5e99-9d15-43bc80615c82",
+    "name": "Golden Field Penne",
+    "brand": "Golden Field",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 219,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "6c2bfc23-2c4b-5dbf-bcef-daff80772dce",
+    "name": "Golden Field Penne Gluten Free",
+    "brand": "Golden Field",
+    "category": "rice, noodles & pasta",
+    "aisle": "rice",
+    "price_cents": 205,
+    "unit": "500g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "655fb4a8-1ac0-5e2d-a74b-c88c89d6edab",
+    "name": "Green Fork Basmati Rice",
+    "brand": "Green Fork",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 539,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "bbcf2136-7972-5710-adf0-68f7b104682b",
+    "name": "Everyday Basics Basmati Rice",
+    "brand": "Everyday Basics",
+    "category": "rice, noodles & pasta",
+    "aisle": "noodles",
+    "price_cents": 569,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e4ab71da-d772-57a8-8356-33aa244ba4d8",
+    "name": "Nordstrom Larder Basmati Rice",
+    "brand": "Nordstrom Larder",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 859,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9295af32-4600-5606-a94f-a1c6b6297a8d",
+    "name": "Pantry Essentials Hokkien Noodles",
+    "brand": "Pantry Essentials",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 235,
+    "unit": "440g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "24c5b7a7-4043-58ea-b7c5-c99665aab5ee",
+    "name": "Artisan Reserve Hokkien Noodles",
+    "brand": "Artisan Reserve",
+    "category": "rice, noodles & pasta",
+    "aisle": "pasta",
+    "price_cents": 285,
+    "unit": "440g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0fadee69-cfd8-57af-8e9c-8abd7f89a2cf",
+    "name": "Coastline Diced Tomatoes",
+    "brand": "Coastline",
+    "category": "canned & packet food",
+    "aisle": "soups & beans",
+    "price_cents": 109,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8e6d1797-f0c5-572b-9ef9-04815cc1f725",
+    "name": "Honest Crumb Diced Tomatoes",
+    "brand": "Honest Crumb",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 189,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b9aef6ba-6bba-53c2-b26f-20bd2b41b5d5",
+    "name": "Artisan Reserve Diced Tomatoes",
+    "brand": "Artisan Reserve",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 315,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "803e5fbc-7352-5954-8784-7b1a953e9777",
+    "name": "Everyday Basics Diced Tomatoes",
+    "brand": "Everyday Basics",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 175,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "15e03fd8-4f54-52a9-9edd-7628e85af944",
+    "name": "Maison Lutece Tuna in Springwater",
+    "brand": "Maison Lutece",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 385,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "35e2b174-c1d9-503b-bc3d-ca0a4ac5c392",
+    "name": "Maison Lutece Tuna in Springwater Olive Oil",
+    "brand": "Maison Lutece",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 215,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ba5a01fb-3940-56e8-b7b7-2235ab92b71c",
+    "name": "Maison Lutece Tuna in Springwater Chilli",
+    "brand": "Maison Lutece",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 179,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "67b39cd1-3a46-5ad5-9e06-3febc15af18f",
+    "name": "Thrift Larder Tuna in Springwater",
+    "brand": "Thrift Larder",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 145,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "04cccd44-9092-5b0e-9356-51cdb6c942a5",
+    "name": "Thrift Larder Tuna in Springwater Olive Oil",
+    "brand": "Thrift Larder",
+    "category": "canned & packet food",
+    "aisle": "soups & beans",
+    "price_cents": 225,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4e38d9f4-1961-5bbf-ae34-bb89a526504a",
+    "name": "Thrift Larder Tuna in Springwater Chilli",
+    "brand": "Thrift Larder",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 119,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "90a8bf7c-a841-5d96-8999-1e1de77941ba",
+    "name": "Green Fork Tuna in Springwater",
+    "brand": "Green Fork",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 199,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "97eca3bf-2fa9-5c1e-96df-c346f6cca55a",
+    "name": "Green Fork Tuna in Springwater Olive Oil",
+    "brand": "Green Fork",
+    "category": "canned & packet food",
+    "aisle": "soups & beans",
+    "price_cents": 345,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "5ccdb660-6271-5ce1-bb05-4a709c807147",
+    "name": "Green Fork Tuna in Springwater Chilli",
+    "brand": "Green Fork",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 249,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "bd55c89c-89d6-5aab-85a2-07a5c66c940f",
+    "name": "Maple & Oat Tuna in Springwater",
+    "brand": "Maple & Oat",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 319,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2c7cf911-6f94-5b16-b81b-5908503fc8e0",
+    "name": "Maple & Oat Tuna in Springwater Olive Oil",
+    "brand": "Maple & Oat",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 259,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "607c0f78-1feb-5a21-8605-c7a234203185",
+    "name": "Maple & Oat Tuna in Springwater Chilli",
+    "brand": "Maple & Oat",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 159,
+    "unit": "95g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0a703b40-244a-5a7d-a707-81528277d28f",
+    "name": "Nordstrom Larder Baked Beans",
+    "brand": "Nordstrom Larder",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 309,
+    "unit": "420g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5553a808-acae-5dd8-afc1-53f81a5535d6",
+    "name": "Everyday Basics Baked Beans",
+    "brand": "Everyday Basics",
+    "category": "canned & packet food",
+    "aisle": "soups & beans",
+    "price_cents": 129,
+    "unit": "420g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "64cd26c6-8d34-5bed-91ef-7e9ca4e840c8",
+    "name": "Brookfield Baked Beans",
+    "brand": "Brookfield",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 149,
+    "unit": "420g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "61737285-9d39-5d51-8e30-25e8588fa6c3",
+    "name": "Pantry Essentials Chickpeas",
+    "brand": "Pantry Essentials",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 139,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5c52d071-bbff-5db2-958d-73a5e560a58d",
+    "name": "Maison Lutece Chickpeas",
+    "brand": "Maison Lutece",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 259,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7acd464c-8a6a-5e3d-904b-a2ec21256535",
+    "name": "Green Fork Chickpeas",
+    "brand": "Green Fork",
+    "category": "canned & packet food",
+    "aisle": "soups & beans",
+    "price_cents": 185,
+    "unit": "400g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2566d9a7-935a-5bc6-be7b-68fb82ca7426",
+    "name": "Pantry Essentials Lentil Soup",
+    "brand": "Pantry Essentials",
+    "category": "canned & packet food",
+    "aisle": "soups & beans",
+    "price_cents": 235,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9a5cc476-c468-5baa-aa99-967adeafb45e",
+    "name": "Sunny Meadow Lentil Soup",
+    "brand": "Sunny Meadow",
+    "category": "canned & packet food",
+    "aisle": "canned fish",
+    "price_cents": 305,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5dca8216-c48e-5105-a0b6-1402072b3a37",
+    "name": "Heritage Select Lentil Soup",
+    "brand": "Heritage Select",
+    "category": "canned & packet food",
+    "aisle": "canned vegetables",
+    "price_cents": 639,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ce403c2b-658e-5088-a7ee-a54ae72d3198",
+    "name": "Maison Lutece Chicken Breast Fillets",
+    "brand": "Maison Lutece",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 1279,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "646791e6-165d-5317-8715-15f8fa89cc88",
+    "name": "Aisle Value Chicken Breast Fillets",
+    "brand": "Aisle Value",
+    "category": "meat",
+    "aisle": "poultry",
+    "price_cents": 619,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "242c3ee7-f8f4-5574-9c1e-f619e35a5647",
+    "name": "Harvest Lane Chicken Breast Fillets",
+    "brand": "Harvest Lane",
+    "category": "meat",
+    "aisle": "beef & lamb",
+    "price_cents": 675,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6b0f17c1-b149-5b05-b460-7da51b249d5d",
+    "name": "Golden Field Beef Mince Regular",
+    "brand": "Golden Field",
+    "category": "meat",
+    "aisle": "beef & lamb",
+    "price_cents": 629,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "996883b3-7605-55df-a020-62a6bef7894d",
+    "name": "Golden Field Beef Mince Premium",
+    "brand": "Golden Field",
+    "category": "meat",
+    "aisle": "poultry",
+    "price_cents": 745,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "888b2b1a-9ee8-59bb-a950-e8617ec1429c",
+    "name": "Pantry Essentials Beef Mince Regular",
+    "brand": "Pantry Essentials",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 795,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "fd49ea4a-89b7-5e0e-b003-14f78a9cb7a2",
+    "name": "Pantry Essentials Beef Mince Premium",
+    "brand": "Pantry Essentials",
+    "category": "meat",
+    "aisle": "poultry",
+    "price_cents": 845,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d48f8b2a-2e8f-5811-845e-8724d392194a",
+    "name": "The Gilded Spoon Beef Mince Regular",
+    "brand": "The Gilded Spoon",
+    "category": "meat",
+    "aisle": "beef & lamb",
+    "price_cents": 865,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "855f4483-b3b5-5894-898b-028a279edc26",
+    "name": "The Gilded Spoon Beef Mince Premium",
+    "brand": "The Gilded Spoon",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 1075,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "de411859-6258-5089-a5f5-bcd59bca8bcc",
+    "name": "Artisan Reserve Pork Sausages",
+    "brand": "Artisan Reserve",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 1059,
+    "unit": "500g",
+    "allergens": [
+      "sulphites"
+    ],
+    "dietary_tags": [
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8b9febcf-c822-549f-8587-af3f9d99efb8",
+    "name": "Aisle Value Pork Sausages",
+    "brand": "Aisle Value",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 455,
+    "unit": "500g",
+    "allergens": [
+      "sulphites"
+    ],
+    "dietary_tags": [
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f1818d19-ae50-5b45-9409-203014f7ff50",
+    "name": "Maple & Oat Pork Sausages",
+    "brand": "Maple & Oat",
+    "category": "meat",
+    "aisle": "beef & lamb",
+    "price_cents": 609,
+    "unit": "500g",
+    "allergens": [
+      "sulphites"
+    ],
+    "dietary_tags": [
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3e85d21d-afbd-59d2-a5b2-b2d7d14421df",
+    "name": "Vista Streaky Bacon",
+    "brand": "Vista",
+    "category": "meat",
+    "aisle": "beef & lamb",
+    "price_cents": 505,
+    "unit": "250g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d5b86e19-3567-57ec-9654-a7b0f5b62368",
+    "name": "Everyday Basics Streaky Bacon",
+    "brand": "Everyday Basics",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 489,
+    "unit": "250g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c5523d26-743a-56ef-85cb-51d74c477259",
+    "name": "Nordstrom Larder Streaky Bacon",
+    "brand": "Nordstrom Larder",
+    "category": "meat",
+    "aisle": "pork & bacon",
+    "price_cents": 585,
+    "unit": "250g",
+    "allergens": [],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "34da285c-46d3-54a1-94d7-2541a0df3fd5",
+    "name": "Green Fork Salmon Fillets",
+    "brand": "Green Fork",
+    "category": "seafood",
+    "aisle": "frozen seafood",
+    "price_cents": 1209,
+    "unit": "300g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "54ccd3e7-e061-5e1e-910b-1775356662f6",
+    "name": "Nordstrom Larder Salmon Fillets",
+    "brand": "Nordstrom Larder",
+    "category": "seafood",
+    "aisle": "frozen seafood",
+    "price_cents": 1859,
+    "unit": "300g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "2daa3960-47cd-564f-9b09-406eefb205c2",
+    "name": "Aisle Value Salmon Fillets",
+    "brand": "Aisle Value",
+    "category": "seafood",
+    "aisle": "frozen seafood",
+    "price_cents": 945,
+    "unit": "300g",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f767b005-4786-5f03-aaf5-8833b1c66a48",
+    "name": "Stillwater Raw Prawns",
+    "brand": "Stillwater",
+    "category": "seafood",
+    "aisle": "frozen seafood",
+    "price_cents": 1725,
+    "unit": "500g",
+    "allergens": [
+      "shellfish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6c6da59a-468c-5e37-8504-f82c1c3acf92",
+    "name": "Maison Lutece Raw Prawns",
+    "brand": "Maison Lutece",
+    "category": "seafood",
+    "aisle": "fresh seafood",
+    "price_cents": 1465,
+    "unit": "500g",
+    "allergens": [
+      "shellfish"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a1ec9eef-685e-559a-8d52-f70dc5b09d5a",
+    "name": "Two Rivers Crumbed Fish Fillets",
+    "brand": "Two Rivers",
+    "category": "seafood",
+    "aisle": "frozen seafood",
+    "price_cents": 819,
+    "unit": "425g",
+    "allergens": [
+      "fish",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "49570b49-6f07-54d5-b3e9-eb5d64d494f0",
+    "name": "Everyday Basics Crumbed Fish Fillets",
+    "brand": "Everyday Basics",
+    "category": "seafood",
+    "aisle": "frozen seafood",
+    "price_cents": 559,
+    "unit": "425g",
+    "allergens": [
+      "fish",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3ba420d5-82dd-54e0-a63c-401e9d0340d4",
+    "name": "The Gilded Spoon Frozen Peas",
+    "brand": "The Gilded Spoon",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 325,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "34037d60-055a-5ff8-80c4-4460617b56d0",
+    "name": "Stillwater Frozen Peas",
+    "brand": "Stillwater",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 229,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4b674f3e-b156-5401-8da9-7f04726d0273",
+    "name": "Thrift Larder Frozen Peas",
+    "brand": "Thrift Larder",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 299,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "1f9e9f29-cf56-53b8-93a4-f7d2b1e2e769",
+    "name": "Pantry Essentials Mixed Vegetables",
+    "brand": "Pantry Essentials",
+    "category": "frozen food",
+    "aisle": "frozen meals",
+    "price_cents": 379,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d5f495ef-2d22-56a3-a716-4fa777c225ec",
+    "name": "Copper Pot Mixed Vegetables",
+    "brand": "Copper Pot",
+    "category": "frozen food",
+    "aisle": "frozen meals",
+    "price_cents": 335,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3a086687-7882-5084-a56a-adfa6e8c95fd",
+    "name": "The Gilded Spoon Mixed Vegetables",
+    "brand": "The Gilded Spoon",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 589,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f117d44c-fbb7-517b-bed9-d58f63a05376",
+    "name": "Honest Crumb Margherita Pizza",
+    "brand": "Honest Crumb",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 679,
+    "unit": "450g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9e37d39e-ee15-5174-b341-0f73c3eb6ddd",
+    "name": "Heritage Select Margherita Pizza",
+    "brand": "Heritage Select",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 535,
+    "unit": "450g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "59b162ef-cd31-506d-ae96-3a2f400e83d6",
+    "name": "Thrift Larder Margherita Pizza",
+    "brand": "Thrift Larder",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 625,
+    "unit": "450g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f581e45d-d29b-593f-b205-1654061a4226",
+    "name": "Harvest Lane Vanilla Ice Cream Vanilla",
+    "brand": "Harvest Lane",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 539,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c82bc17b-eefe-5dca-aee4-b563fc640b82",
+    "name": "Harvest Lane Vanilla Ice Cream Chocolate",
+    "brand": "Harvest Lane",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 785,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "d650ec08-5c84-53a9-8011-dcfed368ffd9",
+    "name": "Harvest Lane Vanilla Ice Cream Cookies & Cream",
+    "brand": "Harvest Lane",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 879,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "351175da-850b-5b8c-80e7-46547951ad90",
+    "name": "Aisle Value Vanilla Ice Cream Vanilla",
+    "brand": "Aisle Value",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 385,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7f6b3550-a51f-5e6f-857b-60ce5d82b1fb",
+    "name": "Aisle Value Vanilla Ice Cream Chocolate",
+    "brand": "Aisle Value",
+    "category": "frozen food",
+    "aisle": "frozen meals",
+    "price_cents": 739,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c51c5518-7df4-57a3-938a-2b611dbfb0ba",
+    "name": "Aisle Value Vanilla Ice Cream Cookies & Cream",
+    "brand": "Aisle Value",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 399,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7560751f-2b9d-54d1-b4ed-d5ce8e5fe8fc",
+    "name": "The Gilded Spoon Vanilla Ice Cream Vanilla",
+    "brand": "The Gilded Spoon",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 799,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6c03bb18-0bf5-5e3a-aac4-73ef25df494e",
+    "name": "The Gilded Spoon Vanilla Ice Cream Chocolate",
+    "brand": "The Gilded Spoon",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 755,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "3b450a83-167b-55e2-9409-17d3b80d2cf7",
+    "name": "The Gilded Spoon Vanilla Ice Cream Cookies & Cream",
+    "brand": "The Gilded Spoon",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 835,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "29c604a9-0df0-578f-8be1-ef7af84fc548",
+    "name": "Hearthstone Vanilla Ice Cream Vanilla",
+    "brand": "Hearthstone",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 735,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "660cadfa-10c3-575d-85ee-7f90e0d54af1",
+    "name": "Hearthstone Vanilla Ice Cream Chocolate",
+    "brand": "Hearthstone",
+    "category": "frozen food",
+    "aisle": "frozen vegetables",
+    "price_cents": 685,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a83e1447-3dc0-514b-b72d-172f4310b628",
+    "name": "Hearthstone Vanilla Ice Cream Cookies & Cream",
+    "brand": "Hearthstone",
+    "category": "frozen food",
+    "aisle": "ice cream",
+    "price_cents": 589,
+    "unit": "2L",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "af1cc37c-9b2f-5301-b604-ecec747e1b62",
+    "name": "Heritage Select Cola Regular",
+    "brand": "Heritage Select",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 355,
+    "unit": "1.25L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "32828248-3d09-5181-b6db-9a0e621c754e",
+    "name": "Heritage Select Cola No Sugar",
+    "brand": "Heritage Select",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 309,
+    "unit": "1.25L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3a8544a7-fd2e-553a-b7f2-fb606208ec5e",
+    "name": "Pantry Essentials Cola Regular",
+    "brand": "Pantry Essentials",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 249,
+    "unit": "1.25L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ebb32687-305a-5c07-8442-d1a5f939f5e5",
+    "name": "Pantry Essentials Cola No Sugar",
+    "brand": "Pantry Essentials",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 295,
+    "unit": "1.25L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3fdaf197-eaa8-5c4a-ba76-454dace8df7f",
+    "name": "Honest Crumb Cola Regular",
+    "brand": "Honest Crumb",
+    "category": "drinks",
+    "aisle": "juice",
+    "price_cents": 185,
+    "unit": "1.25L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "455ebd1f-8441-5dbd-b703-7043dda70a90",
+    "name": "Honest Crumb Cola No Sugar",
+    "brand": "Honest Crumb",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 305,
+    "unit": "1.25L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "44642edb-f858-51a2-b7d9-9726ba2643ac",
+    "name": "Sunny Meadow Orange Juice",
+    "brand": "Sunny Meadow",
+    "category": "drinks",
+    "aisle": "juice",
+    "price_cents": 395,
+    "unit": "2L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "753cbfc2-2ae9-5fdd-9a40-e573dc329cc7",
+    "name": "Sunny Meadow Orange Juice No Added Sugar",
+    "brand": "Sunny Meadow",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 559,
+    "unit": "2L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1700aad3-c454-5d86-a9c5-7eea874730bb",
+    "name": "Cuvée Noir Orange Juice",
+    "brand": "Cuvée Noir",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 515,
+    "unit": "2L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b6c49f27-d21b-588e-bde7-3362cd7e89fe",
+    "name": "Cuvée Noir Orange Juice No Added Sugar",
+    "brand": "Cuvée Noir",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 645,
+    "unit": "2L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5dfd500a-7eec-52f1-8005-9d2aa2491d91",
+    "name": "Aisle Value Orange Juice",
+    "brand": "Aisle Value",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 389,
+    "unit": "2L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a2e1df98-2636-58a7-88a1-8a7d36413089",
+    "name": "Aisle Value Orange Juice No Added Sugar",
+    "brand": "Aisle Value",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 489,
+    "unit": "2L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f8781e38-78d7-5541-b1c6-d5d3539ecc90",
+    "name": "Bellavita Sparkling Water Lime",
+    "brand": "Bellavita",
+    "category": "drinks",
+    "aisle": "juice",
+    "price_cents": 189,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a7a742ac-da79-5bc7-91a4-9ce684863703",
+    "name": "Bellavita Sparkling Water Lemon",
+    "brand": "Bellavita",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 309,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1c1c421d-c39b-5ccf-9ea5-33326af23478",
+    "name": "Bellavita Sparkling Water Natural",
+    "brand": "Bellavita",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 309,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "1a74bbe8-e5b2-5a83-b819-7e2cd9c544e0",
+    "name": "Everyday Basics Sparkling Water Lime",
+    "brand": "Everyday Basics",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 189,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "09b4c8d7-fc62-52ec-9ed2-a8aab3f3b917",
+    "name": "Everyday Basics Sparkling Water Lemon",
+    "brand": "Everyday Basics",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 145,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "65044f17-b6ad-59a5-b45b-42d7ab675b79",
+    "name": "Everyday Basics Sparkling Water Natural",
+    "brand": "Everyday Basics",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 215,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5c9bb90d-9eb6-5d3d-9646-7c10a641b904",
+    "name": "Coastline Sparkling Water Lime",
+    "brand": "Coastline",
+    "category": "drinks",
+    "aisle": "juice",
+    "price_cents": 345,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2c8dc60e-ee11-56a3-a079-0b5b62a2f73c",
+    "name": "Coastline Sparkling Water Lemon",
+    "brand": "Coastline",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 125,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c19a0bb6-9d79-53c4-97da-c988c4a70303",
+    "name": "Coastline Sparkling Water Natural",
+    "brand": "Coastline",
+    "category": "drinks",
+    "aisle": "juice",
+    "price_cents": 309,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "sugar_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "77f7a45e-8c3d-591c-915d-c6c584565888",
+    "name": "Heritage Select Ground Coffee Espresso",
+    "brand": "Heritage Select",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 1009,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "738183e7-efd8-5875-9b73-59e5f9c89cdb",
+    "name": "Heritage Select Ground Coffee Decaf",
+    "brand": "Heritage Select",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 1439,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e8e04d46-87a7-5eed-b072-d31af95922d4",
+    "name": "Maple & Oat Ground Coffee Espresso",
+    "brand": "Maple & Oat",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 1005,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "aa43ccba-c2ad-5f50-9de5-950fd71980e5",
+    "name": "Maple & Oat Ground Coffee Decaf",
+    "brand": "Maple & Oat",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 899,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "60f68c1a-0d70-5e88-9088-4c43e5c110c4",
+    "name": "Green Fork Ground Coffee Espresso",
+    "brand": "Green Fork",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 805,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "725b324d-19b5-5fb4-b54f-78091ef55484",
+    "name": "Green Fork Ground Coffee Decaf",
+    "brand": "Green Fork",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 2009,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2d20b4f1-2c14-5a20-9004-a9331e85e85c",
+    "name": "Thrift Larder Ground Coffee Espresso",
+    "brand": "Thrift Larder",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 1669,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4af792b4-5a5e-546a-adcf-cb40e5c944e6",
+    "name": "Thrift Larder Ground Coffee Decaf",
+    "brand": "Thrift Larder",
+    "category": "drinks",
+    "aisle": "soft drinks",
+    "price_cents": 1059,
+    "unit": "1kg",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a44301e2-c5a6-5149-acc5-100f6c7be285",
+    "name": "Pantry Essentials English Breakfast Tea",
+    "brand": "Pantry Essentials",
+    "category": "drinks",
+    "aisle": "coffee & tea",
+    "price_cents": 429,
+    "unit": "100 bags",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "27592379-b568-5a37-8f42-906099ff89bf",
+    "name": "Maison Lutece English Breakfast Tea",
+    "brand": "Maison Lutece",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 709,
+    "unit": "100 bags",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "47ab79db-d09c-5440-89e2-df2f30b944b1",
+    "name": "Cedar Grove English Breakfast Tea",
+    "brand": "Cedar Grove",
+    "category": "drinks",
+    "aisle": "water",
+    "price_cents": 655,
+    "unit": "100 bags",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d1465ddd-b959-51b6-96cc-504e57194da1",
+    "name": "Everyday Basics Potato Chips Original",
+    "brand": "Everyday Basics",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 199,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7ce69907-9754-54d7-b9b5-5f2391634219",
+    "name": "Everyday Basics Potato Chips Salt & Vinegar",
+    "brand": "Everyday Basics",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 355,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "48793c6a-7cb7-5b25-b28c-39411ac98c65",
+    "name": "Everyday Basics Potato Chips BBQ",
+    "brand": "Everyday Basics",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 375,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7804159b-0426-51b2-89b0-4f8edfea54a1",
+    "name": "Green Fork Potato Chips Original",
+    "brand": "Green Fork",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 279,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e9369377-b522-58f5-94dc-b065b166a620",
+    "name": "Green Fork Potato Chips Salt & Vinegar",
+    "brand": "Green Fork",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 385,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "252cf310-84e1-5ae6-bfcf-9df18a2eebbb",
+    "name": "Green Fork Potato Chips BBQ",
+    "brand": "Green Fork",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 419,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d1d657af-9d59-55a3-8bb4-afaf198b7d8f",
+    "name": "Heritage Select Potato Chips Original",
+    "brand": "Heritage Select",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 285,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4024e55f-0059-5248-a183-ca5478448aa1",
+    "name": "Heritage Select Potato Chips Salt & Vinegar",
+    "brand": "Heritage Select",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 545,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7afab063-1d7e-5fab-89d1-15b9e465eacb",
+    "name": "Heritage Select Potato Chips BBQ",
+    "brand": "Heritage Select",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 395,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1be7f2a8-9a84-5364-b5d0-f7bd4a0b1456",
+    "name": "Golden Field Potato Chips Original",
+    "brand": "Golden Field",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 379,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d5404852-faf9-5e20-9103-24252d70e17e",
+    "name": "Golden Field Potato Chips Salt & Vinegar",
+    "brand": "Golden Field",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 409,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f724a2bb-7bdc-5baa-811c-76d5ec9946b5",
+    "name": "Golden Field Potato Chips BBQ",
+    "brand": "Golden Field",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 219,
+    "unit": "175g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4435a484-6a88-54c0-8a51-606033cc319a",
+    "name": "Riverbend Chocolate Biscuits",
+    "brand": "Riverbend",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 279,
+    "unit": "200g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk",
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1ed5e628-aa45-507e-8cba-e56d724b1037",
+    "name": "Thrift Larder Chocolate Biscuits",
+    "brand": "Thrift Larder",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 185,
+    "unit": "200g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk",
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "35610784-1842-5b79-8e1e-a826ddd02613",
+    "name": "Cuvée Noir Chocolate Biscuits",
+    "brand": "Cuvée Noir",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 505,
+    "unit": "200g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk",
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "71492cb7-501f-547c-a7a1-a16c3a86f0cd",
+    "name": "Brookfield Chocolate Biscuits",
+    "brand": "Brookfield",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 465,
+    "unit": "200g",
+    "allergens": [
+      "wheat",
+      "gluten",
+      "milk",
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "cbcd013b-29fe-56dd-bd81-e884c8bfedae",
+    "name": "Cuvée Noir Water Crackers",
+    "brand": "Cuvée Noir",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 459,
+    "unit": "250g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "04b6c885-e7f1-5984-a4b7-6d515dbfbc12",
+    "name": "Aisle Value Water Crackers",
+    "brand": "Aisle Value",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 269,
+    "unit": "250g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "50dabe78-2b0f-5670-8e61-019229ac6bff",
+    "name": "Cedar Grove Water Crackers",
+    "brand": "Cedar Grove",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 319,
+    "unit": "250g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a837efee-76bc-5c80-857d-2ce0c27ab687",
+    "name": "Sunny Meadow Roasted Almonds Salted",
+    "brand": "Sunny Meadow",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 539,
+    "unit": "200g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "07cc9512-03d4-596f-893d-040156404814",
+    "name": "Sunny Meadow Roasted Almonds Unsalted",
+    "brand": "Sunny Meadow",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 879,
+    "unit": "200g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9c8aff17-c30a-5deb-b864-21d033754329",
+    "name": "Artisan Reserve Roasted Almonds Salted",
+    "brand": "Artisan Reserve",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 839,
+    "unit": "200g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f261c1ae-f56e-54ba-9a45-b6db3d4003ec",
+    "name": "Artisan Reserve Roasted Almonds Unsalted",
+    "brand": "Artisan Reserve",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 545,
+    "unit": "200g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "bdbb3302-038e-5025-b683-ff520c186ba1",
+    "name": "Aisle Value Roasted Almonds Salted",
+    "brand": "Aisle Value",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 689,
+    "unit": "200g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2477eb9c-b812-5405-9a52-8606bee84ea9",
+    "name": "Aisle Value Roasted Almonds Unsalted",
+    "brand": "Aisle Value",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 605,
+    "unit": "200g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b98f5f73-7bcc-52cb-948e-0e8eeea8e1ba",
+    "name": "Maple & Oat Muesli Bars",
+    "brand": "Maple & Oat",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 589,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4027d384-e48a-5f49-ac22-21e5d30ae735",
+    "name": "Maple & Oat Muesli Bars Nut Free",
+    "brand": "Maple & Oat",
+    "category": "biscuits & snacks",
+    "aisle": "nuts & bars",
+    "price_cents": 429,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "70dbe18f-dd5c-57af-9046-c6fd8258ccbd",
+    "name": "Aisle Value Muesli Bars",
+    "brand": "Aisle Value",
+    "category": "biscuits & snacks",
+    "aisle": "sweet biscuits",
+    "price_cents": 509,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ad1524eb-468a-5408-bb4b-a9ffc9527a85",
+    "name": "Aisle Value Muesli Bars Nut Free",
+    "brand": "Aisle Value",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 359,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "77f3094a-d6dd-57be-8c38-82b5ef563cb3",
+    "name": "Maison Lutece Muesli Bars",
+    "brand": "Maison Lutece",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 439,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "83475a33-d87f-5c54-aa92-93a0761d16e8",
+    "name": "Maison Lutece Muesli Bars Nut Free",
+    "brand": "Maison Lutece",
+    "category": "biscuits & snacks",
+    "aisle": "chips & crackers",
+    "price_cents": 455,
+    "unit": "6 pack",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b35a6733-5dd5-5b5c-9afc-d8fb264b4ee0",
+    "name": "Honest Crumb Corn Flakes",
+    "brand": "Honest Crumb",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 375,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "95bcea2c-0fde-57fe-b1f5-123f27eb4383",
+    "name": "Cuvée Noir Corn Flakes",
+    "brand": "Cuvée Noir",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 535,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a9fb5fbb-5e2a-567a-aa10-65fae70039e4",
+    "name": "Everyday Basics Corn Flakes",
+    "brand": "Everyday Basics",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 239,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "dda17168-d281-59a9-b92c-687e274dec71",
+    "name": "Thrift Larder Rolled Oats",
+    "brand": "Thrift Larder",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 189,
+    "unit": "1kg",
+    "allergens": [
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "52996665-38b4-5a43-9393-54c56faf8010",
+    "name": "Thrift Larder Rolled Oats Quick",
+    "brand": "Thrift Larder",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 385,
+    "unit": "1kg",
+    "allergens": [
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "cd19da68-9298-5d0a-b9b7-4376cc20e717",
+    "name": "Maison Lutece Rolled Oats",
+    "brand": "Maison Lutece",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 615,
+    "unit": "1kg",
+    "allergens": [
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "603919f8-6fd9-51be-bbc6-59488ef0ed5f",
+    "name": "Maison Lutece Rolled Oats Quick",
+    "brand": "Maison Lutece",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 329,
+    "unit": "1kg",
+    "allergens": [
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d564f52d-0d8a-5fda-b9e4-989bb2acd382",
+    "name": "Cedar Grove Rolled Oats",
+    "brand": "Cedar Grove",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 279,
+    "unit": "1kg",
+    "allergens": [
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b99f58ee-d057-50ae-9684-f486c14373de",
+    "name": "Cedar Grove Rolled Oats Quick",
+    "brand": "Cedar Grove",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 395,
+    "unit": "1kg",
+    "allergens": [
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "633e4b13-c04c-5b64-8f78-04a25f947d89",
+    "name": "Maison Lutece Toasted Muesli",
+    "brand": "Maison Lutece",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 975,
+    "unit": "750g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2c5509f3-d8f7-5228-b7e5-9c34ee799ffb",
+    "name": "Maison Lutece Toasted Muesli Gluten Free",
+    "brand": "Maison Lutece",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 545,
+    "unit": "750g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a3d64c0d-ef74-5ba8-b22b-06a9cfbf77e0",
+    "name": "Harvest Lane Toasted Muesli",
+    "brand": "Harvest Lane",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 519,
+    "unit": "750g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8f2f5e65-31f0-59bd-82c2-bd184217b128",
+    "name": "Harvest Lane Toasted Muesli Gluten Free",
+    "brand": "Harvest Lane",
+    "category": "breakfast foods",
+    "aisle": "oats & muesli",
+    "price_cents": 809,
+    "unit": "750g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "55e90ef0-1302-53fa-a84c-9bc6ba5d8f0c",
+    "name": "Thrift Larder Toasted Muesli",
+    "brand": "Thrift Larder",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 499,
+    "unit": "750g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "df7b817c-bc68-5376-b8d6-6c0a41687a0f",
+    "name": "Thrift Larder Toasted Muesli Gluten Free",
+    "brand": "Thrift Larder",
+    "category": "breakfast foods",
+    "aisle": "cereal",
+    "price_cents": 455,
+    "unit": "750g",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f080ac32-a9ae-56d9-a30b-a58c744280fc",
+    "name": "Nordstrom Larder Extra Virgin Olive Oil",
+    "brand": "Nordstrom Larder",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 1899,
+    "unit": "750ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e4a438d7-b9af-5090-8b1f-c5a1053f7c00",
+    "name": "Maple & Oat Extra Virgin Olive Oil",
+    "brand": "Maple & Oat",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 1345,
+    "unit": "750ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f666cea6-fbc1-5ee8-a45f-3613165ddead",
+    "name": "Sunny Meadow Extra Virgin Olive Oil",
+    "brand": "Sunny Meadow",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 1495,
+    "unit": "750ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ee6ab218-e39f-59ac-94e2-2a080bc470d5",
+    "name": "Aisle Value Extra Virgin Olive Oil",
+    "brand": "Aisle Value",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 845,
+    "unit": "750ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "90eb04d7-e29e-54c8-9db5-b68f73c216d5",
+    "name": "Harvest Lane Sea Salt Grinder",
+    "brand": "Harvest Lane",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 379,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "386beede-dafd-5cf6-8624-e932ca4d2166",
+    "name": "Thrift Larder Sea Salt Grinder",
+    "brand": "Thrift Larder",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 345,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e22f7f1f-0c67-51a5-bd16-366885569d17",
+    "name": "The Gilded Spoon Sea Salt Grinder",
+    "brand": "The Gilded Spoon",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 439,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "83a19486-1e6e-5ca3-8727-b2557a14e55d",
+    "name": "Maison Lutece Cracked Black Pepper",
+    "brand": "Maison Lutece",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 435,
+    "unit": "50g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3fdc193f-fc6b-5917-913e-22099471671a",
+    "name": "Aisle Value Cracked Black Pepper",
+    "brand": "Aisle Value",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 355,
+    "unit": "50g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c9710b8c-881d-5ade-9b4d-594c7f2a4a4b",
+    "name": "Cedar Grove Cracked Black Pepper",
+    "brand": "Cedar Grove",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 465,
+    "unit": "50g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9ec01a84-8fff-506c-8aef-629e450d6159",
+    "name": "Thrift Larder Pasta Sauce Tomato & Basil",
+    "brand": "Thrift Larder",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 409,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b3f0656a-6bc5-5e76-9d53-7fb48f96c197",
+    "name": "Thrift Larder Pasta Sauce Bolognese",
+    "brand": "Thrift Larder",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 469,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8d330886-ef94-52e1-b185-3effbe70511e",
+    "name": "The Gilded Spoon Pasta Sauce Tomato & Basil",
+    "brand": "The Gilded Spoon",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 575,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "715500ec-3b1c-5410-9d90-df45afb32923",
+    "name": "The Gilded Spoon Pasta Sauce Bolognese",
+    "brand": "The Gilded Spoon",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 475,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d35ab334-75a8-5cdd-bdd9-3684248c731b",
+    "name": "Vista Pasta Sauce Tomato & Basil",
+    "brand": "Vista",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 329,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "af47024e-a500-5eff-be70-010bcee228de",
+    "name": "Vista Pasta Sauce Bolognese",
+    "brand": "Vista",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 445,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b65f00bc-2718-5ad7-b38b-8a71572d8451",
+    "name": "Sunny Meadow Pasta Sauce Tomato & Basil",
+    "brand": "Sunny Meadow",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 215,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "09fca2cc-c52b-571d-bf14-5c25470e7514",
+    "name": "Sunny Meadow Pasta Sauce Bolognese",
+    "brand": "Sunny Meadow",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 249,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9945be30-ca6b-5b6b-8905-c79998d902b9",
+    "name": "Aisle Value Soy Sauce",
+    "brand": "Aisle Value",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 285,
+    "unit": "250ml",
+    "allergens": [
+      "soy",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "fe18a8fa-3744-593a-8dcd-46a45741ff10",
+    "name": "Aisle Value Soy Sauce Salt Reduced",
+    "brand": "Aisle Value",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 245,
+    "unit": "250ml",
+    "allergens": [
+      "soy",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "92d4d540-3eb6-593b-8798-5efbb6c804f3",
+    "name": "Golden Field Soy Sauce",
+    "brand": "Golden Field",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 449,
+    "unit": "250ml",
+    "allergens": [
+      "soy",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4c5cbb42-dc10-5189-9832-cf9df60e4434",
+    "name": "Golden Field Soy Sauce Salt Reduced",
+    "brand": "Golden Field",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 429,
+    "unit": "250ml",
+    "allergens": [
+      "soy",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "94818bd4-31d7-5620-9755-9419e8bb2a78",
+    "name": "Maison Lutece Soy Sauce",
+    "brand": "Maison Lutece",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 379,
+    "unit": "250ml",
+    "allergens": [
+      "soy",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c5747da6-47a4-50a2-92c8-60ebc5345e62",
+    "name": "Maison Lutece Soy Sauce Salt Reduced",
+    "brand": "Maison Lutece",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 289,
+    "unit": "250ml",
+    "allergens": [
+      "soy",
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegan"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a5cb0fca-b0db-5347-9b93-32ed97c4b29a",
+    "name": "The Gilded Spoon Curry Paste Red",
+    "brand": "The Gilded Spoon",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 319,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "dd9dc2b7-ba03-5201-b04a-2a5b14b4da4e",
+    "name": "The Gilded Spoon Curry Paste Green",
+    "brand": "The Gilded Spoon",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 545,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "311e076e-36da-515d-bcc3-abfa0b2b36e3",
+    "name": "The Gilded Spoon Curry Paste Korma",
+    "brand": "The Gilded Spoon",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 605,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a119b7df-2bc9-527d-bd2d-9d1b62f7b9e3",
+    "name": "Maple & Oat Curry Paste Red",
+    "brand": "Maple & Oat",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 465,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "661792d2-4574-5ad1-ab95-84ed18b4522b",
+    "name": "Maple & Oat Curry Paste Green",
+    "brand": "Maple & Oat",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 459,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "edf0b39d-7612-5a34-939f-fac9e1e24c7a",
+    "name": "Maple & Oat Curry Paste Korma",
+    "brand": "Maple & Oat",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "sauces & pastes",
+    "price_cents": 365,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "201a04d0-7dda-5925-b52e-1334d20b8346",
+    "name": "Pantry Essentials Curry Paste Red",
+    "brand": "Pantry Essentials",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 359,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "341a8cb8-31bc-5e18-8dcf-31994c3e2e74",
+    "name": "Pantry Essentials Curry Paste Green",
+    "brand": "Pantry Essentials",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "herbs & spices",
+    "price_cents": 255,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8198ee8a-2644-5772-81a2-21f55691c8ad",
+    "name": "Pantry Essentials Curry Paste Korma",
+    "brand": "Pantry Essentials",
+    "category": "cooking, seasoning & gravy",
+    "aisle": "oils & vinegar",
+    "price_cents": 449,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "26757fc2-9384-550c-bf20-904314805c7e",
+    "name": "Maison Lutece Tomato Ketchup",
+    "brand": "Maison Lutece",
+    "category": "condiments",
+    "aisle": "table sauces",
+    "price_cents": 279,
+    "unit": "500ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "8eb7a855-9174-55d6-bc13-ef51c28661c0",
+    "name": "Pantry Essentials Tomato Ketchup",
+    "brand": "Pantry Essentials",
+    "category": "condiments",
+    "aisle": "spreads",
+    "price_cents": 339,
+    "unit": "500ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d23a5eff-20ac-571d-bee2-b859fce8cde5",
+    "name": "Stillwater Tomato Ketchup",
+    "brand": "Stillwater",
+    "category": "condiments",
+    "aisle": "spreads",
+    "price_cents": 315,
+    "unit": "500ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1d208582-c4b5-5f4a-8a05-d6567f6febbc",
+    "name": "Aisle Value Whole Egg Mayonnaise",
+    "brand": "Aisle Value",
+    "category": "condiments",
+    "aisle": "table sauces",
+    "price_cents": 219,
+    "unit": "440g",
+    "allergens": [
+      "egg"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "213e2cbc-1973-5480-ad9b-12f8aa8f5302",
+    "name": "Aisle Value Whole Egg Mayonnaise Light",
+    "brand": "Aisle Value",
+    "category": "condiments",
+    "aisle": "spreads",
+    "price_cents": 365,
+    "unit": "440g",
+    "allergens": [
+      "egg"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6b1b1568-cb7b-52f6-b6a2-645c8f2b20ed",
+    "name": "Honest Crumb Whole Egg Mayonnaise",
+    "brand": "Honest Crumb",
+    "category": "condiments",
+    "aisle": "spreads",
+    "price_cents": 285,
+    "unit": "440g",
+    "allergens": [
+      "egg"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a333580d-f953-53c8-9c27-6b86975921db",
+    "name": "Honest Crumb Whole Egg Mayonnaise Light",
+    "brand": "Honest Crumb",
+    "category": "condiments",
+    "aisle": "table sauces",
+    "price_cents": 389,
+    "unit": "440g",
+    "allergens": [
+      "egg"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b256069e-bf1c-552a-90bc-f2c1db155d87",
+    "name": "Bellavita Whole Egg Mayonnaise",
+    "brand": "Bellavita",
+    "category": "condiments",
+    "aisle": "table sauces",
+    "price_cents": 379,
+    "unit": "440g",
+    "allergens": [
+      "egg"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "67450103-f418-5cc9-8579-aafcd217140f",
+    "name": "Bellavita Whole Egg Mayonnaise Light",
+    "brand": "Bellavita",
+    "category": "condiments",
+    "aisle": "table sauces",
+    "price_cents": 615,
+    "unit": "440g",
+    "allergens": [
+      "egg"
+    ],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c47dd888-6951-52f7-9a3a-489ae6e4a227",
+    "name": "Aisle Value Dijon Mustard",
+    "brand": "Aisle Value",
+    "category": "condiments",
+    "aisle": "spreads",
+    "price_cents": 195,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d9ddc704-5526-5d63-b5f7-e37a92492946",
+    "name": "Two Rivers Dijon Mustard",
+    "brand": "Two Rivers",
+    "category": "condiments",
+    "aisle": "spreads",
+    "price_cents": 455,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "51aee465-523a-5feb-8af2-35d5dd5daca1",
+    "name": "The Gilded Spoon Dijon Mustard",
+    "brand": "The Gilded Spoon",
+    "category": "condiments",
+    "aisle": "table sauces",
+    "price_cents": 485,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0abbc4ff-f83d-5935-a363-2893a8f65bdf",
+    "name": "Heritage Select Strawberry Jam",
+    "brand": "Heritage Select",
+    "category": "jams & spreads",
+    "aisle": "nut spreads",
+    "price_cents": 569,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "45b59e22-6cb9-5eb7-907e-1dc2c43aaaaf",
+    "name": "Aisle Value Strawberry Jam",
+    "brand": "Aisle Value",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 219,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "03e96b01-2db6-5d73-875f-0a42ec546075",
+    "name": "Hearthstone Strawberry Jam",
+    "brand": "Hearthstone",
+    "category": "jams & spreads",
+    "aisle": "nut spreads",
+    "price_cents": 409,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2108239c-d8f1-5afe-aad6-e9ffc2760ffc",
+    "name": "Honest Crumb Pure Honey",
+    "brand": "Honest Crumb",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 449,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4e59c45f-88ea-5a77-ae78-2415d2c94c68",
+    "name": "Pantry Essentials Pure Honey",
+    "brand": "Pantry Essentials",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 709,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7dda7e19-1e94-5cef-8ef0-63a03986c17a",
+    "name": "The Gilded Spoon Pure Honey",
+    "brand": "The Gilded Spoon",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 1105,
+    "unit": "500g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegetarian",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f2ff2d5b-e1dd-5efe-bc90-d721bdaee4dd",
+    "name": "Bellavita Peanut Butter Smooth",
+    "brand": "Bellavita",
+    "category": "jams & spreads",
+    "aisle": "nut spreads",
+    "price_cents": 845,
+    "unit": "375g",
+    "allergens": [
+      "peanut"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b57ca101-d54b-50fa-bdbf-bb91f9510574",
+    "name": "Bellavita Peanut Butter Crunchy",
+    "brand": "Bellavita",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 345,
+    "unit": "375g",
+    "allergens": [
+      "peanut"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4eff6332-1b63-5eed-91b9-772522823ead",
+    "name": "Honest Crumb Peanut Butter Smooth",
+    "brand": "Honest Crumb",
+    "category": "jams & spreads",
+    "aisle": "nut spreads",
+    "price_cents": 505,
+    "unit": "375g",
+    "allergens": [
+      "peanut"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e2182410-45dc-5327-8a23-abdcf9dd2365",
+    "name": "Honest Crumb Peanut Butter Crunchy",
+    "brand": "Honest Crumb",
+    "category": "jams & spreads",
+    "aisle": "nut spreads",
+    "price_cents": 385,
+    "unit": "375g",
+    "allergens": [
+      "peanut"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9d7ffe3e-685d-529f-94d1-ced9d3bce04d",
+    "name": "Thrift Larder Peanut Butter Smooth",
+    "brand": "Thrift Larder",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 449,
+    "unit": "375g",
+    "allergens": [
+      "peanut"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6518b897-ace1-528f-bb9f-92775e740636",
+    "name": "Thrift Larder Peanut Butter Crunchy",
+    "brand": "Thrift Larder",
+    "category": "jams & spreads",
+    "aisle": "jams & honey",
+    "price_cents": 295,
+    "unit": "375g",
+    "allergens": [
+      "peanut"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "19b80073-c623-533c-b9f4-c8a8783c27ba",
+    "name": "Stillwater Coconut Milk",
+    "brand": "Stillwater",
+    "category": "international food",
+    "aisle": "mediterranean",
+    "price_cents": 259,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d41c0b36-a87e-5d38-928b-b053396d28d8",
+    "name": "Maison Lutece Coconut Milk",
+    "brand": "Maison Lutece",
+    "category": "international food",
+    "aisle": "asian",
+    "price_cents": 355,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b03cac48-3c35-52b9-a368-0449a34fd25e",
+    "name": "Pantry Essentials Coconut Milk",
+    "brand": "Pantry Essentials",
+    "category": "international food",
+    "aisle": "mediterranean",
+    "price_cents": 169,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9f1ef1dc-b870-5ca6-b2a4-12259e273532",
+    "name": "Honest Crumb Taco Kit",
+    "brand": "Honest Crumb",
+    "category": "international food",
+    "aisle": "mediterranean",
+    "price_cents": 449,
+    "unit": "320g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d36751fe-5ee2-5f3a-b699-3ad20311fce3",
+    "name": "Artisan Reserve Taco Kit",
+    "brand": "Artisan Reserve",
+    "category": "international food",
+    "aisle": "mediterranean",
+    "price_cents": 879,
+    "unit": "320g",
+    "allergens": [
+      "wheat",
+      "gluten"
+    ],
+    "dietary_tags": [
+      "vegetarian"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "586da17d-c0c5-506c-b8da-e6f7c4948c78",
+    "name": "Everyday Basics Hummus Classic",
+    "brand": "Everyday Basics",
+    "category": "international food",
+    "aisle": "mexican",
+    "price_cents": 279,
+    "unit": "200g",
+    "allergens": [
+      "sesame"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5ae3c088-74cc-5137-bd00-b189455e48e4",
+    "name": "Everyday Basics Hummus Beetroot",
+    "brand": "Everyday Basics",
+    "category": "international food",
+    "aisle": "mexican",
+    "price_cents": 375,
+    "unit": "200g",
+    "allergens": [
+      "sesame"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f3cb0247-f68e-572e-8242-2f043aa05119",
+    "name": "Maison Lutece Hummus Classic",
+    "brand": "Maison Lutece",
+    "category": "international food",
+    "aisle": "mexican",
+    "price_cents": 669,
+    "unit": "200g",
+    "allergens": [
+      "sesame"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ea924305-b6b1-5e99-a167-de8087878dfa",
+    "name": "Maison Lutece Hummus Beetroot",
+    "brand": "Maison Lutece",
+    "category": "international food",
+    "aisle": "asian",
+    "price_cents": 655,
+    "unit": "200g",
+    "allergens": [
+      "sesame"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b5328dc4-8df0-5720-a0ff-686d9dfc60ea",
+    "name": "Cedar Grove Hummus Classic",
+    "brand": "Cedar Grove",
+    "category": "international food",
+    "aisle": "mexican",
+    "price_cents": 475,
+    "unit": "200g",
+    "allergens": [
+      "sesame"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7495832c-3208-5b88-9568-afb9e4fa9560",
+    "name": "Cedar Grove Hummus Beetroot",
+    "brand": "Cedar Grove",
+    "category": "international food",
+    "aisle": "asian",
+    "price_cents": 519,
+    "unit": "200g",
+    "allergens": [
+      "sesame"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0c09db4f-f18f-587b-8db8-6448e6ceb0d3",
+    "name": "Artisan Reserve Rice Paper",
+    "brand": "Artisan Reserve",
+    "category": "international food",
+    "aisle": "mediterranean",
+    "price_cents": 329,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "458eeb86-7491-5187-b601-8e8d4e81557d",
+    "name": "Aisle Value Rice Paper",
+    "brand": "Aisle Value",
+    "category": "international food",
+    "aisle": "mediterranean",
+    "price_cents": 229,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "86994f28-7787-551d-a45f-16d60655c155",
+    "name": "Cedar Grove Tofu Firm",
+    "brand": "Cedar Grove",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 369,
+    "unit": "300g",
+    "allergens": [
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5eea3c57-441e-5147-9d6c-878817415563",
+    "name": "Cedar Grove Tofu Silken",
+    "brand": "Cedar Grove",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 439,
+    "unit": "300g",
+    "allergens": [
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8403af83-e031-53bb-99ca-7d714bf84d27",
+    "name": "Everyday Basics Tofu Firm",
+    "brand": "Everyday Basics",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 369,
+    "unit": "300g",
+    "allergens": [
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "5e8c0d1f-31eb-55ea-9656-c23957471a17",
+    "name": "Everyday Basics Tofu Silken",
+    "brand": "Everyday Basics",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 385,
+    "unit": "300g",
+    "allergens": [
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "6596bf2e-fcac-50ca-8234-40f776a2b8f7",
+    "name": "Cuvée Noir Tofu Firm",
+    "brand": "Cuvée Noir",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 449,
+    "unit": "300g",
+    "allergens": [
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7c5129dc-31f9-5c19-8289-df0e8b0f60b4",
+    "name": "Cuvée Noir Tofu Silken",
+    "brand": "Cuvée Noir",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 439,
+    "unit": "300g",
+    "allergens": [
+      "soy"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "high_protein"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e13d97c8-df01-5d2f-bb40-52a5ab8c4644",
+    "name": "Bellavita Almond Milk Unsweetened",
+    "brand": "Bellavita",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 525,
+    "unit": "1L",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "dairy_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "39c3ee65-9ce6-50c9-a51f-001d3899b1cd",
+    "name": "Bellavita Almond Milk Vanilla",
+    "brand": "Bellavita",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 429,
+    "unit": "1L",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "dairy_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1a0b47a5-7a16-5d0d-97b5-2db085faf3e1",
+    "name": "Golden Field Almond Milk Unsweetened",
+    "brand": "Golden Field",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 445,
+    "unit": "1L",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "dairy_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "853abb1f-b686-57d2-95ff-64313f4a05e6",
+    "name": "Golden Field Almond Milk Vanilla",
+    "brand": "Golden Field",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 485,
+    "unit": "1L",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "dairy_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "cadb55be-97c8-590b-bb39-c8ec3e60a606",
+    "name": "Aisle Value Almond Milk Unsweetened",
+    "brand": "Aisle Value",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 425,
+    "unit": "1L",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "dairy_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b90bc4c6-0c3a-5fe8-9d69-f98f7a284635",
+    "name": "Aisle Value Almond Milk Vanilla",
+    "brand": "Aisle Value",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 389,
+    "unit": "1L",
+    "allergens": [
+      "tree_nuts"
+    ],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free",
+      "dairy_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "aa6cc590-8ad4-51c7-8f2d-b684e4bc36c0",
+    "name": "Nordstrom Larder Chia Seeds",
+    "brand": "Nordstrom Larder",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 479,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "24044ab8-f1a7-5c36-8783-9f0932aa688b",
+    "name": "Two Rivers Chia Seeds",
+    "brand": "Two Rivers",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 385,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3159022d-e690-513d-a6bb-20f76e3361bc",
+    "name": "Aisle Value Chia Seeds",
+    "brand": "Aisle Value",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 485,
+    "unit": "200g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "af2bc31a-2ec4-543f-b3f7-7273dccf8df3",
+    "name": "Aisle Value Protein Powder Vanilla",
+    "brand": "Aisle Value",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 4709,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c2f0dd2a-b26c-5b2b-bbff-c6747671a1b5",
+    "name": "Aisle Value Protein Powder Chocolate",
+    "brand": "Aisle Value",
+    "category": "health foods",
+    "aisle": "plant based",
+    "price_cents": 2975,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2d3c2269-e8de-57cb-947b-120291b863da",
+    "name": "The Gilded Spoon Protein Powder Vanilla",
+    "brand": "The Gilded Spoon",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 6085,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d5aaedaf-e5e5-5935-abf2-a35f3c78d08e",
+    "name": "The Gilded Spoon Protein Powder Chocolate",
+    "brand": "The Gilded Spoon",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 3305,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7348c731-ca4e-57c1-b973-028bce6ac979",
+    "name": "Cedar Grove Protein Powder Vanilla",
+    "brand": "Cedar Grove",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 6259,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "15214385-b68f-5388-bf49-5eb7e0a6ca8d",
+    "name": "Cedar Grove Protein Powder Chocolate",
+    "brand": "Cedar Grove",
+    "category": "health foods",
+    "aisle": "wholefoods",
+    "price_cents": 3599,
+    "unit": "1kg",
+    "allergens": [
+      "milk"
+    ],
+    "dietary_tags": [
+      "high_protein",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "e2da51d9-fc39-5b1c-b39e-05385d5a51dc",
+    "name": "Sunny Meadow Laundry Powder",
+    "brand": "Sunny Meadow",
+    "category": "household cleaning",
+    "aisle": "laundry",
+    "price_cents": 1689,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "675df96f-a102-59c1-ad67-a9ef8357b21d",
+    "name": "Sunny Meadow Laundry Powder Sensitive",
+    "brand": "Sunny Meadow",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 1735,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "434daa1a-f4d0-520d-af43-1ab12784cebb",
+    "name": "The Gilded Spoon Laundry Powder",
+    "brand": "The Gilded Spoon",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 1935,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3a79ca49-4381-544e-919b-218e5f9700a2",
+    "name": "The Gilded Spoon Laundry Powder Sensitive",
+    "brand": "The Gilded Spoon",
+    "category": "household cleaning",
+    "aisle": "laundry",
+    "price_cents": 1619,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "cd1d9097-2370-5d07-973e-c69622c11fee",
+    "name": "Pantry Essentials Laundry Powder",
+    "brand": "Pantry Essentials",
+    "category": "household cleaning",
+    "aisle": "laundry",
+    "price_cents": 695,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3069e622-113c-5b74-8017-1c2e681af928",
+    "name": "Pantry Essentials Laundry Powder Sensitive",
+    "brand": "Pantry Essentials",
+    "category": "household cleaning",
+    "aisle": "laundry",
+    "price_cents": 879,
+    "unit": "2kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f165a234-67b3-57aa-945b-47bc4b6eff4b",
+    "name": "Bellavita Dishwashing Liquid Lemon",
+    "brand": "Bellavita",
+    "category": "household cleaning",
+    "aisle": "laundry",
+    "price_cents": 459,
+    "unit": "900ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "89dfa570-24e2-5c02-91a0-e4ce042a721d",
+    "name": "Bellavita Dishwashing Liquid Original",
+    "brand": "Bellavita",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 835,
+    "unit": "900ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a38e212c-b480-5918-9508-2f49234a432f",
+    "name": "Stillwater Dishwashing Liquid Lemon",
+    "brand": "Stillwater",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 465,
+    "unit": "900ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "607df75c-469d-5b86-8a10-c9da61aa8065",
+    "name": "Stillwater Dishwashing Liquid Original",
+    "brand": "Stillwater",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 605,
+    "unit": "900ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "f4116bf7-95f7-5acc-b393-dd3ee0f41b1c",
+    "name": "Pantry Essentials Dishwashing Liquid Lemon",
+    "brand": "Pantry Essentials",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 325,
+    "unit": "900ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c0a03115-6459-5f25-a6fb-78d6b0b54ae6",
+    "name": "Pantry Essentials Dishwashing Liquid Original",
+    "brand": "Pantry Essentials",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 409,
+    "unit": "900ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8a7e3468-cba4-5753-bcd6-994969a70426",
+    "name": "Thrift Larder Surface Spray",
+    "brand": "Thrift Larder",
+    "category": "household cleaning",
+    "aisle": "laundry",
+    "price_cents": 409,
+    "unit": "500ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "180cf460-e029-55a9-9ec0-31a576e773b6",
+    "name": "Green Fork Surface Spray",
+    "brand": "Green Fork",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 395,
+    "unit": "500ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8c267381-2508-50ea-af09-744db4f1feb7",
+    "name": "Bellavita Surface Spray",
+    "brand": "Bellavita",
+    "category": "household cleaning",
+    "aisle": "surface & dishwashing",
+    "price_cents": 795,
+    "unit": "500ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ac3773a2-d869-5f02-a03b-6dc4bdf35b73",
+    "name": "Maison Lutece Toilet Paper",
+    "brand": "Maison Lutece",
+    "category": "papergoods, wraps & bags",
+    "aisle": "paper goods",
+    "price_cents": 1569,
+    "unit": "12 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "7c81cb06-853e-5160-b37c-8929c99a5bb6",
+    "name": "Maison Lutece Toilet Paper 3 Ply",
+    "brand": "Maison Lutece",
+    "category": "papergoods, wraps & bags",
+    "aisle": "paper goods",
+    "price_cents": 1665,
+    "unit": "12 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "22ac6c6d-daf7-5352-acec-810c9de4aaa2",
+    "name": "Riverbend Toilet Paper",
+    "brand": "Riverbend",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 1189,
+    "unit": "12 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "49cef864-c259-5ebd-96dc-b9a15be062f8",
+    "name": "Riverbend Toilet Paper 3 Ply",
+    "brand": "Riverbend",
+    "category": "papergoods, wraps & bags",
+    "aisle": "paper goods",
+    "price_cents": 1005,
+    "unit": "12 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b2688ebb-eb17-5eeb-b0a6-035d7a567a18",
+    "name": "Pantry Essentials Toilet Paper",
+    "brand": "Pantry Essentials",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 865,
+    "unit": "12 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1b49605e-0f35-557b-9f44-c6ea7a2c0ef6",
+    "name": "Pantry Essentials Toilet Paper 3 Ply",
+    "brand": "Pantry Essentials",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 789,
+    "unit": "12 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ae750b35-1a2e-5291-a6f3-5d031e5cd72b",
+    "name": "Maple & Oat Paper Towel",
+    "brand": "Maple & Oat",
+    "category": "papergoods, wraps & bags",
+    "aisle": "paper goods",
+    "price_cents": 379,
+    "unit": "4 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "694f116f-3071-5b50-bfca-65ff59786921",
+    "name": "Aisle Value Paper Towel",
+    "brand": "Aisle Value",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 475,
+    "unit": "4 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4d70d8b7-45fc-5a19-916d-973838e050b8",
+    "name": "Cuvée Noir Paper Towel",
+    "brand": "Cuvée Noir",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 459,
+    "unit": "4 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0fb9d2c6-d9b8-5654-aa51-64b927b7ed3c",
+    "name": "Thrift Larder Cling Wrap",
+    "brand": "Thrift Larder",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 185,
+    "unit": "60m",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b3fd83dc-c89c-5628-ab06-3c765a890fc2",
+    "name": "Maison Lutece Cling Wrap",
+    "brand": "Maison Lutece",
+    "category": "papergoods, wraps & bags",
+    "aisle": "wraps & bags",
+    "price_cents": 329,
+    "unit": "60m",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4c4d3de2-a932-5a53-9290-5823b55c7cc3",
+    "name": "Cedar Grove Shampoo Daily",
+    "brand": "Cedar Grove",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 449,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "53c6cb7e-fb4b-5aea-aff4-0bb65b6f3a55",
+    "name": "Cedar Grove Shampoo Volumising",
+    "brand": "Cedar Grove",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 485,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "9e791073-96fb-50ac-98a7-fd30bd6cfd61",
+    "name": "Cedar Grove Shampoo Repair",
+    "brand": "Cedar Grove",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 505,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "3e7dc23f-767b-5404-9fbf-7bfc7e2f8bdc",
+    "name": "Golden Field Shampoo Daily",
+    "brand": "Golden Field",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 535,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "901f2b5e-abb3-5a27-a0d9-576f34646921",
+    "name": "Golden Field Shampoo Volumising",
+    "brand": "Golden Field",
+    "category": "toiletries",
+    "aisle": "hair care",
+    "price_cents": 595,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1cac79a1-afa2-52f3-a070-1f39c791e2cd",
+    "name": "Golden Field Shampoo Repair",
+    "brand": "Golden Field",
+    "category": "toiletries",
+    "aisle": "hair care",
+    "price_cents": 1059,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "89db0821-8ff1-5946-8bb4-2f9821568043",
+    "name": "Thrift Larder Shampoo Daily",
+    "brand": "Thrift Larder",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 305,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "90de1f01-9f2f-5045-a7ce-1cd8042c4bea",
+    "name": "Thrift Larder Shampoo Volumising",
+    "brand": "Thrift Larder",
+    "category": "toiletries",
+    "aisle": "hair care",
+    "price_cents": 345,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "11cb1675-a19f-5b62-add5-e723c83738f2",
+    "name": "Thrift Larder Shampoo Repair",
+    "brand": "Thrift Larder",
+    "category": "toiletries",
+    "aisle": "hair care",
+    "price_cents": 469,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "63298f11-c5c6-5c22-9e1f-bc4050cd6bcf",
+    "name": "Bellavita Shampoo Daily",
+    "brand": "Bellavita",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 1055,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0887a865-3e13-53c4-91cd-a6c399af44a5",
+    "name": "Bellavita Shampoo Volumising",
+    "brand": "Bellavita",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 1469,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b9ad8154-3748-5d5f-96f7-cc48d6ab91b7",
+    "name": "Bellavita Shampoo Repair",
+    "brand": "Bellavita",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 1375,
+    "unit": "400ml",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "4deba0ff-cc6e-5d56-9e8d-2c5a6bd56cfc",
+    "name": "Cedar Grove Toothpaste Whitening",
+    "brand": "Cedar Grove",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 559,
+    "unit": "110g",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "38c84da5-cbaa-543f-91e2-06ab116b8ad3",
+    "name": "Cedar Grove Toothpaste Sensitive",
+    "brand": "Cedar Grove",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 535,
+    "unit": "110g",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "453d2bdf-2667-5682-8cde-5b77b3594175",
+    "name": "Pantry Essentials Toothpaste Whitening",
+    "brand": "Pantry Essentials",
+    "category": "toiletries",
+    "aisle": "hair care",
+    "price_cents": 445,
+    "unit": "110g",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0259abc8-deb4-586b-b8d3-b4942fca0f21",
+    "name": "Pantry Essentials Toothpaste Sensitive",
+    "brand": "Pantry Essentials",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 479,
+    "unit": "110g",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "70088953-09d9-5028-8143-9edd2e6409be",
+    "name": "Maison Lutece Toothpaste Whitening",
+    "brand": "Maison Lutece",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 479,
+    "unit": "110g",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5fd8eb61-eb8b-520b-9587-650503f7cc63",
+    "name": "Maison Lutece Toothpaste Sensitive",
+    "brand": "Maison Lutece",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 619,
+    "unit": "110g",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ec8af2c7-f311-5610-b7cd-1ce8eb7f154d",
+    "name": "Harvest Lane Body Wash Fresh",
+    "brand": "Harvest Lane",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 735,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "655017cc-bc35-5a3d-a7a4-8b22dcebf1ea",
+    "name": "Harvest Lane Body Wash Moisturising",
+    "brand": "Harvest Lane",
+    "category": "toiletries",
+    "aisle": "oral care",
+    "price_cents": 789,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8c30b21d-f42b-5453-9160-e31bfa6dda58",
+    "name": "Pantry Essentials Body Wash Fresh",
+    "brand": "Pantry Essentials",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 679,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "2b32e53d-1638-5113-bc38-a729e19e3dda",
+    "name": "Pantry Essentials Body Wash Moisturising",
+    "brand": "Pantry Essentials",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 579,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "b2984811-923e-5341-a884-45d01d403d77",
+    "name": "Nordstrom Larder Body Wash Fresh",
+    "brand": "Nordstrom Larder",
+    "category": "toiletries",
+    "aisle": "body care",
+    "price_cents": 665,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0edfaba4-1536-57a1-9778-04fa7387e6d2",
+    "name": "Nordstrom Larder Body Wash Moisturising",
+    "brand": "Nordstrom Larder",
+    "category": "toiletries",
+    "aisle": "hair care",
+    "price_cents": 975,
+    "unit": "1L",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "79bf0217-918b-54f0-bd21-05c7de40b401",
+    "name": "Artisan Reserve Nappies Crawler",
+    "brand": "Artisan Reserve",
+    "category": "baby",
+    "aisle": "nappies",
+    "price_cents": 2439,
+    "unit": "44 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ca6b5110-3c2f-5e01-834c-dafda763b6b4",
+    "name": "Artisan Reserve Nappies Walker",
+    "brand": "Artisan Reserve",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 2319,
+    "unit": "44 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "982da805-c602-558e-85e3-8d1414cbc9b5",
+    "name": "Artisan Reserve Nappies Newborn",
+    "brand": "Artisan Reserve",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 3019,
+    "unit": "44 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "8a576137-e02d-516b-9ed1-2439deb65192",
+    "name": "Honest Crumb Nappies Crawler",
+    "brand": "Honest Crumb",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 1915,
+    "unit": "44 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "5006ad25-c1e7-58e6-a8ee-905993f7b4bc",
+    "name": "Honest Crumb Nappies Walker",
+    "brand": "Honest Crumb",
+    "category": "baby",
+    "aisle": "nappies",
+    "price_cents": 1329,
+    "unit": "44 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "fe3faf13-f1c4-5b9c-be81-bcb6532adfaf",
+    "name": "Honest Crumb Nappies Newborn",
+    "brand": "Honest Crumb",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 2279,
+    "unit": "44 pack",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d0e34943-20d3-5825-a293-d7c305c31f70",
+    "name": "Coastline Baby Food Pouch Apple",
+    "brand": "Coastline",
+    "category": "baby",
+    "aisle": "nappies",
+    "price_cents": 125,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ca87bc96-5e11-5987-8395-2ee8fdc8dddf",
+    "name": "Coastline Baby Food Pouch Pumpkin",
+    "brand": "Coastline",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 135,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "3f73c660-29c2-50fb-a817-ee65aa2a76b5",
+    "name": "Coastline Baby Food Pouch Pear",
+    "brand": "Coastline",
+    "category": "baby",
+    "aisle": "nappies",
+    "price_cents": 149,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "72c71ed5-2021-53cf-a6c2-6560cf127ea8",
+    "name": "Thrift Larder Baby Food Pouch Apple",
+    "brand": "Thrift Larder",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 149,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0a740d30-f997-5593-9017-bd821f3b23c0",
+    "name": "Thrift Larder Baby Food Pouch Pumpkin",
+    "brand": "Thrift Larder",
+    "category": "baby",
+    "aisle": "nappies",
+    "price_cents": 155,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "83a3d7ab-5cf0-53f6-83b7-d34e57ddd57c",
+    "name": "Thrift Larder Baby Food Pouch Pear",
+    "brand": "Thrift Larder",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 135,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "c12767a1-a72d-5f33-b93b-0afe8b127d73",
+    "name": "Maison Lutece Baby Food Pouch Apple",
+    "brand": "Maison Lutece",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 319,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a8e03af7-41a4-5757-a178-5a6e289db1b0",
+    "name": "Maison Lutece Baby Food Pouch Pumpkin",
+    "brand": "Maison Lutece",
+    "category": "baby",
+    "aisle": "baby food",
+    "price_cents": 345,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "021080b2-6410-52b9-bcb3-a51b95b87262",
+    "name": "Maison Lutece Baby Food Pouch Pear",
+    "brand": "Maison Lutece",
+    "category": "baby",
+    "aisle": "nappies",
+    "price_cents": 335,
+    "unit": "120g",
+    "allergens": [],
+    "dietary_tags": [
+      "vegan",
+      "gluten_free"
+    ],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "d8447ab7-5c32-5235-ba32-c635118d4897",
+    "name": "Artisan Reserve Dry Dog Food Beef",
+    "brand": "Artisan Reserve",
+    "category": "pet care",
+    "aisle": "dog",
+    "price_cents": 3375,
+    "unit": "3kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "1ab25820-11d5-5fdf-a39a-3d51f113bc01",
+    "name": "Artisan Reserve Dry Dog Food Chicken",
+    "brand": "Artisan Reserve",
+    "category": "pet care",
+    "aisle": "dog",
+    "price_cents": 4215,
+    "unit": "3kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "472801ab-fa7b-500a-8acf-1885ac400d38",
+    "name": "Pantry Essentials Dry Dog Food Beef",
+    "brand": "Pantry Essentials",
+    "category": "pet care",
+    "aisle": "dog",
+    "price_cents": 1395,
+    "unit": "3kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "74520d45-b024-5b94-b625-29ea56dc30e9",
+    "name": "Pantry Essentials Dry Dog Food Chicken",
+    "brand": "Pantry Essentials",
+    "category": "pet care",
+    "aisle": "cat",
+    "price_cents": 1345,
+    "unit": "3kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "75f9ec23-7df1-560d-9f30-3b3d4f2add91",
+    "name": "Stillwater Dry Dog Food Beef",
+    "brand": "Stillwater",
+    "category": "pet care",
+    "aisle": "cat",
+    "price_cents": 1565,
+    "unit": "3kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "a3c6f4e4-f38d-5673-93d7-5b429d2ea4fe",
+    "name": "Stillwater Dry Dog Food Chicken",
+    "brand": "Stillwater",
+    "category": "pet care",
+    "aisle": "dog",
+    "price_cents": 2499,
+    "unit": "3kg",
+    "allergens": [],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "bf31fcf4-0ec7-5061-a1cd-2333596173b0",
+    "name": "Riverbend Cat Food Cans Tuna",
+    "brand": "Riverbend",
+    "category": "pet care",
+    "aisle": "cat",
+    "price_cents": 1355,
+    "unit": "12 pack",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "ad87a5b5-6f1f-5bda-9cda-1d6a74c38511",
+    "name": "Riverbend Cat Food Cans Chicken",
+    "brand": "Riverbend",
+    "category": "pet care",
+    "aisle": "cat",
+    "price_cents": 979,
+    "unit": "12 pack",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "standard",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "bd857003-9db8-5f66-ad0e-668f05f1f86f",
+    "name": "Thrift Larder Cat Food Cans Tuna",
+    "brand": "Thrift Larder",
+    "category": "pet care",
+    "aisle": "dog",
+    "price_cents": 1065,
+    "unit": "12 pack",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "0287c9f6-8153-5901-a54c-b0698daaf883",
+    "name": "Thrift Larder Cat Food Cans Chicken",
+    "brand": "Thrift Larder",
+    "category": "pet care",
+    "aisle": "cat",
+    "price_cents": 829,
+    "unit": "12 pack",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "value",
+    "in_stock": true,
+    "image_url": null
+  },
+  {
+    "product_id": "848d75cf-0683-54b3-ae82-1e7f30f1d52c",
+    "name": "The Gilded Spoon Cat Food Cans Tuna",
+    "brand": "The Gilded Spoon",
+    "category": "pet care",
+    "aisle": "cat",
+    "price_cents": 1535,
+    "unit": "12 pack",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": false,
+    "image_url": null
+  },
+  {
+    "product_id": "426d1138-8def-56c3-bce7-421db8566f06",
+    "name": "The Gilded Spoon Cat Food Cans Chicken",
+    "brand": "The Gilded Spoon",
+    "category": "pet care",
+    "aisle": "dog",
+    "price_cents": 1199,
+    "unit": "12 pack",
+    "allergens": [
+      "fish"
+    ],
+    "dietary_tags": [],
+    "quality_tier": "premium",
+    "in_stock": true,
+    "image_url": null
+  }
+]

@@ -1,0 +1,8 @@
+fastapi>=0.142  # telemetry={"auto_configure": False} needs the telemetry API (0.140+)
+uvicorn>=0.30
+httpx>=0.28
+opentelemetry-distro
+opentelemetry-exporter-otlp
+# Generates span-derived RED metrics (traces.span.metrics.calls / .duration) that power
+# Omni's service views. Auto-loaded by opentelemetry-instrument. Needs Python 3.10+.
+cloudwatch-plugin-otel

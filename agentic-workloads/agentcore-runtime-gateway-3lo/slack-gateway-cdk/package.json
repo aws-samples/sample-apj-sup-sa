@@ -1,0 +1,23 @@
+{
+  "name": "slack-gateway-cdk",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "watch": "tsc -w --noEmit",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "clean": "rm -rf dist cdk.out"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "aws-cdk": "2.1126.0",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.248.0",
+    "constructs": "^10.0.0",
+    "dotenv": "^16.4.5"
+  }
+}

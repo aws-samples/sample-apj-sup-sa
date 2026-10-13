@@ -1,0 +1,42 @@
+# Secrets / credentials — never commit
+CREDENTIALS.md
+.env
+.env.*
+
+# Dependencies
+node_modules/
+infra/node_modules/
+
+# Build output
+dist/
+infra/cdk.out/
+infra/cdk-outputs*.json
+# CDK deploy outputs / synth output for all modules
+**/cdk.out/
+**/cdk-outputs*.json
+infra/lambda/auth/dist/
+*.tsbuildinfo
+# draw.io backup / temp files
+*.bkp
+.$*.drawio*
+# tsc -b byproducts from compiling vite.config.ts
+vite.config.js
+vite.config.d.ts
+
+# Retired module — superseded by the OpenSearch zero-ETL search path (§5a).
+# Kept locally only; not part of the deployable solution.
+knowledge-base/
+
+# Logs / OS
+*.log
+.DS_Store
+# Local-only reference material and samples (not part of the deployable solution)
+/samples/
+/references/
+
+# CDK context caches account-specific lookups (account id, AZs, VPC ids) — never commit
+**/cdk.context.json
+
+# Local design documents (requirements input) — never commit
+/design-docs/
+*.docx

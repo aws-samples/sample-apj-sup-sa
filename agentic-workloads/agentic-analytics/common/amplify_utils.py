@@ -101,6 +101,10 @@ def deploy_from_zip(app_id, branch_name, zip_path, region=None):
     
     # Upload ZIP to presigned URL
     print(f"Uploading to Amplify (job: {job_id})")
+    # Amplify returns an https presigned-S3 upload URL; verify the scheme before
+    # opening it (closes the B310 file://-scheme risk).
+    if not zip_upload_url.lower().startswith('https://'):
+        raise ValueError('Amplify zipUploadUrl must be https')
     with open(zip_path, 'rb') as f:
         req = urllib.request.Request(
             zip_upload_url,
@@ -108,7 +112,7 @@ def deploy_from_zip(app_id, branch_name, zip_path, region=None):
             method='PUT',
             headers={'Content-Type': 'application/zip'}
         )
-        urllib.request.urlopen(req)
+        urllib.request.urlopen(req)  # nosec B310 - https scheme verified above
     
     # Start deployment
     client.start_deployment(

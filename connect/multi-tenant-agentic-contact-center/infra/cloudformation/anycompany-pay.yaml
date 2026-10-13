@@ -1,0 +1,647 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  AnyCompanyPay SPA - ECS Fargate behind an internal ALB in private subnets, fronted
+  by CloudFront via a VPC origin, with Cognito (groups + users) for client-side
+  auth. Standalone CloudFormation equivalent of the CDK app.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  ContainerImageUri:
+    Type: String
+    Description: >-
+      Full ECR image URI for the SPA container (build & push first, e.g. with
+      build-and-push.sh). Example: 1234.dkr.ecr.ap-southeast-1.amazonaws.com/anycompany-pay-web:latest
+
+  CognitoDomainPrefix:
+    Type: String
+    Default: anycompany-pay-app
+    Description: >-
+      Cognito hosted-UI domain prefix. Must be globally unique within the
+      region (do not reuse the CDK stack's prefix).
+    AllowedPattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+
+  AdminEmail:
+    Type: String
+    Default: admin@anycompany-pay.example
+    Description: Email/username for the admin user.
+
+  MerchantEmail:
+    Type: String
+    Default: merchant@anycompany-pay.example
+    Description: Email/username for the merchant user.
+
+  TaskCpu:
+    Type: String
+    Default: "256"
+    AllowedValues: ["256", "512", "1024"]
+
+  TaskMemory:
+    Type: String
+    Default: "512"
+
+  MinTasks:
+    Type: Number
+    Default: 1
+
+  MaxTasks:
+    Type: Number
+    Default: 4
+
+Resources:
+  # -------------------------------------------------------------------------
+  # Networking
+  # -------------------------------------------------------------------------
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: anycompany-pay-vpc }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{ Key: Name, Value: anycompany-pay-igw }]
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: anycompany-pay-public-1 }]
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: anycompany-pay-public-2 }]
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: anycompany-pay-private-1 }]
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: anycompany-pay-private-2 }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: anycompany-pay-public-rt }]
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags: [{ Key: Name, Value: anycompany-pay-nat }]
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: anycompany-pay-private-rt }]
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  # -------------------------------------------------------------------------
+  # Security groups
+  # -------------------------------------------------------------------------
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Internal ALB - accepts traffic from CloudFront VPC origin
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: anycompany-pay-alb-sg }]
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Fargate service - accepts traffic from the ALB only
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: anycompany-pay-service-sg }]
+
+  ServiceIngressFromAlb:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ServiceSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+      Description: ALB to Fargate task (nginx)
+
+  AlbIngressFromCloudFront:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AlbSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourcePrefixListId: !GetAtt CustomResourceHelper.PrefixListId
+      Description: CloudFront origin-facing managed prefix list
+
+  # -------------------------------------------------------------------------
+  # Custom-resource helper Lambda (prefix-list lookup + set user passwords)
+  # -------------------------------------------------------------------------
+  HelperFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: helper
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:DescribeManagedPrefixLists
+                Resource: "*"
+              - Effect: Allow
+                Action: cognito-idp:AdminSetUserPassword
+                Resource: !GetAtt UserPool.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref AdminUserSecret
+                  - !Ref MerchantUserSecret
+
+  HelperFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 60
+      Role: !GetAtt HelperFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import json, boto3, cfnresponse
+
+          def handler(event, context):
+              rt = event.get("RequestType")
+              props = event.get("ResourceProperties", {})
+              action = props.get("Action")
+              try:
+                  if rt == "Delete":
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                      return
+                  if action == "LookupPrefixList":
+                      ec2 = boto3.client("ec2")
+                      r = ec2.describe_managed_prefix_lists(
+                          Filters=[{"Name": "prefix-list-name",
+                                    "Values": ["com.amazonaws.global.cloudfront.origin-facing"]}])
+                      pl = r["PrefixLists"][0]["PrefixListId"]
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS,
+                                       {"PrefixListId": pl}, pl)
+                      return
+                  if action == "SetPasswords":
+                      idp = boto3.client("cognito-idp")
+                      sm = boto3.client("secretsmanager")
+                      pool = props["UserPoolId"]
+                      for u in props.get("Users", []):
+                          # Password is read from Secrets Manager, not from the
+                          # resource properties, so it is never in the template.
+                          secret = json.loads(
+                              sm.get_secret_value(SecretId=u["SecretArn"])["SecretString"])
+                          idp.admin_set_user_password(
+                              UserPoolId=pool, Username=u["Username"],
+                              Password=secret["password"], Permanent=True)
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "passwords")
+                      return
+                  cfnresponse.send(event, context, cfnresponse.FAILED,
+                                   {"Error": "unknown action %s" % action})
+              except Exception as e:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+
+  CustomResourceHelper:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt HelperFunction.Arn
+      Action: LookupPrefixList
+
+  # -------------------------------------------------------------------------
+  # Internal Application Load Balancer
+  # -------------------------------------------------------------------------
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internal
+      SecurityGroups: [!Ref AlbSecurityGroup]
+      Subnets: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+      LoadBalancerAttributes:
+        # Reject malformed headers instead of forwarding them to the task.
+        - { Key: routing.http.drop_invalid_header_fields.enabled, Value: "true" }
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref Vpc
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /healthz
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: { HttpCode: "200" }
+      TargetGroupAttributes:
+        - { Key: deregistration_delay.timeout_seconds, Value: "15" }
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  # -------------------------------------------------------------------------
+  # CloudFront distribution -> VPC origin -> internal ALB
+  # -------------------------------------------------------------------------
+  VpcOrigin:
+    Type: AWS::CloudFront::VpcOrigin
+    Properties:
+      VpcOriginEndpointConfig:
+        Arn: !Ref Alb
+        Name: !Sub "${AWS::StackName}-alb-origin"
+        HTTPPort: 80
+        HTTPSPort: 443
+        OriginProtocolPolicy: http-only
+        OriginSSLProtocols: [TLSv1.2]
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: AnyCompanyPay SPA (VPC origin; client-side Cognito auth)
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_All
+        Origins:
+          - Id: albOrigin
+            DomainName: !GetAtt Alb.DNSName
+            VpcOriginConfig:
+              VpcOriginId: !GetAtt VpcOrigin.Id
+        DefaultCacheBehavior:
+          TargetOriginId: albOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          # Managed policies: CachingDisabled + AllViewerExceptHostHeader
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  # -------------------------------------------------------------------------
+  # Cognito: user pool + hosted UI domain + groups + client + users
+  # -------------------------------------------------------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - { Name: verified_email, Priority: 1 }
+      Schema:
+        - { Name: email, AttributeDataType: String, Required: true, Mutable: true }
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Ref CognitoDomainPrefix
+
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: admin
+      Description: AnyCompanyPay operations / admin users
+
+  MerchantGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: merchant
+      Description: AnyCompanyPay merchant users
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: anycompany-pay-web
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_USER_SRP_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      SupportedIdentityProviders: [COGNITO]
+      PreventUserExistenceErrors: ENABLED
+      CallbackURLs:
+        - !Sub "https://${Distribution.DomainName}/auth/callback"
+        - http://localhost:5173/auth/callback
+      LogoutURLs:
+        - !Sub "https://${Distribution.DomainName}/"
+        - http://localhost:5173/
+
+  AdminUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref AdminEmail
+      MessageAction: SUPPRESS
+      DesiredDeliveryMediums: []
+      UserAttributes:
+        - { Name: email, Value: !Ref AdminEmail }
+        - { Name: email_verified, Value: "true" }
+
+  MerchantUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref MerchantEmail
+      MessageAction: SUPPRESS
+      DesiredDeliveryMediums: []
+      UserAttributes:
+        - { Name: email, Value: !Ref MerchantEmail }
+        - { Name: email_verified, Value: "true" }
+
+  AdminGroupAttachment:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: !Ref AdminGroup
+      Username: !Ref AdminUser
+
+  MerchantGroupAttachment:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: !Ref MerchantGroup
+      Username: !Ref MerchantUser
+
+  # Demo-user passwords are GENERATED by Secrets Manager, never supplied as a
+  # parameter and never written into the template. The helper Lambda reads the
+  # secret by ARN, so no plaintext password appears in stack parameters, stack
+  # events, custom-resource properties, or CloudTrail.
+  AdminUserSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${AWS::StackName}/cognito/admin"
+      Description: Generated password for the demo admin user.
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username":"${AdminEmail}"}'
+        GenerateStringKey: password
+        PasswordLength: 20
+        RequireEachIncludedType: true
+        ExcludePunctuation: true
+
+  MerchantUserSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${AWS::StackName}/cognito/merchant"
+      Description: Generated password for the demo merchant user.
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username":"${MerchantEmail}"}'
+        GenerateStringKey: password
+        PasswordLength: 20
+        RequireEachIncludedType: true
+        ExcludePunctuation: true
+
+  SetUserPasswords:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: [AdminUser, MerchantUser]
+    Properties:
+      ServiceToken: !GetAtt HelperFunction.Arn
+      Action: SetPasswords
+      UserPoolId: !Ref UserPool
+      Users:
+        - { Username: !Ref AdminEmail, SecretArn: !Ref AdminUserSecret }
+        - { Username: !Ref MerchantEmail, SecretArn: !Ref MerchantUserSecret }
+
+  # -------------------------------------------------------------------------
+  # ECS Fargate service
+  # -------------------------------------------------------------------------
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${AWS::StackName}"
+      RetentionInDays: 7
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${AWS::StackName}-cluster"
+      ClusterSettings:
+        - { Name: containerInsights, Value: enabled }
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${AWS::StackName}-web"
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: web
+          Image: !Ref ContainerImageUri
+          Essential: true
+          PortMappings:
+            - { ContainerPort: 80, Protocol: tcp }
+          Environment:
+            - { Name: COGNITO_REGION, Value: !Ref "AWS::Region" }
+            - { Name: COGNITO_USER_POOL_ID, Value: !Ref UserPool }
+            - { Name: COGNITO_CLIENT_ID, Value: !Ref UserPoolClient }
+            - Name: COGNITO_DOMAIN
+              Value: !Sub "${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: anycompany-pay
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: HttpListener
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref MinTasks
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker: { Enable: true, Rollback: true }
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: [!Ref PrivateSubnet1, !Ref PrivateSubnet2]
+          SecurityGroups: [!Ref ServiceSecurityGroup]
+      LoadBalancers:
+        - ContainerName: web
+          ContainerPort: 80
+          TargetGroupArn: !Ref TargetGroup
+
+  # -------------------------------------------------------------------------
+  # CPU-based autoscaling (min 1, target 60% CPU)
+  # -------------------------------------------------------------------------
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      ResourceId: !Sub "service/${Cluster}/${Service.Name}"
+      MinCapacity: !Ref MinTasks
+      MaxCapacity: !Ref MaxTasks
+
+  CpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: cpu-target-tracking
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 60
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  CloudFrontUrl:
+    Description: Public app URL
+    Value: !Sub "https://${Distribution.DomainName}"
+  CognitoHostedUiDomain:
+    Value: !Sub "${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  AdminLogin:
+    Value: !Sub "${AdminEmail} (group: admin)"
+  MerchantLogin:
+    Value: !Sub "${MerchantEmail} (group: merchant)"
+  AdminPasswordSecret:
+    Description: >-
+      Secrets Manager secret holding the generated admin password. Retrieve with:
+      aws secretsmanager get-secret-value --secret-id <this> --query SecretString --output text
+    Value: !Sub "${AWS::StackName}/cognito/admin"
+  MerchantPasswordSecret:
+    Description: >-
+      Secrets Manager secret holding the generated merchant password. Retrieve with:
+      aws secretsmanager get-secret-value --secret-id <this> --query SecretString --output text
+    Value: !Sub "${AWS::StackName}/cognito/merchant"
+  AlbDnsName:
+    Value: !GetAtt Alb.DNSName

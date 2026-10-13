@@ -1,0 +1,256 @@
+{
+  "_note": "Minimal approved+embedded archetype fixture (T010). A bootstrap so US1-US3 can run before the full US4 generate/review/embed pipeline lands. 1 General family + 2 Domain/Industry families (software_engineering, data_analytics), spanning competency x question_type x difficulty so the prep query finds approved general rows (fallback) plus domain rows for a couple of role families at any tier. Loaded by `python -m bank.load_fixture`. Every row is curated + approved; embeddings are set by the loader (Titan, or synthetic for local testing). `key` gives each row a stable identity so re-loading is idempotent (uuid5).",
+  "archetypes": [
+    {
+      "key": "gen-intro-warmup-easy",
+      "category": "general",
+      "competency": "motivation_fit",
+      "question_type": "warmup",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "difficulty": "easy",
+      "prompt_template": "To start, tell me a little about yourself and what draws you to this kind of role.",
+      "follow_up_prompts": [
+        "What specifically about this role appeals to you?",
+        "How does that connect to what you've worked on before?"
+      ],
+      "scoring_guidance": {
+        "strong": "Concrete motivation tied to specific past experience and the target role.",
+        "weak": "Generic enthusiasm with no specifics or connection to the role."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "gen-teamwork-behavioral-easy",
+      "category": "general",
+      "competency": "teamwork",
+      "question_type": "behavioral",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "difficulty": "easy",
+      "prompt_template": "Tell me about a time you worked closely with others to get something done.",
+      "follow_up_prompts": [
+        "What was your specific role on that team?",
+        "What action did you personally take?",
+        "What was the outcome, and how did you know it worked?"
+      ],
+      "scoring_guidance": {
+        "strong": "Clear personal contribution within a team result; names a measurable outcome.",
+        "weak": "Speaks only in 'we' with no individual action or result."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "gen-problem-behavioral-moderate",
+      "category": "general",
+      "competency": "problem_solving",
+      "question_type": "behavioral",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "difficulty": "moderate",
+      "prompt_template": "Describe a difficult problem you faced and how you worked through it.",
+      "follow_up_prompts": [
+        "What made it difficult, specifically?",
+        "What options did you weigh, and why did you pick the one you did?",
+        "What was the result?"
+      ],
+      "scoring_guidance": {
+        "strong": "Structured reasoning, explicit trade-offs, and a verifiable result.",
+        "weak": "Jumps to the outcome with no reasoning or alternatives considered."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "gen-communication-behavioral-moderate",
+      "category": "general",
+      "competency": "communication",
+      "question_type": "behavioral",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "difficulty": "moderate",
+      "prompt_template": "Tell me about a time you had to explain something complex to someone who did not share your background.",
+      "follow_up_prompts": [
+        "Who was the audience, and what did they need?",
+        "How did you adjust your explanation?",
+        "How did you confirm they understood?"
+      ],
+      "scoring_guidance": {
+        "strong": "Audience-aware framing and an explicit check for understanding.",
+        "weak": "Describes what was said with no adaptation to the listener."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "gen-adaptability-situational-difficult",
+      "category": "general",
+      "competency": "adaptability",
+      "question_type": "situational",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "difficulty": "difficult",
+      "prompt_template": "Imagine your top priority changes the day before a deadline. Walk me through exactly what you do.",
+      "follow_up_prompts": [
+        "How do you decide what to drop?",
+        "Who do you involve, and when?",
+        "How do you keep quality from slipping under the new constraint?"
+      ],
+      "scoring_guidance": {
+        "strong": "Prioritisation under pressure with stakeholder management and a quality guardrail.",
+        "weak": "Reacts without a plan or ignores trade-offs and stakeholders."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "gen-leadership-behavioral-difficult",
+      "category": "general",
+      "competency": "leadership",
+      "question_type": "behavioral",
+      "industry": null,
+      "role_family": null,
+      "seniority": null,
+      "difficulty": "difficult",
+      "prompt_template": "Tell me about a time you had to take the lead without any formal authority.",
+      "follow_up_prompts": [
+        "What was at stake if no one stepped up?",
+        "How did you get others to follow your direction?",
+        "What did you do differently from how a manager might have?"
+      ],
+      "scoring_guidance": {
+        "strong": "Influence without authority, ownership of risk, and a concrete result.",
+        "weak": "Claims a title-driven role rather than earned influence."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "swe-rolespec-technical-easy",
+      "category": "domain",
+      "competency": "role_specific",
+      "question_type": "technical",
+      "industry": "technology",
+      "role_family": "software_engineering",
+      "seniority": "entry",
+      "difficulty": "easy",
+      "prompt_template": "Walk me through how you would approach debugging a feature that works on your machine but fails in production.",
+      "follow_up_prompts": [
+        "What would you check first, and why?",
+        "How do you reproduce a problem you cannot see directly?",
+        "How do you confirm you have actually fixed it?"
+      ],
+      "scoring_guidance": {
+        "strong": "Systematic isolation, reproduction strategy, and verification of the fix.",
+        "weak": "Guesses at causes with no method for narrowing down."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "swe-rolespec-technical-moderate",
+      "category": "domain",
+      "competency": "role_specific",
+      "question_type": "technical",
+      "industry": "technology",
+      "role_family": "software_engineering",
+      "seniority": "entry",
+      "difficulty": "moderate",
+      "prompt_template": "Tell me about a technical decision where you had to trade off shipping speed against long-term maintainability.",
+      "follow_up_prompts": [
+        "What were the competing pressures?",
+        "How did you make the call?",
+        "Looking back, what would you do differently?"
+      ],
+      "scoring_guidance": {
+        "strong": "Names a real trade-off, the reasoning, and an honest retrospective.",
+        "weak": "Treats it as a non-decision or has no reflection."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "swe-rolespec-technical-difficult",
+      "category": "domain",
+      "competency": "role_specific",
+      "question_type": "technical",
+      "industry": "technology",
+      "role_family": "software_engineering",
+      "seniority": "entry",
+      "difficulty": "difficult",
+      "prompt_template": "Describe the most complex system you have designed or contributed to. How did you reason about its failure modes?",
+      "follow_up_prompts": [
+        "Which part was hardest to get right, and why?",
+        "What failure modes did you anticipate, and how did you guard against them?",
+        "What broke that you did not anticipate?"
+      ],
+      "scoring_guidance": {
+        "strong": "Depth on a genuinely complex system with explicit failure-mode reasoning.",
+        "weak": "High-level description with no engineering depth or risk analysis."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "data-rolespec-technical-easy",
+      "category": "domain",
+      "competency": "role_specific",
+      "question_type": "technical",
+      "industry": "technology",
+      "role_family": "data_analytics",
+      "seniority": "entry",
+      "difficulty": "easy",
+      "prompt_template": "How would you check whether a dataset you have just been handed is trustworthy before you analyse it?",
+      "follow_up_prompts": [
+        "What specific checks do you run first?",
+        "What would make you stop and flag the data?",
+        "How do you document what you found?"
+      ],
+      "scoring_guidance": {
+        "strong": "Concrete validation checks and a clear escalation/flagging instinct.",
+        "weak": "Assumes the data is clean and analyses it as-is."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "data-rolespec-technical-moderate",
+      "category": "domain",
+      "competency": "role_specific",
+      "question_type": "technical",
+      "industry": "technology",
+      "role_family": "data_analytics",
+      "seniority": "entry",
+      "difficulty": "moderate",
+      "prompt_template": "Tell me about a time your analysis changed a decision. How did you make the result credible to people who were not analysts?",
+      "follow_up_prompts": [
+        "What was the decision, and what did the data say?",
+        "How did you communicate uncertainty?",
+        "How did you know the audience trusted the result?"
+      ],
+      "scoring_guidance": {
+        "strong": "Drives a real decision and translates rigour into stakeholder-credible terms.",
+        "weak": "Reports numbers with no link to a decision or audience."
+      },
+      "source": "curated"
+    },
+    {
+      "key": "data-rolespec-technical-difficult",
+      "category": "domain",
+      "competency": "role_specific",
+      "question_type": "technical",
+      "industry": "technology",
+      "role_family": "data_analytics",
+      "seniority": "entry",
+      "difficulty": "difficult",
+      "prompt_template": "Describe a situation where the data was ambiguous or contradictory. How did you proceed?",
+      "follow_up_prompts": [
+        "What made it ambiguous?",
+        "How did you decide what to trust?",
+        "How did you communicate the limits of your conclusion?"
+      ],
+      "scoring_guidance": {
+        "strong": "Reasoned handling of ambiguity with explicit caveats on the conclusion.",
+        "weak": "Forces a clean answer the data does not support."
+      },
+      "source": "curated"
+    }
+  ]
+}

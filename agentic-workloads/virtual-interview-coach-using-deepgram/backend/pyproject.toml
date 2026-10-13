@@ -1,0 +1,20 @@
+[project]
+name = "interviewcoach-backend"
+version = "0.1.0"
+description = "G1 minimal app API — session lifecycle + Cognito auth glue"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

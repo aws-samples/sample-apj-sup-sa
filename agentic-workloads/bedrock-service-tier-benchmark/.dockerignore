@@ -1,0 +1,11 @@
+.venv
+deploy/.venv
+deploy/cdk.out
+**/node_modules
+deploy/web
+docs
+tests
+.git
+.ash
+.holmes
+**/__pycache__

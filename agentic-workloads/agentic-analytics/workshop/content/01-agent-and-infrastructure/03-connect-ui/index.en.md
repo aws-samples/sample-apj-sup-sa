@@ -33,18 +33,26 @@ The UI needs to know the agent's runtime ARN and Cognito configuration.
 cd /workshop/agentic-analytics/app/ui
 ```
 
-Create a `.env` file. The script below auto-detects values from the agent config and CloudFormation outputs:
+Create a `.env` file. The script below reads the runtime ARN from your top-up stack's outputs and the Cognito values from `config.env`:
 
 ```bash
 AG_CONFIG="../agentcore_strands/config.env"
-AC_CONFIG="../agentcore_strands/.bedrock_agentcore.yaml"
-AGENT_ARN=$(grep agent_arn $AC_CONFIG | head -1 | awk '{print $2}')
+STACK="agentic-analytics-agentcore"   # the top-up stack you deployed in Step 2
+REGION="us-east-1"
+
+# Runtime ARN comes from the top-up stack output (same value as `make outputs`)
+AGENT_ARN=$(aws cloudformation describe-stacks --stack-name "$STACK" --region "$REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='AgentRuntimeArn'].OutputValue" --output text)
+
+# Identity Pool id is a main-stack output
+IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name main-stack --region "$REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
 
 cat > .env << EOF
-REACT_APP_AWS_REGION=us-east-1
+REACT_APP_AWS_REGION=$REGION
 REACT_APP_AGENT_RUNTIME_ARN=$AGENT_ARN
 REACT_APP_COGNITO_USER_POOL_ID=$(grep COGNITO_USER_POOL_ID $AG_CONFIG | cut -d= -f2)
-REACT_APP_COGNITO_IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name main-stack --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text)
+REACT_APP_COGNITO_IDENTITY_POOL_ID=$IDENTITY_POOL_ID
 REACT_APP_COGNITO_USER_CLIENT_ID=$(grep COGNITO_USER_LOGIN_CLIENT_ID $AG_CONFIG | cut -d= -f2)
 REACT_APP_COGNITO_DOMAIN=$(grep COGNITO_DOMAIN $AG_CONFIG | cut -d= -f2)
 EOF
@@ -52,7 +60,7 @@ EOF
 cat .env
 ```
 
-Verify the output — `REACT_APP_AGENT_RUNTIME_ARN` should show an ARN like `arn:aws:bedrock-agentcore:us-east-1:...:runtime/unicorn_rental_agent-...`. If it's empty, run `agentcore list` and copy the ARN manually.
+Verify the output — `REACT_APP_AGENT_RUNTIME_ARN` should show an ARN like `arn:aws:bedrock-agentcore:us-east-1:...:runtime/agentic_analytics_agent-...`. If it's empty, run `make outputs` from `../agentcore_strands` and copy the `AgentRuntimeArn` value manually.
 
 ::alert[The `REACT_APP_COGNITO_USER_CLIENT_ID` and `REACT_APP_COGNITO_DOMAIN` enable the **Login** button. Login is required — the agent needs a JWT token to authenticate with the Gateway.]{type="info"}
 
@@ -72,7 +80,7 @@ You can now view the app in the browser.
   Local:            http://localhost:3001
 ```
 
-Wait for a momment and the `npm start` above should trigger a new browser tab open with the UI. Check if your browser is prompting you whether it is allowed to open a pop up.
+Wait a moment — the `npm start` above should open a new browser tab with the UI. Check whether your browser is prompting you to allow a pop-up.
 
 Alternatively, open a new browser tab and navigate to your Code Editor URL, replacing the path with `/app`:
 
@@ -87,6 +95,8 @@ https://<your-cloudfront-domain>/app
 For example it will be https://xxxxxxxxxxxxxx.cloudfront.net/app
 
 ::alert[The `/app` path is pre-configured in the Code Editor's Nginx proxy to forward requests to the React dev server on port 3001. No port forwarding setup is needed.]{type="info"}
+
+::alert[**Login callback is pre-registered for you.** Your CloudFront `/app` URL was automatically added to the Cognito app client's allowed callback/logout list when the environment was provisioned (along with `http://localhost:3001/app` for local dev), so Login just works. The redirect the app sends is `window.location.origin + /app`. *If* you ever reach the UI by some other host/path and see `redirect_mismatch`, add that exact `…/app` URL under the user pool client's **Allowed callback URLs** (Cognito console → User pool → App client → Hosted UI) — but in the standard workshop flow you won't need to.]{type="info"}
 
 You should see the Timely-Unicorn Analytics dashboard with:
 - A chat panel on the left with suggested queries
@@ -131,7 +141,7 @@ The agent should respond conversationally, describing its capabilities. It won't
 
 **UI loads but shows "Connection error"**
 - Verify `REACT_APP_AGENT_RUNTIME_ARN` in `.env` is correct.
-- Ensure the agent is still deployed: run `agentcore list` to check.
+- Ensure the agent is still deployed: run `make outputs` from `app/agentcore_strands` and confirm `AgentRuntimeArn` is present.
 
 **`/app` shows 502 Bad Gateway**
 - The React dev server may not be running. Run `npm start` in the `app/ui` directory.
@@ -140,7 +150,7 @@ The agent should respond conversationally, describing its capabilities. It won't
 
 **Responses are empty or the agent doesn't respond**
 - Check the browser console (F12 → Console) for errors.
-- Verify the agent is running: `agentcore invoke '{"prompt": "hello"}'`
+- Confirm the Runtime reached `READY` after your last `make deploy` / `make build` (check the stack status with `make status`).
 
 ## Summary
 

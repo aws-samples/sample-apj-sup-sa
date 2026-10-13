@@ -48,7 +48,11 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
-      BucketName: !Sub ${EnvironmentName}-kb-docs-${AWS::AccountId}
+      # Region in the name avoids S3 global-endpoint stale-region-cache 301s when the
+      # same account previously held this bucket name in another region (e.g. a prior
+      # demo in us-west-2). Bedrock ingestion uses the global endpoint and won't follow
+      # the 301, so a region-distinct name is required for reliable multi-region reuse.
+      BucketName: !Sub ${EnvironmentName}-kb-docs-${AWS::AccountId}-${AWS::Region}
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -180,7 +184,12 @@ Resources:
                   send(event, context, 'SUCCESS')
                   return
               try:
-                  s3 = boto3.client('s3')
+                  import os
+                  # Pin to the regional endpoint with path addressing: a just-created bucket
+                  # isn't consistently resolvable on the us-east-1 global endpoint yet, so a
+                  # default client gets PermanentRedirect on CopyObject. (us-east-1 fresh-deploy race.)
+                  s3 = boto3.client('s3', region_name=os.environ['AWS_REGION'],
+                                    config=boto3.session.Config(s3={'addressing_style': 'path'}))
                   p = event['ResourceProperties']
                   s3.copy_object(CopySource={'Bucket': p['SrcBucket'], 'Key': p['SrcKey']}, Bucket=p['DstBucket'], Key=p['DstKey'])
                   send(event, context, 'SUCCESS', {'DstBucket': p['DstBucket'], 'DstKey': p['DstKey']})
@@ -248,6 +257,9 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:ListBucket
+                  # Required so the S3 client can resolve the bucket region; without it,
+                  # us-east-1 ingestion gets 301 PermanentRedirect on the global endpoint.
+                  - s3:GetBucketLocation
                 Resource:
                   - !Sub arn:aws:s3:::${ArtifactsBucket}/*
                   - !Sub arn:aws:s3:::${KBDocsBucket}
@@ -306,6 +318,10 @@ Outputs:
   KnowledgeBaseId:
     Description: Bedrock Knowledge Base ID
     Value: !GetAtt BedrockKBTrigger.KnowledgeBaseId
+    # NOTE: do not rename — imported by agentcore-topup-stack.yaml (workshop) as
+    # ${EnvironmentName}-KnowledgeBaseId. Renaming/removing breaks the import.
+    Export:
+      Name: !Sub ${EnvironmentName}-KnowledgeBaseId
 
   DataSourceId:
     Description: Bedrock Data Source ID

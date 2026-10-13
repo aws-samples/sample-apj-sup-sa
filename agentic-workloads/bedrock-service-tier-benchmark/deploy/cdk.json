@@ -1,0 +1,16 @@
+{
+  "app": ".venv/bin/python app.py",
+  "context": {
+    "auth_mode": "cognito",
+    "domain_name": "",
+    "hosted_zone_id": "",
+    "hosted_zone_name": "",
+    "federate_issuer_url": "",
+    "federate_client_id": "",
+    "schedule_expression": "cron(0 18 * * ? *)",
+    "benchmark_args": "--preset quick",
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": true
+  }
+}

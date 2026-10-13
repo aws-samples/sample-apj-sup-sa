@@ -63,6 +63,9 @@ class ResourceManager:
         self.security_group_id: str | None = None
         self.ami_id: str | None = None
         self.vpc_id: str | None = None
+        # The caller /32 currently allowed inbound. Tracked so
+        # refresh_caller_ingress() can detect an egress-IP rotation.
+        self.caller_ip_cidr: str | None = None
 
         # Caches
         self._offered_azs_cache: set[str] | None = None
@@ -79,8 +82,61 @@ class ResourceManager:
         self._ensure_instance_profile()
         if not caller_ip_cidr:
             caller_ip_cidr = f"{self._discover_public_ip()}/32"
+        self.caller_ip_cidr = caller_ip_cidr
         self.security_group_id = self._create_security_group(caller_ip_cidr)
         self.ami_id = self._pick_ami()
+
+    def refresh_caller_ingress(self) -> bool:
+        """Re-check the caller's egress IP and add an SG rule if it rotated.
+
+        Corporate NAT and home-router egress IPs rotate. The security group only
+        holds the /32 captured when it was created, so a rotation silently
+        blocks the caller while the endpoint itself is perfectly healthy — the
+        vLLM ready-poll then burns its entire timeout, and a rotation *during* a
+        benchmark makes every request retry and corrupts the tier.
+
+        Safe to call from inside a poll loop: additive, idempotent, and it
+        swallows discovery hiccups rather than killing the run. Returns True
+        only when a new rule was actually added.
+        """
+        if not self.security_group_id:
+            return False
+        try:
+            current = f"{self._discover_public_ip()}/32"
+        except Exception as exc:  # noqa: BLE001 — a hiccup must not kill the poll
+            LOG.debug("caller-IP re-check failed (non-fatal): %s", exc)
+            return False
+        if current == self.caller_ip_cidr:
+            return False
+        try:
+            self.ec2.authorize_security_group_ingress(
+                GroupId=self.security_group_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 8000,
+                        "ToPort": 8001,
+                        "IpRanges": [
+                            {
+                                "CidrIp": current,
+                                "Description": "caller egress rotated (self-heal)",
+                            }
+                        ],
+                    }
+                ],
+            )
+            LOG.warning(
+                "Caller egress IP rotated %s -> %s; SG %s ingress updated",
+                self.caller_ip_cidr, current, self.security_group_id,
+            )
+            self.caller_ip_cidr = current
+            return True
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "InvalidPermission.Duplicate":
+                self.caller_ip_cidr = current
+                return False
+            LOG.warning("SG self-heal failed for %s: %s", current, exc)
+            return False
 
     def teardown(self) -> None:
         """Delete the per-experiment SG. IAM profile is left in place (shared)."""

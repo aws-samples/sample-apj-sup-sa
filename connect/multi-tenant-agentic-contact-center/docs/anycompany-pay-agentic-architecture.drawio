@@ -1,0 +1,421 @@
+<mxfile host="Electron" pages="2">
+  <diagram name="AnyCompanyPay Agentic Self-Service" id="anycompany-pay-agentic">
+    <mxGraphModel dx="4147" dy="1214" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2100" pageHeight="1200" math="0" shadow="0" adaptiveColors="auto">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;fontSize=16;fontStyle=1;align=left;verticalAlign=middle;" value="AnyCompanyPay — Agentic Merchant Self-Service (Amazon Connect + Q in Connect + Bedrock AgentCore Gateway) — tenant-isolated transaction Q&amp;A" vertex="1">
+          <mxGeometry height="30" width="1700" x="40" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="c_client" parent="1" style="swimlane;startSize=26;html=1;fillColor=#e8f4f8;strokeColor=#6c8ebf;fontStyle=1;" value="Client" vertex="1">
+          <mxGeometry height="200" width="200" x="-140" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_browser" parent="c_client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Merchant browser&#xa;Luxe Living / NovaMart&#xa;owner@&lt;merchant&gt;.demo" vertex="1">
+          <mxGeometry height="60" width="160" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_widget" parent="c_client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Live chat widget&#xa;/merchant/support" vertex="1">
+          <mxGeometry height="60" width="160" x="20" y="115" as="geometry" />
+        </mxCell>
+        <mxCell id="c_id" parent="1" style="swimlane;startSize=26;html=1;fillColor=#fce4ec;strokeColor=#b85450;fontStyle=1;" value="Identity" vertex="1">
+          <mxGeometry height="120" width="200" x="-330" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cognito" parent="c_id" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" value="Amazon Cognito&#xa;User Pool&#xa;JWT claim: custom:merchant_id" vertex="1">
+          <mxGeometry height="66" width="160" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c_app" parent="1" style="swimlane;startSize=26;html=1;fillColor=#e8f4f8;strokeColor=#6c8ebf;fontStyle=1;" value="AnyCompanyPay App (CloudFront + API)" vertex="1">
+          <mxGeometry height="345" width="240" x="140" y="52.5" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cf" parent="c_app" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Amazon CloudFront&#xa;+ S3 static SPA" vertex="1">
+          <mxGeometry height="60" width="200" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_chatapi" parent="c_app" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="ChatApiFn (Lambda)&#xa;StartChatContact&#xa;stamps CONTACT ATTRIBUTE&#xa;merchant_id (from verified JWT)" vertex="1">
+          <mxGeometry height="100" width="200" x="20" y="115" as="geometry" />
+        </mxCell>
+        <mxCell id="n_hop1" parent="c_app" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;fontStyle=2;" value="HOP 1 (tenant source)&#xa;trusted merchant_id enters as a&#xa;Connect contact attribute — never&#xa;from the model / chat text" vertex="1">
+          <mxGeometry height="90" width="200" x="20" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="c_connect" parent="1" style="swimlane;startSize=26;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" value="Amazon Connect instance (8c417766…)" vertex="1">
+          <mxGeometry height="787.5" width="330" x="500" y="52.5" as="geometry" />
+        </mxCell>
+        <mxCell id="n_flow" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#d6b656;" value="Chat contact flow (818c8256…)&#xa;• Set Q in Connect assistant&#xa;• Get customer input (Lex)&#xa;  LexSessionAttributes:&#xa;  q-in-connect:session-arn = $.Wisdom.SessionArn&#xa;• Loop = multi-turn&#xa;• Complete → end • Escalate → queue" vertex="1">
+          <mxGeometry height="170" width="290" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_lex" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" value="Amazon Lex bot (CMFZFIJWXU)&#xa;alias Production, locale en_US&#xa;Q in Connect intent" vertex="1">
+          <mxGeometry height="80" width="290" x="20" y="257.5" as="geometry" />
+        </mxCell>
+        <mxCell id="n_contactattr" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="Contact attributes (per contact)&#xa;merchant_id = mch_luxe&#xa;merchant_name, email, user_sub&#xa;read later via GetContactAttributes" vertex="1">
+          <mxGeometry height="100" width="290" x="30" y="487.5" as="geometry" />
+        </mxCell>
+        <mxCell id="n_seeder" parent="c_connect" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Session seeder Lambda (Hop 1 legacy)&#xa;now REDUNDANT — Hop 2 reads the&#xa;contact attribute directly" vertex="1">
+          <mxGeometry height="80" width="290" x="30" y="607.5" as="geometry" />
+        </mxCell>
+        <mxCell id="c_qic" parent="1" style="swimlane;startSize=26;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="Amazon Q in Connect (domain / assistant)" vertex="1">
+          <mxGeometry height="780" width="300" x="930" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_assistant" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Domain / assistant: anycompany-pay-ai-domain&#xa;d18c811a — AWS-owned KMS key&#xa;+ Lex→QIC service-linked-role grant" vertex="1">
+          <mxGeometry height="90" width="260" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_agent" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="Orchestration AI agent&#xa;MyAmazingAIAgent (fdaeaa0d:4)&#xa;bound: Connect.SelfService&#xa;⚠ console publish can reset bind" vertex="1">
+          <mxGeometry height="90" width="260" x="20" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="n_prompt" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Orchestration prompt&#xa;rule: NEVER pass&#xa;merchant_id" vertex="1">
+          <mxGeometry height="110" width="125" x="20" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="n_tools" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Tools:&#xa;query_transactions&#xa;Complete&#xa;Escalate" vertex="1">
+          <mxGeometry height="110" width="125" x="155" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="c_gw" parent="1" style="swimlane;startSize=26;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" value="Amazon Bedrock AgentCore Gateway" vertex="1">
+          <mxGeometry height="770" width="360" x="1270" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_gw" parent="c_gw" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" value="Gateway: anycompany-pay-transaction-tools-<gateway-suffix>&#xa;MCP • CUSTOM_JWT (Connect OIDC issuer)&#xa;allowedAudience = gatewayId • MCP 2025-03-26&#xa;passRequestHeaders = true" vertex="1">
+          <mxGeometry height="100" width="320" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_interceptor" parent="c_gw" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;" value="REQUEST Interceptor Lambda (tenant gate)&#xa;on tools/call:&#xa;1) read header x-amz-connect-contact-id&#xa;2) GetContactAttributes → merchant_id&#xa;3) STRIP model tenant keys (merchant_id,&#xa;   merchantId, __trusted_merchant_id, …)&#xa;4) INJECT __trusted_merchant_id (trusted)" vertex="1">
+          <mxGeometry height="170" width="320" x="20" y="265" as="geometry" />
+        </mxCell>
+        <mxCell id="c_vpc" parent="1" style="swimlane;startSize=26;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" value="Data tier — Aurora VPC (private)" vertex="1">
+          <mxGeometry height="455" width="340" x="1670" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_tool" parent="c_vpc" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;" value="Transaction tool Lambda&#xa;• trusts ONLY __trusted_merchant_id&#xa;• ALWAYS filters query by merchant_id&#xa;  (query-time / SaaS Pool Model)&#xa;• model args → status/limit/query only&#xa;• FAILS CLOSED if trusted key absent" vertex="1">
+          <mxGeometry height="150" width="300" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_os" parent="c_vpc" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" value="Amazon OpenSearch Serverless&#xa;private collection • index: transactions&#xa;doc field: merchant_id.keyword" vertex="1">
+          <mxGeometry height="90" width="200" x="130" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="c_obs" parent="1" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" value="Observability" vertex="1">
+          <mxGeometry height="110" width="740" x="1260" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="n_cw" parent="c_obs" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#666666;" value="Amazon CloudWatch Logs — gateway APPLICATION_LOGS (initialize / tools/list / tools/call), interceptor (injected trusted tenant), tool (event + fail-closed)" vertex="1">
+          <mxGeometry height="56" width="700" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="swimlane;startSize=26;html=1;fillColor=#ffffff;strokeColor=#333333;fontStyle=1;align=left;" value="Legend" vertex="1">
+          <mxGeometry height="190" width="470" x="50" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1" parent="legend" style="text;html=1;align=left;spacingLeft=34;" value="Request path (numbered 1→13)" vertex="1">
+          <mxGeometry height="24" width="440" x="10" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#333333;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="48" as="sourcePoint" />
+            <mxPoint x="32" y="48" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg2" parent="legend" style="text;html=1;align=left;spacingLeft=34;" value="Trusted merchant_id (tenant isolation) — never model-supplied" vertex="1">
+          <mxGeometry height="24" width="450" x="10" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=3;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="82" as="sourcePoint" />
+            <mxPoint x="32" y="82" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg3" parent="legend" style="text;html=1;align=left;spacingLeft=34;" value="Response (only the caller&#39;s tenant rows)" vertex="1">
+          <mxGeometry height="24" width="440" x="10" y="104" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#999999;strokeWidth=2;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="116" as="sourcePoint" />
+            <mxPoint x="32" y="116" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg4" parent="legend" style="text;html=1;align=left;spacingLeft=10;fontStyle=2;verticalAlign=top;" value="Green boxes = tenant-safety controls. Isolation enforced at 3 layers:&#xa;(1) prompt refuses cross-tenant, (2) interceptor strips+injects, (3) tool fails closed." vertex="1">
+          <mxGeometry height="50" width="450" x="10" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="n_cognito" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_browser" value="1. OIDC login (merchant_id claim)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="n_widget" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_chatapi" value="2. start chat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="n_chatapi" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_flow" value="3. StartChatContact">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="estamp" edge="1" parent="1" source="n_chatapi" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="n_contactattr" value="stamp merchant_id">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="240" />
+              <mxPoint x="440" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="n_flow" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_lex" value="4. Get customer input">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780" y="300" />
+              <mxPoint x="780" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="n_lex" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_assistant" value="5. QIC intent (session-arn)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="n_assistant" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_agent" value="6. orchestrate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1120" y="390" />
+              <mxPoint x="1120" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="n_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_gw" value="7. MCP tools/call (NO merchant_id)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1160" y="230" />
+              <mxPoint x="1450" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="n_gw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_interceptor" value="8. REQUEST + headers">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1530" y="300" />
+              <mxPoint x="1530" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="n_interceptor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="n_contactattr" value="9. GetContactAttributes → merchant_id">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="410" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="n_interceptor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="n_target" value="10. inject __trusted_merchant_id">
+          <mxGeometry relative="1" x="0.3333" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1450" y="690" />
+              <mxPoint x="1450" y="690" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="n_target" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="n_tool" value="11. invoke">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1770" y="765" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="n_tool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="n_os" value="12. query — filter merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="n_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;strokeWidth=2;dashed=1;fontSize=10;" target="n_widget" value="13. response: caller&#39;s rows only">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="euse" edge="1" parent="1" source="n_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;strokeColor=#b0b0b0;strokeWidth=1;fontSize=9;" target="n_prompt" value="uses prompt + tools">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="elog1" edge="1" parent="1" source="n_interceptor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#b0b0b0;strokeWidth=1;" target="n_cw" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1350" y="710" />
+              <mxPoint x="1630" y="710" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="elog2" edge="1" parent="1" source="n_tool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#b0b0b0;strokeWidth=1;" target="n_cw" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1710" y="640" />
+              <mxPoint x="1630" y="640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_target" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" value="Lambda tool target&#xa;query-transactions (SKDVSXWHP8)" vertex="1">
+          <mxGeometry height="70" width="320" x="1280" y="730" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="HYe0nw5gKBwPDkohkyV6" name="Page-2">
+    <mxGraphModel dx="1911" dy="1133" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-1" parent="1" style="text;html=1;fontSize=16;fontStyle=1;align=left;verticalAlign=middle;" value="Amazon Connect + Q in Connect + Bedrock AgentCore Gateway, tenant-isolated transaction Q&amp;amp;A" vertex="1">
+          <mxGeometry height="30" width="1760" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-2" parent="1" style="swimlane;startSize=26;html=1;fillColor=#e8f4f8;strokeColor=#6c8ebf;fontStyle=1;" value="Client" vertex="1">
+          <mxGeometry height="250" width="180" x="50" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-3" parent="wCw80LIC5rQlKq6wBhcZ-2" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.authenticated_user;fillColor=#232F3D;" value="Merchants" vertex="1">
+          <mxGeometry height="60" width="60" x="58" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-4" parent="wCw80LIC5rQlKq6wBhcZ-2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" value="Live chat widget&#xa;/merchant/support" vertex="1">
+          <mxGeometry height="60" width="140" x="20" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-5" parent="1" style="swimlane;startSize=26;html=1;fillColor=#fce4ec;strokeColor=#b85450;fontStyle=1;" value="Identity" vertex="1">
+          <mxGeometry height="150" width="180" x="280" y="655" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-6" parent="wCw80LIC5rQlKq6wBhcZ-5" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;fillColor=#DD344C;" value="Amazon Cognito&#xa;JWT: custom:merchant_id" vertex="1">
+          <mxGeometry height="60" width="60" x="58" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-7" parent="1" style="swimlane;startSize=26;html=1;fillColor=#e8f4f8;strokeColor=#6c8ebf;fontStyle=1;" value="AnyCompanyPay App" vertex="1">
+          <mxGeometry height="330" width="200" x="500" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-8" parent="wCw80LIC5rQlKq6wBhcZ-7" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudfront;fillColor=#8C4FFF;" value="CloudFront + S3&#xa;static SPA" vertex="1">
+          <mxGeometry height="60" width="60" x="70" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-9" parent="wCw80LIC5rQlKq6wBhcZ-7" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="ChatApiFn&#xa;stamps merchant_id" vertex="1">
+          <mxGeometry height="60" width="60" x="70" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-10" parent="wCw80LIC5rQlKq6wBhcZ-7" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;fontStyle=2;fontSize=10;" value="HOP 1 (tenant source)&#xa;merchant_id → Connect contact attribute&#xa;(from verified JWT, never the model)" vertex="1">
+          <mxGeometry height="60" width="170" x="15" y="255" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-11" parent="1" style="swimlane;startSize=26;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" value="Amazon Connect instance (8c417766…)" vertex="1">
+          <mxGeometry height="600" width="320" x="740" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-12" parent="wCw80LIC5rQlKq6wBhcZ-11" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.connect;fillColor=#DD344C;" value="Amazon Connect" vertex="1">
+          <mxGeometry height="60" width="60" x="128" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-13" parent="wCw80LIC5rQlKq6wBhcZ-11" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#d6b656;fontSize=10;" value="Chat contact flow (818c8256…)&#xa;• Set Q in Connect assistant&#xa;• Get customer input (Lex)&#xa;  LexSessionAttributes: q-in-connect:&#xa;  session-arn = $.Wisdom.SessionArn&#xa;• Loop = multi-turn • Complete • Escalate" vertex="1">
+          <mxGeometry height="140" width="290" x="15" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-14" parent="wCw80LIC5rQlKq6wBhcZ-11" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lex;fillColor=#01A88D;" value="Amazon Lex (CMFZFIJWXU)&#xa;alias Production • Q in Connect intent" vertex="1">
+          <mxGeometry height="60" width="60" x="128" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-15" parent="wCw80LIC5rQlKq6wBhcZ-11" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="Contact attributes (per contact)&#xa;merchant_id = mch_luxe&#xa;+ merchant_name, email, user_sub&#xa;read via GetContactAttributes" vertex="1">
+          <mxGeometry height="90" width="290" x="15" y="415" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-16" parent="wCw80LIC5rQlKq6wBhcZ-11" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Session seeder Lambda — REDUNDANT (Hop 2 reads contact attr directly)" vertex="1">
+          <mxGeometry height="55" width="290" x="15" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-17" parent="1" style="swimlane;startSize=26;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="Amazon Q in Connect (domain / assistant)" vertex="1">
+          <mxGeometry height="390" width="300" x="1100" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-18" parent="wCw80LIC5rQlKq6wBhcZ-17" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.connect;fillColor=#3334B9;" value="Q in Connect assistant&#xa;anycompany-pay-ai-domain (d18c811a)&#xa;AWS-owned KMS + SLR grant" vertex="1">
+          <mxGeometry height="60" width="60" x="118" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-19" parent="wCw80LIC5rQlKq6wBhcZ-17" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" value="Orchestration AI agent — MyAmazingAIAgent (fdaeaa0d:4)&#xa;bound: Connect.SelfService&#xa;⚠ console publish can reset the bind" vertex="1">
+          <mxGeometry height="80" width="270" x="15" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-20" parent="wCw80LIC5rQlKq6wBhcZ-17" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;" value="Prompt&#xa;NEVER pass&#xa;merchant_id" vertex="1">
+          <mxGeometry height="90" width="130" x="15" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-21" parent="wCw80LIC5rQlKq6wBhcZ-17" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;" value="Tools&#xa;query_transactions&#xa;Complete • Escalate" vertex="1">
+          <mxGeometry height="90" width="130" x="155" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-22" parent="1" style="swimlane;startSize=26;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" value="Amazon Bedrock AgentCore Gateway" vertex="1">
+          <mxGeometry height="470" width="360" x="1440" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-23" parent="wCw80LIC5rQlKq6wBhcZ-22" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.bedrock_agentcore;fillColor=#01A88D;" value="AgentCore Gateway (…cezz5ljyfn)&#xa;MCP • CUSTOM_JWT (Connect OIDC)&#xa;aud=gatewayId • 2025-03-26 • passRequestHeaders" vertex="1">
+          <mxGeometry height="60" width="60" x="150" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-24" parent="wCw80LIC5rQlKq6wBhcZ-22" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="Interceptor" vertex="1">
+          <mxGeometry height="60" width="60" x="25" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-25" parent="wCw80LIC5rQlKq6wBhcZ-22" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="REQUEST interceptor (tenant gate), on tools/call:&#xa;1) read header x-amz-connect-contact-id&#xa;2) GetContactAttributes → merchant_id&#xa;3) STRIP model tenant keys (merchant_id,&#xa;   merchantId, __trusted_merchant_id, …)&#xa;4) INJECT __trusted_merchant_id (trusted)" vertex="1">
+          <mxGeometry height="150" width="240" x="100" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-26" parent="wCw80LIC5rQlKq6wBhcZ-22" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="Lambda tool target&#xa;query-transactions (SKDVSXWHP8)" vertex="1">
+          <mxGeometry height="60" width="60" x="150" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-27" parent="1" style="swimlane;startSize=26;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" value="Data tier — Aurora VPC (private)" vertex="1">
+          <mxGeometry height="400" width="320" x="1840" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-28" parent="wCw80LIC5rQlKq6wBhcZ-27" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="Transaction tool Lambda" vertex="1">
+          <mxGeometry height="60" width="60" x="128" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-29" parent="wCw80LIC5rQlKq6wBhcZ-27" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="trusts ONLY __trusted_merchant_id&#xa;ALWAYS filters query by merchant_id&#xa;(query-time / SaaS Pool Model)&#xa;model args → status/limit/query only&#xa;FAILS CLOSED if trusted key absent" vertex="1">
+          <mxGeometry height="115" width="280" x="20" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-30" parent="wCw80LIC5rQlKq6wBhcZ-27" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elasticsearch_service;fillColor=#8C4FFF;" value="Amazon OpenSearch Serverless&#xa;private • index: transactions&#xa;field: merchant_id.keyword" vertex="1">
+          <mxGeometry height="60" width="60" x="128" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-31" parent="1" style="swimlane;startSize=26;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" value="Observability" vertex="1">
+          <mxGeometry height="120" width="720" x="1440" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-32" parent="wCw80LIC5rQlKq6wBhcZ-31" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;fillColor=#E7157B;" value="CloudWatch Logs" vertex="1">
+          <mxGeometry height="60" width="60" x="30" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-33" parent="wCw80LIC5rQlKq6wBhcZ-31" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" value="gateway APPLICATION_LOGS (tools/call) • interceptor (&quot;injected trusted tenant&quot;) • tool (event + fail-closed)" vertex="1">
+          <mxGeometry height="50" width="560" x="120" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-34" parent="1" style="swimlane;startSize=26;html=1;fillColor=#ffffff;strokeColor=#333333;fontStyle=1;align=left;" value="Legend" vertex="1">
+          <mxGeometry height="170" width="430" x="280" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-35" parent="wCw80LIC5rQlKq6wBhcZ-34" style="text;html=1;align=left;spacingLeft=34;" value="Request path (numbered 1→13)" vertex="1">
+          <mxGeometry height="24" width="410" x="10" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-36" edge="1" parent="wCw80LIC5rQlKq6wBhcZ-34" style="endArrow=classic;html=1;strokeColor=#333333;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="48" as="sourcePoint" />
+            <mxPoint x="32" y="48" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-37" parent="wCw80LIC5rQlKq6wBhcZ-34" style="text;html=1;align=left;spacingLeft=34;" value="Trusted merchant_id (tenant isolation) — never model-supplied" vertex="1">
+          <mxGeometry height="24" width="420" x="10" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-38" edge="1" parent="wCw80LIC5rQlKq6wBhcZ-34" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=3;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="82" as="sourcePoint" />
+            <mxPoint x="32" y="82" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-39" parent="wCw80LIC5rQlKq6wBhcZ-34" style="text;html=1;align=left;spacingLeft=34;" value="Response (only the caller&#39;s tenant rows)" vertex="1">
+          <mxGeometry height="24" width="410" x="10" y="104" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-40" edge="1" parent="wCw80LIC5rQlKq6wBhcZ-34" style="endArrow=classic;html=1;strokeColor=#999999;strokeWidth=2;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="116" as="sourcePoint" />
+            <mxPoint x="32" y="116" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-41" parent="wCw80LIC5rQlKq6wBhcZ-34" style="text;html=1;align=left;spacingLeft=10;fontStyle=2;verticalAlign=top;" value="Green = tenant-safety controls. Isolation at 3 layers: (1) prompt refuses,&#xa;(2) interceptor strips+injects, (3) tool fails closed." vertex="1">
+          <mxGeometry height="40" width="410" x="10" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-42" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-3" value="1. OIDC login (merchant_id claim)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-43" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-9" value="2. start chat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-44" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-12" value="3. StartChatContact">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-45" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="wCw80LIC5rQlKq6wBhcZ-15" value="stamp merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-46" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-14" value="4. Get customer input">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-47" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-18" value="5. QIC intent (session-arn)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-48" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-18" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-19" value="6. orchestrate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-49" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-23" value="7. MCP tools/call (NO merchant_id)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-50" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-23" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-24" value="8. REQUEST + headers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-51" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="wCw80LIC5rQlKq6wBhcZ-15" value="9. GetContactAttributes → merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-52" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="wCw80LIC5rQlKq6wBhcZ-26" value="10. inject __trusted_merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-53" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-26" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-28" value="11. invoke">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-54" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-28" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=10;fontColor=#2d6a2d;" target="wCw80LIC5rQlKq6wBhcZ-30" value="12. query — filter merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-55" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;strokeWidth=2;dashed=1;fontSize=10;" target="wCw80LIC5rQlKq6wBhcZ-4" value="13. response: caller&#39;s rows only">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-56" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-19" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;strokeColor=#b0b0b0;strokeWidth=1;fontSize=9;" target="wCw80LIC5rQlKq6wBhcZ-21" value="uses">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-57" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-24" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#b0b0b0;strokeWidth=1;" target="wCw80LIC5rQlKq6wBhcZ-32" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wCw80LIC5rQlKq6wBhcZ-58" edge="1" parent="1" source="wCw80LIC5rQlKq6wBhcZ-28" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#b0b0b0;strokeWidth=1;" target="wCw80LIC5rQlKq6wBhcZ-32" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

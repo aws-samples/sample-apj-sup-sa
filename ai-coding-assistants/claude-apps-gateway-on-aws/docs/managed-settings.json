@@ -1,0 +1,4 @@
+{
+  "forceLoginMethod": "gateway",
+  "forceLoginGatewayUrl": "https://claude-gateway.corp.example.com"
+}

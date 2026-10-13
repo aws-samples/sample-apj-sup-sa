@@ -1,0 +1,26 @@
+{
+  "name": "anycompany-pay-aurora-db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AnyCompanyPay Aurora PostgreSQL module — private cluster + seeded multi-tenant transactions",
+  "scripts": {
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --require-approval never",
+    "destroy": "cdk destroy",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.700.0",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.10",
+    "aws-cdk": "2.1139.0",
+    "esbuild": "0.28.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.267.0",
+    "constructs": "^10.3.0",
+    "pg": "^8.13.1"
+  }
+}

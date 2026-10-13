@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "plugin-importer",
+  "version": "1.1.0",
+  "description": "Bring the plugins you installed from Claude Code or Codex marketplaces into Kiro — contents untouched, only the packaging changes. Skill-bearing plugins land in ~/.kiro/skills/ with their hooks and agents; plugins with commands or MCP servers become Powers. Also imports straight from a marketplace GitHub URL.",
+  "author": {
+    "name": "AWS APJ Startup Solutions Architects"
+  },
+  "homepage": "https://github.com/aws-samples/sample-apj-sup-sa/tree/main/ai-coding-assistants/agent-plugins/plugin-importer",
+  "repository": "https://github.com/aws-samples/sample-apj-sup-sa",
+  "license": "MIT-0",
+  "keywords": [
+    "클로드에서 쓰던 플러그인 가져와",
+    "claude 플러그인 가져와",
+    "코덱스 플러그인 가져와",
+    "쓰던 플러그인 옮겨",
+    "플러그인 가져와",
+    "플러그인 옮겨",
+    "플러그인 이식",
+    "플러그인 마이그레이션",
+    "마켓플레이스 가져와",
+    "설치한 플러그인 보여줘",
+    "bring my claude code plugins",
+    "import claude code plugin",
+    "import codex plugin",
+    "migrate plugin to kiro",
+    "port plugin to kiro",
+    "plugin marketplace import",
+    "claude code plugin",
+    "codex plugin",
+    "plugin marketplace"
+  ]
+}

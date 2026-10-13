@@ -1,0 +1,12 @@
+# Python deps for simulation/ — scene authoring + drone flight
+# Install: pip install -r requirements.txt
+#
+# NOTE: rclpy (ROS 2 Python bindings) is NOT pip-installable — it comes from
+# the system ROS 2 install (/opt/ros/jazzy/). It's used inside Kit via
+# setup_ros_env.sh + the Kit process, not via our own pip env.
+
+PyYAML>=6.0           # scene_config.py — YAML scenarios
+numpy>=1.23           # drone_safety.py — depth cone math, everywhere
+pynput>=1.7           # keyboard_fly.py — hold-to-move keyboard flight
+rich>=13.0            # keyboard_fly.py — live HUD panel
+mavsdk>=2.0           # keyboard_fly.py — PX4 link over UDP :14540

@@ -4,6 +4,8 @@ from .batch_plans import (
     g7e_spot_single_queue,
     p4d_spot_and_on_demand_failover,
     p4d_spot_single_queue,
+    p6_spot_and_on_demand_failover,
+    p6_spot_single_queue,
 )
 from .model_spec import MEDGEMMA_27B
 
@@ -13,4 +15,6 @@ __all__ = [
     "g7e_spot_single_queue",
     "p4d_spot_and_on_demand_failover",
     "p4d_spot_single_queue",
+    "p6_spot_and_on_demand_failover",
+    "p6_spot_single_queue",
 ]

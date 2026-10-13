@@ -191,3 +191,26 @@ class TestUserDataRenderer:
         r = UserDataRenderer()
         ud = r.render(cfg, cat, hf_secret_name=None, vllm_api_key="k")
         assert "--kv-cache-dtype fp8" in ud
+
+    def test_model_spec_image_used_when_no_override(self) -> None:
+        cfg = _gpu_no_mig_cfg()
+        cat = _mock_catalog()
+        r = UserDataRenderer()
+        ud = r.render(cfg, cat, hf_secret_name=None, vllm_api_key="k")
+        assert cfg.model_spec.vllm_gpu_image in ud
+
+    def test_plan_image_override_wins(self) -> None:
+        """A per-SKU measured image win must not require changing the global
+        default, since a newer vLLM can regress other architectures."""
+        override = "vllm/vllm-openai:v0.26.0-cu129-ubuntu2404"
+        plan = _plan(
+            "p4de.24xlarge",
+            tensor_parallel=1, data_parallel=8,
+            vllm_image_override=override,
+        )
+        cfg = ExperimentConfig(model_spec=_ms(), deployment=plan)
+        cat = _mock_catalog()
+        r = UserDataRenderer()
+        ud = r.render(cfg, cat, hf_secret_name=None, vllm_api_key="k")
+        assert override in ud
+        assert cfg.model_spec.vllm_gpu_image not in ud

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Talk to your Video</title>
+<link rel="stylesheet" href="/static/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%23ff9900'/></svg>" />
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<header class="topbar">
+  <!-- The wordmark doubles as the way home, which is what people try first. -->
+  <button class="brand" id="home" aria-label="Back to the library">
+    <span class="orb" aria-hidden="true"></span>
+    <span>Talk<b>2</b>Vid</span>
+  </button>
+  <!-- Lives in the sticky bar on purpose: in the panel head it scrolled underneath
+       this bar and became unclickable. -->
+  <button class="ghost sm" id="back" hidden>← library</button>
+</header>
+
+<!-- ─── step 1: choose ─────────────────────────────────────────────── -->
+<main id="picker">
+  <section class="hero">
+    <p class="eyebrow">unlock what is trapped inside video</p>
+    <h1>Talk to your <em>Video</em></h1>
+    <p class="lede">
+      Pick a clip, pause anywhere, and ask out loud. The agent knows what was said,
+      what is on screen, and where to find it.
+    </p>
+    <div class="hero-stats" id="heroStats"></div>
+  </section>
+  <div id="library"><p class="empty">Loading library…</p></div>
+</main>
+
+<!-- ─── step 2: converse ───────────────────────────────────────────── -->
+<main id="stage" hidden>
+  <div class="stage-grid">
+    <section class="col-main">
+      <div class="panel player-panel">
+        <div class="panel-head">
+          <span class="grip" aria-hidden="true"></span>
+          <strong id="videoTitle">—</strong>
+          <span class="tag" id="videoTag"></span>
+          <span class="spacer"></span>
+        </div>
+
+        <div class="video-hold">
+          <video id="video" playsinline></video>
+          <button class="play-overlay" id="playOverlay" aria-label="Play or pause">
+            <span class="disc">
+              <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path id="overlayIcon" d="M8 5v14l11-7z" fill="currentColor"/></svg>
+            </span>
+          </button>
+          <div class="paused-flag" id="pausedFlag" hidden>paused — ask away</div>
+        </div>
+
+        <div class="scrub" id="track" title="Click to jump · chapters and matched moments"></div>
+
+        <div class="controls">
+          <button class="round" id="playBtn" aria-label="Play or pause">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path id="playIcon" d="M8 5v14l11-7z" fill="currentColor"/></svg>
+          </button>
+          <span class="time"><b id="timeNow">0:00</b> / <span id="timeTotal">0:00</span></span>
+          <span class="spacer"></span>
+          <span class="latency" id="latency"></span>
+        </div>
+      </div>
+
+      <div class="panel talk-panel">
+        <div class="mic-row">
+          <button id="mic" class="mic" aria-label="Start talking">
+            <span class="waves" aria-hidden="true"><i></i><i></i></span>
+            <span class="mic-core" id="level" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12Z" fill="currentColor"/></svg>
+            </span>
+          </button>
+          <div class="mic-copy">
+            <strong id="micLabel">Start talking</strong>
+            <div class="state" id="state"><span class="pip"></span><span id="stateText">Idle</span></div>
+          </div>
+          <form id="askForm" class="ask">
+            <input id="ask" placeholder="…or type a question" autocomplete="off" />
+            <button type="submit" class="send" aria-label="Send">↵</button>
+          </form>
+        </div>
+        <div class="starters" id="starters"></div>
+      </div>
+    </section>
+
+    <aside class="col-side">
+      <section class="panel log-panel">
+        <div class="panel-head">
+          <span class="grip" aria-hidden="true"></span>
+          <strong>Conversation</strong>
+          <span class="dots" aria-hidden="true"><i class="g"></i><i class="a"></i></span>
+          <span class="spacer"></span>
+          <button class="ghost sm" id="clear">clear</button>
+        </div>
+        <div class="log" id="log">
+          <div class="hint">
+            <b>Pause the video</b> where you are curious, then press the mic and ask.
+            Try “what is happening here?” or “show me where they explain that”.
+          </div>
+        </div>
+        <div class="activity" id="activity"></div>
+      </section>
+
+      <section class="panel chapters-panel">
+        <div class="panel-head">
+          <span class="grip" aria-hidden="true"></span>
+          <strong>Chapters</strong>
+          <span class="count" id="chapterCount"></span>
+        </div>
+        <div class="chapters" id="chapters"></div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<audio id="botAudio" autoplay></audio>
+<div id="toast"></div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

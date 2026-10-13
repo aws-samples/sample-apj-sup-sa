@@ -82,13 +82,20 @@ Resources:
         - ALLOW_USER_PASSWORD_AUTH
       SupportedIdentityProviders:
         - COGNITO
+      # Local-dev callbacks. The UI's redirect_uri is window.location.origin +
+      # pathname; `npm start` runs with PUBLIC_URL=/app, so the local redirect is
+      # http://localhost:3001/app — it MUST be listed or Cognito 400s with
+      # redirect_mismatch. The live Amplify URL is appended post-deploy by the
+      # amplify_hosting custom resource (it doesn't know the domain until the app exists).
       CallbackURLs:
         - http://localhost:3000
         - http://localhost:3001
         - http://localhost:3001/
+        - http://localhost:3001/app
       LogoutURLs:
         - http://localhost:3000
         - http://localhost:3001
+        - http://localhost:3001/app
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:

@@ -1,0 +1,16 @@
+# Runtime output
+snapshots/*
+!snapshots/.gitkeep
+logs/*
+!logs/.gitkeep
+.current_config
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db

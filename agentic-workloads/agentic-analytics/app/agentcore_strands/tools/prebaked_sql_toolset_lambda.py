@@ -6,11 +6,21 @@ from decimal import Decimal
 from datetime import datetime
 import os
 
+import jwt  # PyJWT (with cryptography) — provided by the pyjwt Lambda layer
+from jwt import PyJWKClient
+
+import time
+
 # Aurora PostgreSQL configuration from environment
 AURORA_ENDPOINT = os.environ.get('AURORA_ENDPOINT')
 AURORA_DATABASE = os.environ.get('AURORA_DATABASE', 'timely_unicorn')
 AURORA_USERNAME = os.environ.get('AURORA_USERNAME', 'postgres')
-AURORA_SECRET_ARN = os.environ.get('AURORA_SECRET_ARN')
+# Two secrets are wired to this Lambda: the 'postgres' table-owner (bypasses RLS)
+# and the 'app_user' non-owner (RLS enforced). Which one we use is decided at
+# RUNTIME by the RLS feature flag in SSM Parameter Store (see _rls_enabled),
+# NOT by a redeploy — so flipping RLS never changes this Lambda's config/version.
+AURORA_SECRET_ARN = os.environ.get('AURORA_SECRET_ARN')            # postgres owner (RLS off)
+APP_AURORA_SECRET_ARN = os.environ.get('APP_AURORA_SECRET_ARN')    # app_user (RLS on)
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
 # Bedrock configuration for embeddings
@@ -19,27 +29,126 @@ EMBEDDING_DIMENSION = 1024
 
 secrets_client = boto3.client('secretsmanager', region_name=AWS_REGION)
 bedrock_client = boto3.client('bedrock-runtime', region_name=AWS_REGION)
+ssm_client = boto3.client('ssm', region_name=AWS_REGION)
+
+# ---------------------------------------------------------------------------
+# RLS feature flag (runtime toggle via SSM Parameter Store)
+#
+# RLS_PARAM_NAME holds a value of 'enabled' or 'disabled'. When 'enabled', the
+# Lambda connects as the non-owner 'app_user' so PostgreSQL enforces Row-Level
+# Security; otherwise it connects as the 'postgres' owner (RLS bypassed). The
+# participant flips this in the SSM console — it takes effect within the cache
+# TTL with no redeploy. The flag is cached at module scope so a warm Lambda hits
+# SSM at most once per TTL, not on every invocation.
+#
+# Fail-closed: if the flag can't be read AND an app_user secret exists, default
+# to ENFORCED (safer to over-restrict than to leak another tenant's rows).
+# ---------------------------------------------------------------------------
+RLS_PARAM_NAME = os.environ.get('RLS_PARAM_NAME', '')
+_RLS_CACHE_TTL = 60  # seconds
+_rls_cache = {'enabled': None, 'ts': 0.0}
+
+
+def _rls_enabled():
+    """Return True if RLS enforcement is on, reading the SSM flag (cached ~60s)."""
+    if not RLS_PARAM_NAME or not APP_AURORA_SECRET_ARN:
+        return False  # no app_user secret wired -> can only use postgres
+    now = time.time()
+    if _rls_cache['enabled'] is None or (now - _rls_cache['ts']) > _RLS_CACHE_TTL:
+        try:
+            val = ssm_client.get_parameter(Name=RLS_PARAM_NAME)['Parameter']['Value']
+            _rls_cache['enabled'] = (str(val).strip().lower() == 'enabled')
+        except Exception as e:
+            # Fail closed: if we have an app_user secret but can't read the flag,
+            # enforce RLS rather than silently fall back to the owner role.
+            print(f"RLS flag read failed ({type(e).__name__}: {e}) — defaulting to ENFORCED")
+            _rls_cache['enabled'] = True
+        _rls_cache['ts'] = now
+    return _rls_cache['enabled']
+
+
+def _current_secret_arn():
+    """Pick the DB secret based on the runtime RLS flag."""
+    return APP_AURORA_SECRET_ARN if _rls_enabled() else AURORA_SECRET_ARN
+
+# ---------------------------------------------------------------------------
+# JWT verification (defense-in-depth at the service level)
+#
+# The Runtime and the Gateway each validate this Cognito access token at their
+# edge before we ever run, but per zero-trust / OWASP microservices guidance the
+# tool Lambda also validates it: signature (RS256 via Cognito JWKS) + issuer +
+# token_use + client_id + expiry. Only then do we trust custom:account_id /
+# custom:role to drive Row-Level Security. Fail closed — any failure yields no
+# RLS context, and RLS then returns zero rows rather than leaking another tenant.
+#
+# PyJWKClient is created once at module scope and caches the signing keys across
+# warm invocations (and provisioned-concurrency instances), so the JWKS endpoint
+# is hit at most once per microVM, never on the hot path.
+# ---------------------------------------------------------------------------
+COGNITO_USER_POOL_ID = os.environ.get('COGNITO_USER_POOL_ID', '')
+COGNITO_CLIENT_ID = os.environ.get('COGNITO_USER_LOGIN_CLIENT_ID', '')
+_COGNITO_ISSUER = (
+    f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
+    if COGNITO_USER_POOL_ID else ''
+)
+_JWKS_URL = f"{_COGNITO_ISSUER}/.well-known/jwks.json" if _COGNITO_ISSUER else ''
+# Module-scoped, lazily initialized; PyJWKClient keeps its own key cache.
+_jwks_client = PyJWKClient(_JWKS_URL) if _JWKS_URL else None
+
+
+def _verify_jwt(token):
+    """Verify a Cognito access token and return its claims, or None if invalid."""
+    if not _jwks_client or not COGNITO_CLIENT_ID:
+        # Misconfiguration (env vars not set) — fail closed rather than trust blindly.
+        print("JWT verification not configured (missing COGNITO_USER_POOL_ID / "
+              "COGNITO_USER_LOGIN_CLIENT_ID) — denying RLS context")
+        return None
+    try:
+        signing_key = _jwks_client.get_signing_key_from_jwt(token)
+        # Cognito ACCESS tokens carry client_id (not aud); pin RS256 to avoid
+        # algorithm-confusion, verify signature + iss + exp here, then check the
+        # Cognito-specific claims explicitly below.
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=_COGNITO_ISSUER,
+            options={"verify_aud": False, "require": ["exp", "iss"]},
+        )
+        if claims.get("token_use") != "access":
+            print(f"JWT rejected: token_use={claims.get('token_use')} (expected access)")
+            return None
+        if claims.get("client_id") != COGNITO_CLIENT_ID:
+            print("JWT rejected: client_id mismatch")
+            return None
+        return claims
+    except Exception as e:
+        print(f"JWT verification failed: {type(e).__name__}: {e}")
+        return None
+
 
 def _extract_rls_context_from_jwt(context):
-    """Extract account_id and role from JWT claims for RLS."""
+    """Verify the propagated JWT and extract account_id + role for RLS.
+
+    Fail-closed: returns {} on any missing/invalid token, which leaves the RLS
+    session vars unset so the database returns no tenant rows.
+    """
     if context and hasattr(context, 'client_context') and context.client_context:
         custom = getattr(context.client_context, 'custom', {}) or {}
         propagated_headers = custom.get('bedrockAgentCorePropagatedHeaders', {})
         auth_header = propagated_headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
-            import base64
-            token = auth_header.split(' ')[1]
-            payload = token.split('.')[1]
-            payload += '=' * (4 - len(payload) % 4)
-            claims = json.loads(base64.b64decode(payload))
-            return {
-                'account_id': claims.get('custom:account_id'),
-                'role': claims.get('custom:role')
-            }
+            token = auth_header.split(' ', 1)[1].strip()
+            claims = _verify_jwt(token)
+            if claims:
+                return {
+                    'account_id': claims.get('custom:account_id'),
+                    'role': claims.get('custom:role')
+                }
     return {}
 
 def get_db_connection(rls_context=None):
-    secret = secrets_client.get_secret_value(SecretId=AURORA_SECRET_ARN)
+    secret = secrets_client.get_secret_value(SecretId=_current_secret_arn())
     creds = json.loads(secret['SecretString'])
     conn = psycopg2.connect(host=AURORA_ENDPOINT, port=5432, database=AURORA_DATABASE,
                             user=creds['username'], password=creds['password'])

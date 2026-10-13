@@ -239,3 +239,110 @@ def p4d_spot_and_on_demand_failover() -> BatchDeploymentPlan:
         data_parallel=4,
         in_flight_per_job=32,
     )
+
+
+# p6-B200 is currently offered only in us-east-1 / us-east-2 (+ Mumbai,
+# GovCloud). Default the p6 plans to us-east-2 (CMH) — the region with the
+# best commercial B200 spot signal — rather than the project-wide us-west-2.
+_P6_REGION = "us-east-2"
+
+
+def p6_spot_single_queue() -> BatchDeploymentPlan:
+    """MedGemma-27B on one p6-b200.48xlarge (8× NVIDIA B200) spot, all 8 GPUs.
+
+    Newest Blackwell datacenter GPU. MedGemma-27B (~55 GiB bf16) fits easily
+    on a single 180-GiB B200, so the throughput-optimal packing is one replica
+    per GPU: **TP=1, DP=8** → all 8 GPUs busy, 8 independent vLLM data-parallel
+    engines fed by one asyncio driver.
+
+    Waiting for scarce spot
+    -----------------------
+    B200 spot capacity appears and disappears minute-to-minute (see the repo's
+    spot-availability notes). AWS Batch handles this *natively* for the batch
+    path: a submitted job simply stays in ``RUNNABLE`` until the SPOT compute
+    environment can place it, so there is no polling loop to write here — the
+    "reasonable wait" is the client-side waiter budget. In the notebook,
+    ``wait_for_completion(..., max_wait_s=...)`` bounds how long we'll wait
+    (default 8 h); a p6 spot slot that opens any time within that window gets
+    the job. For a hard guarantee, use :func:`p6_spot_and_on_demand_failover`
+    instead, which adds an on-demand CE as a fallback pool.
+
+    Note on cost: p6-b200 on-demand is ~$113/hr, so the spot discount here is
+    large in absolute terms — waiting for spot is usually worth it for batch
+    (throughput-oriented, latency-flexible) workloads.
+    """
+    return BatchDeploymentPlan(
+        model_spec=MEDGEMMA_27B,
+        region=_P6_REGION,
+        compute_environments=[
+            ComputeEnvironmentConfig(
+                name_suffix="p6-spot",
+                instance_types=["p6-b200.48xlarge"],
+                capacity_mode="spot",
+                min_vcpus=0,
+                max_vcpus=192,   # one full p6-b200.48xlarge (192 vCPU)
+                desired_vcpus=0,
+            ),
+        ],
+        queues=[
+            QueueConfig(
+                name_suffix="primary",
+                priority=1,
+                compute_environment_suffixes=["p6-spot"],
+            ),
+        ],
+        tensor_parallel=1,
+        data_parallel=8,     # one MedGemma replica per B200 → all 8 GPUs used
+        pipeline_parallel=1,
+        in_flight_per_job=100,
+        max_model_len=16384,
+    )
+
+
+def p6_spot_and_on_demand_failover() -> BatchDeploymentPlan:
+    """p6-B200 spot-first with on-demand fallback — same JobDef (8 GPUs, DP=8).
+
+    Same all-8-GPU packing as :func:`p6_spot_single_queue`, but adds an
+    on-demand p6-b200 compute environment as a last-resort pool. Batch tries
+    the spot CE first (much cheaper); only if a job can't be placed on spot
+    within Batch's scaling attempts does it fall through to on-demand.
+
+    Use this when you have a hard deadline and can't risk an unbounded spot
+    wait. On-demand p6-b200 is ~$113/hr, so treat the OD CE as insurance:
+    prefer :func:`p6_spot_single_queue` + a generous waiter ``max_wait_s``
+    when wall-clock flexibility is acceptable.
+    """
+    return BatchDeploymentPlan(
+        model_spec=MEDGEMMA_27B,
+        region=_P6_REGION,
+        compute_environments=[
+            ComputeEnvironmentConfig(
+                name_suffix="p6-spot",
+                instance_types=["p6-b200.48xlarge"],
+                capacity_mode="spot",
+                min_vcpus=0,
+                max_vcpus=192,
+                desired_vcpus=0,
+            ),
+            ComputeEnvironmentConfig(
+                name_suffix="p6-ondemand",
+                instance_types=["p6-b200.48xlarge"],
+                capacity_mode="on-demand",
+                min_vcpus=0,
+                max_vcpus=192,
+                desired_vcpus=0,
+            ),
+        ],
+        queues=[
+            QueueConfig(
+                name_suffix="primary",
+                priority=1,
+                compute_environment_suffixes=["p6-spot", "p6-ondemand"],
+            ),
+        ],
+        tensor_parallel=1,
+        data_parallel=8,
+        pipeline_parallel=1,
+        in_flight_per_job=100,
+        max_model_len=16384,
+    )

@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Touch Grass Workshop - async batch path. An EventBridge Scheduler triggers a
+  Lambda nightly that invokes the deployed AgentCore Runtime to scan each station
+  for anomalies. This realizes the "async batch, overnight" canvas decision.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: biodiversity-anomaly
+  AgentRuntimeArn:
+    Type: String
+    Description: ARN of the deployed AgentCore Runtime (from `agentcore status`).
+  DataBucket:
+    Type: String
+    Description: Name of the datasets S3 bucket (from tools.env).
+  AuditBucket:
+    Type: String
+    Description: Name of the audit S3 bucket (from tools.env).
+  ScheduleExpression:
+    Type: String
+    Default: "cron(0 18 * * ? *)"
+    Description: When to run (UTC). Default 18:00 UTC = overnight in Malaysia (UTC+8).
+  Qualifier:
+    Type: String
+    Default: DEFAULT
+    Description: AgentCore Runtime endpoint qualifier.
+
+Resources:
+  InvokerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-batch-invoker-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: batch-invoker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: bedrock-agentcore:InvokeAgentRuntime
+                Resource:
+                  - !Ref AgentRuntimeArn
+                  - !Sub "${AgentRuntimeArn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${DataBucket}"
+                  - !Sub "arn:aws:s3:::${DataBucket}/*"
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${AuditBucket}/*"
+              # Somewhere to put an invocation that failed every retry.
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt BatchDlq.Arn
+
+  # A nightly run is asynchronous and unattended: if it fails there is nobody
+  # watching and nothing to return an error to. This is the one Lambda in the
+  # workshop where a dead-letter queue earns its keep, so it has one rather than a
+  # CKV_AWS_116 suppression.
+  BatchDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-batch-dlq"
+      MessageRetentionPeriod: 1209600   # 14 days, the maximum
+      # Encrypted at rest with the AWS-managed key for SQS. A customer-managed key
+      # would outlive the stack in pending-deletion for a queue whose contents are
+      # failed invocations of a workshop, which is the same reasoning the rest of
+      # this workshop applies to keys.
+      KmsMasterKeyId: alias/aws/sqs
+
+  InvokerFunction:
+    Type: AWS::Lambda::Function
+    # This is the optional nightly-batch extension, not part of the core
+    # workshop. Same reasoning as the other workshop Lambdas:
+    # checkov:skip=CKV_AWS_115: a scheduled once-a-night invoker does not need
+    #   reserved concurrency.
+    # checkov:skip=CKV_AWS_117: calls the public AgentCore endpoint, so a VPC
+    #   would need a NAT gateway for no security gain.
+    # checkov:skip=CKV_AWS_173: its environment variables are a runtime ARN and
+    #   a bucket name - no secrets to encrypt.
+    Properties:
+      DeadLetterConfig:
+        TargetArn: !GetAtt BatchDlq.Arn
+      FunctionName: !Sub "${ProjectName}-batch-invoker"
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 900
+      MemorySize: 256
+      Role: !GetAtt InvokerRole.Arn
+      Environment:
+        Variables:
+          AGENT_RUNTIME_ARN: !Ref AgentRuntimeArn
+          DATA_BUCKET: !Ref DataBucket
+          AUDIT_BUCKET: !Ref AuditBucket
+          QUALIFIER: !Ref Qualifier
+      Code:
+        # Placeholder. deploy_schedule.sh replaces this with
+        # infra/scheduled/lambda/index.py via update-function-code.
+        ZipFile: |
+          def handler(event, context):
+              return {"error": "not yet deployed - run deploy_schedule.sh"}
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-scheduler-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-batch-lambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt InvokerFunction.Arn
+        - PolicyName: schedule-dead-letter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt BatchDlq.Arn
+
+  NightlySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub "${ProjectName}-nightly-scan"
+      Description: Nightly anomaly scan across all monitoring stations.
+      FlexibleTimeWindow:
+        Mode: FLEXIBLE
+        MaximumWindowInMinutes: 30
+      ScheduleExpression: !Ref ScheduleExpression
+      Target:
+        Arn: !GetAtt InvokerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        # Bound the retries, then hand the invocation to the same queue rather
+        # than dropping it. Without this a night's scan can vanish silently.
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+          MaximumEventAgeInSeconds: 3600
+        DeadLetterConfig:
+          Arn: !GetAtt BatchDlq.Arn
+
+Outputs:
+  InvokerFunctionName:
+    Value: !Ref InvokerFunction
+  ScheduleName:
+    Value: !Ref NightlySchedule
+  BatchDlqUrl:
+    Description: >-
+      Failed nightly invocations land here. Empty is the healthy state; anything
+      in it is a run that never happened.
+    Value: !Ref BatchDlq

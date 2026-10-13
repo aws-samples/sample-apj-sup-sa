@@ -1,0 +1,43 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Streamlit and testing caches
+.streamlit/
+.pytest_cache/
+.coverage
+
+# Editor & tooling metadata
+.idea/
+.vscode/
+*.swp
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+.Trash/
+
+# AI assistant local files
+.claude/
+.amazonq/
+
+# Environment variables (contain credentials / account-specific values)
+.env
+.env.local
+.env.production
+# ...but keep the sample template tracked
+!.env.example
+
+# Local / generated evaluation output
+eval_results/

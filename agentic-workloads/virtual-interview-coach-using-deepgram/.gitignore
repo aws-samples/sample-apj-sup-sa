@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+# All virtualenvs, including the suffixed ones (voice-worker/.venv-pipecat is 800MB+ and was
+# protected only by the self-ignoring .gitignore Python writes INSIDE the venv — fragile).
+.venv/
+.venv*/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/coverage/
+*.tsbuildinfo
+*.log
+
+# Large demo media — host externally and link from docs, keep out of the repo
+*.mp4
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+# Generated at deploy time with the live Cognito ids (infra/g1/deploy.sh); never source of truth.
+frontend/public/config.js
+
+# Measurement / harness runs — generated evidence, never source of truth. Curated gate-evidence
+# snapshots that ARE referenced from specs/docs may be force-added deliberately (git add -f).
+voice-worker/runs/
+voice-worker/harness/runs/
+report-worker/runs/
+*.pid
+
+# One-off scratch (task-def JSON for one-off ECS runs, downloaded artifacts)
+/tmp/
+
+# Playwright MCP scratch captures
+.playwright-mcp/
+
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+
+# Claude Code local state (skills/ ARE tracked — project skills + speckit)
+.claude/skills/health-review-workspace/
+.claude/settings.local.json
+
+# Security-scan working dir (cloned guard rulesets + scan output; reproduce locally, never commit)
+.scan-logs/
+# Local security-scan remediation notes — reproduce/maintain locally, not tracked in the repo.
+infra/g1/SECURITY-SCAN-NOTES.md
+.codex-review-logs/
+# Holmes MCP local project/scan linkage (project + scan IDs; regenerated per scan, never commit)
+.holmes/

@@ -1,0 +1,5 @@
+aws-opentelemetry-distro>=0.20.0
+strands-agents>=1.57.0
+opentelemetry-instrumentation-httpx
+httpx>=0.28
+boto3>=1.43

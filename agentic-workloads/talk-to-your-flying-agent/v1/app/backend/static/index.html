@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Control</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #0a0a0f; color: #c8c8d0; height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header { padding: 12px 20px; background: #12121a; border-bottom: 1px solid #1e1e2e; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 14px; font-weight: 600; color: #e0e0e8; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+  .status-dot.connected { background: #4ade80; }
+  .status-label { font-size: 11px; color: #666; }
+  .header .spacer { flex: 1; }
+  .model-chip {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #1e1e2e;
+    border: 1px solid #2a2a3a;
+    color: #c084fc;
+    cursor: help;
+    user-select: none;
+  }
+  .model-chip .chip-key { color: #666; margin-right: 4px; text-transform: uppercase; }
+  .model-chip.loading { color: #555; border-style: dashed; }
+
+  /* Session buttons */
+  .session-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #2a2a3a;
+    background: #1a1a26;
+    color: #c8c8d0;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .session-btn:hover { background: #242433; }
+  .session-btn.start { color: #4ade80; }
+  .session-btn.end { color: #f87171; display: none; }
+  .session-chip {
+    font-size: 10px;
+    color: #4ade80;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #0f1f15;
+    border: 1px solid #1f3a29;
+    display: none;
+    cursor: help;
+    user-select: none;
+  }
+  .session-chip .chip-key { color: #666; margin-right: 4px; text-transform: uppercase; }
+
+  /* Collaboration interrupt buttons (T1.3) */
+  .interrupt-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #2a2a3a;
+    background: #1a1a26;
+    cursor: pointer;
+    font-family: inherit;
+    display: none;  /* hidden by default; JS reveals based on /status.interrupt */
+  }
+  .interrupt-btn:hover { background: #242433; }
+  .interrupt-btn.pause { color: #facc15; }
+  .interrupt-btn.resume { color: #4ade80; }
+  .interrupt-btn.halt { color: #f87171; }
+  .interrupt-chip {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    border: 1px solid #854d0e;
+    background: #1f1606;
+    color: #facc15;
+    display: none;
+    user-select: none;
+  }
+  .interrupt-chip.halted { border-color: #7f1d1d; background: #1f0606; color: #f87171; }
+
+  /* Chat input shows different placeholder when paused */
+  .chat-input.paused input { border-color: #854d0e; }
+  .chat-input.paused input::placeholder { color: #facc15; opacity: 0.7; }
+
+  /* Main layout */
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  /* Left pane - event log */
+  .log-pane { width: 33%; border-right: 1px solid #1e1e2e; display: flex; flex-direction: column; }
+
+  /* Middle pane - live camera */
+  .cam-pane { width: 34%; border-right: 1px solid #1e1e2e; display: flex; flex-direction: column; }
+  .cam-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .cam-block { display: flex; flex-direction: column; gap: 4px; }
+  .cam-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+  .cam-img { width: 100%; border: 1px solid #1e1e2e; border-radius: 4px; background: #050509; min-height: 120px; }
+  .cam-img.cam-off { opacity: 0.3; filter: grayscale(1); }
+  .cam-controls { padding: 8px 12px; border-top: 1px solid #1e1e2e; font-size: 11px; color: #666; display: flex; gap: 8px; align-items: center; }
+  .cam-controls button { background: #1e1e2e; color: #c8c8d0; border: 1px solid #2e2e3e; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 11px; font-family: inherit; }
+  .cam-controls button:hover { background: #2e2e3e; }
+  .pane-header { padding: 10px 16px; background: #0f0f17; border-bottom: 1px solid #1e1e2e; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+  .log-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .log-entry { padding: 4px 16px; font-size: 12px; line-height: 1.6; border-left: 3px solid transparent; }
+  .log-entry:hover { background: #ffffff06; }
+  .log-entry .time { color: #444; margin-right: 8px; }
+  .log-entry.command_input { border-left-color: #60a5fa; }
+  .log-entry.command_input .label { color: #60a5fa; }
+  .log-entry.command_executed { border-left-color: #4ade80; }
+  .log-entry.command_executed .label { color: #4ade80; }
+  .log-entry.agent_response { border-left-color: #c084fc; }
+  .log-entry.agent_response .label { color: #c084fc; }
+  .log-entry.planner_tick_start { border-left-color: #fbbf24; }
+  .log-entry.planner_tick_start .label { color: #fbbf24; }
+  .log-entry.planner_response { border-left-color: #fb923c; }
+  .log-entry.planner_response .label { color: #fb923c; }
+  .log-entry.observation { border-left-color: #2dd4bf; }
+  .log-entry.observation .label { color: #2dd4bf; }
+  .log-entry.safety_brake { border-left-color: #f87171; }
+  .log-entry.safety_brake .label { color: #f87171; }
+  .log-entry.vision_capture { border-left-color: #e879f9; }
+  .log-entry.vision_capture .label { color: #e879f9; }
+  .log-entry.vision_result { border-left-color: #e879f9; }
+  .log-entry.vision_result .label { color: #e879f9; }
+  .log-entry.mission_start { border-left-color: #fbbf24; }
+  .log-entry.mission_start .label { color: #fbbf24; }
+  .log-entry.mission_end { border-left-color: #fbbf24; }
+  .log-entry.mission_end .label { color: #fbbf24; }
+  .log-entry.error { border-left-color: #f87171; }
+  .log-entry.error .label { color: #f87171; }
+  .log-entry.plan_updated { border-left-color: #38bdf8; }
+  .log-entry.plan_updated .label { color: #38bdf8; }
+  .log-entry.mission_paused { border-left-color: #facc15; }
+  .log-entry.mission_paused .label { color: #facc15; }
+  .log-entry.mission_resumed { border-left-color: #4ade80; }
+  .log-entry.mission_resumed .label { color: #4ade80; }
+  .log-entry.mission_halted { border-left-color: #f87171; }
+  .log-entry.mission_halted .label { color: #f87171; }
+  .log-entry.human_input_received { border-left-color: #facc15; }
+  .log-entry.human_input_received .label { color: #facc15; }
+  .log-entry.command_dropped { border-left-color: #666; }
+  .log-entry.command_dropped .label { color: #666; }
+  .log-entry.mission_needs_help { border-left-color: #f87171; }
+  .log-entry.mission_needs_help .label { color: #f87171; }
+  .log-entry.mission_marked_complete { border-left-color: #fbbf24; }
+  .log-entry.mission_marked_complete .label { color: #fbbf24; }
+  .log-entry.target_confirmed { border-left-color: #4ade80; }
+  .log-entry.target_confirmed .label { color: #4ade80; }
+
+  /* Right pane - chat */
+  .chat-pane { width: 33%; display: flex; flex-direction: column; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; }
+  .msg { margin-bottom: 16px; max-width: 85%; }
+  .msg.user { margin-left: auto; }
+  .msg.system { margin-right: auto; }
+  .msg .bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .msg.user .bubble { background: #1d4ed8; color: #e0e8ff; border-bottom-right-radius: 4px; }
+  .msg.system .bubble { background: #1e1e2e; color: #c8c8d0; border-bottom-left-radius: 4px; }
+  .msg.system.error .bubble { background: #2a1215; color: #fca5a5; }
+  .msg .meta { font-size: 10px; color: #444; margin-top: 4px; padding: 0 4px; }
+  .msg.user .meta { text-align: right; }
+
+  /* Loading indicator */
+  .loading { display: inline-flex; gap: 4px; padding: 10px 14px; }
+  .loading span { width: 6px; height: 6px; background: #666; border-radius: 50%; animation: bounce 1.2s infinite; }
+  .loading span:nth-child(2) { animation-delay: 0.2s; }
+  .loading span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
+
+  /* Input */
+  .chat-input { padding: 12px 16px; background: #0f0f17; border-top: 1px solid #1e1e2e; display: flex; gap: 8px; }
+  .chat-input input { flex: 1; background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 8px; padding: 10px 14px; color: #e0e0e8; font-size: 13px; font-family: inherit; outline: none; }
+  .chat-input input:focus { border-color: #3b82f6; }
+  .chat-input input:disabled { opacity: 0.5; }
+  .chat-input button { background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-family: inherit; cursor: pointer; }
+  .chat-input button:hover { background: #2563eb; }
+  .chat-input button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="status-dot" id="ws-dot"></div>
+  <h1>Drone Control</h1>
+  <span class="status-label" id="ws-label">connecting…</span>
+  <span class="spacer"></span>
+
+  <!-- Collaboration interrupt (T1.3) -->
+  <span class="interrupt-chip" id="interrupt-chip">paused</span>
+  <button class="interrupt-btn pause" id="pause-btn" title="Pause the running mission — drone will hover">● Pause</button>
+  <button class="interrupt-btn resume" id="resume-btn" title="Resume the paused mission">▶ Resume</button>
+  <button class="interrupt-btn halt" id="halt-btn" title="End the mission — drone hovers; type 'land' to land">■ Halt</button>
+
+  <!-- Session recorder -->
+  <span class="session-chip" id="session-chip" title="Loading session info…">
+    <span class="chip-key">rec</span><span id="session-id-text">—</span>
+  </span>
+  <button class="session-btn start" id="session-start-btn" title="Start a new recording session">● Record</button>
+  <button class="session-btn end" id="session-end-btn" title="Stop the current session and write summary.md">■ Stop</button>
+
+  <span class="model-chip loading" id="model-chip" title="Loading model info…">
+    <span class="chip-key">model</span>—
+  </span>
+</div>
+
+<div class="main">
+  <!-- Left: event log -->
+  <div class="log-pane">
+    <div class="pane-header">Event Log</div>
+    <div class="log-list" id="log-list"></div>
+  </div>
+
+  <!-- Middle: live camera (drone POV) -->
+  <div class="cam-pane">
+    <div class="pane-header">Drone POV</div>
+    <div class="cam-list">
+      <div class="cam-block">
+        <div class="cam-label">RGB camera (what Qwen sees)</div>
+        <img id="cam-rgb" class="cam-img" alt="drone camera" />
+      </div>
+      <div class="cam-block">
+        <div class="cam-label">Depth (dark = near, bright = far, max 30m)</div>
+        <img id="cam-depth" class="cam-img" alt="drone depth" />
+      </div>
+    </div>
+    <div class="cam-controls">
+      <button id="cam-toggle-btn">Pause stream</button>
+      <span id="cam-status">streaming</span>
+    </div>
+  </div>
+
+  <!-- Right: chat -->
+  <div class="chat-pane">
+    <div class="pane-header">Chat</div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input">
+      <input type="text" id="cmd-input" placeholder="Type a command…" autocomplete="off" />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const logList = document.getElementById('log-list');
+const chatMessages = document.getElementById('chat-messages');
+const cmdInput = document.getElementById('cmd-input');
+const sendBtn = document.getElementById('send-btn');
+const wsDot = document.getElementById('ws-dot');
+const wsLabel = document.getElementById('ws-label');
+const modelChip = document.getElementById('model-chip');
+const sessionChip = document.getElementById('session-chip');
+const sessionIdText = document.getElementById('session-id-text');
+const sessionStartBtn = document.getElementById('session-start-btn');
+const sessionEndBtn = document.getElementById('session-end-btn');
+const pauseBtn = document.getElementById('pause-btn');
+const resumeBtn = document.getElementById('resume-btn');
+const haltBtn = document.getElementById('halt-btn');
+const interruptChip = document.getElementById('interrupt-chip');
+const chatInputRow = document.querySelector('.chat-input');
+const camRgb = document.getElementById('cam-rgb');
+const camDepth = document.getElementById('cam-depth');
+const camToggleBtn = document.getElementById('cam-toggle-btn');
+const camStatus = document.getElementById('cam-status');
+
+// --- Live camera streams (MJPEG) ---
+// Bandwidth is ~2 MB/s per stream — fine locally or over an SSH tunnel.
+// If the stream stalls (sim restart, network blip), swapping the src with
+// a cachebuster restarts it. Pause button detaches src so you can stop the
+// flood while inspecting a single frame in the event log.
+let camStreaming = false;
+
+function startCamStreams() {
+  // Cachebuster: same URL re-issued as new stream. Browsers treat each as
+  // a fresh image, so the multipart connection is re-established.
+  const bust = Date.now();
+  camRgb.src = `/camera.mjpg?t=${bust}`;
+  camDepth.src = `/depth.mjpg?t=${bust}`;
+  camRgb.classList.remove('cam-off');
+  camDepth.classList.remove('cam-off');
+  camStatus.textContent = 'streaming';
+  camToggleBtn.textContent = 'Pause stream';
+  camStreaming = true;
+}
+
+function stopCamStreams() {
+  // Setting src = "" stops the browser's request for the MJPEG endpoint.
+  camRgb.src = '';
+  camDepth.src = '';
+  camRgb.classList.add('cam-off');
+  camDepth.classList.add('cam-off');
+  camStatus.textContent = 'paused';
+  camToggleBtn.textContent = 'Resume stream';
+  camStreaming = false;
+}
+
+camToggleBtn.addEventListener('click', () => {
+  if (camStreaming) stopCamStreams();
+  else startCamStreams();
+});
+
+// Kick off the streams on load. If the API hasn't started yet the <img>
+// tags will just show broken; auto-retry via a one-shot reload after 3s.
+startCamStreams();
+setTimeout(() => {
+  if (!camRgb.complete || camRgb.naturalWidth === 0) {
+    if (camStreaming) startCamStreams();
+  }
+}, 3000);
+
+// --- Status polling: model chip + session chip ---
+async function refreshStatus() {
+  try {
+    const res = await fetch('/status');
+    const data = await res.json();
+
+    // Model chip
+    const models = data.models || {};
+    const short = models.planner_short || '—';
+    const full = models.planner || 'unknown';
+    const region = models.region || '';
+    modelChip.classList.remove('loading');
+    setChipContent(modelChip, 'planner', short);
+    modelChip.title = `planner: ${full}\nrouter:  ${models.router || '—'}\nvision:  ${models.vision || '—'}\nregion:  ${region}`;
+
+    // Session chip
+    const sess = data.session || {active: false};
+    if (sess.active) {
+      sessionChip.style.display = 'inline-block';
+      sessionStartBtn.style.display = 'none';
+      sessionEndBtn.style.display = 'inline-block';
+      sessionIdText.textContent = sess.session_id;
+      sessionChip.title =
+        `Recording\n` +
+        `session: ${sess.session_id}\n` +
+        `started: ${sess.started_at}\n` +
+        `events:  ${sess.event_count}\n` +
+        `missions: ${sess.mission_count}\n` +
+        `folder:  ${sess.folder}`;
+    } else {
+      sessionChip.style.display = 'none';
+      sessionStartBtn.style.display = 'inline-block';
+      sessionEndBtn.style.display = 'none';
+    }
+
+    // Collaboration interrupt (T1.3)
+    const missionActive = !!data.mission_active;
+    const irp = data.interrupt || {paused: false, halted: false};
+    if (irp.halted) {
+      interruptChip.style.display = 'inline-block';
+      interruptChip.classList.add('halted');
+      interruptChip.textContent = 'halted — type `land` to land';
+      pauseBtn.style.display = 'none';
+      resumeBtn.style.display = 'none';
+      haltBtn.style.display = 'none';
+    } else if (irp.paused) {
+      interruptChip.style.display = 'inline-block';
+      interruptChip.classList.remove('halted');
+      interruptChip.textContent = `paused (${irp.human_input_count} input${irp.human_input_count === 1 ? '' : 's'})`;
+      pauseBtn.style.display = 'none';
+      resumeBtn.style.display = 'inline-block';
+      haltBtn.style.display = 'inline-block';
+    } else if (missionActive) {
+      interruptChip.style.display = 'none';
+      pauseBtn.style.display = 'inline-block';
+      resumeBtn.style.display = 'none';
+      haltBtn.style.display = 'inline-block';
+    } else {
+      interruptChip.style.display = 'none';
+      pauseBtn.style.display = 'none';
+      resumeBtn.style.display = 'none';
+      haltBtn.style.display = 'none';
+    }
+
+    // Chat input placeholder reflects pause state
+    if (irp.paused && !irp.halted) {
+      chatInputRow.classList.add('paused');
+      cmdInput.placeholder = 'add context for resume — or type "resume" / "land" / "halt"';
+    } else {
+      chatInputRow.classList.remove('paused');
+      cmdInput.placeholder = 'Type a command…';
+    }
+  } catch (err) {
+    modelChip.classList.add('loading');
+    setChipContent(modelChip, 'model', 'offline');
+    modelChip.title = `Failed to reach /status: ${err.message}`;
+  }
+}
+refreshStatus();
+setInterval(refreshStatus, 3000);
+
+// --- Session buttons ---
+sessionStartBtn.addEventListener('click', async () => {
+  sessionStartBtn.disabled = true;
+  try {
+    const r = await fetch('/session/start', {method: 'POST'});
+    const d = await r.json();
+    console.log('[session] start →', d);
+  } catch (err) {
+    alert(`Failed to start session: ${err.message}`);
+  } finally {
+    sessionStartBtn.disabled = false;
+    refreshStatus();
+  }
+});
+
+sessionEndBtn.addEventListener('click', async () => {
+  sessionEndBtn.disabled = true;
+  try {
+    const r = await fetch('/session/end', {method: 'POST'});
+    const d = await r.json();
+    console.log('[session] end →', d);
+    if (d.status === 'ended') {
+      alert(`Session ended.\n\nFolder: ${d.folder}\nEvents: ${d.event_count}\nMissions: ${d.mission_count}`);
+    }
+  } catch (err) {
+    alert(`Failed to end session: ${err.message}`);
+  } finally {
+    sessionEndBtn.disabled = false;
+    refreshStatus();
+  }
+});
+
+// --- Collaboration interrupt buttons (T1.3) ---
+async function postInterrupt(path) {
+  try {
+    const r = await fetch(path, {method: 'POST'});
+    const d = await r.json();
+    console.log(`[interrupt] ${path} →`, d);
+  } catch (err) {
+    alert(`${path} failed: ${err.message}`);
+  } finally {
+    refreshStatus();
+  }
+}
+pauseBtn.addEventListener('click',  () => postInterrupt('/pause'));
+resumeBtn.addEventListener('click', () => postInterrupt('/resume'));
+haltBtn.addEventListener('click',   () => {
+  if (confirm('Halt the mission? Drone will hover in place. Type `land` to land afterwards.')) {
+    postInterrupt('/halt');
+  }
+});
+
+// --- WebSocket for event log ---
+let ws;
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/events`);
+  ws.onopen = () => { wsDot.classList.add('connected'); wsLabel.textContent = 'connected'; };
+  ws.onclose = () => { wsDot.classList.remove('connected'); wsLabel.textContent = 'reconnecting…'; setTimeout(connectWS, 2000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      addLogEntry(evt);
+      // T1.2 auto-pause: surface mission_needs_help as a visible alert so
+      // the human immediately notices the drone is stuck and can redirect.
+      if (evt.type === 'mission_needs_help') {
+        const reason = evt.data?.reason ?? 'stuck';
+        const n = evt.data?.failures ?? '?';
+        const rf = evt.data?.recent_failures ?? [];
+        let failureLines = '';
+        if (rf.length) {
+          failureLines = '\n' + rf.map(f => `  • ${f.action} — ${f.result || f.outcome}`).join('\n');
+        }
+        addChatMessage(
+          `⚠️ Mission paused — ${reason} (${n} failures).${failureLines}\n\n` +
+          `Add context below to redirect, or click Halt to end the mission.`,
+          'system error'
+        );
+        refreshStatus();
+      }
+    } catch {}
+  };
+}
+connectWS();
+
+const EVENT_LABELS = {
+  command_input: 'command',
+  command_executed: 'executed',
+  command_dropped: 'dropped',
+  agent_response: 'agent',
+  planner_tick_start: 'planner',
+  planner_response: 'thinking',
+  observation: 'observe',
+  safety_brake: 'SAFETY',
+  vision_capture: 'vision',
+  vision_result: 'vision',
+  mission_start: 'mission',
+  mission_end: 'mission',
+  mission_paused: 'PAUSED',
+  mission_resumed: 'RESUMED',
+  mission_halted: 'HALTED',
+  human_input_received: 'human',
+  mission_needs_help: 'STUCK',
+  mission_marked_complete: 'complete',
+  target_confirmed: 'target',
+  error: 'error',
+  plan_updated: 'plan',
+};
+
+function formatEventText(evt) {
+  const d = evt.data || {};
+  switch (evt.type) {
+    case 'command_input': return d.text || '';
+    case 'command_executed': return `${d.command} → ${d.result}`;
+    case 'command_dropped': return `${d.command} (reason: ${d.reason})`;
+    case 'agent_response': return d.text || '';
+    case 'planner_tick_start': return `Tick #${d.tick}`;
+    case 'planner_response': return d.text ? d.text.slice(0, 200) : '';
+    case 'observation': return d.description || '';
+    case 'safety_brake': return `Emergency brake — obstacle at ${d.min_distance}m`;
+    case 'vision_capture': return `Analyzing: "${d.question}"`;
+    case 'vision_result': return d.analysis ? d.analysis.slice(0, 200) : '';
+    case 'mission_start': return `Started: ${d.intention}`;
+    case 'mission_end': return `${d.reason} after ${d.ticks} ticks`;
+    case 'mission_paused': return `paused (${d.reason || 'human'})`;
+    case 'mission_resumed': return `resumed (${d.human_input_count || 0} input(s) pending)`;
+    case 'mission_halted': return `halted (${d.reason || 'human'})`;
+    case 'human_input_received': return `"${d.text}" (during ${d.during || 'pause'})`;
+    case 'mission_needs_help': return `${d.reason || 'stuck'} (${d.failures ?? '?'} failures) — add context or halt`;
+    case 'mission_marked_complete': return `${d.success ? 'SUCCESS' : 'GAVE UP'}: ${d.summary || ''}`;
+    case 'target_confirmed': return `evidence: ${(d.evidence || '').slice(0, 160)}`;
+    case 'error': return `[${d.source}] ${d.message}`;
+    case 'plan_updated': return d.plan ? d.plan.slice(0, 200) : '';
+    default: return JSON.stringify(d).slice(0, 150);
+  }
+}
+
+function addLogEntry(evt) {
+  const el = document.createElement('div');
+  el.className = `log-entry ${evt.type || ''}`;
+  const ts = evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : '';
+  const label = EVENT_LABELS[evt.type] || evt.type || '?';
+  const text = formatEventText(evt);
+  appendSpan(el, 'time', ts);
+  appendSpan(el, 'label', `[${label}]`);
+  el.appendChild(document.createTextNode(` ${text}`));
+  logList.appendChild(el);
+  logList.scrollTop = logList.scrollHeight;
+}
+
+// --- Chat ---
+let sending = false;
+
+function addChatMessage(text, type) {
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg ${type}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = new Date().toLocaleTimeString();
+  wrapper.appendChild(bubble);
+  wrapper.appendChild(meta);
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return wrapper;
+}
+
+function addLoading() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'msg system';
+  wrapper.id = 'loading-msg';
+  const loading = document.createElement('div');
+  loading.className = 'loading';
+  for (let i = 0; i < 3; i += 1) {
+    loading.appendChild(document.createElement('span'));
+  }
+  wrapper.appendChild(loading);
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeLoading() {
+  const el = document.getElementById('loading-msg');
+  if (el) el.remove();
+}
+
+async function sendCommand() {
+  const text = cmdInput.value.trim();
+  if (!text || sending) return;
+
+  sending = true;
+  cmdInput.disabled = true;
+  sendBtn.disabled = true;
+  addChatMessage(text, 'user');
+  cmdInput.value = '';
+  addLoading();
+
+  try {
+    const res = await fetch('/send-command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    removeLoading();
+    if (data.status === 'ok' && data.agent_response) {
+      addChatMessage(data.agent_response, 'system');
+    } else if (data.error) {
+      addChatMessage(`Error: ${data.error}`, 'system error');
+    } else {
+      addChatMessage('Command sent.', 'system');
+    }
+  } catch (err) {
+    removeLoading();
+    addChatMessage(`Network error: ${err.message}`, 'system error');
+  } finally {
+    sending = false;
+    cmdInput.disabled = false;
+    sendBtn.disabled = false;
+    cmdInput.focus();
+  }
+}
+
+sendBtn.addEventListener('click', sendCommand);
+cmdInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendCommand(); });
+
+function appendSpan(parent, className, text) {
+  const span = document.createElement('span');
+  span.className = className;
+  span.textContent = text;
+  parent.appendChild(span);
+  return span;
+}
+
+function setChipContent(chip, key, value) {
+  chip.replaceChildren();
+  appendSpan(chip, 'chip-key', key);
+  chip.appendChild(document.createTextNode(value));
+}
+</script>
+</body>
+</html>

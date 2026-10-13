@@ -1,0 +1,24 @@
+# Amazon Bedrock Mantle samples -- pinned to the exact versions every notebook in
+# this collection was executed against.
+#
+# Pinned with `==` rather than `>=` on purpose: a reader who installs from this file
+# gets the combination that was verified, and a future release cannot silently change
+# behaviour or introduce a compromised package (OWASP LLM03, Supply Chain).
+#
+# To move forward deliberately: raise a pin, re-run the notebooks, commit both
+# changes together.
+
+# Inference clients
+openai==2.50.0                       # Responses + Chat Completions APIs
+anthropic==0.120.2                   # Anthropic Messages API
+
+# Auth: mints short-term Bedrock API keys from ambient IAM credentials
+aws-bedrock-token-generator==1.1.0
+
+# CloudWatch, STS, and Service Quotas clients; SigV4 signing primitives
+boto3==1.43.59
+botocore==1.43.59
+
+# Notebook runtime. jupyterlab pulls in the nbformat/nbclient stack.
+jupyterlab==4.6.2
+ipykernel==7.3.0

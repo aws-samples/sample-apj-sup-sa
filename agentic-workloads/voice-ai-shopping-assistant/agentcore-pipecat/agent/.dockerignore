@@ -1,0 +1,6 @@
+# Never bake secrets or local artifacts into the image.
+.env
+*.env
+*.bak
+__pycache__/
+*.pyc

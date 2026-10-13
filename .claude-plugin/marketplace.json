@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "apj-sup-sa",
+  "owner": {
+    "name": "AWS Samples"
+  },
+  "description": "Claude Code plugins from the sample-apj-sup-sa repository — AI coding assistant skills and tools.",
+  "plugins": [
+    {
+      "name": "aws-bento-deck",
+      "source": "./ai-coding-assistants/skills/aws-bento-deck",
+      "description": "Build AWS-branded BENTO presentations (self-contained .bento.html) from a plan file, with a three-phase PLAN -> BUILD -> QA workflow.",
+      "keywords": ["aws", "presentation", "bento", "slides", "deck", "branding"]
+    }
+  ]
+}

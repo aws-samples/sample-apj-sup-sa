@@ -1,0 +1,18 @@
+version: 0.2
+
+# Builds the runtime image inside AWS, so no local Docker daemon is needed.
+# Runs on an ARM64 CodeBuild image and pushes an ARM64 image for Fargate ARM64.
+phases:
+  pre_build:
+    commands:
+      - echo "logging in to ECR $ECR_REPO"
+      - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ECR_REPO%%/*}"
+  build:
+    commands:
+      - echo "building $ECR_REPO:$IMAGE_TAG"
+      - docker build -f deploy/Dockerfile -t "$ECR_REPO:$IMAGE_TAG" -t "$ECR_REPO:latest" .
+  post_build:
+    commands:
+      - docker push "$ECR_REPO:$IMAGE_TAG"
+      - docker push "$ECR_REPO:latest"
+      - echo "pushed $ECR_REPO:$IMAGE_TAG"

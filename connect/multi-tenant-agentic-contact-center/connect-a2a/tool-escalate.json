@@ -1,0 +1,23 @@
+{
+  "toolName": "Escalate",
+  "toolType": "RETURN_TO_CONTROL",
+  "description": "Return the conversation to the contact flow for a human agent.",
+  "instruction": {
+    "instruction": "Call this when the partner assistant (Level3) finishes with ESCALATE, or when the partner is unavailable. Do not hand the conversation to the partner again after it escalated."
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Reason for escalation"
+      }
+    },
+    "required": [
+      "reason"
+    ]
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

@@ -1,0 +1,20 @@
+[project]
+name = "voice-analytics-agent"
+version = "0.1.0"
+description = "Voice analytics agent — Pipecat + Deepgram + AgentCore"
+requires-python = ">=3.10"
+dependencies = [
+    # 'webrtc' = SmallWebRTCTransport (aiortc) for AgentCore-hosted voice; 'daily' kept
+    # for the pipecat-cloud (PCC) fallback mode.
+    "pipecat-ai[daily,deepgram,aws,runner,sagemaker,silero,webrtc]>=0.0.60",
+    "pipecatcloud",
+    "python-dotenv",
+    "boto3",
+    "aiohttp",  # direct dep: JWT-native bearer HTTPS invoke of AgentCore Runtime
+    "bedrock-agentcore",  # BedrockAgentCoreApp: voice runs as its own AgentCore Runtime
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]

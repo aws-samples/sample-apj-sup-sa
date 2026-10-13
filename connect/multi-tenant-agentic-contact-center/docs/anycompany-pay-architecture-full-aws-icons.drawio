@@ -1,0 +1,367 @@
+<mxfile host="Electron">
+  <diagram name="AnyCompanyPay — Cases + Live-chat agentic (AWS icons)" id="anycompany-pay-full-aws">
+    <mxGraphModel dx="1686" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2320" pageHeight="820" math="0" shadow="0" adaptiveColors="auto">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;fontSize=15;fontStyle=1;align=left;verticalAlign=middle;" value="AnyCompanyPay — Amazon Connect solution: (A) Support Cases + (B) Live-chat agentic self-service — with tenant isolation" vertex="1">
+          <mxGeometry height="28" width="2000" x="40" y="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c_client" parent="1" style="swimlane;startSize=24;html=1;fillColor=#e8f4f8;strokeColor=#6c8ebf;fontStyle=1;" value="Client (AnyCompanyPay SPA)" vertex="1">
+          <mxGeometry height="415" width="250" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="u_merchant" parent="c_client" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.authenticated_user;fillColor=#232F3D;" value="Merchant" vertex="1">
+          <mxGeometry height="52" width="52" x="30" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="u_admin" parent="c_client" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.authenticated_user;fillColor=#232F3D;" value="Admin / Agent" vertex="1">
+          <mxGeometry height="52" width="52" x="160" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="u_spa" parent="c_client" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;" value="React SPA&#xa;• /merchant/support (cases + live chat widget)&#xa;• /admin/cases (queue)&#xa;• /admin/contact-center (CCP)" vertex="1">
+          <mxGeometry height="120" width="210" x="20" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="u_cognito" parent="c_client" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;fillColor=#DD344C;" value="Amazon Cognito&#xa;JWT custom:merchant_id&#xa;groups: admin / merchant" vertex="1">
+          <mxGeometry height="52" width="52" x="99" y="298" as="geometry" />
+        </mxCell>
+        <mxCell id="c_edge" parent="1" style="swimlane;startSize=24;html=1;fillColor=#e8f4f8;strokeColor=#6c8ebf;fontStyle=1;" value="Edge + App" vertex="1">
+          <mxGeometry height="200" width="180" x="310" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="u_cf" parent="c_edge" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudfront;fillColor=#8C4FFF;" value="CloudFront" vertex="1">
+          <mxGeometry height="52" width="52" x="64" y="34" as="geometry" />
+        </mxCell>
+        <mxCell id="u_ecs" parent="c_edge" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;" value="ALB → ECS Fargate&#xa;(nginx serves SPA)" vertex="1">
+          <mxGeometry height="60" width="150" x="15" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api" parent="1" style="swimlane;startSize=24;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" value="API — HTTP API + Cognito JWT authorizer" vertex="1">
+          <mxGeometry height="540" width="320" x="530" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="u_apigw" parent="c_api" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;fillColor=#E7157B;" value="API Gateway HTTP API&#xa;/cases • /chat/start" vertex="1">
+          <mxGeometry height="52" width="52" x="210" y="31" as="geometry" />
+        </mxCell>
+        <mxCell id="u_jwt" parent="c_api" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="Cognito JWT authorizer — validates id token (iss / aud / exp) before Lambda" vertex="1">
+          <mxGeometry height="45" width="200" x="100" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="u_casesfn" parent="c_api" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="CasesApiFn" vertex="1">
+          <mxGeometry height="52" width="52" x="20" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="u_casesfn_note" parent="c_api" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="create / list / get / update / comment&#xa;merchant_id FORCED on create,&#xa;FILTERED + VERIFIED on read&#xa;cross-tenant → 403 / 404" vertex="1">
+          <mxGeometry height="90" width="200" x="100" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="u_chatfn" parent="c_api" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="ChatApiFn" vertex="1">
+          <mxGeometry height="52" width="52" x="20" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="u_chatfn_note" parent="c_api" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="/chat/start: stamp merchant_id&#xa;(+ case_id for &quot;chat about this case&quot;)&#xa;verify case tenant; pick&#xa;inbound vs case contact flow" vertex="1">
+          <mxGeometry height="90" width="200" x="100" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="c_connect" parent="1" style="swimlane;startSize=24;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" value="Amazon Connect instance (anycompany-pay-…)" vertex="1">
+          <mxGeometry height="880" width="390" x="940" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="u_connect" parent="c_connect" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.connect;fillColor=#DD344C;" value="Amazon Connect" vertex="1">
+          <mxGeometry height="50" width="50" x="168" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="u_cases" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" value="Amazon Connect Cases&#xa;domain anycompany-pay-cases&#xa;template AnyCompanyPaySupport&#xa;fields incl. merchant_id" vertex="1">
+          <mxGeometry height="80" width="180" x="15" y="104" as="geometry" />
+        </mxCell>
+        <mxCell id="u_profiles" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#d6b656;fontSize=10;" value="Customer Profiles&#xa;ACCOUNT_PROFILE + PROFILE&#xa;key: merchant_id (AccountNumber)" vertex="1">
+          <mxGeometry height="80" width="170" x="205" y="104" as="geometry" />
+        </mxCell>
+        <mxCell id="u_flow_case" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=10;" value="Chat case flow&#xa;(stamps case_id)" vertex="1">
+          <mxGeometry height="60" width="170" x="205" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="u_lex" parent="c_connect" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lex;fillColor=#01A88D;" value="Amazon Lex&#xa;Q in Connect intent" vertex="1">
+          <mxGeometry height="52" width="52" x="20" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="u_queue" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=10;" value="Support queue&#xa;anycompany-pay-support" vertex="1">
+          <mxGeometry height="55" width="170" x="135" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="u_ccp" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#ffffff;strokeColor=#d6b656;fontSize=10;" value="Agent CCP + Cases tab&#xa;(CASES_DOMAIN association)&#xa;sees linked case via case_id" vertex="1">
+          <mxGeometry height="80" width="170" x="205" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="q4" edge="1" parent="c_connect" source="u_flow_inbound" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#D79B00;strokeWidth=2;dashed=1;fontSize=9;fontColor=#7f5b00;" value="linked case (case_id)">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="219.94000000000005" y="660" as="sourcePoint" />
+            <mxPoint x="119.99882352941222" y="185" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="u5eR6aODpOHsdlNQOCcO-2" edge="1" parent="c_connect" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#D79B00;strokeWidth=2;dashed=1;fontSize=9;fontColor=#7f5b00;" target="u_flow_inbound" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1159.88" y="740" />
+              <mxPoint x="100" y="740" />
+            </Array>
+            <mxPoint x="1159.94" y="720" as="sourcePoint" />
+            <mxPoint x="1059.9988235294122" y="245" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="u_flow_inbound" parent="c_connect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=10;" value="Chat inbound flow&#xa;(widget)" vertex="1">
+          <mxGeometry height="60" width="175" x="17.5" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="c_qic" parent="1" style="swimlane;startSize=24;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="Amazon Q in Connect" vertex="1">
+          <mxGeometry height="360" width="290" x="1400" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="u_assistant" parent="c_qic" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.connect;fillColor=#3334B9;" value="Q in Connect assistant&#xa;anycompany-pay-ai-domain" vertex="1">
+          <mxGeometry height="52" width="52" x="110" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="u_agent" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" value="Orchestration agent (fdaeaa0d:4) — bound Connect.SelfService" vertex="1">
+          <mxGeometry height="70" width="260" x="15" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="u_prompt" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;" value="Prompt&#xa;never pass merchant_id" vertex="1">
+          <mxGeometry height="80" width="125" x="15" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="u_tools" parent="c_qic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;" value="Tools&#xa;query_transactions&#xa;Complete • Escalate" vertex="1">
+          <mxGeometry height="80" width="125" x="150" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="c_gw" parent="1" style="swimlane;startSize=24;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" value="Bedrock AgentCore Gateway" vertex="1">
+          <mxGeometry height="470" width="340" x="1760" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="u_gw" parent="c_gw" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.bedrock_agentcore;fillColor=#01A88D;" value="AgentCore Gateway&#xa;MCP • Connect OIDC • passRequestHeaders" vertex="1">
+          <mxGeometry height="52" width="52" x="140" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="u_intercept" parent="c_gw" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="Interceptor" vertex="1">
+          <mxGeometry height="52" width="52" x="10" y="209" as="geometry" />
+        </mxCell>
+        <mxCell id="u_intercept_note" parent="c_gw" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="on tools/call:&#xa;contact-id header →&#xa;GetContactAttributes → merchant_id;&#xa;STRIP model tenant keys;&#xa;INJECT __trusted_merchant_id" vertex="1">
+          <mxGeometry height="140" width="230" x="90" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="u_target" parent="c_gw" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="Tool target&#xa;query-transactions" vertex="1">
+          <mxGeometry height="52" width="52" x="140" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="c_vpc" parent="1" style="swimlane;startSize=24;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" value="Aurora VPC (private)" vertex="1">
+          <mxGeometry height="330" width="300" x="2220" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="u_tool" parent="c_vpc" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#ED7100;" value="Transaction tool Lambda" vertex="1">
+          <mxGeometry height="52" width="52" x="120" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="u_tool_note" parent="c_vpc" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="trusts ONLY __trusted_merchant_id;&#xa;query-time filter by merchant_id;&#xa;fail closed if absent" vertex="1">
+          <mxGeometry height="90" width="270" x="15" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="u_os" parent="c_vpc" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elasticsearch_service;fillColor=#8C4FFF;" value="OpenSearch Serverless&#xa;index: transactions" vertex="1">
+          <mxGeometry height="52" width="52" x="210" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="c_obs" parent="1" style="swimlane;startSize=24;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" value="Observability" vertex="1">
+          <mxGeometry height="100" width="670" x="1870" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="u_cw" parent="c_obs" style="sketch=0;outlineConnect=0;fontColor=#232F3E;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;fillColor=#E7157B;" value="CloudWatch" vertex="1">
+          <mxGeometry height="48" width="48" x="20" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="u_cw_note" parent="c_obs" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;" value="gateway tools/call • interceptor (injected trusted tenant) • tool (fail-closed) • CasesApiFn / ChatApiFn" vertex="1">
+          <mxGeometry height="40" width="560" x="90" y="34" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="swimlane;startSize=24;html=1;fillColor=#ffffff;strokeColor=#333333;fontStyle=1;align=left;" value="Legend" vertex="1">
+          <mxGeometry height="170" width="470" x="30" y="950" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1" parent="legend" style="text;html=1;align=left;spacingLeft=34;fontSize=11;" value="Shared request / serve / route" vertex="1">
+          <mxGeometry height="20" width="440" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#333333;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="40" as="sourcePoint" />
+            <mxPoint x="32" y="40" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg2" parent="legend" style="text;html=1;align=left;spacingLeft=34;fontSize=11;" value="Use case A — Support Cases (Amazon Connect Cases CRUD)" vertex="1">
+          <mxGeometry height="20" width="450" x="10" y="54" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#2E73B8;strokeWidth=3;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="64" as="sourcePoint" />
+            <mxPoint x="32" y="64" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg3" parent="legend" style="text;html=1;align=left;spacingLeft=34;fontSize=11;" value="Trusted merchant_id (tenant isolation) — both use cases" vertex="1">
+          <mxGeometry height="20" width="450" x="10" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=3;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="88" as="sourcePoint" />
+            <mxPoint x="32" y="88" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg4" parent="legend" style="text;html=1;align=left;spacingLeft=34;fontSize=11;" value="&quot;Chat about this case&quot; bridge (case_id)" vertex="1">
+          <mxGeometry height="20" width="450" x="10" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#D79B00;strokeWidth=3;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="112" as="sourcePoint" />
+            <mxPoint x="32" y="112" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg5" parent="legend" style="text;html=1;align=left;spacingLeft=34;fontSize=11;" value="Use case B — live-chat agentic self-service (numbered 1→9)" vertex="1">
+          <mxGeometry height="20" width="450" x="10" y="126" as="geometry" />
+        </mxCell>
+        <mxCell id="lg5e" edge="1" parent="legend" style="endArrow=classic;html=1;strokeColor=#333333;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" y="136" as="sourcePoint" />
+            <mxPoint x="32" y="136" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lg6" parent="legend" style="text;html=1;align=left;spacingLeft=12;fontSize=10;fontStyle=2;" value="Response / logs (grey dashed). Green boxes = tenant-safety controls." vertex="1">
+          <mxGeometry height="20" width="450" x="10" y="146" as="geometry" />
+        </mxCell>
+        <mxCell id="x_login" edge="1" parent="1" source="u_cognito" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_spa" value="OIDC login (merchant_id, groups)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="x_serve1" edge="1" parent="1" source="u_spa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_cf" value="HTTPS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="x_serve2" edge="1" parent="1" source="u_cf" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_ecs" value="origin (serve SPA)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" edge="1" parent="1" source="u_spa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#2E73B8;strokeWidth=2;fontSize=9;fontColor=#1b4e79;" target="u_apigw" value="A. /cases + /chat/start (Bearer id token)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" edge="1" parent="1" source="u_apigw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#2E73B8;strokeWidth=2;fontSize=9;fontColor=#1b4e79;" target="u_casesfn" value="A. authorized → CasesApiFn">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="576" y="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a3" edge="1" parent="1" source="u_casesfn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#2E73B8;strokeWidth=2;fontSize=9;fontColor=#1b4e79;" target="u_cases" value="A. Cases CRUD (tenant-scoped by merchant_id)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" edge="1" parent="1" source="u_apigw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_chatfn" value="1. /chat/start">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b2" edge="1" parent="1" source="u_chatfn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=9;fontColor=#2d6a2d;" target="u_contactattr" value="2. stamp merchant_id (+case_id)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="576" y="887.53" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b3" edge="1" parent="1" source="u_chatfn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_flow_inbound" value="3. StartChatContact (inbound)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="576" y="590" />
+              <mxPoint x="1040" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="br1" edge="1" parent="1" source="u_chatfn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#D79B00;strokeWidth=3;dashed=1;fontSize=9;fontColor=#7f5b00;" target="u_flow_case" value="chat about this case (case_id) → case flow">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1230" y="460" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b4" edge="1" parent="1" source="u_flow_inbound" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_lex" value="4. Get input">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="570" />
+              <mxPoint x="990" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b5" edge="1" parent="1" source="u_lex" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_assistant" value="5. QIC intent (session-arn)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="960" y="446" />
+              <mxPoint x="1380" y="446" />
+              <mxPoint x="1380" y="116" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b6" edge="1" parent="1" source="u_assistant" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_agent" value="6. orchestrate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1620" y="116" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b7" edge="1" parent="1" source="u_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_gw" value="7. tools/call (NO merchant_id)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b8" edge="1" parent="1" source="u_gw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_intercept" value="8. REQUEST + headers">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1780" y="118" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b9a" edge="1" parent="1" source="u_intercept" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=9;fontColor=#2d6a2d;" target="u_contactattr" value="GetContactAttributes → merchant_id">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1806" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b9b" edge="1" parent="1" source="u_intercept" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=9;fontColor=#2d6a2d;" target="u_target" value="inject __trusted_merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b10" edge="1" parent="1" source="u_target" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_tool" value="9. invoke">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2170" y="460" />
+              <mxPoint x="2170" y="128" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b11" edge="1" parent="1" source="u_tool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=3;dashed=1;fontSize=9;fontColor=#2d6a2d;" target="u_os" value="query — filter merchant_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b12" edge="1" parent="1" source="u_agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;strokeWidth=2;dashed=1;fontSize=9;" target="u_spa" value="response: caller&#39;s rows only">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="230" />
+              <mxPoint x="460" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q1" edge="1" parent="1" source="u_flow_case" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_queue" value="Escalate → queue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" edge="1" parent="1" source="u_queue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_ccp" value="route to agent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=2;fontSize=9;" target="u_ccp" value="work contacts (+Cases tab)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="290" y="780" />
+              <mxPoint x="1230" y="780" />
+            </Array>
+            <mxPoint x="290" y="122" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q5" edge="1" parent="1" source="u_ccp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#333333;strokeWidth=1;dashed=1;fontSize=9;" target="u_profiles" value="resolve merchant profile">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1280" y="530" />
+              <mxPoint x="1280" y="530" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="br2" edge="1" parent="1" source="u_chatfn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#D79B00;strokeWidth=2;dashed=1;fontSize=9;fontColor=#7f5b00;" target="u_casesfn" value="chat end: transcript → case comment (Cases API)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="380" />
+              <mxPoint x="560" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="log1" edge="1" parent="1" source="u_intercept" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#b0b0b0;strokeWidth=1;" target="u_cw" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1806" y="430" />
+              <mxPoint x="1634" y="430" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="log2" edge="1" parent="1" source="u_tool" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#b0b0b0;strokeWidth=1;" target="u_cw" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1680" y="128" />
+              <mxPoint x="1680" y="754" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="u_contactattr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=8;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="Contact attributes: merchant_id, case_id, source (AUTHENTICATED, CustomerId=merchant_id)" vertex="1">
+          <mxGeometry height="55" width="360" x="955" y="860" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

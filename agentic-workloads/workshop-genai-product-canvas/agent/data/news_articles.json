@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "disclaimer": "SYNTHETIC DATA. Every article below is invented for this workshop. The publications, the resort development and the wildlife-trade monitor named here are fictional and do not correspond to any real outlet, business or organisation. Only the geography (Johor, Kota Tinggi, Desaru, Sungai Lebam, Tanjung Balau) and the species are real, and no real event is being described.",
+    "sources": [
+      "Johor Chronicle (fictional)",
+      "Warta Tenggara (fictional)",
+      "Peninsula Review (fictional)",
+      "Berita Pesisir (fictional)",
+      "Selat Daily (fictional)"
+    ],
+    "region": "Johor, Malaysia",
+    "period": "2025-10 to 2026-07",
+    "notes": "Invented local and national reporting on wildlife and environment in the Desaru/Kota Tinggi area, written so that some articles explain anomalies in the detection data and some are deliberate red herrings."
+  },
+  "articles": [
+    {
+      "article_id": "NEWS-001",
+      "date": "2026-04-28",
+      "source": "Johor Chronicle",
+      "headline": "Illegal logging activity detected near Sungai Lebam forest reserve, Kota Tinggi",
+      "snippet": "The state forestry department confirmed unauthorized timber extraction in a gazetted forest reserve near Sungai Lebam, approximately 5km from the Teluk Serai coastal resort development zone. Satellite deforestation alerts flagged 4.2 hectares of recent canopy loss. Wildlife enforcement officers are investigating and have set up checkpoints on logging roads. The conservation group running camera traps in the area raised the alarm after recording unusual disturbance patterns.",
+      "keywords": [
+        "logging",
+        "Sungai Lebam",
+        "Kota Tinggi",
+        "forest reserve",
+        "deforestation"
+      ],
+      "url": "https://example.com/johor-chronicle/2026/04/28/illegal-logging-detected-sungai-lebam"
+    },
+    {
+      "article_id": "NEWS-002",
+      "date": "2026-05-15",
+      "source": "Warta Tenggara",
+      "headline": "Pembalakan haram: Tiga lelaki ditahan di Kota Tinggi",
+      "snippet": "Tiga lelaki warga tempatan ditahan jabatan perhutanan negeri kerana disyaki terlibat dalam aktiviti pembalakan haram berhampiran Hutan Simpan Sungai Lebam. Suspek dipercayai menggunakan jentera berat untuk mengeluarkan kayu balak bernilai tinggi termasuk meranti dan keruing. Operasi dikesan melalui sistem amaran satelit.",
+      "keywords": [
+        "pembalakan haram",
+        "illegal logging",
+        "Kota Tinggi",
+        "Sungai Lebam",
+        "arrests"
+      ],
+      "url": "https://example.com/warta-tenggara/2026/05/15/pembalakan-haram-kota-tinggi"
+    },
+    {
+      "article_id": "NEWS-003",
+      "date": "2026-01-30",
+      "source": "Peninsula Review",
+      "headline": "Anjung Serai opens at Teluk Serai as luxury tourism corridor expands",
+      "snippet": "The opening of the Anjung Serai hotel marks the latest milestone in the Teluk Serai coastal resort development, part of the region's transformation into a premium tourism destination. The 128-acre property sits within mature rainforest, and conservation groups have raised concerns about the cumulative impact of the development's third phase on the remaining wildlife corridors connecting coastal and inland forests.",
+      "keywords": [
+        "Teluk Serai",
+        "resort",
+        "development",
+        "Anjung Serai",
+        "wildlife corridor"
+      ],
+      "url": "https://example.com/peninsula-review/2026/01/30/anjung-serai-teluk-serai-opening"
+    },
+    {
+      "article_id": "NEWS-004",
+      "date": "2026-03-12",
+      "source": "Berita Pesisir",
+      "headline": "Pembinaan fasa 3 Teluk Serai: NGO bimbang laluan hidupan liar terputus",
+      "snippet": "Kumpulan konservasi tempatan membangkitkan kebimbangan bahawa kerja-kerja pembinaan fasa ketiga di Teluk Serai telah memutuskan laluan pergerakan gajah dan tapir antara hutan simpan pedalaman dan kawasan pantai. Bunyi bising jentera berat dan lampu malam dilaporkan mengganggu hidupan liar di kawasan tersebut sejak Februari 2026.",
+      "keywords": [
+        "Teluk Serai",
+        "Phase 3",
+        "wildlife corridor",
+        "elephant",
+        "tapir",
+        "construction",
+        "noise"
+      ],
+      "url": "https://example.com/berita-pesisir/2026/03/12/pembinaan-teluk-serai-fasa-3-laluan-hidupan-liar"
+    },
+    {
+      "article_id": "NEWS-005",
+      "date": "2026-02-08",
+      "source": "Selat Daily",
+      "headline": "Pangolin trafficking ring broken up in Johor; 23 animals recovered",
+      "snippet": "Wildlife enforcement officers dismantled a trafficking ring operating across southeastern Johor. Twenty-three live Sunda Pangolins were recovered from a warehouse in Kota Tinggi, along with 45kg of dried scales prepared for export. Five suspects were arrested, including a middleman the Southeast Asia Wildlife Trade Monitor says is linked to a wider regional network.",
+      "keywords": [
+        "pangolin",
+        "trafficking",
+        "syndicate",
+        "Kota Tinggi",
+        "Johor",
+        "enforcement"
+      ],
+      "url": "https://example.com/selat-daily/2026/02/08/pangolin-trafficking-ring-johor"
+    },
+    {
+      "article_id": "NEWS-006",
+      "date": "2026-04-03",
+      "source": "Johor Chronicle",
+      "headline": "Second pangolin poaching ring linked to Desaru-area forests, warn conservationists",
+      "snippet": "The Southeast Asia Wildlife Trade Monitor warns that a second trafficking network is operating in the forests between Kota Tinggi and Desaru, targeting Sunda Pangolins for the traditional medicine trade. Snare lines and pit traps were found at multiple locations. Camera trap data from the Desaru Camera Trap Programme shows a consistent decline in pangolin detections across all six stations since early 2026, corroborating the poaching pressure hypothesis.",
+      "keywords": [
+        "pangolin",
+        "poaching",
+        "Desaru",
+        "snares",
+        "decline",
+        "Kota Tinggi"
+      ],
+      "url": "https://example.com/johor-chronicle/2026/04/03/second-pangolin-ring-desaru"
+    },
+    {
+      "article_id": "NEWS-007",
+      "date": "2026-06-19",
+      "source": "Peninsula Review",
+      "headline": "Trafficker charged over 38kg of pangolin scales in southeastern Johor",
+      "snippet": "Prosecutors have charged a man with possessing and trafficking 38kg of Sunda Pangolin scales, in a case linked to the network broken up in February. Investigators said the network had been active in southeastern Johor since mid-2025, systematically clearing pangolin populations from forest patches near Desaru.",
+      "keywords": [
+        "pangolin",
+        "trafficking",
+        "charges",
+        "Johor",
+        "court",
+        "syndicate"
+      ],
+      "url": "https://example.com/peninsula-review/2026/06/19/pangolin-scales-trafficking-charges"
+    },
+    {
+      "article_id": "NEWS-008",
+      "date": "2026-01-14",
+      "source": "Berita Pesisir",
+      "headline": "Banjir kilat di Kota Tinggi: 200 penduduk dipindahkan",
+      "snippet": "Hujan lebat berterusan sejak awal pagi menyebabkan banjir kilat di beberapa kawasan rendah sekitar Kota Tinggi. Jabatan pengairan dan saliran mengeluarkan amaran paras air Sungai Lebam melepasi paras bahaya. Seramai 200 penduduk dipindahkan ke pusat pemindahan sementara di dewan serbaguna berdekatan.",
+      "keywords": [
+        "flood",
+        "Kota Tinggi",
+        "Sungai Lebam",
+        "evacuation",
+        "monsoon"
+      ],
+      "url": "https://example.com/berita-pesisir/2026/01/14/banjir-kilat-kota-tinggi"
+    },
+    {
+      "article_id": "NEWS-009",
+      "date": "2026-06-02",
+      "source": "Warta Tenggara",
+      "headline": "Festival Durian Desaru 2026 tarik 15,000 pengunjung hujung minggu pertama",
+      "snippet": "Festival Durian Desaru yang berlangsung di Bandar Penawar menarik lebih 15,000 pengunjung pada hujung minggu pertama. Lebih 20 dusun durian menyertai festival yang memasuki tahun ketiga ini. Penganjur menjangkakan 50,000 pengunjung sepanjang festival tiga minggu ini.",
+      "keywords": [
+        "durian",
+        "festival",
+        "Desaru",
+        "tourism",
+        "Bandar Penawar"
+      ],
+      "url": "https://example.com/warta-tenggara/2026/06/02/festival-durian-desaru"
+    }
+  ]
+}

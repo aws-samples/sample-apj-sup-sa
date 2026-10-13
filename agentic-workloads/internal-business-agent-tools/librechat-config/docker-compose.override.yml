@@ -1,0 +1,9 @@
+# LibreChat docker-compose override.
+# Drop this and `librechat.yaml` (filled in from librechat.yaml.example)
+# into your LibreChat clone, alongside `.env`.
+services:
+  api:
+    volumes:
+      - ./librechat.yaml:/app/librechat.yaml:ro
+    env_file:
+      - .env

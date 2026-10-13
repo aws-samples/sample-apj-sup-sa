@@ -30,6 +30,31 @@ from .model_spec import MEDGEMMA_27B
 _STANDARD: list[CapacityMode] = ["spot", "on-demand", "odcr"]
 """Commodity preference: try spot → OD → ODCR. All experiments."""
 
+_SCARCE_GPU: list[CapacityMode] = ["spot", "on-demand", "odcr"]
+"""Scarce-accelerator preference (p6-B200 and friends).
+
+Same mode order as _STANDARD, but the p6 plan pairs it with a non-zero
+``spot_wait_timeout_s`` so the spot strategy *persistently polls* for a
+capacity opening (B200 spot appears and vanishes minute-to-minute) before
+falling through to on-demand → ODCR. The persistent wait is capacity-
+acquisition time and is reported separately from benchmark run time.
+"""
+
+# How long to keep polling for a scarce-GPU spot slot before falling through
+# to on-demand. 30 min is "reasonable" for an interactive benchmark: long
+# enough to catch a flickering B200 spot pool, bounded so the notebook never
+# hangs indefinitely.
+_P6_SPOT_WAIT_S = 1800
+
+# p4d/p4de (8× A100) spot is also scarce — often unavailable on a one-shot
+# request. Give them a shorter persistent wait than p6 (A100 pools recover
+# faster than B200, and the on-demand fallback is much cheaper here).
+_SCARCE_A100_SPOT_WAIT_S = 900
+
+# B200 weights + warmup are fast (55 GiB model on 180 GiB/GPU), but the
+# p6 DLAMI image pull and first-boot NVIDIA/Blackwell driver init can be slow;
+# keep the standard 40-min readiness budget which is ample for MedGemma.
+
 
 # -----------------------------------------------------------------------------
 # Plans (instance_type × parallelism × capacity strategy)
@@ -103,9 +128,13 @@ _PLANS: dict[str, DeploymentPlan] = {
         pipeline_parallel=1,
         max_model_len=16384,
         region="us-west-2",
-        capacity_preference=_STANDARD,
+        capacity_preference=_SCARCE_GPU,
+        # p4d (8× A100-40GB) spot is scarce and one-shot requests routinely
+        # miss it; poll persistently before falling back to on-demand.
+        spot_wait_timeout_s=_SCARCE_A100_SPOT_WAIT_S,
+        spot_poll_interval_s=30,
         concurrency_high=50,
-        notes="4 replicas on 8× A100-40GB; weights (~54 GiB) don't fit on one 40 GiB GPU so TP=2, then DP=4.",
+        notes="4 replicas on 8× A100-40GB; weights (~54 GiB) don't fit on one 40 GiB GPU so TP=2, then DP=4. Persistent spot wait (scarce A100).",
     ),
     "exp_7": DeploymentPlan(
         experiment_id="exp_7",
@@ -115,9 +144,53 @@ _PLANS: dict[str, DeploymentPlan] = {
         pipeline_parallel=1,
         max_model_len=16384,
         region="us-west-2",
-        capacity_preference=_STANDARD,
+        capacity_preference=_SCARCE_GPU,
+        # p4de (8× A100-80GB) spot is even scarcer than p4d; poll persistently.
+        spot_wait_timeout_s=_SCARCE_A100_SPOT_WAIT_S,
+        spot_poll_interval_s=30,
         concurrency_high=50,
-        notes="8 replicas on 8× A100-80GB; one replica per GPU (TP=1, DP=8). 80 GiB fits the model comfortably.",
+        notes="8 replicas on 8× A100-80GB; one replica per GPU (TP=1, DP=8). 80 GiB fits the model comfortably. Persistent spot wait (scarce A100).",
+    ),
+    "exp_8": DeploymentPlan(
+        experiment_id="exp_8",
+        instance_type="p6-b200.48xlarge",
+        tensor_parallel=1,
+        data_parallel=8,
+        pipeline_parallel=1,
+        max_model_len=16384,
+        # p6-B200 is offered in us-east-1/us-east-2/us-west-2 (+ Mumbai,
+        # GovCloud). us-west-2 measured the cheapest B200 spot and acquired
+        # capacity on the first attempt every time across a multi-day campaign,
+        # so it is the default here; us-east-2 remains a reasonable fallback via
+        # region_override.
+        region="us-west-2",
+        capacity_preference=_SCARCE_GPU,
+        # Persistently poll for a scarce B200 spot slot (see preset docstring).
+        spot_wait_timeout_s=_P6_SPOT_WAIT_S,
+        spot_poll_interval_s=30,
+        # 8× B200 needs far more in-flight work than the g-family to saturate.
+        # A measured sweep on this exact plan found throughput still climbing
+        # through c=400 and flat-and-clean at c=800; past that the engine starts
+        # preempting (evicting running sequences and recomputing their prefill),
+        # which makes throughput unstable and irreproducible rather than faster.
+        # c=100 — the old value — measures roughly a fifth of what this box can
+        # do. See vllm_image_override below for the paired engine version.
+        concurrency_high=800,
+        # A/B-measured on this model+SKU: v0.26.0-cu129 beat v0.25.1 by ~4.7%
+        # with identical flags. Scoped to this plan rather than raised to a
+        # model- or repo-wide default because it has only been validated for
+        # Gemma-3-architecture weights on Blackwell.
+        vllm_image_override="vllm/vllm-openai:v0.26.0-cu129-ubuntu2404",
+        notes=(
+            "8 replicas on 8× NVIDIA B200 (180 GiB each); one replica per GPU "
+            "(TP=1, DP=8) so all 8 GPUs are utilised. 55 GiB weights fit "
+            "comfortably per GPU with a large KV-cache budget. Newest Blackwell "
+            "datacenter GPU in the set. Spot is scarce, so this plan waits "
+            "(persistently, up to 30 min) for a spot opening before falling "
+            "back to on-demand — the wait is excluded from benchmark run time. "
+            "Measured stable ceiling is c=800; do not raise it without checking "
+            "the /metrics preemption counter."
+        ),
     ),
 }
 

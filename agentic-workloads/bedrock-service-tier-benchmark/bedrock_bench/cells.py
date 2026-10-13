@@ -1,121 +1,120 @@
-"""A *cell* = the unit of measurement: one model, on one transport, at one tier.
+"""Expand config × registry into cells, and build the adapter for a cell.
 
-The benchmark matrix is the set of cells; each cell yields ``n`` samples that
-become one column of percentiles. This module defines the ``Cell`` value object,
-expands a config + registry into the full cell list, and builds the concrete
-llmeter endpoint for a cell.
+A **cell** is one tier in one *context*. A context is every other dimension:
+(model, endpoint, API, scope, region, prompt size, cache mode). Tiers in the
+same context are always compared against each other, never across contexts.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
-from .auth import AuthBroker
-from .config import BenchmarkConfig, PayloadStyle, Tier, Transport
-from .endpoints import (
-    JMESPATH_NOVA,
-    JMESPATH_OPENAI,
-    FlexBedrockInvokeStream,
-    MantleChatStream,
-)
-from .payloads import build_invoke_payload, build_mantle_payload
-from .registry import ModelSpec, select
+from .config import Api, BenchmarkConfig, CacheMode, Endpoint, PromptSize, Scope, Tier
+from .registry import ModelSpec, Offering
 
 
 @dataclass(frozen=True)
 class Cell:
-    """One (model, transport, tier) experiment in a concrete region."""
-
     spec: ModelSpec
-    transport: Transport
-    tier: Tier
+    offering: Offering
     region: str
+    size: PromptSize
+    cache: CacheMode
+    tier: Tier
+
+    @property
+    def endpoint(self) -> Endpoint:
+        return self.offering.endpoint
+
+    @property
+    def api(self) -> Api:
+        return self.offering.api
+
+    @property
+    def scope(self) -> Scope:
+        return self.offering.scope
 
     @property
     def model_id(self) -> str:
-        return self.spec.id_for(self.transport)  # type: ignore[return-value]
+        return self.offering.model_id
 
     @property
-    def domain(self) -> str:
-        """Pacing domain key — requests within a domain are serialized at 1/min.
-
-        A domain is (transport, model) so that a model's default+flex samples
-        share one cadence (interleaved), while different models run in parallel.
-        """
-        return f"{self.transport.value}:{self.spec.key}:{self.region}"
+    def context_key(self) -> str:
+        """Identifies the comparison group (everything except tier)."""
+        return "|".join(
+            (
+                self.spec.key,
+                self.endpoint.value,
+                self.api.value,
+                self.scope.value,
+                self.region,
+                self.size.value,
+                self.cache.value,
+            )
+        )
 
     @property
     def label(self) -> str:
-        return f"{self.spec.key}|{self.transport.value}|{self.tier.value}|{self.region}"
+        return f"{self.context_key}|{self.tier.value}"
 
-    def tier_request(self) -> str | None:
-        """Wire value to request: ``"flex"`` for flex, ``None`` for Standard."""
-        return None if self.tier.is_default else self.tier.value
+    @property
+    def domain(self) -> str:
+        """Pacing domain: requests to the same model id + endpoint + region run serially."""
+        return f"{self.endpoint.value}|{self.model_id}|{self.region}"
+
+    def dims(self) -> dict[str, str]:
+        return {
+            "model": self.spec.key,
+            "family": self.spec.family,
+            "display_name": self.spec.display_name,
+            "model_id": self.model_id,
+            "endpoint": self.endpoint.value,
+            "api": self.api.value,
+            "scope": self.scope.value,
+            "region": self.region,
+            "prompt_size": self.size.value,
+            "cache": self.cache.value,
+            "tier": self.tier.value,
+        }
 
 
-def expand_cells(config: BenchmarkConfig, specs: list[ModelSpec] | None = None) -> list[Cell]:
-    """Build every cell implied by ``config`` and the (filtered) registry.
+def _cache_ok(spec: ModelSpec, size: PromptSize, cache: CacheMode) -> bool:
+    if cache is CacheMode.COLD:
+        return True
+    if cache is CacheMode.WARM_IMPLICIT and not spec.cache.implicit:
+        return False
+    if cache is CacheMode.WARM_EXPLICIT and not spec.cache.explicit:
+        return False
+    # Warm only makes sense when the prefix can be cached at all.
+    minimum = spec.cache.min_tokens or 1024
+    return size.input_tokens >= minimum
 
-    A cell is created only when the model supports the (transport, tier)
-    combination — the generated registry records exactly which tiers each
-    transport serves, so we never schedule, say, a flex cell for a model that
-    doesn't serve flex. ``default`` is always benchmarked alongside whichever of
-    flex/priority the config requests *and* the model supports, so every
-    non-default tier has its default baseline to compare against.
+
+def expand_cells(config: BenchmarkConfig, specs: list[ModelSpec]) -> list[Cell]:
+    """Every supported cell implied by ``config``.
+
+    A context is kept only when at least one non-default tier *and* the default
+    tier are both available, so every tier has its baseline. Each offering is
+    benchmarked from the first configured region it serves.
     """
-    if specs is None:
-        specs = select(families=config.families)
-
-    requested = set(config.tiers)
+    wanted_tiers = set(config.tiers) | {Tier.DEFAULT}
     cells: list[Cell] = []
     for spec in specs:
-        for transport in config.transports:
-            if not spec.supports(transport):
+        for off in spec.offerings:
+            if off.endpoint not in config.endpoints or off.api not in config.apis:
                 continue
-            region = spec.resolve_region(transport, config.regions)
+            if off.scope not in config.scopes:
+                continue
+            region = next((r for r in config.regions if r in off.regions), None)
             if region is None:
                 continue
-            supported = set(spec.tiers_for(transport))
-            # Always include default as the baseline if the transport serves it.
-            tiers = [t for t in spec.tiers_for(transport) if t in requested or t.is_default]
-            # Only keep default if at least one non-default tier will also run,
-            # otherwise there is nothing to compare it against.
-            non_default = [t for t in tiers if not t.is_default]
-            if not non_default:
+            tiers = [t for t in off.tiers if t in wanted_tiers]
+            if Tier.DEFAULT not in tiers or len(tiers) < 2:
                 continue
-            if Tier.DEFAULT in supported and Tier.DEFAULT not in tiers:
-                tiers.insert(0, Tier.DEFAULT)
-            for tier in tiers:
-                cells.append(Cell(spec=spec, transport=transport, tier=tier, region=region))
+            tiers.sort(key=lambda t: list(Tier).index(t))
+            for size in config.prompt_sizes:
+                for cache in config.cache_modes:
+                    if not _cache_ok(spec, size, cache):
+                        continue
+                    cells.extend(Cell(spec, off, region, size, cache, t) for t in tiers)
     return cells
-
-
-def build_endpoint(cell: Cell, broker: AuthBroker) -> FlexBedrockInvokeStream | MantleChatStream:
-    """Construct the llmeter endpoint that will invoke ``cell``."""
-    if cell.transport is Transport.INVOKE:
-        jmespath = (
-            JMESPATH_NOVA if cell.spec.payload_style is PayloadStyle.NOVA else JMESPATH_OPENAI
-        )
-        return FlexBedrockInvokeStream(
-            model_id=cell.model_id,
-            region=cell.region,
-            bedrock_boto3_client=broker.bedrock_runtime(cell.region),
-            service_tier=cell.tier_request(),
-            endpoint_name=cell.spec.display_name,
-            **jmespath,
-        )
-    return MantleChatStream(
-        model_id=cell.model_id,
-        broker=broker,
-        region=cell.region,
-        service_tier=cell.tier_request(),
-        endpoint_name=cell.spec.display_name,
-    )
-
-
-def build_payload(cell: Cell, config: BenchmarkConfig) -> dict[str, Any]:
-    """The request payload for ``cell`` (excluding model id / tier / stream flags)."""
-    if cell.transport is Transport.INVOKE:
-        return build_invoke_payload(cell.spec.payload_style, config.prompt, config.max_tokens)
-    return build_mantle_payload(config.prompt, config.max_tokens)

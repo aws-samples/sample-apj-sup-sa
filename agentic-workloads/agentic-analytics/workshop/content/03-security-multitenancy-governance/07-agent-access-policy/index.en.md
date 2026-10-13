@@ -47,29 +47,58 @@ User logs in → Cognito JWT (custom:role [for role-based access control], custo
 
 ## Lab Procedures
 
-### Step 7.1: Deploy Cedar Policies (TODO 7.1)
+::alert[**This is the most involved step in the workshop — go slow, and don't rush the deploys.** Every step until now was "uncomment one fence, `make deploy`." This one has more moving parts, so it's organized into two halves. Do **Part A** fully (deploy + test) before starting **Part B**.
+
+- **Part A — Tool access (who can call what):** add Cedar policies → deploy in log-only mode → switch to enforce → test (Steps 7.1, 7.6, 7.8).
+- **Part B — Data isolation (who sees which rows):** flip the RLS switch → understand the interceptor → test cross-tenant isolation (Steps 7.2–7.5, 7.7).
+
+The two halves are independent — Part A controls *which tools* a role can call; Part B controls *which rows* a query returns. You'll prove each one separately.]{type="info"}
+
+### A 60-second primer on Cedar (read before 7.1)
+
+You're about to write your first :link[Cedar]{href="https://www.cedarpolicy.com/"} policies, so here's the whole idea in a paragraph. **Cedar is a policy language** (the same engine behind Amazon Verified Permissions) that answers one question — *"is this principal allowed to do this action on this resource?"* — with **formal logic, not an LLM judgment call.** Three things to know and you can read every policy in this step:
+
+- It is **default-deny**: if nothing explicitly `permit`s an action, it's denied.
+- **`forbid` always beats `permit`.** So the usual pattern is one broad `permit` (allow everything) plus narrow `forbid`s that carve out exceptions. That's exactly what you'll deploy: *permit all tools, then forbid the booking tool for analysts and the Custom-SQL tools for staff.*
+- A policy reads almost like English: `forbid(principal, action == "create_booking", resource) when { principal.getTag("custom:role") == "analyst" };` — "forbid the create-booking action when the caller's role is analyst."
+
+Why not just tell the agent in the prompt "don't let analysts book"? Because a prompt is a *suggestion* an attacker can talk the model out of (prompt injection). Cedar is evaluated at the **Gateway, before the agent runs** — the analyst's session literally never sees the tool. That's the difference between application-level and infrastructure-level security, and it's the whole point of this step.
+
+### Step 7.1: Add Cedar Policies (TODO 7.1) — *Part A: tool access*
+
+::alert[**Complete Steps 4, 5, and 6 first.** Two of the Cedar policies guard tools from those steps — `ForbidWriteAnalystPolicy` depends on the Step-5 booking target and `ForbidCustomSqlStaffPolicy` on the Step-6 Custom SQL target. If you uncomment Step 7a before those targets exist, `make deploy` fails with `Unresolved resource dependencies [ApiIntegTarget]` (or `[CustomSqlTarget]`). Deploy the toolset steps in order, then return here.]{type="warning"}
 
 :link[AgentCore Policy]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html"} uses :link[Cedar]{href="https://www.cedarpolicy.com/"}, a policy language created by AWS. Cedar policies are **deterministic** — unlike prompt-based restrictions, they use formal logic for safeguarding against prompt injection.
 
-Open :code[policy/deploy_policy.py]{showCopyAction=true} and find `TODO 7.1`. Uncomment the `forbid_write_policy` block:
+Open :code[/workshop/agentic-analytics/app/agentcore_strands/agentcore-topup-stack.yaml]{showCopyAction=true}. **Step 7a has TWO fences you must uncomment** — both are labelled `Step 7a`:
 
-::::expand{header="💡 Need help with TODO 7.1? Click to see the solution"}
-Uncomment the entire `forbid_write_policy = f'''...'''` block. This Cedar policy says: "Forbid any OAuthUser whose `custom:role` tag equals `analyst` from calling `APIInteg___create_booking_tool`." The `when` clause is the condition — only analysts are blocked.
+1. The **Policy Engine + Cedar policies** block (the `PolicyEngine` resource and the three `AWS::BedrockAgentCore::Policy` resources).
+2. The **3-line `PolicyEngineConfiguration` block on the Gateway** (this wires the Gateway to the policy engine — they must come live together, or the Gateway would reference a policy engine that doesn't exist).
+
+::alert[**Tip — uncomment each block at once.** Don't delete each `#` by hand, especially for the larger policy-engine block. The Code Editor is VS Code: click the first line *inside* a fence, then **Shift+click** the last line inside it to select the block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Do this for **both** Step-7a fences. Select only the lines **between** the markers — not the marker lines themselves.]{type="info"}
+
+::::expand{header="💡 Need help with TODO 7.1? Click to see exactly what to uncomment"}
+Uncomment **both** Step-7a fences:
+- The `# ===== UNCOMMENT FROM HERE (Step 7a: Cedar policy engine ...)` fence — the `PolicyEngine`, `AllowAllToolsPolicy`, `ForbidWriteAnalystPolicy`, and `ForbidCustomSqlStaffPolicy` resources.
+- The small `# --- Step 7a: ALSO uncomment these 3 lines ...` block on the `Gateway` resource — the `PolicyEngineConfiguration:` / `Arn:` / `Mode:` lines.
+
+If you uncomment only the policies but not the Gateway block, the policies exist but aren't enforced. If you uncomment only the Gateway block but not the policies, `make deploy` fails because the Gateway references a `PolicyEngine` that isn't there. Uncomment both.
 ::::
 
-Deploy the Policy Engine:
+Then deploy — first in LOG_ONLY mode (the default), which logs policy decisions without blocking:
 
 ```bash
-python3 policy/deploy_policy.py
+cd /workshop/agentic-analytics/app/agentcore_strands
+make deploy
 ```
 
-This creates a Policy Engine with three Cedar policies and attaches it to the Gateway in LOG_ONLY mode. Then switch to enforcement:
+Once that succeeds, switch to **enforcement** by redeploying with the policy mode flipped:
 
 ```bash
-python3 policy/deploy_policy.py --enforce
+make deploy POLICY_MODE=ENFORCE
 ```
 
-The three policies:
+The three policies (already written in the template) are:
 
 ```cedar
 // 1. Base permit — allow all tools for any authenticated principal
@@ -89,27 +118,34 @@ forbid(principal is AgentCore::OAuthUser,
 when { principal.getTag("custom:role") == "staff" };
 ```
 
+::alert[**`make deploy POLICY_MODE=ENFORCE`** passes `PolicyMode=ENFORCE` to the stack — the same `PolicyMode` parameter the Gateway's `PolicyEngineConfiguration.Mode` reads. LOG_ONLY logs decisions but allows every call (useful for testing); ENFORCE blocks unauthorized calls at the Gateway.]{type="info"}
+
 ::alert[**Forbid wins over permit.** Cedar uses default-deny with forbid-wins semantics. The base permit allows everything, then forbid policies carve out exceptions. If any forbid matches, access is denied — regardless of permits. This is the :link[recommended pattern]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/example-policies.html"} for AgentCore Policy.]{type="info"}
 
-### Step 7.2: Switch to the RLS-Enforced Database Role
+### Step 7.2: Switch to the RLS-Enforced Database Role (TODO 7.2)
 
 Currently, your Lambda tools connect to the database as `postgres` — the table owner. In PostgreSQL, **table owners bypass Row-Level Security by default**. This means RLS policies have no effect, and all tenants' data is visible.
 
-To fix this, you'll switch to `app_user` — a non-owner role that was created during CloudFormation deployment. Because `app_user` doesn't own the tables, PostgreSQL automatically enforces RLS policies on every query.
+To fix this, you'll switch to `app_user` — a non-owner role created during the base CloudFormation deployment. Because `app_user` doesn't own the tables, PostgreSQL automatically enforces RLS on every query.
 
-#### TODO 7.2: Switch Secrets Manager ARN to use app_user database user
+#### TODO 7.2: Flip the RLS feature flag (no redeploy)
 
-Open :code[config.env]{showCopyAction=true}, locate `TODO 7.2` and find the commented-out `APP_AURORA_SECRET_ARN` line. Uncomment it:
+The three SQL Lambdas are already wired with **both** database secrets — the `postgres` owner and the `app_user` non-owner — and they decide which to use at **runtime** by reading a feature flag in :link[AWS Systems Manager Parameter Store]{href="https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html"}. The flag (`/agentic-analytics/rls-mode`) currently reads `disabled`, so they connect as `postgres` and RLS is bypassed. Flip it to `enabled` and they connect as `app_user` — **no `make deploy`**.
+
+Flip it from the Code Editor terminal:
 
 ```bash
-# Before (postgres — bypasses RLS):
-# APP_AURORA_SECRET_ARN=arn:aws:secretsmanager:...app-credentials-...
-
-# After (app_user — RLS enforced):
-APP_AURORA_SECRET_ARN=arn:aws:secretsmanager:...app-credentials-...
+aws ssm put-parameter --name /agentic-analytics/rls-mode \
+  --value enabled --type String --overwrite --region us-east-1
 ```
 
-::alert[**What does this change?** The `AURORA_SECRET_ARN` secret contains `postgres` credentials (table owner, bypasses RLS). The `APP_AURORA_SECRET_ARN` secret contains `app_user` credentials (non-owner, RLS enforced). When the deploy scripts see `APP_AURORA_SECRET_ARN`, they configure the Lambda to use `app_user` instead of `postgres`. The username is stored inside the Secrets Manager secret — the Lambda code doesn't change.]{type="info"}
+(Or use the console: **Systems Manager → Parameter Store → `/agentic-analytics/rls-mode` → Edit → `enabled`**.)
+
+The Lambdas cache the flag for up to ~60 seconds, so give it a moment (or click the chat's bin icon to start a fresh conversation) before testing.
+
+::alert[**Why a runtime flag instead of a redeploy?** Both secrets are attached to each Lambda; the SSM flag picks one per request (cached briefly). Flipping RLS changes **no** infrastructure — no `make deploy`, no new Lambda version — so the change is near-instant and the provisioned-concurrency alias keeps serving warm. This is also closer to how you'd gate a security mode in production: a feature flag you can flip (and audit) without a deployment. In production you'd graduate this to :link[AWS AppConfig]{href="https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html"} for staged rollout and automatic rollback.]{type="info"}
+
+::alert[**Fail-closed.** If the Lambda can't read the flag, it defaults to RLS **enforced** (app_user) — it errs toward over-restricting rather than leaking another tenant's rows.]{type="warning"}
 
 ### Step 7.3: Understand RLS Session Variables
 
@@ -142,7 +178,7 @@ This pattern is the same in all three Lambda toolsets. The `rls_context` is extr
 
 The Lambda tools now know how to SET session variables from JWT claims — but the JWT needs to reach the Lambda first. By default, the Gateway authenticates the request but does **not** forward the Authorization header to Lambda targets.
 
-The :link[Gateway Interceptor]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-headers.html"} solves this. You deployed it in Step 2 — it's a Lambda function that runs on every Gateway request and injects headers into the target call. The `Authorization` header from the interceptor response is :link[automatically propagated to the target]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-headers.html#gateway-headers-interceptor-propagation"}.
+The :link[Gateway Interceptor]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-headers.html"} solves this. It's already part of your stack's baseline — the `InterceptorLambda` and the Gateway's `InterceptorConfigurations` came live with the very first `make deploy` in Step 2. It's a Lambda function that runs on every Gateway request and injects headers into the target call. The `Authorization` header from the interceptor response is :link[automatically propagated to the target]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-headers.html#gateway-headers-interceptor-propagation"}.
 
 Open :code[infra/interceptor_lambda.py]{showCopyAction=true} and look at the key section:
 
@@ -162,15 +198,16 @@ if auth_header:
 
 This is the bridge between the Gateway (which validates the JWT) and the Lambda (which reads the JWT claims for RLS). Without it, `_extract_rls_context_from_jwt()` in the Lambda would receive no headers and RLS would have no tenant or user's role context.
 
-### Step 7.5: Redeploy All Lambda Tools
+### Step 7.5: One flag controls all three Lambdas
 
-Re-run the three deploy scripts. They will pick up the new `APP_AURORA_SECRET_ARN` from `config.env` and update the Lambda configuration to use `app_user`:
+There are **no separate scripts to re-run and no redeploy.** All three SQL Lambdas read the same `/agentic-analytics/rls-mode` flag you flipped in Step 7.2, so `DataFoundationLambda`, `ApiIntegLambda`, and `CustomSqlLambda` all switch to the `app_user` secret together — within ~60 seconds of the flip (the cache window). Confirm the flag value:
 
 ```bash
-python3 infra/deploy_data_toolset.py
-python3 infra/deploy_api_toolset.py
-python3 infra/deploy_sql_toolset.py
+aws ssm get-parameter --name /agentic-analytics/rls-mode --query Parameter.Value --output text --region us-east-1
+# expect: enabled
 ```
+
+Cedar enforcement (Step 7.1, deployed) and the RLS switch (Step 7.2, the runtime flag) are both live now.
 
 ### Step 7.6: Test Tool-Level Access Control
 
@@ -185,39 +222,40 @@ All test users share the same password: :code[Unicorn123!]{showCopyAction=true}
 ::alert[**Start fresh:** It is best to clear the chatbot conversation from the previous step by clicking the small bin icon next to the chat input field or by refreshing the application demo browser tab.]{type="info"}
 
 **Test as Admin (Lyra):**
+
 1. Log in as Lyra, ask: **"Show me top 5 customers by revenue"**
 2. You should see customers.
 3. Ask: **"Create a booking for my top customer next Sunday 2:30 pm for 30 mins with unicorn Vega Sapphire"** — it should work
 
 **Test as Analyst (Orion):**
+
 4. Log out, log in as Orion
 5. Ask: **"Show me top 5 customers by revenue"** — same query, same tenant data
 6. Ask: **"Create a booking for my top customer next Sunday 2:30 pm for 30 mins with unicorn Vega Sapphire"** — the agent cannot do this. The `create_booking_tool` is **inaccessible** for the analyst.
 
-### Step 7.7: Test Tenant Data Isolation
+### Step 7.7: Test Tenant Data Isolation — *Part B payoff*
 
-This is the most important test. Log in as users from **different tenants** and verify they see different data.
+This is the most important test in the workshop. Log in as users from **different tenants** and confirm they see different data from the *same* question.
 
 **As Mythical Unicorns (Lyra):**
-1. Ask: **"Show me top 3 customers"** — note the customer names
-2. Ask: **"What's my total revenue?"** — note the figure
+
+1. Ask: **"Show me my top 3 customers by revenue"** — **write down the #1 customer's name.**
 
 **As Mythic Unicorns (Aria):**
-3. Log out, log in as :code[aria.skybloom@example-mythicunicorns.com]{showCopyAction=true}
-4. Ask: **"Show me top 3 customers"** — you should see **completely different** names
-5. Ask: **"What's my total revenue?"** — the figure should be different
 
-::alert[**This is the pool model in action.** Both tenants share the same agent, same Gateway, same Lambda, same database — but each sees only their own data. The isolation is enforced by PostgreSQL RLS, not by the application. Even if the LLM generates a Custom SQL query without a tenant filter, RLS still protects the data.]{type="success"}
+2. Log out, log in as :code[aria.skybloom@example-mythicunicorns.com]{showCopyAction=true}
+3. Ask the **exact same question** — **write down her #1 customer's name.**
 
-### Step 7.8: The Invisibility Test
+::alert[**What you should see — and why it's the whole point.** Lyra's and Aria's number 1 customers are **different names** (e.g. Lyra's top customer is an organization; Aria's is a different individual entirely). Same agent, same Gateway, same Lambda, same SQL — but each tenant got only **their own rows**. *That difference is RLS working.* Before you flipped the flag, both users would have seen the **same** global list (the Lambda was connecting as the table owner, which bypasses RLS). Now the database engine itself filters by `account_id` from the JWT — isolation no application bug can undo. Even if the LLM wrote a Custom-SQL query with no tenant filter, RLS still protects the data. **If both users see the same names,** RLS isn't active yet: confirm `/agentic-analytics/rls-mode` reads `enabled` (Step 7.2), and wait out the ~60s flag cache (or start a fresh chat) before retrying.]{type="success"}
+
+### Step 7.8: The Invisibility Test — *Part A payoff*
 
 The Cedar policy doesn't just *refuse* the booking tool — it makes it **invisible**.
 
-1. Log in as Orion (analyst), ask: **"What tools do you have?"**
-2. The agent lists its tools — Create Booking tool is **not in the list**
-3. Log in as Lyra (admin), ask the same — The Create Booking tool **appears**
+1. Log in as **Orion (analyst)**, ask: **"List every tool you can use."**
+2. Log in as **Lyra (admin)**, ask the **same** question.
 
-::alert[**Infrastructure-level vs prompt-level security.** A prompt restriction ("don't let analysts create bookings") can be bypassed with prompt injection. Cedar policy cannot — the tool literally doesn't exist in the analyst's session. The agent can't call what it can't see.]{type="info"}
+::alert[**What you should see.** Orion's list contains only *read* booking tools (e.g. `get_bookings`, `get_booking_summary`) — there is **no create-booking tool**. Lyra's list **includes `APIInteg___create_booking_tool`.** Same agent, same Gateway; the only difference is the `custom:role` claim in their JWT, and Cedar uses it to hide the write tool from the analyst *at the Gateway, before the agent runs.* A prompt restriction ("don't let analysts create bookings") can be talked around with prompt injection; this cannot — **the agent can't call what it can't see.** That's why this belongs at the infrastructure layer, not in the prompt.]{type="info"}
 
 ## How It All Fits Together
 
@@ -244,10 +282,13 @@ The Cedar policy doesn't just *refuse* the booking tool — it makes it **invisi
 └─────────────────────────────────────────────────────────┘
 ```
 
+::alert[**This is one of the most important steps in the workshop** — multi-tenant isolation and access control are core to a well-architected SaaS agent. To study the full implementation, browse the complete project at :link[aws-samples/sample-apj-sup-sa]{href="https://github.com/aws-samples/sample-apj-sup-sa/tree/main/agentic-workloads/agentic-analytics" external=true}. The repository contains the complete **sample code** (agent, Lambda toolsets, Cedar policies, RLS schema), **this very workshop's content**, and a **demo mode** that deploys the whole system end to end in an AWS account — a useful reference for adapting these security patterns to your needs.]{type="info"}
+
 ## Verification
 
-- Policy Engine deploys with 3 Cedar policies in ~15 seconds
-- `--enforce` switches to enforcement mode
+- After uncommenting both Step-7a fences and `make deploy`, the stack has a Policy Engine with 3 Cedar policies
+- `make deploy POLICY_MODE=ENFORCE` switches the Gateway to enforcement mode
+- Flipping `/agentic-analytics/rls-mode` to `enabled` switches all three SQL Lambdas to the `app_user` secret (within ~60s, no redeploy)
 - Admin (Lyra) can create bookings; analyst (Orion) cannot see the tool
 - Mythical Unicorns user sees only Mythical Unicorns data
 - Mythic Unicorns user sees only Mythic Unicorns data
@@ -255,13 +296,12 @@ The Cedar policy doesn't just *refuse* the booking tool — it makes it **invisi
 ## Troubleshooting
 
 **Still seeing all tenants' data**
-- Did you uncomment `APP_AURORA_SECRET_ARN` in `config.env`?
-- Did you re-run all three deploy scripts after the change?
-- Did you uncomment the SET statements in all three Lambda files?
-- Did you deploy the interceptor (`deploy_interceptor.py`)?
+- Did you set `/agentic-analytics/rls-mode` to `enabled` (Step 7.2)? Check: `aws ssm get-parameter --name /agentic-analytics/rls-mode --query Parameter.Value --output text`.
+- The Lambdas cache the flag ~60s — wait it out, or start a fresh chat (bin icon), then retry.
+- The Gateway Interceptor must be live — it's in the Step-2 baseline, so confirm the stack deployed cleanly back then.
 
 **Analyst can still create bookings**
-- Verify the policy is in ENFORCE mode (not LOG_ONLY)
+- Verify you ran `make deploy POLICY_MODE=ENFORCE` (not just `make deploy`, which defaults to LOG_ONLY).
 - The user must log in via the Cognito Hosted UI (click Login button). Direct API auth doesn't carry OAuth claims.
 
 **Queries return zero results**

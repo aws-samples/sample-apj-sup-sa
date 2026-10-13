@@ -1,0 +1,35 @@
+# The image only builds the React/Vite SPA (src/, public/, package.json). Keep
+# everything else out of the build context — the CDK modules each carry their own
+# node_modules, and shipping them makes `cdk deploy` transfer >1 GB for nothing.
+
+# Dependencies and build output, at any depth.
+**/node_modules
+**/dist
+**/cdk.out
+
+# Sibling CDK modules and tests — not inputs to the SPA build.
+infra
+database
+opensearch-zeroetl
+connect-ai-agent
+connect-routing
+connect-screenshare
+connect-a2a
+e2e
+
+# Docs, reference material, and the retired knowledge-base module.
+docs
+*.md
+*.docx
+references
+samples
+knowledge-base
+
+# Local tooling and noise.
+.git
+.gitignore
+*.log
+npm-debug.log*
+.DS_Store
+.vscode
+.kiro

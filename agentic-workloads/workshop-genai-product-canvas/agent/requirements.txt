@@ -1,0 +1,32 @@
+# Baseline agent dependencies.
+#
+# Three Python versions are in play, and they are not in conflict:
+#   3.11  what you develop on - the Code Editor builds /workshop/.venv with
+#         python3.11, the system Python on Amazon Linux 2023
+#   3.12  what the code runs on in AWS - the AgentCore Runtime (PYTHON_3_12 in
+#         agent/agentcore/agentcore.json) and every Lambda in infra/
+#   3.10  the floor the package itself supports (requires-python in pyproject.toml)
+#
+# Version floors below are kept identical to pyproject.toml, which is what the
+# AgentCore CLI installs into the deployed runtime. They are the versions this
+# workshop has actually been run against - the older, looser floors that used to
+# be here resolved to APIs the agent no longer uses.
+
+# Agent framework
+strands-agents>=1.15.0
+strands-agents-tools>=0.1.0
+
+# AgentCore Runtime SDK (Mode 3: deploy the same agent to a managed runtime)
+bedrock-agentcore>=1.9.1
+
+# Model Context Protocol client (Mode 2: connect to remote Gateway tools)
+mcp~=1.24.0
+
+# OpenTelemetry distro for AgentCore Observability (token usage, latency, traces).
+# When you deploy with the AgentCore CLI the runtime auto-instruments, but keeping
+# this here means local runs and self-managed hosts emit the same telemetry.
+aws-opentelemetry-distro>=0.10.0
+
+# AWS + HTTP
+boto3>=1.34.0
+requests>=2.31.0

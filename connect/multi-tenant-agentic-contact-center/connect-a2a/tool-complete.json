@@ -1,0 +1,23 @@
+{
+  "toolName": "Complete",
+  "toolType": "RETURN_TO_CONTROL",
+  "description": "End the conversation after the partner assistant completed it.",
+  "instruction": {
+    "instruction": "Call this when the partner assistant (Level3) finishes with COMPLETE."
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Reason of completion"
+      }
+    },
+    "required": [
+      "reason"
+    ]
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

@@ -1,0 +1,392 @@
+## Source for docs/architecture.png
+##
+## Combined end-to-end view: offline ingest (numbered 1-5) and the live
+## conversation runtime (lettered A-I) on one canvas.
+##
+## Rendered with the AWS diagram-as-code tool (awsdac):
+##   awsdac docs/architecture.yaml -o docs/architecture.png
+##
+## The runtime shown is the hosted path (scripts/deploy.py). In local mode the
+## browser talks straight to the laptop over SmallWebRTC, and CloudFront, the
+## ALB, Fargate and Daily all drop out.
+
+Diagram:
+  DefinitionFiles:
+    - Type: URL
+      Url: https://raw.githubusercontent.com/awslabs/diagram-as-code/main/definitions/definition-for-aws-icons-light.yaml
+
+  Links:
+    ## --- Ingest: offline, once per video -----------------------------------
+    - Source: Presenter
+      SourcePosition: S
+      Target: IngestCli
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceRight:
+          Title: "1 drop an mp4"
+
+    - Source: IngestCli
+      SourcePosition: NE
+      Target: Deepgram
+      TargetPosition: W
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "2 batch transcript"
+
+    - Source: IngestCli
+      SourcePosition: SW
+      Target: BedrockIngest
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "3 overview, captions, embeddings"
+
+    - Source: IngestCli
+      SourcePosition: S
+      Target: IndexFile
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "4 write index"
+
+    - Source: IndexFile
+      SourcePosition: S
+      Target: Assets
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "5 sync"
+
+    ## --- Runtime: per session / per question -------------------------------
+    - Source: Viewer
+      SourcePosition: S
+      Target: CloudFront
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "A HTTPS + Basic Auth"
+
+    - Source: CloudFront
+      SourcePosition: S
+      Target: ALB
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "B secret header only"
+
+    - Source: ALB
+      SourcePosition: S
+      Target: Task
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceLeft:
+          Title: "C app + UI"
+
+    - Source: Daily
+      SourcePosition: W
+      Target: Viewer
+      TargetPosition: E
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "D mic and speaker"
+
+    - Source: Task
+      SourcePosition: E
+      Target: Daily
+      TargetPosition: SW
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "E bot audio"
+
+    - Source: Task
+      SourcePosition: NE
+      Target: Deepgram
+      TargetPosition: SW
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        SourceRight:
+          Title: "F streaming STT and TTS"
+
+    - Source: Task
+      SourcePosition: S
+      Target: BedrockRuntime
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "G reason + call tools"
+
+    - Source: Task
+      SourcePosition: SW
+      Target: Assets
+      TargetPosition: NE
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: SE
+      Target: Secret
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: SE
+      Target: Logs
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: SE
+      Target: AgentCore
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "H ask_the_world"
+
+    - Source: AgentCore
+      SourcePosition: N
+      Target: PublicWeb
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetRight:
+          Title: "I web search via Gateway"
+
+  Resources:
+    Canvas:
+      Type: AWS::Diagram::Canvas
+      Direction: vertical
+      Children:
+        - TopRow
+        - AWSCloud
+
+    TopRow:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - IngestLane
+        - Viewer
+        - Outside
+
+    ## --- Offline ingest lane ----------------------------------------------
+    IngestLane:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Laptop - talk2vid-ingest (offline, once per video)"
+      Direction: vertical
+      Children:
+        - Presenter
+        - IngestCli
+        - IndexFile
+
+    Presenter:
+      Type: AWS::Diagram::Resource
+      Preset: "User"
+      Title: "Presenter"
+
+    IngestCli:
+      Type: AWS::Diagram::Resource
+      Preset: "Toolkit"
+      Title: "ffprobe + ffmpeg: probe, scene cuts, segments"
+
+    IndexFile:
+      Type: AWS::Diagram::Resource
+      Preset: "JSON script"
+      Title: "index.json + .npz vectors"
+
+    ## --- Everything outside AWS -------------------------------------------
+    Outside:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Outside AWS - reached outbound only, no inbound path"
+      Direction: vertical
+      Children:
+        - Deepgram
+        - Daily
+        - PublicWeb
+
+    Deepgram:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic application"
+      Title: "Deepgram Nova-3 STT / Aura-2 TTS"
+
+    Daily:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic application"
+      Title: "Daily (WebRTC media, hosted mode only)"
+
+    PublicWeb:
+      Type: AWS::Diagram::Resource
+      Preset: "Internet"
+      Title: "Public web"
+
+    ## --- Live viewer -------------------------------------------------------
+    Viewer:
+      Type: AWS::Diagram::Resource
+      Preset: "User"
+      Title: "Viewer (browser: player + mic)"
+
+    ## --- AWS ---------------------------------------------------------------
+    AWSCloud:
+      Type: AWS::Diagram::Cloud
+      Preset: AWSCloudNoLogo
+      Direction: vertical
+      Children:
+        - Region
+
+    Region:
+      Type: AWS::Region
+      Title: "us-east-1"
+      Direction: vertical
+      Children:
+        - CloudFront
+        - VPC
+        - Backends
+
+    CloudFront:
+      Type: AWS::CloudFront
+      Title: "CloudFront + Basic Auth function"
+
+    VPC:
+      Type: AWS::EC2::VPC
+      Direction: vertical
+      Children:
+        - ALB
+        - Subnet
+
+    ALB:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Title: "ALB - default action 403, forwards only on the secret header"
+
+    Subnet:
+      Type: AWS::EC2::Subnet
+      Preset: PublicSubnet
+      Title: "Public subnet (1 of 2 AZs)"
+      Children:
+        - Task
+
+    Task:
+      Type: AWS::ECS::Service
+      Title: "Fargate task, ARM64 - FastAPI + Pipecat voice bot"
+
+    Backends:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - BedrockIngest
+        - Assets
+        - BedrockRuntime
+        - Secret
+        - Logs
+        - AgentCore
+
+    BedrockIngest:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Amazon Bedrock - ingest models"
+      Direction: vertical
+      Children:
+        - Pegasus
+        - NovaLite
+        - NovaMME
+
+    Pegasus:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Bedrock"
+      Title: "TwelveLabs Pegasus 1.2: overview + chapters"
+
+    NovaLite:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Nova"
+      Title: "Amazon Nova 2 Lite: visual captions"
+
+    NovaMME:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Nova"
+      Title: "Amazon Nova 2 MME: multimodal embeddings"
+
+    Assets:
+      Type: AWS::S3::Bucket
+      Title: "S3 - index + media (private, SSE-S3); hosted task syncs at start"
+
+    BedrockRuntime:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Amazon Bedrock - runtime"
+      Direction: vertical
+      Children:
+        - Haiku
+        - NovaLiteLive
+
+    Haiku:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Bedrock"
+      Title: "Claude Haiku 4.5 (cached prompt, tools)"
+
+    NovaLiteLive:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Nova"
+      Title: "Nova 2 Lite + MME: look_closer, query embeds"
+
+    Secret:
+      Type: AWS::SecretsManager::Secret
+      Title: "Secrets Manager - API keys"
+
+    Logs:
+      Type: AWS::Logs
+      Title: "CloudWatch Logs"
+
+    AgentCore:
+      Type: AWS::Diagram::Resource
+      Preset: "Agent"
+      Title: "Bedrock AgentCore harness + web-search gateway"

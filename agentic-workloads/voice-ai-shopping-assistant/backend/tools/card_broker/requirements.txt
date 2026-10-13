@@ -1,0 +1,5 @@
+# card_broker issues a real virtual card via Stripe Issuing (test mode). The
+# stripe SDK is pure Python, so CDK/CLI can bundle it without Docker. boto3 is
+# also pinned current for consistency with the other payment Lambdas.
+stripe>=10.0.0
+boto3>=1.43.27

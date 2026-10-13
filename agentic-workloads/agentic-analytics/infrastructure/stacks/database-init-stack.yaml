@@ -126,3 +126,7 @@ Outputs:
   AppDatabaseSecretArn:
     Description: Secrets Manager ARN for app_user DB credentials (used by Lambda tools)
     Value: !GetAtt DatabaseInitTrigger.AppDatabaseSecretArn
+    # NOTE: do not rename — imported by agentcore-topup-stack.yaml (workshop) as
+    # ${EnvironmentName}-AppDatabaseSecretArn. Renaming/removing breaks the import.
+    Export:
+      Name: !Sub ${EnvironmentName}-AppDatabaseSecretArn

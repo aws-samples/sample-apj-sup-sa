@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "aws-bento-deck",
+  "displayName": "AWS Bento Deck",
+  "version": "1.0.0",
+  "description": "Build AWS-branded BENTO presentations (self-contained .bento.html) from a plan file, with a three-phase PLAN -> BUILD -> QA workflow.",
+  "author": {
+    "name": "AWS Samples"
+  },
+  "homepage": "https://github.com/aws-samples/sample-apj-sup-sa/tree/main/ai-coding-assistants/skills/aws-bento-deck",
+  "repository": "https://github.com/aws-samples/sample-apj-sup-sa",
+  "keywords": ["aws", "presentation", "bento", "slides", "deck", "branding"]
+}

@@ -1,0 +1,15 @@
+node_modules/
+cdk.out/
+cdk.context.json
+coverage/
+dist/
+*.js
+*.d.ts
+*.js.map
+# Keep genuine JS sources (not TypeScript build output)
+!jest.config.js
+!scripts/validate-gateway-config.js
+docker/claude
+docker/manifest.json
+docker/manifest.json.sig
+.DS_Store

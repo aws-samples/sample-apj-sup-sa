@@ -1,327 +1,341 @@
-# Amazon Bedrock Service-Tier Latency Benchmark
+# Amazon Bedrock Service-Tier Benchmark
 
-Measure and compare **first-token and end-to-end latency** across Amazon Bedrock's
-three on-demand **service tiers** — `default` (Standard), `flex`, and `priority` —
-for any text model, over two invocation paths.
+Measure how much latency each Amazon Bedrock
+[service tier](https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html)
+costs or saves for the model you use, in the exact way you call it.
 
-Amazon Bedrock lets you pick a [service tier](https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html)
-per request to trade off cost and latency: `flex` is cheaper for latency-tolerant
-work, `priority` pays a premium for preferential processing, and `default` is the
-balanced baseline. This sample answers the practical question **"how much latency
-does each tier actually cost or save for the model I use?"** by running a careful,
-rate-limited A/B/C benchmark and producing a self-contained HTML report.
+Bedrock lets you choose a tier per request: `flex` is discounted for latency-tolerant work,
+`priority` costs more for preferential processing, `default` (Standard) is the baseline, and
+`reserved` is contracted capacity. The answer to "how much slower is flex?" depends on more than
+the model. This benchmark compares tiers **within one context** across these dimensions:
 
-Measurement is delegated to [AWS Labs **LLMeter**](https://github.com/awslabs/llmeter);
-this sample adds per-request service-tier selection, a request-paced scheduler that
-stays within account limits, automatic model discovery, and tier-comparison reporting.
+| Dimension | Values |
+|---|---|
+| Endpoint | `runtime` (`bedrock-runtime`, AWS's recommended endpoint), `mantle` (`bedrock-mantle`) |
+| API | ConverseStream, Converse, InvokeModel(WithResponseStream), Chat Completions, Responses, Anthropic Messages |
+| Inference scope | in-Region model id, geographic profile (`us.`…), global profile (`global.`) |
+| Region | the source region you call from |
+| Prompt size | `small` ≈1.5k, `medium` ≈10k, `large` ≈100k input tokens |
+| Prompt cache | `cold`, `warm_implicit`, `warm_explicit` |
+| Tier | `default`, `flex`, `priority`, `reserved` |
+
+Run it from a laptop or CI and open the self-contained, filterable `report.html`. The
+`summary.json` it writes is a stable, versioned format, so results can also be loaded into a
+dashboard or database of your own.
 
 > [!IMPORTANT]
-> This sample sends real inference requests to Amazon Bedrock and **incurs cost**.
-> See [Cost](#cost) before running. A full run is ~6,000 short requests.
-
----
+> This sample sends real inference requests to Amazon Bedrock and **incurs cost**. Run
+> `bedrock-bench --dry-run` first: it prints the request count and token volume without calling AWS.
+> See [Cost](#cost).
 
 ## Table of contents
 
-- [How it works](#how-it-works)
 - [What it measures](#what-it-measures)
+- [How the measurement stays accurate](#how-the-measurement-stays-accurate)
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
 - [Usage](#usage)
-- [Sample output](#sample-output)
+- [Outputs](#outputs)
+- [Sample results](#sample-results)
+- [Model discovery](#model-discovery)
 - [Cost](#cost)
-- [Cleanup](#cleanup)
 - [Security](#security)
+- [Cleanup](#cleanup)
 - [Project structure](#project-structure)
-- [How the benchmark stays within limits](#how-the-benchmark-stays-within-limits)
 - [Limitations](#limitations)
+- [Development](#development)
 - [References](#references)
-
----
-
-## How it works
-
-The benchmark runs as a four-stage pipeline:
-
-1. **Discover** — probe every Bedrock text model on each transport to learn which
-   service tiers it actually serves, and write a generated registry
-   (`bedrock_bench/models.json`). Models that serve only `default` are excluded —
-   there is nothing to compare.
-2. **Expand** — turn the registry into a matrix of *cells*, one per
-   (model × transport × tier).
-3. **Run** — the scheduler invokes the cells with strict pacing — **1 request per
-   model per minute**, tiers interleaved, models in parallel (see
-   [below](#how-the-benchmark-stays-within-limits)) — over both the InvokeModel and
-   Mantle transports.
-4. **Report** — reduce each cell's samples to latency percentiles and render the
-   flex-vs-default and priority-vs-default comparison as HTML, Markdown, JSON, and CSV.
-
-### Transports
-
-| Transport | API | Authentication |
-|---|---|---|
-| **InvokeModel** | `bedrock-runtime` `InvokeModelWithResponseStream` (streaming) | AWS SigV4 (IAM) |
-| **Mantle** | [`bedrock-mantle`](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) OpenAI-compatible Chat Completions (streaming) | Bedrock bearer token |
-
-The same model may be reachable on one or both transports, with different model IDs
-and different per-tier support — all captured automatically by discovery.
 
 ## What it measures
 
-For every cell, over `n` samples (default 30):
+Definitions follow [NVIDIA AIPerf](https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html)
+and [Artificial Analysis](https://artificialanalysis.ai/methodology/performance-benchmarking).
+The full methodology is in [docs/DESIGN.md](docs/DESIGN.md).
 
-- **TTFT** — Time To First Token: how long until the first streamed token arrives
-  (the user-perceived responsiveness).
-- **Total latency** — Time to the last token (full response).
+| Metric | Meaning |
+|---|---|
+| **TTFT** | Time to first token: request start to the first non-empty streamed text or reasoning. |
+| **TTFAT** | Time to first *answer* token (after any reasoning). Equals TTFT for non-reasoning models. |
+| **E2E** | End-to-end latency: request start to the last streamed token. |
+| **ITL** | Inter-token latency: `(E2E − TTFT) / (output tokens − 1)`. |
+| **Output tok/s** | Decode speed after the first token. |
+| **Server first byte** | Bedrock's own first-byte latency, where the API reports it, to separate time inside Bedrock from network time. |
+| **Burst** | Share of samples whose stream arrived all at once after queueing (decode under 5% of E2E). Flex often behaves this way, so for flex compare **E2E**, not ITL. |
 
-Reported as **p20 / p50 / p90**, plus the **Δp50** of `flex` and `priority`
-against `default`. Throughput is intentionally **not** measured, to keep request
-volume low and stay clear of tokens-per-minute limits.
+Each cell reports n, mean, stdev and p50 / p90 / p95 / p99. Each non-default tier is compared with
+`default` in the same context as **Δp50**, with a bootstrap 95% confidence interval; a difference whose
+interval includes zero is marked *not significant*.
+
+## How the measurement stays accurate
+
+- **No accidental cache hits.** Bedrock caches prompt prefixes automatically. Every cold request starts
+  with a random `Request <uuid>` line and a freshly generated document, and every sample's cache-read
+  tokens are checked: a cold sample that read from cache is excluded and counted as
+  `cache_contaminated`.
+- **Warm cache is verified, not assumed.** Warm cells reuse one document per cell, send one discarded
+  priming request, and keep only samples that report cache-read tokens (`warm_miss` otherwise).
+  `warm_explicit` adds the API's native cache checkpoint (Converse `cachePoint`, `prompt_cache_breakpoint`
+  for OpenAI-compatible APIs, `cache_control` for Messages).
+- **The tier you got is the tier you measured.** The served tier is read from each response; samples
+  served on another tier are excluded as `tier_mismatch`.
+- **Fair ordering and pacing.** Requests to one model id, endpoint and region run one at a time,
+  `--interval` seconds apart; the tier order is shuffled every round; one warm-up request per cell is
+  discarded; SDK retries are disabled so throttles are recorded, not hidden.
+- **Reasoning models answer.** Reasoning effort defaults to `none` (configurable) so output budgets go
+  to answer tokens; reasoning tokens are reported.
+- **Responses API data is not retained.** Responses requests always send `store=false`.
 
 ## Prerequisites
 
 - **Python 3.10+**
-- **An AWS account** with [Amazon Bedrock model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)
-  enabled for the models you want to benchmark, in `us-east-1` and/or `us-west-2`.
-- **AWS credentials** available to the standard
-  [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html)
-  (environment variables, a named profile, or an instance/container role).
-- For the **Mantle** transport: permission to mint and use Bedrock bearer tokens
-  (see the IAM policy below).
+- **An AWS account** with access to the Amazon Bedrock models you want to benchmark.
+- **AWS credentials** for the standard
+  [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html).
 
 ### IAM permissions (least privilege)
 
-The inference actions are scoped to model / inference-profile ARNs; only the
-discovery and identity APIs (which do not act on a specific resource) use `"*"`.
-Replace `REGION` / `ACCOUNT_ID`, or narrow the ARNs to the exact models you
-benchmark.
+Narrow the resources to the models and profiles you benchmark.
 
 ```jsonc
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "InvokeModelTransport",
+      "Sid": "BedrockRuntimeInference",
       "Effect": "Allow",
-      "Action": ["bedrock:InvokeModelWithResponseStream", "bedrock:InvokeModel"],
-      // Scope to the models / inference profiles you actually benchmark:
+      "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
       "Resource": [
         "arn:aws:bedrock:*::foundation-model/*",
-        "arn:aws:bedrock:*:ACCOUNT_ID:inference-profile/*"
+        "arn:aws:bedrock:*:ACCOUNT_ID:inference-profile/*",
+        "arn:aws:bedrock:*:ACCOUNT_ID:project/default" // OpenAI-compatible APIs on bedrock-runtime
       ]
     },
     {
-      "Sid": "MantleTransport",
+      "Sid": "BedrockApiKeys",            // short-lived bearer tokens for the OpenAI/Messages APIs
       "Effect": "Allow",
-      "Action": ["bedrock-mantle:CallWithBearerToken", "bedrock-mantle:CreateInference"],
-      "Resource": "*"  // Mantle actions are not resource-scoped
+      "Action": ["bedrock:CallWithBearerToken"],
+      "Resource": "*"
     },
     {
-      // Discovery + run metadata: these list/identity APIs require "*"
-      // (they do not operate on a specific resource).
-      "Sid": "DiscoveryAndMetadata",
+      "Sid": "MantleInference",           // scoped to Mantle projects in your account
       "Effect": "Allow",
-      "Action": [
-        "bedrock:ListFoundationModels",
-        "bedrock:ListInferenceProfiles",
-        "sts:GetCallerIdentity"
-      ],
+      "Action": ["bedrock-mantle:CreateInference"],
+      "Resource": "arn:aws:bedrock-mantle:*:ACCOUNT_ID:project/*"
+    },
+    {
+      "Sid": "MantleBearerToken",         // this action does not support resource-level scoping
+      "Effect": "Allow",
+      "Action": ["bedrock-mantle:CallWithBearerToken"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Identity",
+      "Effect": "Allow",
+      "Action": ["sts:GetCallerIdentity"],
       "Resource": "*"
     }
   ]
 }
 ```
 
-Cells you lack permission for are dropped at preflight rather than failing the
-whole run.
+Cells you cannot access are dropped at preflight instead of failing the run.
 
 ## Setup
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -e .                     # add ".[dev]" for the test/lint tooling
+pip install --require-hashes -r requirements.lock   # exact, hash-pinned dependencies
+pip install --no-deps -e .
+export BEDROCK_BENCH_PROFILE=my-aws-profile   # optional; otherwise the default chain
 ```
 
-Select credentials with a profile or the standard chain:
-
-```bash
-export BEDROCK_BENCH_PROFILE=my-aws-profile   # optional; else $AWS_PROFILE / default chain
-```
+`requirements.lock` (runtime) and `requirements-dev.lock` (adds tests and linters) pin every
+dependency, including transitive ones, with hashes. Regenerate them with
+`uv pip compile pyproject.toml --generate-hashes -o requirements.lock` (add `--extra dev` for the dev
+file) and check them with `pip-audit -r requirements-dev.lock --require-hashes --disable-pip`.
 
 ## Usage
 
-The package installs two console scripts (`bedrock-bench`, `bedrock-bench-discover`).
-Equivalent `python -m bedrock_bench …` forms are shown in comments.
-
 ```bash
-# 1. Print the benchmark matrix and a time estimate — no AWS calls, no cost:
-bedrock-bench --dry-run
+# Models in the registry (bedrock_bench/models.json):
+bedrock-bench --list-models
 
-# 2. Probe every cell once to confirm access/tiers (a few cheap requests):
-bedrock-bench --preflight-only
+# Print the matrix, request count, token volume and time estimate. No AWS calls:
+bedrock-bench --dry-run --keys zai.glm-5.3 --scopes geo
 
-# 3. A quick, low-cost real run end to end (2 models, fast cadence):
-bedrock-bench --keys zai.glm-5,deepseek.v3.2 -n 3 --interval 3
+# Probe every cell once (a few tiny requests) and print go / no-go:
+bedrock-bench --preflight-only --keys zai.glm-5.3 --scopes geo
 
-# 4. A full run: all discovered models, default+flex+priority, n=30, 1 req/min/model:
-bedrock-bench -n 30
+# Quick run (default preset): 2 APIs, small cold prompts, default vs flex, n=5:
+bedrock-bench --keys zai.glm-5.3 --scopes geo
 
-# Regenerate the model registry after Bedrock's catalog changes:
-bedrock-bench-discover            # python -m bedrock_bench.discovery
+# Standard preset: 5 APIs on both endpoints, small+medium, cold+warm_implicit, 3 tiers, n=30:
+bedrock-bench --preset standard --keys zai.glm-5.3,moonshotai.kimi-k3
+
+# Exactly one context, e.g. GLM 5.3, Converse, global profile, large cold prompt:
+bedrock-bench --keys zai.glm-5.3 --apis converse_stream --scopes global \
+  --prompt-sizes large --cache-modes cold --tiers default,flex,priority -n 30
+
+# Re-render the HTML report from an existing summary:
+bedrock-bench --render results/<run_id>/summary.json
 ```
-
-Common options (`bedrock-bench --help` for all):
 
 | Option | Purpose |
 |---|---|
-| `--keys k1,k2` | Benchmark only specific model keys (see `--dry-run` for the list) |
-| `--families GLM,Qwen` | Restrict to model families |
-| `--transports invoke` | One transport only (`invoke` or `mantle`) |
-| `--tiers flex` | Restrict tiers (`default` is auto-added as the baseline) |
-| `--regions us-east-1` | Region preference order |
-| `-n / --n-requests` | Samples per cell (≥ 30 recommended for stable percentiles) |
-| `--interval` | Seconds between requests per model (default 60) |
-| `--output-dir` | Where reports are written (default `results/`) |
+| `--preset quick\|standard\|full` | Base matrix (explicit flags override it). |
+| `--keys`, `--families` | Choose models. |
+| `--endpoints`, `--apis`, `--scopes`, `--regions` | Choose how requests are sent. |
+| `--prompt-sizes`, `--cache-modes`, `--tiers` | Choose workload and treatments (`default` is always added). |
+| `-n`, `--interval`, `--warmup` | Samples per cell, seconds between request starts, discarded warm-ups. |
+| `--reasoning-effort` | `none` (default), `low`, … or `model-default`. |
+| `--timeout`, `--flex-timeout` | Per-request ceilings (flex queues; default 600 s). |
+| `--public` | Mask the account id and drop the profile name in reports. |
 
-## Sample output
+## Outputs
 
-Each run writes a timestamped folder under `results/<run_id>/`:
+Each run writes `results/<run_id>/`:
 
 | File | Contents |
 |---|---|
-| `report.html` | **Self-contained** report: glossary, an at-a-glance table, and per-model cards with colour-coded `flex`/`priority` deltas vs `default`. Open it in any browser. |
+| `report.html` | Self-contained interactive report: filter by every dimension; tier deltas colour-coded with confidence intervals; per-cell percentiles, cache-hit rate, burst share, exclusions and errors. |
 | `report.md` | The same comparison in Markdown. |
-| `summary.json` | Per-cell percentile summaries + run metadata. |
-| `summary.csv` | One row per cell, for spreadsheets/plotting. |
-| `raw.jsonl` | One line per individual request (written live during the run). |
+| `summary.json` | Machine-readable summaries and comparisons (schema version 2). |
+| `summary.csv` | One row per cell. |
+| `raw.jsonl` | One line per measured request, written live. |
 
-A redacted example report is included at
-[`docs/sample-report/report.html`](docs/sample-report/) so you can see the format
-without running a benchmark.
+## Sample results
 
-Every report shows the **p20 / p50 / p90** percentiles and the Δp50 deltas. The tier
-Bedrock *actually served* (which can differ from what was requested) is captured per
-request and shown in every report.
+[`docs/sample-report/`](docs/sample-report/) holds one standard run from 2026-10-08 (us-east-1,
+12:12-17:04 UTC, `--public`): Kimi K3, GLM 5.3 and GLM 5; runtime and Mantle endpoints; four APIs;
+small and medium prompts; cold and warm_implicit; n=10 per cell, 30 s apart. 120 cells were planned
+and 119 ran (one flex cell failed its preflight with a server error); 1,179 of 1,190 requests succeeded.
+
+Median change against Standard over the cold contexts of each model (TTFT = time to first token,
+E2E = end-to-end; "significant" = 95% bootstrap interval excludes 0):
+
+| Model | Tier | Contexts | Median ΔTTFT | Significant | Median ΔE2E |
+|---|---|---:|---:|---:|---:|
+| Kimi K3 | flex | 8 | +1.2 s (+84%) | 8 of 8 | +4% |
+| Kimi K3 | priority | 8 | -0.14 s (-10%) | 2 of 8 | -10% |
+| GLM 5.3 | flex | 7 | +17.9 s (+460%) | 6 of 7 | +349% |
+| GLM 5.3 | priority | 8 | -2.3 s (-64%) | 8 of 8 | -51% |
+| GLM 5 | flex | 8 | +1.4 s (+125%) | 4 of 8 | -11% |
+| GLM 5 | priority | 8 | -0.03 s (-4%) | 1 of 8 | -28% |
+
+On average 46% of flex samples were bursts (queued, then streamed all at once), against 3% for Standard.
+Priority helped most where Standard was slow (GLM 5.3: Standard TTFT p50 about 3.6 s).
+All 480 warm_implicit samples were excluded as `warm_miss`: every request wrote the prompt cache and
+none read it (see [Limitations](#limitations)), so the warm rows in this report are empty.
+
+## Model discovery
+
+No Bedrock API reports which tiers, APIs or scopes a model supports. `bedrock-bench-discover` reads the
+[endpoint-availability page](https://docs.aws.amazon.com/bedrock/latest/userguide/models-endpoint-availability.html)
+and every model card, then (with `--probe`) confirms each documented tier with one tiny live request.
+
+```bash
+bedrock-bench-discover --dry-run                       # documentation only, prints the list
+bedrock-bench-discover --models "GLM 5.3,Kimi K3" --probe   # verify and write models.json
+```
+
+Only text models with more than one on-demand tier are kept. Each geo inference profile (`us.`,
+`eu.`, `apac.`, `jp.`, `au.`, `ca.`, `in.`) is limited to the source regions of its own geography.
+A run that would drop models or replace probed entries with documentation-only ones is refused
+unless you pass `--force`.
+
+As of October 2026 the documentation lists 43 multi-tier text models; 33 of them are also served on
+`bedrock-mantle`.
 
 ## Cost
 
-This sample calls Amazon Bedrock with real inference requests, **billed per token**
-at each tier's rate. There is no AWS Free Tier for these calls.
+Requests are billed per token at each tier's rate; there is no free tier for these calls.
 
-- The prompt is short and `max_tokens` defaults to **200**, so each request is small.
-- A **full run** is roughly `models × transports × tiers × n` requests — on the order
-  of **~6,000 short requests** with the default registry and `n=30`.
-- Use `--dry-run` to see the exact request count first, and `--keys` / `--families` /
-  `-n` to scope a smaller, cheaper run.
+- `--dry-run` prints the request count, approximate input tokens and maximum output tokens.
+- Every cold request uses a new prompt, so Bedrock writes it to the prompt cache; for models that charge
+  more for cache writes than for input, cold cells cost more than plain input pricing suggests.
+- `large` prompts are ~100k tokens each; keep them to targeted runs.
 
-You are responsible for the cost of the Bedrock usage this tool generates. See
-[Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/).
-
-## Cleanup
-
-This sample creates **no persistent AWS resources** — it only makes on-demand
-inference calls, so there is nothing to tear down in your account. To remove local
-artifacts:
-
-```bash
-rm -rf results/        # generated reports and raw samples
-deactivate && rm -rf .venv
-```
+See [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/).
 
 ## Security
 
-- **No long-lived secrets in code.** Credentials resolve through the standard boto3
-  chain; no access keys are embedded or required as arguments.
-- **Mantle bearer tokens are short-lived and in-memory.** They are minted from the
-  resolved credentials, cached with a short TTL, refreshed in memory, and never
-  written to disk or logged.
-- **Reports contain no secrets.** Tokens, headers, and request bodies never appear in
-  any output file or log. By default, reports include the AWS **account ID** and
-  **profile name** as run metadata — run with **`--public`** to mask the account ID
-  and drop the profile, producing a report that is safe to share externally.
-- **Generated HTML is escaped.** All dynamic values (model IDs, served-tier labels,
-  error strings) are HTML-escaped before rendering (no XSS from model output).
+- **No long-lived secrets.** Credentials come from the boto3 chain. Bedrock bearer tokens are minted
+  in memory from those credentials, cached for under 12 hours, and never written to disk or logged.
+- **Only Bedrock documentation is fetched** by discovery (HTTPS, `docs.aws.amazon.com/bedrock/`).
+- **Reports contain no secrets.** Use `--public` to mask the account id before sharing.
+- **The HTML report is static and escaped.** Data is embedded as JSON and rendered with `textContent`;
+  a Content-Security-Policy blocks all network access.
+- **Responses API requests send `store=false`**, so Bedrock does not retain them.
 
-To report a security issue, follow the disclosure process of the repository this
-sample is published under.
+To report a security issue, follow the disclosure process of the repository this sample is published under.
+
+## Cleanup
+
+The CLI creates no AWS resources. Remove local artifacts with:
+
+```bash
+rm -rf results/ && deactivate && rm -rf .venv
+```
 
 ## Project structure
 
 ```
 bedrock_bench/
-├── __main__.py      # CLI entry point (bedrock-bench)
-├── config.py        # enums (Tier/Transport/PayloadStyle) + BenchmarkConfig
-├── discovery.py     # probes models for tier support → models.json (bedrock-bench-discover)
-├── registry.py      # loads the generated model registry
-├── models.json      # generated registry of benchmarkable models
-├── cells.py         # expands config × registry into the measurement matrix
-├── auth.py          # boto3 clients + Mantle bearer-token broker
-├── endpoints.py     # LLMeter endpoint adapters that add serviceTier selection
-├── payloads.py      # per-transport request bodies
-├── scheduler.py     # rate-paced async execution engine
-├── metrics.py       # percentile statistics
-├── report.py        # JSON / CSV / Markdown reports
-├── html_report.py   # self-contained HTML report
-└── benchmark.py     # orchestrator (discovery → preflight → run → report)
-tests/               # unit tests (pytest); all AWS/network calls are mocked
+├── __main__.py        # CLI (bedrock-bench)
+├── config.py          # dimensions (enums) + BenchmarkConfig
+├── registry.py        # models.json schema v2 (offerings per endpoint / API / scope)
+├── models.json        # generated registry
+├── catalog.py         # parses Bedrock docs (endpoint availability, model cards)
+├── discovery.py       # docs + live probes -> models.json (bedrock-bench-discover)
+├── cells.py           # expands config x registry into cells
+├── prompts.py         # cold / warm prompt generation
+├── apis/              # one adapter per API (Converse, InvokeModel, OpenAI-compatible, Messages)
+├── runner.py          # paced execution, sample verification
+├── metrics.py         # percentiles, bootstrap CIs, burst detection
+├── report.py          # JSON / CSV / Markdown
+├── html_report.py     # interactive self-contained HTML
+└── benchmark.py       # orchestrator (estimate -> preflight -> run -> report)
+docs/DESIGN.md         # methodology and rationale
+tests/                 # unit tests (no AWS calls)
 ```
-
-## How the benchmark stays within limits
-
-Latency comparisons are only fair if requests aren't being throttled or queued, so
-the scheduler is deliberate about pacing:
-
-- A **pacing domain** = (transport, model, region). Within a domain, requests run
-  **serially** with `--interval` seconds between starts (default 60 → **1 request per
-  model per minute**), and the tiers are **interleaved** (default → flex → priority →
-  …) so a model's tiers share one cadence and see comparable conditions.
-- Domains run **in parallel**, so total wall-clock ≈ `tiers × n × interval` per model
-  regardless of how many models — they all run concurrently. A full default run takes
-  ~90 minutes.
-- Per-request retries are disabled so a transient throttle surfaces as one recorded
-  error rather than a silently slow sample.
 
 ## Limitations
 
-- **Statistical strength scales with `n`.** At the default `n=30`, p50/p90 are
-  reliable; treat tail latency as directional and use a larger `n` for firm
-  tail-latency claims.
-- **Latency depends on conditions** — region, time of day, prompt size, and overall
-  Bedrock load. Treat results as a snapshot, and compare tiers *within the same run*
-  rather than across runs.
-- Some models stream differently; a few report total latency without a separable
-  first-token signal, which shows as a reduced TTFT sample count for those cells.
-- `service_tier` support and model availability change over time; re-run discovery to
-  refresh the registry.
-
-## References
-
-- [Amazon Bedrock service tiers](https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html)
-- [Amazon Bedrock Mantle (OpenAI-compatible endpoint)](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html)
-- [AWS Labs LLMeter](https://github.com/awslabs/llmeter)
-- [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/)
+- **Results are a snapshot.** Latency depends on time of day, region and overall load. Compare tiers
+  within one run; use n ≥ 30 for stable medians and treat p99 as directional.
+- **Flex queues.** Flex requests may wait tens of seconds and then stream all at once; the report's
+  Burst column shows when that happened.
+- **Documentation can lag.** Discovery's `--probe` step is the ground truth for tier support.
+- **Reserved tier** needs a capacity reservation and is only benchmarked when requested.
+- **Anthropic Messages API** is supported by the benchmark, but as of October 2026 no model that
+  offers it (Claude) also lists Flex or Priority, so no Messages cell has a tier to compare against.
+- **Implicit caching may not hit through a geographic profile.** In the sample run Kimi K3 and
+  GLM 5.3 (both via `us.` profiles) reported a cache write on every warm request and a cache read on
+  none, so all warm_implicit samples were excluded as `warm_miss`. A likely cause is that the profile
+  routes requests to different regions, which do not share a cache. Use `--scopes in_region` where available to measure warm latency.
+- **Served tier must be reported.** A flex or priority sample whose response does not say which tier
+  served it is excluded (`tier_unreported`), because it cannot be told apart from Standard.
 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-ruff check bedrock_bench/ tests/      # lint
-ruff format bedrock_bench/ tests/     # format
-mypy bedrock_bench/                   # type check
-pytest -q                             # tests (no AWS calls; all mocked)
+pip install --require-hashes -r requirements-dev.lock && pip install --no-deps -e .
+ruff check bedrock_bench tests && ruff format --check bedrock_bench tests
+mypy bedrock_bench
+pytest -q
+bandit -c pyproject.toml -r bedrock_bench
+pip-audit
 ```
 
-### Security scanning
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
-```bash
-bandit -c pyproject.toml -r bedrock_bench/   # Python SAST
-pip-audit                                    # dependency CVE scan
-checkov -d . --compact                       # IaC / secrets scan
-```
+## References
 
-This is a pure-Python sample with no infrastructure-as-code, so Checkov reports no
-scannable resources and its secrets scan is clean; `bandit` (Python SAST) and
-`pip-audit` (dependency CVEs) provide the meaningful coverage and both pass clean.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+- [Amazon Bedrock service tiers](https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html)
+- [Endpoints supported by Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html)
+- [Responses API on Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-responses-api.html)
+- [Prompt caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
+- [NVIDIA AIPerf metrics](https://docs.nvidia.com/nim/benchmarking/llm/latest/metrics.html)
+- [Artificial Analysis benchmarking methodology](https://artificialanalysis.ai/methodology/performance-benchmarking)
+- [Amazon Bedrock pricing](https://aws.amazon.com/bedrock/pricing/)

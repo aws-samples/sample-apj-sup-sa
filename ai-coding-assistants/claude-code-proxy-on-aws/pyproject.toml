@@ -24,7 +24,7 @@ dependencies = [
 
 [dependency-groups]
 infra = [
-    "aws-cdk-lib==2.246.0",
+    "aws-cdk-lib==2.253.0",
     "constructs>=10,<11",
 ]
 dev = [

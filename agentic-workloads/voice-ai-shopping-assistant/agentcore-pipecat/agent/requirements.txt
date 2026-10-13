@@ -1,0 +1,7 @@
+aiohttp
+aioboto3
+boto3
+bedrock-agentcore
+python-dotenv
+loguru
+pipecat-ai[aws,daily,deepgram,silero,tavus,runner]>=0.0.103

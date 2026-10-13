@@ -1,0 +1,4 @@
+# create_order calls bedrock-agentcore process_payment (x402), which needs a
+# newer boto3/botocore than the Lambda python3.12 runtime ships. The deployed
+# zip bundled boto3 1.43.26 — pin it so CDK bundling reproduces the live function.
+boto3>=1.43.26

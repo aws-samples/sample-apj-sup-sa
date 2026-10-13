@@ -73,6 +73,11 @@ s3_path() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$INFRA_DIR")"
+# Deployables live under app/: the Strands agent at app/agentcore_strands/, the
+# React UI at app/ui/, and the Pipecat voice bot at app/voice/. These vars keep
+# the rest of the script path-agnostic.
+AGENT_DIR="$PROJECT_ROOT/app/agentcore_strands"
+UI_DIR="$PROJECT_ROOT/app/ui"
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
 
@@ -121,12 +126,24 @@ echo "  observability_setup: $OBSERVABILITY_KEY"
 
 # Package demo-mode artifacts (agent code, datafoundation Lambda, psycopg2 layer, amplify)
 if [ "$DEPLOY_MODE" != "workshop" ]; then
-    # Package datafoundation Lambda (tools for Gateway target)
+    # Package datafoundation Lambda (tools for Gateway target). Hash-versioned like
+    # the other tool Lambdas: the demo stack fronts this function with a provisioned-
+    # concurrency alias (AWS::Lambda::Version), and CFN only republishes the Version
+    # when a template property changes. A fixed S3 key would keep the same S3Key string
+    # across code edits, so CFN would see "no change" and the warm alias would serve
+    # STALE code. The hash suffix flips DataFoundationLambdaKey on every source change,
+    # forcing the function (and its Version/alias) to update.
     echo "Packaging datafoundation Lambda..."
-    cd "$PROJECT_ROOT/app/agentcore_strands"
+    cd "$AGENT_DIR"
     zip -j "$TEMP_DIR/datafoundation_lambda.zip" tools/prebaked_sql_toolset_lambda.py > /dev/null
-    aws s3 cp "$TEMP_DIR/datafoundation_lambda.zip" "s3://$BUCKET/$(s3_path "lambda/datafoundation_lambda.zip")" --region $REGION > /dev/null
-    echo "  datafoundation: lambda/datafoundation_lambda.zip"
+    if command -v sha256sum &> /dev/null; then
+        HASH=$(sha256sum "$TEMP_DIR/datafoundation_lambda.zip" | cut -c1-8)
+    else
+        HASH=$(shasum -a 256 "$TEMP_DIR/datafoundation_lambda.zip" | cut -c1-8)
+    fi
+    DATAFOUNDATION_KEY="lambdas/datafoundation-${HASH}.zip"
+    aws s3 cp "$TEMP_DIR/datafoundation_lambda.zip" "s3://$BUCKET/$(s3_path "$DATAFOUNDATION_KEY")" --region $REGION > /dev/null
+    echo "  datafoundation: $DATAFOUNDATION_KEY"
 
     # Package additional tool Lambdas (api_integration, custom_sql, semantic_layer)
     package_tool_lambda() {
@@ -134,7 +151,7 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
         local source_file=$2
         local pkg_dir="$TEMP_DIR/${short}_pkg"
         mkdir -p "$pkg_dir"
-        cp "$PROJECT_ROOT/app/agentcore_strands/tools/$source_file" "$pkg_dir/"
+        cp "$AGENT_DIR/tools/$source_file" "$pkg_dir/"
         (cd "$pkg_dir" && zip -r "$TEMP_DIR/${short}.zip" . > /dev/null)
         if command -v sha256sum &> /dev/null; then
             HASH=$(sha256sum "$TEMP_DIR/${short}.zip" | cut -c1-8)
@@ -162,7 +179,7 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
     echo "Packaging gateway interceptor Lambda..."
     INTERCEPTOR_PKG="$TEMP_DIR/interceptor_pkg"
     mkdir -p "$INTERCEPTOR_PKG"
-    cp "$PROJECT_ROOT/app/agentcore_strands/infra/interceptor_lambda.py" "$INTERCEPTOR_PKG/"
+    cp "$AGENT_DIR/infra/interceptor_lambda.py" "$INTERCEPTOR_PKG/"
     cd "$INTERCEPTOR_PKG"
     zip -r "$TEMP_DIR/gateway_interceptor.zip" . > /dev/null
     if command -v sha256sum &> /dev/null; then
@@ -176,7 +193,7 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
 
     # Package agent code ZIP for AgentCore Runtime (CodeConfiguration)
     echo "Packaging agent code for AgentCore Runtime..."
-    cd "$PROJECT_ROOT/app/agentcore_strands"
+    cd "$AGENT_DIR"
     zip -r "$TEMP_DIR/agent_code.zip" \
         unicorn_rental_agent.py \
         unicorn_rental_analytics.sop.md \
@@ -185,6 +202,33 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
         -x "*.pyc" "*__pycache__*" > /dev/null
     aws s3 cp "$TEMP_DIR/agent_code.zip" "s3://$BUCKET/$(s3_path "agent/agent_code.zip")" --region $REGION > /dev/null
     echo "  agent_code: agent/agent_code.zip"
+
+    # Package the VOICE bot code for the AgentCore CodeBuild image build. The
+    # Dockerfile is INLINE in voice-agentcore-stack.yaml's buildspec (mirrors the
+    # Strands agent), so the zip carries only the code + lockfile. Hash-versioned so
+    # a code change flips VoiceAgentCodeS3Key → CFN re-triggers the BuildTrigger.
+    # (Only consumed when EnableVoice=true & VoiceMode=agentcore.)
+    VOICE_BOT_DIR="$PROJECT_ROOT/app/voice"
+    if [ -f "$VOICE_BOT_DIR/bot.py" ]; then
+        echo "Packaging voice agent code (AgentCore CodeBuild source)..."
+        VOICE_PKG="$TEMP_DIR/voice_pkg"
+        mkdir -p "$VOICE_PKG"
+        cp "$VOICE_BOT_DIR/bot.py" "$VOICE_BOT_DIR/analytics_processor.py" \
+           "$VOICE_BOT_DIR/auth.py" "$VOICE_BOT_DIR/pyproject.toml" \
+           "$VOICE_BOT_DIR/uv.lock" "$VOICE_PKG/"
+        (cd "$VOICE_PKG" && zip -r "$TEMP_DIR/voice_agent_code.zip" . > /dev/null)
+        if command -v sha256sum &> /dev/null; then
+            VOICE_HASH=$(sha256sum "$TEMP_DIR/voice_agent_code.zip" | cut -c1-8)
+        else
+            VOICE_HASH=$(shasum -a 256 "$TEMP_DIR/voice_agent_code.zip" | cut -c1-8)
+        fi
+        VOICE_AGENT_CODE_KEY="voice/voice_agent_code-${VOICE_HASH}.zip"
+        aws s3 cp "$TEMP_DIR/voice_agent_code.zip" "s3://$BUCKET/$(s3_path "$VOICE_AGENT_CODE_KEY")" --region $REGION > /dev/null
+        echo "  voice_agent_code: $VOICE_AGENT_CODE_KEY"
+    else
+        VOICE_AGENT_CODE_KEY="voice/voice_agent_code.zip"
+        echo "  (no app/voice/bot.py — skipping voice agent packaging)"
+    fi
 
     # Package psycopg2 Lambda layer
     echo "Packaging psycopg2 Lambda layer..."
@@ -204,6 +248,22 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
         echo "  psycopg2 layer: layers/psycopg2-py312.zip"
     else
         echo "  WARNING: Could not download psycopg2-binary wheel. Provide Psycopg2LayerArn param manually."
+    fi
+
+    # Package PyJWT + cryptography Lambda layer (tool Lambdas verify the Cognito
+    # access token's RS256 signature for defense-in-depth before trusting RLS claims).
+    echo "Packaging pyjwt Lambda layer..."
+    PYJWT_LAYER_DIR="$TEMP_DIR/pyjwt_layer/python"
+    mkdir -p "$PYJWT_LAYER_DIR"
+    if pip3 install --quiet \
+          --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 \
+          --only-binary=:all: --target "$PYJWT_LAYER_DIR" "PyJWT==2.10.1" "cryptography==44.0.0" 2>/dev/null; then
+        cd "$TEMP_DIR/pyjwt_layer"
+        zip -r "$TEMP_DIR/pyjwt-py312.zip" python > /dev/null
+        aws s3 cp "$TEMP_DIR/pyjwt-py312.zip" "s3://$BUCKET/$(s3_path "layers/pyjwt-py312.zip")" --region $REGION > /dev/null
+        echo "  pyjwt layer: layers/pyjwt-py312.zip"
+    else
+        echo "  WARNING: Could not build pyjwt layer. Provide PyJwtLayerArn param manually."
     fi
 
     # Package amplify_hosting Lambda
@@ -241,6 +301,10 @@ aws s3 cp glue-stack.yaml "s3://$BUCKET/$(s3_path "templates/glue-stack.yaml")" 
 aws s3 cp bedrock-kb-stack.yaml "s3://$BUCKET/$(s3_path "templates/bedrock-kb-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp agentcore-stack.yaml "s3://$BUCKET/$(s3_path "templates/agentcore-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp amplify-stack.yaml "s3://$BUCKET/$(s3_path "templates/amplify-stack.yaml")" --region $REGION > /dev/null
+# Voice (optional, conditional nested stack — only used when EnableVoice=true,
+# VoiceMode=agentcore). The Pipecat pipeline runs as its own AgentCore Runtime
+# (WebRTC + KVS TURN); this template also contains the tiny signaling proxy.
+[ -f voice-agentcore-stack.yaml ] && aws s3 cp voice-agentcore-stack.yaml "s3://$BUCKET/$(s3_path "templates/voice-agentcore-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp cognito-stack.yaml "s3://$BUCKET/$(s3_path "templates/cognito-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp code-editor-stack.yaml "s3://$BUCKET/$(s3_path "templates/code-editor-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp observability-stack.yaml "s3://$BUCKET/$(s3_path "templates/observability-stack.yaml")" --region $REGION > /dev/null
@@ -252,7 +316,7 @@ aws s3 sync "$PROJECT_ROOT/dataset/data/" "s3://$BUCKET/$(s3_path "data")/" --re
 aws s3 cp "$PROJECT_ROOT/dataset/docs/business-context.md" "s3://$BUCKET/$(s3_path "docs/business-context.md")" --region $REGION > /dev/null
 
 echo "Uploading SOP file..."
-aws s3 cp "$PROJECT_ROOT/app/agentcore_strands/unicorn_rental_analytics.sop.md" "s3://$BUCKET/$(s3_path "sops/unicorn_rental_analytics.sop.md")" --region $REGION > /dev/null
+aws s3 cp "$AGENT_DIR/unicorn_rental_analytics.sop.md" "s3://$BUCKET/$(s3_path "sops/unicorn_rental_analytics.sop.md")" --region $REGION > /dev/null
 
 echo "Uploading JDBC driver..."
 # Download PostgreSQL JDBC driver if not present
@@ -265,11 +329,26 @@ aws s3 cp "$DRIVER_PATH" "s3://$BUCKET/$(s3_path "drivers/postgresql-42.7.3.jar"
 UI_BUILD_KEY="ui/build.zip"
 if [ "$DEPLOY_MODE" != "workshop" ]; then
     echo "Building and uploading UI..."
-    UI_DIR="$PROJECT_ROOT/app/ui"
+    # UI_DIR is set at the top to the surface client/ (voice-enabled UI).
     if [ -d "$UI_DIR" ]; then
         cd "$UI_DIR"
         npm install --silent
+        # Production builds must NOT inherit a developer's .env.local — CRA loads
+        # .env.local for `npm run build` too, which would bake localhost values
+        # (REACT_APP_REDIRECT_URI=http://localhost:3001/app, voice URL, a stale
+        # Cognito pool) into the shipped bundle and break OAuth on the live site
+        # (Cognito redirect_mismatch). The deployed SPA gets ALL its config from the
+        # runtime config.js the Amplify deployer injects, falling back to
+        # window.location.origin for the OAuth redirect. So hide dev env files for
+        # the build, then restore them.
+        _hidden_env=()
+        for _ef in .env.local .env.development.local .env.development; do
+            if [ -f "$_ef" ]; then mv "$_ef" "${_ef}.deploybak"; _hidden_env+=("$_ef"); fi
+        done
+        restore_env() { for _ef in "${_hidden_env[@]}"; do [ -f "${_ef}.deploybak" ] && mv "${_ef}.deploybak" "$_ef"; done; }
+        trap restore_env EXIT
         npm run build --silent
+        restore_env; trap - EXIT
 
         # Create ZIP of build directory and hash-version it so a UI source
         # change triggers a custom resource Update on subsequent deploys.
@@ -290,17 +369,21 @@ else
     echo "Skipping UI build (workshop-only mode)"
 fi
 
-echo "Uploading project repo..."
+echo "Uploading project repo (source browse copy for the EC2 code-editor)..."
 cd "$PROJECT_ROOT"
-# Create ZIP of entire repo (excluding .git, node_modules, etc.)
-zip -r "$TEMP_DIR/repo.zip" . \
+# Zip the project source only. Exclude build artifacts and the voice bot's local
+# venv — this zip is just a convenience browse copy for the workshop code-editor,
+# not a deploy artifact.
+zip -r "$TEMP_DIR/repo.zip" \
+    app common dataset infrastructure specs AGENTS.md README.md \
     -x "*.git*" \
     -x "*node_modules*" \
     -x "*.venv*" \
     -x "*__pycache__*" \
     -x "*.pyc" \
     -x "*app/ui/build*" \
-    > /dev/null
+    -x "*app/voice/.venv*" \
+    > /dev/null 2>&1 || true
 aws s3 cp "$TEMP_DIR/repo.zip" "s3://$BUCKET/$(s3_path "repo/agentic-analytics.zip")" --region $REGION > /dev/null
 echo "  Uploaded repo"
 
@@ -312,6 +395,7 @@ echo "  DatabaseInitLambdaKey=$DB_INIT_KEY"
 echo "  GlueCrawlerLambdaKey=$GLUE_KEY"
 echo "  BedrockKBLambdaKey=$BEDROCK_KEY"
 echo "  AmplifyLambdaKey=$AMPLIFY_KEY"
+echo "  DataFoundationLambdaKey=${DATAFOUNDATION_KEY:-lambda/datafoundation_lambda.zip}"
 echo "  InterceptorLambdaKey=$INTERCEPTOR_KEY"
 echo "  ApiIntegLambdaKey=$API_INTEG_KEY"
 echo "  CustomSqlLambdaKey=$CUSTOM_SQL_KEY"
@@ -319,6 +403,7 @@ echo "  SemanticLayerLambdaKey=$SEMANTIC_LAYER_KEY"
 echo "  ObservabilityLambdaKey=$OBSERVABILITY_KEY"
 echo "  AgentCodeS3Key=agent/agent_code.zip"
 echo "  UIBuildKey=$UI_BUILD_KEY"
+echo "  VoiceAgentCodeS3Key=${VOICE_AGENT_CODE_KEY:-voice/voice_agent_code.zip}"
 echo ""
 
 if [ "$WORKSHOP_STUDIO" = true ]; then
@@ -338,17 +423,25 @@ echo "  --template-url $TEMPLATE_URL \\"
 echo "  --parameters \\"
 echo "      ParameterKey=ArtifactsBucket,ParameterValue=$ARTIFACTS_BUCKET \\"
 echo "      ParameterKey=DeployMode,ParameterValue=$DEPLOY_MODE \\"
-echo "      ParameterKey=DeployCube,ParameterValue=false \\"
 echo "      ParameterKey=DatabaseInitLambdaKey,ParameterValue=$DB_INIT_KEY \\"
 echo "      ParameterKey=GlueCrawlerLambdaKey,ParameterValue=$GLUE_KEY \\"
 echo "      ParameterKey=BedrockKBLambdaKey,ParameterValue=$BEDROCK_KEY \\"
 echo "      ParameterKey=AgentCodeS3Key,ParameterValue=agent/agent_code.zip \\"
 echo "      ParameterKey=AmplifyLambdaKey,ParameterValue=$AMPLIFY_KEY \\"
+echo "      ParameterKey=DataFoundationLambdaKey,ParameterValue=${DATAFOUNDATION_KEY:-lambda/datafoundation_lambda.zip} \\"
 echo "      ParameterKey=InterceptorLambdaKey,ParameterValue=$INTERCEPTOR_KEY \\"
 echo "      ParameterKey=ApiIntegLambdaKey,ParameterValue=$API_INTEG_KEY \\"
 echo "      ParameterKey=CustomSqlLambdaKey,ParameterValue=$CUSTOM_SQL_KEY \\"
 echo "      ParameterKey=SemanticLayerLambdaKey,ParameterValue=$SEMANTIC_LAYER_KEY \\"
 echo "      ParameterKey=ObservabilityLambdaKey,ParameterValue=$OBSERVABILITY_KEY \\"
 echo "      ParameterKey=UIBuildKey,ParameterValue=$UI_BUILD_KEY \\"
+echo "      ParameterKey=VoiceAgentCodeS3Key,ParameterValue=${VOICE_AGENT_CODE_KEY:-voice/voice_agent_code.zip} \\"
 echo "  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \\"
 echo "  --region $DEPLOY_REGION"
+echo ""
+echo "# To deploy WITH voice (AgentCore Runtime, WebRTC + KVS TURN), add these parameters:"
+echo "#     ParameterKey=EnableVoice,ParameterValue=true \\"
+echo "#     ParameterKey=VoiceMode,ParameterValue=agentcore \\"
+echo "#     ParameterKey=DeepgramApiKey,ParameterValue=<key> \\"
+echo "#     ParameterKey=DeepgramVoiceId,ParameterValue=aura-2-apollo-en"
+echo "# (No Daily key, no demo creds: voice uses the signed-in user's own token for RBAC/RLS.)"

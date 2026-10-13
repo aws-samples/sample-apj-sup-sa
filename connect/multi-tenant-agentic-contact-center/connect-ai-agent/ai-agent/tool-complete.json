@@ -1,0 +1,21 @@
+{
+  "toolName": "Complete",
+  "toolType": "RETURN_TO_CONTROL",
+  "description": "Close conversation when customer has no more questions",
+  "instruction": {
+    "instruction": "Mark the conversation as complete ONLY after confirming the customer has no additional questions or needs. Always ask if there's anything else you can help with before using this tool."
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Reason of completion"
+      }
+    },
+    "required": ["reason"]
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

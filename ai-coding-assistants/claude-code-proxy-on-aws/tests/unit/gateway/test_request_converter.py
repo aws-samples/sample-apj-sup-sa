@@ -1234,3 +1234,137 @@ def test_convert_request_merges_inline_system_with_top_level_system() -> None:
         {"text": "base system prompt"},
         {"text": "extra mid-conversation guidance"},
     ]
+
+
+def _image_block(media_type: str = "image/png", data: str = "aGVsbG8=") -> dict:
+    return {
+        "type": "image",
+        "source": {"type": "base64", "media_type": media_type, "data": data},
+    }
+
+
+def test_convert_request_converts_tool_result_image_to_bedrock_format() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": [_image_block()],
+                    }
+                ],
+            }
+        ],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    image = converted["messages"][0]["content"][0]["toolResult"]["content"][0]["image"]
+    assert image == {"format": "png", "source": {"bytes": b"hello"}}
+
+
+def test_convert_request_converts_user_image_to_bedrock_format() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[{"role": "user", "content": [_image_block("image/jpeg")]}],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    image = converted["messages"][0]["content"][0]["image"]
+    assert image == {"format": "jpeg", "source": {"bytes": b"hello"}}
+
+
+def test_convert_request_rejects_url_image_source() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "url", "url": "https://example.com/a.png"},
+                    }
+                ],
+            }
+        ],
+    )
+
+    with pytest.raises(ValidationError):
+        converter.convert_request(request, _resolved_model("bedrock-model"), "none")
+
+
+def test_convert_request_converts_document_to_bedrock_format() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "title": "Q3 Report: final/v2*",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": "aGVsbG8=",
+                        },
+                    }
+                ],
+            }
+        ],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    document = converted["messages"][0]["content"][0]["document"]
+    assert document == {
+        "format": "pdf",
+        "name": "Q3 Report final v2",
+        "source": {"bytes": b"hello"},
+    }
+
+
+def test_convert_request_marks_tool_result_with_is_error_as_error_status() -> None:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=16,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": "command failed",
+                        "is_error": True,
+                    }
+                ],
+            }
+        ],
+    )
+
+    converted = converter.convert_request(
+        request, _resolved_model("bedrock-model"), "none"
+    )
+
+    assert converted["messages"][0]["content"][0]["toolResult"]["status"] == "error"

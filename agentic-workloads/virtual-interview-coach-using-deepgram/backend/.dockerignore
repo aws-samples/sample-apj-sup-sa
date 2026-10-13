@@ -1,0 +1,19 @@
+# Keep the build context minimal and never bake secrets into the image.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — env is injected at runtime via the ECS task definition.
+.env
+.env.*
+!.env.example
+
+# Local-only.
+tests/
+*.log
+*.md
+pyproject.toml

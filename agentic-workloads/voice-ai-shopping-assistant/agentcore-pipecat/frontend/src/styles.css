@@ -1,0 +1,138 @@
+:root {
+  --green: #178a4c;
+  --green-dark: #0e6b3a;
+  --ink: #16241c;
+  --muted: #6b7d72;
+  --bg: #f4f7f3;
+  --card: #ffffff;
+  --line: #e3ebe4;
+  --special: #e4002b;
+  --shadow: 0 1px 3px rgba(16, 36, 24, 0.08), 0 6px 20px rgba(16, 36, 24, 0.06);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* ---------- Start screen ---------- */
+.start {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(1200px 600px at 50% -10%, #dff3e6 0%, var(--bg) 60%);
+  padding: 24px;
+}
+.start-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 40px;
+  max-width: 520px;
+  text-align: center;
+}
+.eyebrow { color: var(--green); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; margin: 0 0 8px; }
+.start-card h1 { font-size: 56px; margin: 0 0 12px; letter-spacing: -.02em; }
+.lede { color: var(--muted); font-size: 16px; line-height: 1.5; margin: 0 0 24px; }
+.btn-primary {
+  background: var(--green); color: #fff; border: 0; border-radius: 999px;
+  padding: 14px 28px; font-size: 16px; font-weight: 700; cursor: pointer;
+  transition: background .15s ease;
+}
+.btn-primary:hover { background: var(--green-dark); }
+.error { color: var(--special); margin-top: 14px; }
+.hints { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 6px; }
+.hints li { color: var(--muted); font-size: 14px; }
+.hints li::before { content: '“'; }
+.hints li::after { content: '”'; }
+
+/* ---------- App layout ---------- */
+.app { height: 100%; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 800; font-size: 22px; color: var(--green); }
+.agent-tile { display: flex; align-items: center; gap: 10px; margin-left: 8px; }
+.agent-video { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; background: #000; }
+.agent-video.hidden { display: none; }
+.orb {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #5fd28e, var(--green));
+  box-shadow: 0 0 0 0 rgba(23, 138, 76, 0.5);
+}
+.orb.speaking { animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(23,138,76,.45); }
+  70% { box-shadow: 0 0 0 14px rgba(23,138,76,0); }
+  100% { box-shadow: 0 0 0 0 rgba(23,138,76,0); }
+}
+.agent-label { color: var(--muted); font-size: 13px; }
+.controls { margin-left: auto; display: flex; gap: 8px; }
+.btn-mic, .btn-end {
+  border-radius: 999px; padding: 9px 18px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+}
+.btn-mic.muted { background: #fff3f3; border-color: #f3caca; color: var(--special); }
+.btn-end { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+.content { flex: 1; display: grid; grid-template-columns: 1fr 320px; gap: 20px; padding: 20px; overflow: hidden; }
+.products { overflow-y: auto; }
+.section-title { margin: 4px 2px 14px; font-size: 18px; }
+
+.product-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px;
+}
+.product-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column;
+}
+.product-card.oos { opacity: .6; }
+.product-image-wrap { position: relative; aspect-ratio: 1; background: #fff; display: grid; place-items: center; }
+.product-image-wrap img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
+.product-image-placeholder { font-size: 40px; }
+.badge { position: absolute; top: 8px; font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 999px; }
+.badge-special { left: 8px; background: var(--special); color: #fff; }
+.badge-oos { right: 8px; background: #555; color: #fff; }
+.product-body { padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.product-brand { color: var(--muted); font-size: 12px; font-weight: 700; margin: 0; text-transform: uppercase; letter-spacing: .03em; }
+.product-name { font-size: 14px; margin: 0; line-height: 1.3; }
+.product-unit { color: var(--muted); font-size: 12px; margin: 0; }
+.product-price-row { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+.product-price { font-size: 20px; font-weight: 800; }
+.product-was { color: var(--muted); text-decoration: line-through; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { font-size: 10px; padding: 2px 7px; border-radius: 999px; }
+.chip-allergen { background: #fff0e8; color: #b5491a; }
+.chip-dietary { background: #e8f5ec; color: var(--green-dark); }
+
+.empty-state { height: 100%; display: grid; place-content: center; text-align: center; color: var(--muted); gap: 8px; }
+.empty-state p:first-child { font-size: 48px; margin: 0; }
+
+/* ---------- Cart ---------- */
+.cart-panel {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow); padding: 18px; height: fit-content; position: sticky; top: 0;
+}
+.cart-title { margin: 0 0 12px; font-size: 18px; }
+.cart-empty { color: var(--muted); font-size: 14px; }
+.cart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cart-item { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; font-size: 14px; align-items: baseline; }
+.cart-item-qty { color: var(--green); font-weight: 800; }
+.cart-item-price { font-weight: 700; }
+.cart-subtotal { display: flex; justify-content: space-between; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; font-weight: 800; }
+.order-confirm { margin-top: 16px; background: #e8f5ec; border-radius: 12px; padding: 14px; }
+.order-confirm-title { margin: 0 0 6px; color: var(--green-dark); font-weight: 800; }
+.order-confirm-row { margin: 2px 0; font-size: 14px; }
+
+/* ---------- Transcript ---------- */
+.transcript { background: var(--card); border-top: 1px solid var(--line); padding: 12px 20px; display: grid; gap: 4px; }
+.t-row { display: flex; gap: 12px; align-items: baseline; }
+.t-label { width: 52px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+.t-label.agent { color: var(--green); }
+.t-text { color: var(--ink); font-size: 15px; }

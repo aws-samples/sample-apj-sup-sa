@@ -1,11 +1,12 @@
 import React from 'react';
 import { Box, Typography, Tabs, Tab } from '@mui/material';
-import { Dashboard, TrendingUp, People, Pets, CalendarMonth } from '@mui/icons-material';
+import { Dashboard, TrendingUp, People, Pets, CalendarMonth, AccountTree } from '@mui/icons-material';
 import OverviewPanel from './OverviewPanel';
 import RevenuePanel from './RevenuePanel';
 import CustomersPanel from './CustomersPanel';
 import UnicornsPanel from './UnicornsPanel';
 import BookingsPanel from './BookingsPanel';
+import ArchitecturePanel from './ArchitecturePanel';
 
 const DataPanel = ({ activePanel, panelData, staffInfo, onPanelChange }) => {
   const panels = [
@@ -14,6 +15,7 @@ const DataPanel = ({ activePanel, panelData, staffInfo, onPanelChange }) => {
     { id: 'customers', label: 'Customers', icon: <People />, component: <CustomersPanel panelData={panelData} /> },
     { id: 'unicorns', label: 'Unicorns', icon: <Pets />, component: <UnicornsPanel panelData={panelData} /> },
     { id: 'bookings', label: 'Bookings', icon: <CalendarMonth />, component: <BookingsPanel panelData={panelData} /> },
+    { id: 'architecture', label: 'Architecture', icon: <AccountTree />, component: <ArchitecturePanel /> },
   ];
 
   const activeIndex = Math.max(0, panels.findIndex(p => p.id === activePanel));

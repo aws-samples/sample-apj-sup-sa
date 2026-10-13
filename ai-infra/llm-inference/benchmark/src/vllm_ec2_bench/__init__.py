@@ -27,8 +27,16 @@ from .data import (
     catalog_meta,
 )
 from .deployer import DeploymentRunner, DeploymentState, upsert_hf_token
+from .verify import (
+    TierVerdict,
+    check_completeness,
+    count_responses,
+    cross_check_throughput,
+    scrape_vllm_metrics,
+    verify_tier,
+)
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "Backend",
@@ -44,7 +52,13 @@ __all__ = [
     "HardwareFacts",
     "KNOWN_MIG_PROFILES",
     "ModelSpec",
+    "TierVerdict",
     "__version__",
     "catalog_meta",
+    "check_completeness",
+    "count_responses",
+    "cross_check_throughput",
+    "scrape_vllm_metrics",
     "upsert_hf_token",
+    "verify_tier",
 ]

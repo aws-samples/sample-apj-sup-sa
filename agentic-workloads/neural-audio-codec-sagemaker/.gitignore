@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# build artifacts
+model.tar.gz
+*.tar.gz
+
+# local outputs
+reconstructed.wav
+recon_*.wav
+benchmark.json

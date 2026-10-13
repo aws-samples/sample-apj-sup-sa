@@ -1,56 +1,36 @@
-import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from '@aws-sdk/client-bedrock-agentcore';
-import { CognitoIdentityClient, GetIdCommand, GetCredentialsForIdentityCommand } from '@aws-sdk/client-cognito-identity';
+// JWT-native invoke: the AgentCore Runtime now uses a CustomJWTAuthorizer, so the
+// browser calls InvokeAgentRuntime over plain HTTPS with the user's Cognito access
+// token as `Authorization: Bearer` — NOT the AWS SDK (which signs SigV4) and NOT a
+// Cognito Identity Pool. AWS docs: "If you plan on integrating your agent with OAuth,
+// you can't use the AWS SDK to call InvokeAgentRuntime. Instead, make an HTTPS request."
+import { fetchAccessToken } from './authService';
 
 // AWS Configuration
-const AWS_REGION = process.env.REACT_APP_AWS_REGION || 'us-east-1';
-const AGENT_RUNTIME_ARN = process.env.REACT_APP_AGENT_RUNTIME_ARN || '';
-const AGENT_QUALIFIER = process.env.REACT_APP_AGENT_QUALIFIER || 'DEFAULT';
-const IDENTITY_POOL_ID = process.env.REACT_APP_COGNITO_IDENTITY_POOL_ID || '';
-const USER_POOL_ID = process.env.REACT_APP_COGNITO_USER_POOL_ID || '';
+// Runtime config (window.__APP_CONFIG__) overrides build-time env vars in demo mode.
+const RC = (typeof window !== 'undefined' && window.__APP_CONFIG__) || {};
 
-// Cache credentials to avoid re-fetching on every call
-let cachedCredentials = null;
-let credentialExpiry = 0;
-
-// Get temporary AWS credentials from Cognito Identity Pool (classic flow)
-const getIdentityPoolCredentials = async (idToken = null) => {
-  // Return cached if still valid (5 min buffer)
-  if (cachedCredentials && Date.now() < credentialExpiry - 300000) {
-    return cachedCredentials;
-  }
-
-  const identityClient = new CognitoIdentityClient({ region: AWS_REGION });
-  const logins = {};
-  if (idToken && USER_POOL_ID) {
-    logins[`cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}`] = idToken;
-  }
-
-  const { IdentityId } = await identityClient.send(new GetIdCommand({
-    IdentityPoolId: IDENTITY_POOL_ID,
-    ...(Object.keys(logins).length > 0 && { Logins: logins }),
-  }));
-
-  const { Credentials } = await identityClient.send(new GetCredentialsForIdentityCommand({
-    IdentityId,
-    ...(Object.keys(logins).length > 0 && { Logins: logins }),
-  }));
-
-  cachedCredentials = {
-    accessKeyId: Credentials.AccessKeyId,
-    secretAccessKey: Credentials.SecretKey,
-    sessionToken: Credentials.SessionToken,
-  };
-  credentialExpiry = Credentials.Expiration.getTime();
-  return cachedCredentials;
+// InvokeAgentRuntime expects the runtime ARN + a qualifier (the endpoint name).
+// Demo mode hands us the full endpoint ARN, which embeds both:
+//   arn:...:runtime/<runtime-id>/runtime-endpoint/<qualifier>
+// Split it so the SDK gets the right shape. Local dev keeps the legacy
+// REACT_APP_AGENT_RUNTIME_ARN + REACT_APP_AGENT_QUALIFIER pair.
+const splitEndpointArn = (arn) => {
+  const match = /^(arn:[^:]+:[^:]+:[^:]+:[^:]+:runtime\/[^/]+)\/runtime-endpoint\/(.+)$/.exec(arn || '');
+  return match ? { runtimeArn: match[1], qualifier: match[2] } : null;
 };
+const endpointSplit = splitEndpointArn(RC.AGENTCORE_RUNTIME_ENDPOINT);
 
-// Initialize AWS SDK client with Identity Pool credentials
-const createAgentCoreClient = async (idToken = null) => {
-  const config = { region: AWS_REGION };
-  if (IDENTITY_POOL_ID) {
-    config.credentials = await getIdentityPoolCredentials(idToken);
-  }
-  return new BedrockAgentCoreClient(config);
+const AWS_REGION = RC.AWS_REGION || process.env.REACT_APP_AWS_REGION || 'us-east-1';
+const AGENT_RUNTIME_ARN = (endpointSplit && endpointSplit.runtimeArn) || RC.AGENT_RUNTIME_ARN || process.env.REACT_APP_AGENT_RUNTIME_ARN || '';
+const AGENT_QUALIFIER = (endpointSplit && endpointSplit.qualifier) || RC.AGENT_QUALIFIER || process.env.REACT_APP_AGENT_QUALIFIER || 'DEFAULT';
+
+// Build the InvokeAgentRuntime HTTPS endpoint for the OAuth/JWT path:
+//   POST https://bedrock-agentcore.<region>.amazonaws.com/runtimes/<url-encoded-ARN>/invocations?qualifier=<q>
+// The runtime's CustomJWTAuthorizer validates the Bearer token; no SigV4, no Identity Pool.
+const buildInvokeUrl = () => {
+  const enc = encodeURIComponent(AGENT_RUNTIME_ARN);
+  const q = encodeURIComponent(AGENT_QUALIFIER || 'DEFAULT');
+  return `https://bedrock-agentcore.${AWS_REGION}.amazonaws.com/runtimes/${enc}/invocations?qualifier=${q}`;
 };
 
 // Store runtime sessions to reuse them
@@ -71,9 +51,14 @@ const getOrCreateRuntimeSessionId = (sessionId) => {
   // Store it for reuse
   runtimeSessions.set(sessionId, runtimeSessionId);
   console.log('Created new runtime session:', runtimeSessionId, 'for session:', sessionId);
-  
+
   return runtimeSessionId;
 };
+
+// Exported so the voice path can use the SAME runtime session id as text — this
+// is what makes voice + text turns share one AgentCore Memory thread (context
+// carries across both within a single app session).
+export const getRuntimeSessionId = (sessionId) => getOrCreateRuntimeSessionId(sessionId);
 
 const TOOL_NAME_PATTERNS = [
   /['"]?tool_name['"]?\s*:\s*['"]([^'"\s]+)['"]/,
@@ -283,88 +268,55 @@ export const invokeAgent = async ({
   onToolUse = null,
   enableStreaming = true
 }) => {
-  console.log('[AgentCore] invokeAgent streaming rev 3');
-  const client = await createAgentCoreClient(idToken);
-  
-  // Get or create a runtime session ID for this session
-  // This ensures the same runtime session is used for all messages in a conversation
+  console.log('[AgentCore] invokeAgent JWT-native (bearer HTTPS) rev 4');
+
+  // JWT-native: the user's Cognito ACCESS token is the Bearer credential the runtime
+  // authorizer validates. Prefer the passed gatewayToken; otherwise fetch a fresh one.
+  const bearer = gatewayToken || (await fetchAccessToken());
+  if (!bearer) {
+    const e = new Error('Not authenticated — please log in again.');
+    if (onStreamError) onStreamError(e);
+    throw e;
+  }
+
+  // Get or create a runtime session ID for this session (33+ chars; reused across the convo).
   const runtimeSessionId = getOrCreateRuntimeSessionId(sessionId);
-  
-  // Encode the message as Uint8Array
-  // The agent expects "prompt" not "message"
-  const encoder = new TextEncoder();
-  const payloadData = {
-    prompt: message,
-    ...(gatewayToken && { gateway_token: gatewayToken })  // Pass token to agent
-  };
-  const payload = encoder.encode(JSON.stringify(payloadData));
-  
-  // Log what we're sending for debugging
-  console.log('Sending payload:', { ...payloadData, gateway_token: gatewayToken ? '[REDACTED]' : null });
-  
-  // Prepare the input for the agent
-  const input = {
-    runtimeSessionId: runtimeSessionId,
-    agentRuntimeArn: AGENT_RUNTIME_ARN,
-    qualifier: AGENT_QUALIFIER,
-    payload: payload
-  };
+
+  // The agent expects "prompt"; mode selects text vs voice formatting. The token is NO
+  // longer in the payload — it's the Authorization header (validated at the runtime edge).
+  const payloadData = { prompt: message, mode: 'text' };
+  console.log('Sending payload:', payloadData, '(auth via Bearer header)');
 
   console.log('Invoking agent with session:', runtimeSessionId);
 
   try {
-    const command = new InvokeAgentRuntimeCommand(input);
-    const response = await client.send(command);
-    
-    if (!response.response) {
-      throw new Error('No response received from agent');
-    }
-
-    const agentResponse = response.response;
-    const responseKeys = (() => {
-      try {
-        return Object.keys(agentResponse || {});
-      } catch (error) {
-        console.warn('Could not enumerate agent response keys:', error);
-        return [];
-      }
-    })();
-
-    console.log('Agent response capabilities:', {
-      keys: responseKeys,
-      hasGetReader: typeof agentResponse?.getReader === 'function',
-      hasTransformToWebStream: typeof agentResponse?.transformToWebStream === 'function',
-      hasStream: typeof agentResponse?.stream === 'function',
-      hasTransformToString: typeof agentResponse?.transformToString === 'function'
+    // Plain HTTPS POST to InvokeAgentRuntime with the Bearer token. fetch() streams the
+    // SSE body via response.body (a ReadableStream) — same parsing loop as before.
+    const response = await fetch(buildInvokeUrl(), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${bearer}`,
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        // AgentCore session header (33+ chars). The SDK set this from runtimeSessionId;
+        // over raw HTTPS we send it explicitly.
+        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': runtimeSessionId,
+      },
+      body: JSON.stringify(payloadData),
     });
 
-    const getReadableStreamReader = () => {
-      if (!enableStreaming) {
-        return null;
-      }
+    if (!response.ok) {
+      // 401/403 → token invalid/expired (authorizer rejected). Surface clearly.
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Agent invoke failed: HTTP ${response.status}${detail ? ' — ' + detail.slice(0, 200) : ''}`);
+    }
 
-      if (typeof agentResponse?.getReader === 'function') {
-        return agentResponse.getReader();
-      }
-
-      if (typeof agentResponse?.transformToWebStream === 'function' && typeof ReadableStream !== 'undefined') {
-        return agentResponse.transformToWebStream().getReader();
-      }
-
-      if (typeof agentResponse?.stream === 'function' && typeof ReadableStream !== 'undefined') {
-        const webStream = agentResponse.stream();
-        if (webStream && typeof webStream.getReader === 'function') {
-          return webStream.getReader();
-        }
-      }
-
-      return null;
-    };
-
-    const streamReader = getReadableStreamReader();
+    const streamReader = (enableStreaming && response.body && typeof response.body.getReader === 'function')
+      ? response.body.getReader()
+      : null;
 
     if (streamReader) {
-      console.log('Streaming agent response via ReadableStream reader');
+      console.log('Streaming agent response via fetch ReadableStream reader');
 
       const state = createSSEState({ onChunk: onStreamChunk, onToolUse });
       const decoder = new TextDecoder();
@@ -412,9 +364,10 @@ export const invokeAgent = async ({
       return finalText;
     }
 
-    const rawResponse = await agentResponse.transformToString();
+    // Non-streaming fallback (enableStreaming=false or no readable body): read the
+    // whole body as text and parse it.
+    const rawResponse = await response.text();
     console.log('Raw response received, length:', rawResponse.length);
-    console.log('Raw response preview:', rawResponse.substring(0, 500));
 
     const textResponse = parseSSEResponse(rawResponse, onStreamChunk, onToolUse);
 
@@ -468,6 +421,6 @@ export const getAWSConfig = () => ({
   region: AWS_REGION,
   agentRuntimeArn: AGENT_RUNTIME_ARN,
   qualifier: AGENT_QUALIFIER,
-  hasIdentityPool: !!IDENTITY_POOL_ID,
+  authMode: 'jwt-bearer',
   configured: validateAWSConfig()
 });

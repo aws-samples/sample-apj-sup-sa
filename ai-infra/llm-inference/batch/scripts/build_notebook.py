@@ -50,7 +50,7 @@ MODEL_CONFIGS: dict[str, BatchModelConfig] = {
         weight_gib=55.0,
         weight_note="MedGemma-27B BF16 weights are ~55 GiB. g7e.2xlarge fits 1 replica with ~40 GiB KV-cache budget.",
         gated=True,
-        plans=["g7e_spot_single_queue", "g7e_family_spot_with_od_failover", "p4d_spot_single_queue", "p4d_spot_and_on_demand_failover"],
+        plans=["g7e_spot_single_queue", "g7e_family_spot_with_od_failover", "p4d_spot_single_queue", "p4d_spot_and_on_demand_failover", "p6_spot_single_queue", "p6_spot_and_on_demand_failover"],
         default_plan="g7e_spot_single_queue",
         concurrency_default=100,
         primary_instance="g7e.2xlarge",
@@ -324,11 +324,12 @@ def cells() -> list[dict]:
             """\
             ## 0.5 Persistent run logging (survives Jupyter freezes)
 
-            All Python `logging` output + stdout/stderr from this notebook
-            get mirrored to `outputs/_runs/<timestamp>/run.log` on disk.
-            Key results (section 8.5 through 8.9) are also saved as JSON +
-            CSV via the `persist()` helper so you can reconstruct the run
-            without needing the Jupyter kernel alive.
+            All Python `logging` output from this notebook is mirrored to
+            `outputs/_runs/<timestamp>/run.log` on disk, and the key results
+            (sections 8.5 through 8.9) are saved as JSON + CSV via the
+            `persist()` helper — so you can reconstruct the run without needing
+            the Jupyter kernel alive. Cell `print()` output still renders
+            normally in every cell (we don't redirect stdout).
 
             Safe to run multiple times — each invocation starts a new
             timestamped run dir; a symlink `outputs/_runs/latest` always
@@ -337,12 +338,12 @@ def cells() -> list[dict]:
         )),
         code(dedent(
             """\
-            # --- file logger + tee stdout ---
+            # --- file logger + persist() ---
             import logging
             from datetime import datetime
             _RUN_TS = datetime.now().strftime("%Y%m%dT%H%M%S")
             RUN_DIR = PROJECT_ROOT / "outputs" / "_runs" / _RUN_TS
-            RUN_DIR.mkdir(parents=True, exist_ok=True)
+            (RUN_DIR / "stats").mkdir(parents=True, exist_ok=True)
             _latest = PROJECT_ROOT / "outputs" / "_runs" / "latest"
             try:
                 if _latest.is_symlink() or _latest.exists():
@@ -351,54 +352,34 @@ def cells() -> list[dict]:
             except OSError:
                 pass
 
-            # Root logger: one FileHandler on top of whatever is there.
+            # Logging: one FileHandler (-> run.log, survives a Jupyter freeze)
+            # plus one StreamHandler so log lines also render in the cell.
+            #
+            # NOTE: we deliberately do NOT replace sys.stdout/sys.stderr. ipykernel
+            # hands each cell a fresh stdout that routes to that cell via iopub;
+            # capturing/replacing it in this setup cell freezes it on THIS cell's
+            # stream, so every later cell's print() (e.g. the cost numbers in
+            # 8.5-8.9) would vanish from the notebook. Leaving stdout alone means
+            # print() renders normally in every cell; run.log + persist() (below)
+            # provide the durable copy.
             _root = logging.getLogger()
             _root.setLevel(logging.INFO)
             _log_path = RUN_DIR / "run.log"
-            # Remove any previous handlers we added (re-run safety).
-            for _h in list(_root.handlers):
+            for _h in list(_root.handlers):          # re-run safety
                 if getattr(_h, "_persist_run", False):
                     _root.removeHandler(_h)
-            _fh = logging.FileHandler(_log_path)
-            _fh._persist_run = True
             _fmt = logging.Formatter(
                 "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
                 datefmt="%Y-%m-%dT%H:%M:%S",
             )
+            _fh = logging.FileHandler(_log_path)
+            _fh._persist_run = True
             _fh.setFormatter(_fmt)
             _root.addHandler(_fh)
-
-            # StreamHandler so log messages also render in the Jupyter cell.
-            # Without this, adding the FileHandler above suppresses the implicit
-            # basicConfig() StreamHandler and live output disappears from cells.
-            # We target sys.__stdout__ (the real stdout) so this doesn't loop
-            # through the Tee (which would double-write to the file).
-            _sh = logging.StreamHandler(sys.__stdout__)
+            _sh = logging.StreamHandler()            # live sys.stderr -> renders in-cell
             _sh._persist_run = True
             _sh.setFormatter(_fmt)
             _root.addHandler(_sh)
-
-            # Tee stdout/stderr so `print()` output is captured too.
-            class _Tee:
-                def __init__(self, *streams):
-                    self._streams = streams
-                def write(self, s):
-                    for st in self._streams:
-                        st.write(s)
-                        st.flush()
-                def flush(self):
-                    for st in self._streams:
-                        st.flush()
-                def isatty(self):
-                    return False
-            if not getattr(sys.stdout, "_persist_run", False):
-                _stdout_file = open(RUN_DIR / "stdout.log", "a", buffering=1)
-                _stdout_tee = _Tee(sys.__stdout__, _stdout_file)
-                _stdout_tee._persist_run = True
-                sys.stdout = _stdout_tee
-                _stderr_tee = _Tee(sys.__stderr__, _stdout_file)
-                _stderr_tee._persist_run = True
-                sys.stderr = _stderr_tee
 
             # persist() — drop any result into RUN_DIR/stats/<name>.{json,csv}
             def persist(name: str, obj):
@@ -766,7 +747,42 @@ def cells() -> list[dict]:
         )),
 
         # --- 8. Download ---------------------------------------------------
-        md("## 8. Download outputs"),
+        md(dedent(
+            """\
+            ## 8. Download outputs
+
+            ### Where everything lands on disk
+
+            This notebook writes to two separate trees under `outputs/`
+            (relative to `PROJECT_ROOT`, i.e. the `batch/` dir — **one level up
+            from this `notebooks/` folder**):
+
+            ```
+            batch/outputs/
+            ├── <submission_id>/              ← THE ACTUAL MODEL OUTPUTS (this cell)
+            │   └── shard-0000/
+            │       ├── <input-file>.jsonl    ← one line per record: {id, response, usage, error}
+            │       │                            (the model's completion for each prompt)
+            │       └── _summary.json         ← per-shard token counts + wall-clock
+            │
+            └── _runs/<timestamp>/            ← this run's LOGS + ANALYSIS (sections 0.5, 8.5-8.9)
+                ├── run.log
+                └── stats/
+                    ├── 8_8_cost_estimate.json        ← actual AWS bill (per-instance)
+                    ├── 8_9_project_economics.json    ← $/1M tokens, total cost, real-world tok/s
+                    ├── 8_5_aggregate_throughput.json, 8_6_llmeter_stats.json, 8_7_real_world_wall_clock.json
+                    └── ... (5_* submission, 6_* final status)
+            ```
+
+            `outputs/_runs/latest` is a symlink to the most recent run. The
+            **dollar-per-million-token** figures are in
+            `stats/8_9_project_economics.json` (key `usd_per_1m_output_tokens`),
+            also printed inline by section 8.9 below.
+
+            > Tip: `outputs/` is git-ignored, so JupyterLab may hide it — enable
+            > **View → Show Hidden Files** if you don't see it in the file browser.
+            """
+        )),
         code(dedent(
             """\
             collect = download_outputs(
@@ -776,6 +792,8 @@ def cells() -> list[dict]:
             )
             print(f"downloaded {len(collect.files_downloaded)} files")
             print(f"local dir:  {collect.output_dir}")
+            print(f"  -> per-record model completions: {collect.output_dir}/shard-*/")
+            print(f"  -> cost + $/1M-token stats:      {RUN_DIR / 'stats'}/")
             collect.to_dataframe()
             """
         )),

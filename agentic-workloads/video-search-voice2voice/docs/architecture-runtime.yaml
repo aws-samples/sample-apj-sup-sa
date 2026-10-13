@@ -1,0 +1,243 @@
+## Source for docs/architecture-runtime.png
+##
+## Rendered with the AWS diagram-as-code tool (awsdac):
+##   awsdac docs/architecture-runtime.yaml -o docs/architecture-runtime.png
+##
+## Shows the hosted path (scripts/deploy.py). In local mode the browser talks to
+## the laptop over SmallWebRTC instead, and CloudFront/ALB/Fargate/Daily drop out.
+
+Diagram:
+  DefinitionFiles:
+    - Type: URL
+      Url: https://raw.githubusercontent.com/awslabs/diagram-as-code/main/definitions/definition-for-aws-icons-light.yaml
+
+  Links:
+    - Source: Viewer
+      SourcePosition: S
+      Target: CloudFront
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "HTTPS + Basic Auth"
+
+    - Source: CloudFront
+      SourcePosition: S
+      Target: ALB
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "HTTP + X-Origin-Secret"
+
+    - Source: ALB
+      SourcePosition: S
+      Target: Task
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: S
+      Target: Bedrock
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: S
+      Target: Assets
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: S
+      Target: Secret
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: S
+      Target: Logs
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: SE
+      Target: AgentCore
+      TargetPosition: N
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "ask_the_world"
+
+    - Source: Viewer
+      SourcePosition: E
+      Target: Daily
+      TargetPosition: W
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: Task
+      SourcePosition: NE
+      Target: Daily
+      TargetPosition: S
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+      Labels:
+        TargetLeft:
+          Title: "bot audio"
+
+    - Source: Task
+      SourcePosition: NE
+      Target: Deepgram
+      TargetPosition: S
+      SourceArrowHead:
+        Type: Open
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+    - Source: AgentCore
+      SourcePosition: N
+      Target: WebSearch
+      TargetPosition: S
+      TargetArrowHead:
+        Type: Open
+      Type: orthogonal
+
+  Resources:
+    Canvas:
+      Type: AWS::Diagram::Canvas
+      Direction: vertical
+      Children:
+        - TopRow
+        - AWSCloud
+
+    TopRow:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - Viewer
+        - ThirdParty
+
+    Viewer:
+      Type: AWS::Diagram::Resource
+      Preset: "User"
+      Title: "Viewer (browser)"
+
+    ThirdParty:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic group"
+      Title: "Third party - reached outbound only, no inbound path"
+      Children:
+        - Daily
+        - Deepgram
+        - WebSearch
+
+    Daily:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic application"
+      Title: "Daily (WebRTC media)"
+
+    Deepgram:
+      Type: AWS::Diagram::Resource
+      Preset: "Generic application"
+      Title: "Deepgram Nova-3 STT / Aura-2 TTS"
+
+    WebSearch:
+      Type: AWS::Diagram::Resource
+      Preset: "Internet"
+      Title: "Public web"
+
+    AWSCloud:
+      Type: AWS::Diagram::Cloud
+      Preset: AWSCloudNoLogo
+      Direction: vertical
+      Children:
+        - Region
+
+    Region:
+      Type: AWS::Region
+      Title: "us-east-1"
+      Direction: vertical
+      Children:
+        - CloudFront
+        - VPC
+        - Backends
+
+    CloudFront:
+      Type: AWS::CloudFront
+      Title: "CloudFront + Basic Auth function"
+
+    VPC:
+      Type: AWS::EC2::VPC
+      Direction: vertical
+      Children:
+        - ALB
+        - Subnet
+
+    ALB:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Title: "ALB - default action 403, forwards only on the secret header"
+
+    Subnet:
+      Type: AWS::EC2::Subnet
+      Preset: PublicSubnet
+      Title: "Public subnet (1 of 2 AZs)"
+      Children:
+        - Task
+
+    Task:
+      Type: AWS::ECS::Service
+      Title: "Fargate task, ARM64 - FastAPI + Pipecat voice bot"
+
+    Backends:
+      Type: AWS::Diagram::HorizontalStack
+      Children:
+        - Bedrock
+        - Assets
+        - Secret
+        - Logs
+        - AgentCore
+
+    Bedrock:
+      Type: AWS::Diagram::Resource
+      Preset: "Amazon Bedrock"
+      Title: "Bedrock - Claude Haiku 4.5 (cached prompt)"
+
+    Assets:
+      Type: AWS::S3::Bucket
+      Title: "S3 - index + media (private, SSE-S3)"
+
+    Secret:
+      Type: AWS::SecretsManager::Secret
+      Title: "Secrets Manager - API keys"
+
+    Logs:
+      Type: AWS::Logs
+      Title: "CloudWatch Logs"
+
+    AgentCore:
+      Type: AWS::Diagram::Resource
+      Preset: "Agent"
+      Title: "Bedrock AgentCore harness + web-search gateway"

@@ -132,6 +132,17 @@ class DeploymentPlan(BaseModel):
             "user input."
         ),
     )
+    vllm_image_override: str | None = Field(
+        default=None,
+        description=(
+            "Optional per-experiment container image, overriding "
+            "``ModelSpec.vllm_gpu_image``. Use this when a newer vLLM has been "
+            "A/B-measured as better for one specific model+GPU pairing but not "
+            "validated across the whole matrix — a version that helps one "
+            "architecture can regress another, so the win stays scoped to the "
+            "plan that measured it rather than becoming a global default."
+        ),
+    )
     extra_env_vars: dict[str, str] = Field(
         default_factory=dict,
         description=(
@@ -154,6 +165,34 @@ class DeploymentPlan(BaseModel):
             "warmup — bump to 5400 for the p4d/p4de plans. Same shape as the "
             "batch driver vllm_startup_timeout_seconds — every layer that "
             "wraps the HF weight download must cover the slow path."
+        ),
+    )
+    spot_wait_timeout_s: int = Field(
+        default=0, ge=0,
+        description=(
+            "How long the spot strategy keeps re-trying EC2 Fleet before it "
+            "gives up and raises CapacityExhausted (so the runner falls "
+            "through to the next capacity mode). "
+            "0 (default) = legacy behaviour: one short built-in backoff "
+            "sweep (~75s) then give up — right for commodity GPUs (g5/g6) "
+            "whose spot pools are deep. "
+            "For scarce accelerators (p4d/p5/p6-B200) spot capacity appears "
+            "and disappears minute-to-minute, so a one-shot attempt almost "
+            "always misses it. Set this to e.g. 1800 (30 min) so the strategy "
+            "keeps polling all offered AZs until capacity shows up OR the "
+            "budget elapses. This is a bounded, self-terminating wait — the "
+            "Fleet is created in 'instant' mode each poll, never 'maintain', "
+            "so there is no risk of a runaway relaunch. Wait time here is "
+            "capacity-acquisition time and is reported SEPARATELY from the "
+            "benchmark's own run time (LLMeter measures from first request)."
+        ),
+    )
+    spot_poll_interval_s: int = Field(
+        default=30, ge=5, le=300,
+        description=(
+            "Seconds between EC2 Fleet re-attempts while waiting for scarce "
+            "spot capacity. Only consulted when spot_wait_timeout_s > 0. "
+            "30s balances responsiveness against API call volume."
         ),
     )
     notes: str = Field(default="", description="Short prose describing the packing.")

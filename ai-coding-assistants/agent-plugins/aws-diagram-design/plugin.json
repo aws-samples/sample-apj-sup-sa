@@ -1,0 +1,27 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "aws-diagram-design",
+  "version": "2.0.0",
+  "description": "AWS-branded editorial diagrams as standalone HTML/SVG/PNG — Amazon Ember typography, squid ink + smile orange skin, official AWS Architecture Icons bundled. 27 visual types (architecture, VPC, flowchart, sequence, ER, timeline, swimlane, Gantt, data flow, …), draw.io and Mermaid redraw, PNG/SVG export, and read-only current-state diagrams drawn from a live AWS account. Korean triggers: AWS 아키텍처 다이어그램, 구성도, 흐름도, 시퀀스 다이어그램.",
+  "author": {
+    "name": "Sangbeom",
+    "url": "https://github.com/masangbeom/aws-diagram-design"
+  },
+  "homepage": "https://github.com/aws-samples/sample-apj-sup-sa/tree/main/ai-coding-assistants/agent-plugins/aws-diagram-design",
+  "repository": "https://github.com/aws-samples/sample-apj-sup-sa",
+  "license": "MIT",
+  "keywords": [
+    "aws diagram",
+    "architecture diagram",
+    "cloud diagram",
+    "vpc diagram",
+    "aws icons",
+    "drawio",
+    "mermaid",
+    "flowchart",
+    "sequence diagram",
+    "current-state diagram",
+    "구성도",
+    "아키텍처 다이어그램"
+  ]
+}

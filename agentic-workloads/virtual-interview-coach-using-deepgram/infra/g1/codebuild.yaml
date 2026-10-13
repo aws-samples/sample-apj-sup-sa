@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+# Transient cloud-build stack for G1 Phase C3.
+#
+# Local Docker on the dev machine was unusable (host disk full -> corrupted Docker Desktop VM),
+# so the worker + backend images are built in CodeBuild and pushed to the ECR repos that
+# infra/g1/deploy.yaml already created. This stack is disposable: delete it once the images are
+# in ECR (the images persist in ECR independently of this stack).
+#
+# Flow (see build-images.sh): deploy this stack -> upload a source zip to the SourceBucket ->
+# start-build -> poll -> delete this stack.
+Description: >-
+  InterviewCoach G1 transient image-build stack: a CodeBuild project (privileged, Docker) that
+  builds the worker + backend images and pushes them to ECR. Delete after the images land.
+
+Parameters:
+  WorkerRepoArn:
+    Type: String
+    Description: ARN of the worker ECR repo (from the demo stack).
+  BackendRepoArn:
+    Type: String
+    Description: ARN of the backend ECR repo (from the demo stack).
+  ReportRepoArn:
+    Type: String
+    Description: ARN of the report-worker ECR repo (from the demo stack, F003).
+  WorkerRepoUri:
+    Type: String
+  BackendRepoUri:
+    Type: String
+  ReportRepoUri:
+    Type: String
+  EcrRegistry:
+    Type: String
+    Description: <account>.dkr.ecr.<region>.amazonaws.com
+  ImageTag:
+    Type: String
+    Default: c1
+
+Resources:
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    # S3_DEFAULT_ENCRYPTION_KMS suppressed: SSE-S3 (AES256, below) is sufficient for a transient
+    # source zip in a disposable build stack. S3_BUCKET_LOGGING_ENABLED / S3_BUCKET_DEFAULT_LOCK_ENABLED
+    # / S3_BUCKET_VERSIONING_ENABLED are intentionally not met (dedicated log bucket / Object Lock /
+    # versioning all fight the 1-day expiry + automated stack teardown). Versioning in particular
+    # leaves delete markers + noncurrent versions so the bucket never empties, which fails the
+    # build-images.sh delete-stack.
+    Metadata:
+      guard:
+        SuppressedRules:
+          - S3_DEFAULT_ENCRYPTION_KMS
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-src-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256   # SSE-S3 at-rest encryption (free) — S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-source-zips
+            Status: Enabled
+            ExpirationInDays: 1
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: build-and-push
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}*
+              - Sid: EcrAuth
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: EcrPublicAuth
+                # Pull the base python image from AWS's ECR Public mirror instead of Docker Hub
+                # (whose anonymous pull limit / HTTP 429 fails CodeBuild). GetAuthorizationToken for
+                # ECR Public requires the sts service-bearer-token grant as well.
+                Effect: Allow
+                Action:
+                  - ecr-public:GetAuthorizationToken
+                  - sts:GetServiceBearerToken
+                Resource: "*"
+              - Sid: EcrPush
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource:
+                  - !Ref WorkerRepoArn
+                  - !Ref BackendRepoArn
+                  - !Ref ReportRepoArn
+              - Sid: SourceRead
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub ${SourceBucket.Arn}/*
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    # CODEBUILD_ENCRYPTION_KEY_RULE suppressed: this transient project produces NO_ARTIFACTS (it
+    # pushes images straight to ECR) and the whole stack is deleted once the images land, so a
+    # customer-managed key for build artifacts has nothing durable to protect.
+    Metadata:
+      guard:
+        SuppressedRules:
+          - CODEBUILD_ENCRYPTION_KEY_RULE
+    Properties:
+      Name: !Ref AWS::StackName
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      TimeoutInMinutes: 30
+      Source:
+        Type: S3
+        Location: !Sub ${SourceBucket}/source.zip
+        BuildSpec: infra/g1/codebuild-images.yml
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        PrivilegedMode: true   # required to run the Docker daemon for image builds
+        EnvironmentVariables:
+          - Name: ECR_REGISTRY
+            Value: !Ref EcrRegistry
+          - Name: WORKER_REPO
+            Value: !Ref WorkerRepoUri
+          - Name: BACKEND_REPO
+            Value: !Ref BackendRepoUri
+          - Name: REPORT_REPO
+            Value: !Ref ReportRepoUri
+          - Name: IMAGE_TAG
+            Value: !Ref ImageTag
+
+Outputs:
+  SourceBucketName:
+    Value: !Ref SourceBucket
+  ProjectName:
+    Value: !Ref BuildProject

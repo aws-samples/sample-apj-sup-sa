@@ -1,0 +1,8 @@
+{
+  "app": ".venv/bin/python3 app.py",
+  "context": {
+    "region": "<YOUR_REGION>",
+    "temporal_address": "<YOUR_NAMESPACE>.tmprl.cloud:7233",
+    "temporal_namespace": "<YOUR_NAMESPACE>"
+  }
+}

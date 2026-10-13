@@ -1,0 +1,23 @@
+{
+  "toolName": "Escalate",
+  "toolType": "RETURN_TO_CONTROL",
+  "description": "Escalate the conversation to a human agent. Only after the customer agreed to be escalated, or explicitly asked for a person.",
+  "instruction": {
+    "instruction": "Call this ONLY when (a) the customer explicitly asks for a human agent or a person, or (b) you asked 'Would you like me to escalate this to a human agent?' and the customer answered yes. Never call it straight after a request you cannot complete (e.g. initiating a refund) - ask the question first and wait. If the customer answers no, do not call it."
+  },
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Reason for escalation"
+      }
+    },
+    "required": [
+      "reason"
+    ]
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

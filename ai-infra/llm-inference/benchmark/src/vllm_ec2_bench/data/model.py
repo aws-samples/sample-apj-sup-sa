@@ -62,8 +62,15 @@ class ModelSpec(BaseModel):
         description="Default ``--max-model-len`` for vLLM; per-experiment override is allowed.",
     )
     vllm_gpu_image: str = Field(
-        default="vllm/vllm-openai:v0.20.2",
-        description="Container image for NVIDIA-GPU backends. Pin a digest in prod.",
+        default="vllm/vllm-openai:v0.25.1",
+        description=(
+            "Container image for NVIDIA-GPU backends. Pin a digest in prod. "
+            "NOTE: v0.25.1 (2026-07) is required for NVIDIA RTX PRO Blackwell "
+            "(sm_120) GPUs used by g7/g7e — the older v0.20.2 lacks mature "
+            "sm_120 kernels and hangs for tens of minutes at startup on those "
+            "cards (JIT/autotune fallback). sm_100 (B200/p6) and Ada (g6e) "
+            "work on either version; v0.25.1 is a safe superset."
+        ),
     )
     neuron_image_template: str = Field(
         default="public.ecr.aws/neuron/pytorch-inference-vllm-neuronx:0.13.0-neuronx-py312-sdk2.28.0-ubuntu24.04",

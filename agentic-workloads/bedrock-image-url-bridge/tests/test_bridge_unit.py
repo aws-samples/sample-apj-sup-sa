@@ -1,0 +1,607 @@
+"""Unit tests for bridge.core.resolve_image_urls.
+
+No network or AWS calls -- all HTTP is mocked via unittest.mock.
+"""
+from __future__ import annotations
+
+import base64
+import io
+import unittest
+from unittest import mock
+
+import requests
+from PIL import Image
+
+from bridge.core import resolve_image_urls
+
+
+def _make_jpeg_bytes() -> bytes:
+    img = Image.new("RGB", (4, 4), color=(255, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+class _FakeResponse:
+    """Minimal stand-in for requests.Response covering what core.py uses."""
+
+    def __init__(self, content: bytes, status_code: int = 200, headers: dict | None = None, is_redirect: bool = False):
+        self._content = content
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.is_redirect = is_redirect
+        self._closed = False
+
+    def iter_content(self, chunk_size: int = 65536):
+        data = self._content
+        for i in range(0, len(data), chunk_size):
+            yield data[i : i + chunk_size]
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise Exception(f"HTTP {self.status_code}")
+
+    def close(self):
+        self._closed = True
+
+
+class PassthroughTests(unittest.TestCase):
+    def test_s3_url_passthrough_chat_completions(self):
+        payload = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "image_url", "image_url": {"url": "s3://bucket/key.jpg"}}],
+                }
+            ]
+        }
+        result = resolve_image_urls(payload)
+        self.assertEqual(
+            result["messages"][0]["content"][0]["image_url"]["url"], "s3://bucket/key.jpg"
+        )
+
+    def test_data_uri_passthrough(self):
+        data_uri = "data:image/jpeg;base64,AAAA"
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": data_uri}}]}]
+        }
+        result = resolve_image_urls(payload)
+        self.assertEqual(result["messages"][0]["content"][0]["image_url"]["url"], data_uri)
+
+    def test_no_image_blocks_unchanged(self):
+        payload = {"messages": [{"role": "user", "content": [{"type": "text", "text": "hello"}]}]}
+        result = resolve_image_urls(payload)
+        self.assertEqual(result, payload)
+
+    def test_does_not_mutate_input(self):
+        payload = {
+            "messages": [
+                {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "s3://bucket/key.jpg"}}]}
+            ]
+        }
+        original = {
+            "messages": [
+                {"role": "user", "content": [{"type": "image_url", "image_url": {"url": "s3://bucket/key.jpg"}}]}
+            ]
+        }
+        resolve_image_urls(payload)
+        self.assertEqual(payload, original)
+
+
+class HttpsConversionTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_https_url_converted_to_data_uri_string_form(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "input": [
+                {
+                    "role": "user",
+                    "content": [{"type": "input_image", "image_url": "https://example.com/cat.jpg"}],
+                }
+            ]
+        }
+        result = resolve_image_urls(payload)
+        resolved_url = result["input"][0]["content"][0]["image_url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+        b64_part = resolved_url.split(",", 1)[1]
+        self.assertEqual(base64.b64decode(b64_part), jpeg_bytes)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_https_url_converted_object_form(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}],
+                }
+            ]
+        }
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+
+class SchemeAndInsecureHttpTests(unittest.TestCase):
+    def test_unsupported_scheme_raises(self):
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "file:///etc/passwd"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "Unsupported image_url scheme"):
+            resolve_image_urls(payload)
+
+    def test_http_rejected_by_default(self):
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "http://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "insecure http"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_http_allowed_with_override(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "http://example.com/cat.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload, allow_insecure_http=True)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+
+class SsrfGuardTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    def test_blocks_loopback_ip(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("127.0.0.1", 0))]
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://evil.example/x.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "blocked address"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    def test_blocks_metadata_ip(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("169.254.169.254", 0))]
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://evil.example/x.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "blocked address"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    def test_blocks_private_ip(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("10.0.0.5", 0))]
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://evil.example/x.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "blocked address"):
+            resolve_image_urls(payload)
+
+
+class SizeCapTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_content_length_over_cap_raises_before_reading_body(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        class _NeverIterateResponse(_FakeResponse):
+            def iter_content(self, chunk_size: int = 65536):
+                raise AssertionError("iter_content should not be called when Content-Length already exceeds cap")
+
+        mock_get.return_value = _NeverIterateResponse(b"x" * 10, headers={"Content-Length": str(50 * 1024 * 1024)})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/huge.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "exceeds max_bytes"):
+            resolve_image_urls(payload, max_bytes=20 * 1024 * 1024)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_streamed_body_over_cap_without_content_length(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        big_body = b"x" * (1024 * 1024)  # 1 MiB, no Content-Length header
+        mock_get.return_value = _FakeResponse(big_body, headers={})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/huge.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "exceeded max_bytes"):
+            resolve_image_urls(payload, max_bytes=1024)  # tiny cap forces overflow mid-stream
+
+
+class InvalidImageTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_non_image_bytes_rejected(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        not_an_image = b"not an image, just plain text bytes"
+        mock_get.return_value = _FakeResponse(not_an_image, headers={"Content-Length": str(len(not_an_image))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/fake.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "not a valid image"):
+            resolve_image_urls(payload)
+
+
+class RedirectTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_redirect_follows_absolute_url(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        # First response: redirect
+        redirect_response = _FakeResponse(b"", status_code=302, headers={"Location": "https://example.com/new.jpg"}, is_redirect=True)
+        # Second response: actual image
+        final_response = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        mock_get.side_effect = [redirect_response, final_response]
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/old.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+        # Should call both URLs
+        self.assertEqual(mock_get.call_count, 2)
+        mock_get.assert_any_call("https://example.com/old.jpg", stream=True, timeout=10.0, allow_redirects=False)
+        mock_get.assert_any_call("https://example.com/new.jpg", stream=True, timeout=10.0, allow_redirects=False)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_redirect_resolves_relative_url(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        # First response: relative redirect
+        redirect_response = _FakeResponse(b"", status_code=302, headers={"Location": "../images/new.jpg"}, is_redirect=True)
+        # Second response: actual image
+        final_response = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        mock_get.side_effect = [redirect_response, final_response]
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/old/cat.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+        # Should resolve relative URL correctly
+        self.assertEqual(mock_get.call_count, 2)
+        mock_get.assert_any_call("https://example.com/old/cat.jpg", stream=True, timeout=10.0, allow_redirects=False)
+        mock_get.assert_any_call("https://example.com/images/new.jpg", stream=True, timeout=10.0, allow_redirects=False)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_redirect_validates_each_hop(self, mock_get, mock_getaddrinfo):
+        # First URL resolves to safe IP, second to blocked IP
+        def side_effect_getaddrinfo(hostname, port):
+            if hostname == "safe.example":
+                return [(None, None, None, None, ("93.184.216.34", 0))]
+            elif hostname == "evil.example":
+                return [(None, None, None, None, ("127.0.0.1", 0))]
+
+        mock_getaddrinfo.side_effect = side_effect_getaddrinfo
+
+        # Redirect to blocked host
+        redirect_response = _FakeResponse(b"", status_code=302, headers={"Location": "https://evil.example/hack.jpg"}, is_redirect=True)
+        mock_get.return_value = redirect_response
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://safe.example/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "blocked address"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_redirect_missing_location_header(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        # Redirect without Location header
+        redirect_response = _FakeResponse(b"", status_code=302, headers={}, is_redirect=True)
+        mock_get.return_value = redirect_response
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "no Location header"):
+            resolve_image_urls(payload)
+
+
+class MalformedHeaderTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_malformed_content_length_raises(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        # Content-Length with non-numeric value
+        mock_get.return_value = _FakeResponse(b"x" * 10, headers={"Content-Length": "not-a-number"})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "Malformed Content-Length header"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_empty_content_length_raises(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        # Empty Content-Length header
+        mock_get.return_value = _FakeResponse(b"x" * 10, headers={"Content-Length": ""})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "Malformed Content-Length header"):
+            resolve_image_urls(payload)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_negative_content_length_accepted(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        # Negative Content-Length (weird but technically valid integer)
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": "-1"})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}]}]
+        }
+        # Should not raise - negative is less than max_bytes, so check is bypassed
+        result = resolve_image_urls(payload)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+
+class MixedShapeTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_both_chat_completions_and_responses_shapes_in_one_call(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        chat_payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        responses_payload = {
+            "input": [{"role": "user", "content": [{"type": "input_image", "image_url": "https://example.com/b.jpg"}]}]
+        }
+
+        chat_result = resolve_image_urls(chat_payload)
+        responses_result = resolve_image_urls(responses_payload)
+
+        self.assertTrue(
+            chat_result["messages"][0]["content"][0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        )
+        self.assertTrue(
+            responses_result["input"][0]["content"][0]["image_url"].startswith("data:image/jpeg;base64,")
+        )
+
+
+class CacheTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_cache_miss_downloads_and_populates_cache(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        cache: dict[str, str] = {}
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload, cache=cache)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertIn("https://example.com/a.jpg", cache)
+        self.assertEqual(cache["https://example.com/a.jpg"], resolved_url)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_cache_hit_skips_download(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+
+        cache = {"https://example.com/a.jpg": "data:image/jpeg;base64,cached=="}
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload, cache=cache)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+
+        mock_get.assert_not_called()
+        self.assertEqual(resolved_url, "data:image/jpeg;base64,cached==")
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_second_call_with_same_cache_reuses_result(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        cache: dict[str, str] = {}
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        first = resolve_image_urls(payload, cache=cache)
+        second = resolve_image_urls(payload, cache=cache)
+
+        # Only the first call should have actually downloaded.
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(
+            first["messages"][0]["content"][0]["image_url"]["url"],
+            second["messages"][0]["content"][0]["image_url"]["url"],
+        )
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_no_cache_by_default_downloads_every_call(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        resolve_image_urls(payload)
+        resolve_image_urls(payload)
+
+        # No cache passed -- default behavior downloads every time, same
+        # as before this feature existed.
+        self.assertEqual(mock_get.call_count, 2)
+
+
+class PreprocessHookTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_hook_receives_downloaded_bytes(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        received: list[bytes] = []
+
+        def _preprocess(raw: bytes) -> bytes:
+            received.append(raw)
+            return raw
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        resolve_image_urls(payload, preprocess=_preprocess)
+
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0], jpeg_bytes)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_hook_output_reflected_in_data_uri(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        # A real preprocess step: re-encode a smaller version of the same
+        # image via bridge.preprocess so the output is still a valid,
+        # independently-verifiable image (not just a byte transform).
+        from bridge.preprocess import preprocess_patch_mode
+
+        def _preprocess(raw: bytes) -> bytes:
+            return preprocess_patch_mode(raw, detail="low").to_bytes()
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload, preprocess=_preprocess)
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        self.assertTrue(resolved_url.startswith("data:image/jpeg;base64,"))
+
+        b64_part = resolved_url.split(",", 1)[1]
+        decoded = base64.b64decode(b64_part)
+        # The preprocessed output differs from the raw download (it was
+        # resized to 512x512 by 'low' detail) but is still re-verified as
+        # a valid image by _bytes_to_data_uri.
+        self.assertNotEqual(decoded, jpeg_bytes)
+        with Image.open(io.BytesIO(decoded)) as img:
+            img.verify()
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_none_is_unchanged_default_behavior(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        result = resolve_image_urls(payload)  # preprocess not passed -- default None
+        resolved_url = result["messages"][0]["content"][0]["image_url"]["url"]
+        b64_part = resolved_url.split(",", 1)[1]
+        self.assertEqual(base64.b64decode(b64_part), jpeg_bytes)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_preprocess_invalid_output_still_rejected(self, mock_get, mock_getaddrinfo):
+        """Preprocessed output that isn't a real image must still be
+        rejected by the existing Pillow verification -- the hook cannot
+        bypass that check."""
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        with self.assertRaisesRegex(ValueError, "not a valid image"):
+            resolve_image_urls(payload, preprocess=lambda raw: b"not an image anymore")
+
+
+class SessionReuseTests(unittest.TestCase):
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    def test_default_session_is_reused_across_calls(self, mock_getaddrinfo):
+        from bridge import core
+
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+
+        with mock.patch.object(requests.Session, "get") as mock_get:
+            mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+            payload = {
+                "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+            }
+            resolve_image_urls(payload)
+            session_after_first_call = core._default_session
+
+            resolve_image_urls(payload)
+            session_after_second_call = core._default_session
+
+        # Same Session instance is reused, not recreated per call.
+        self.assertIsNotNone(session_after_first_call)
+        self.assertIs(session_after_first_call, session_after_second_call)
+
+    @mock.patch("bridge.core.socket.getaddrinfo")
+    @mock.patch("bridge.core.requests.Session.get")
+    def test_explicit_session_override_is_used_instead_of_default(self, mock_get, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = [(None, None, None, None, ("93.184.216.34", 0))]
+        jpeg_bytes = _make_jpeg_bytes()
+        mock_get.return_value = _FakeResponse(jpeg_bytes, headers={"Content-Length": str(len(jpeg_bytes))})
+
+        custom_session = requests.Session()
+        payload = {
+            "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "https://example.com/a.jpg"}}]}]
+        }
+        resolve_image_urls(payload, session=custom_session)
+
+        # mock.patch.object on the class method fires for any instance,
+        # including our custom session, so we can't distinguish which
+        # instance called it here directly -- but we can confirm no
+        # exception occurred and the call succeeded using the passed-in
+        # session object (mock_get is bound to the class, called via
+        # custom_session.get(...), which is exactly what we're testing
+        # doesn't crash / bypass the code path).
+        mock_get.assert_called_once()
+
+
+if __name__ == "__main__":
+    unittest.main()

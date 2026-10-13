@@ -166,17 +166,31 @@ class DeploymentRunner:
             hf_secret_name=self.hf_secret_name, vllm_api_key=self.state.api_key,
         )
 
-        # 3. Try each capacity strategy in order
+        # 3. Try each capacity strategy in order. Time the acquisition
+        #    separately: for scarce GPUs (p4d/p5/p6) the spot strategy may
+        #    poll for many minutes, and that wait must be excluded from the
+        #    benchmark's measured run time (see DeploymentState.capacity_wait_s).
         ctx = self._build_launch_context(user_data_b64)
+        _t_capacity_start = time.time()
         result = self._try_strategies(ctx)
+        self.state.capacity_wait_s = round(time.time() - _t_capacity_start, 3)
         self._record_result(result)
 
-        # 4. Wait for public IP + vLLM ready
+        # 4. Wait for public IP + vLLM ready (boot + image pull + weight
+        #    download + warmup). Also excluded from benchmark run time.
         self._wait_for_public_ip()
+        _t_ready_start = time.time()
         self._wait_for_vllm_ready()
+        self.state.vllm_ready_wait_s = round(time.time() - _t_ready_start, 3)
 
         self.state.base_url = f"http://{self.state.public_ip}:8000/v1"
         self.state.mark_launched()
+        LOG.info(
+            "[%s] launch overhead: capacity_wait=%.0fs vllm_ready_wait=%.0fs "
+            "(excluded from benchmark run time)",
+            cfg.experiment_id, self.state.capacity_wait_s or 0.0,
+            self.state.vllm_ready_wait_s or 0.0,
+        )
         LOG.info(
             "[%s] ready at %s (api key prefix: %s)",
             cfg.experiment_id, self.state.base_url, self.state.api_key[:8],
@@ -331,6 +345,13 @@ class DeploymentRunner:
         start = time.time()
         deadline = start + self.ready_timeout_s
         last_error = "<no attempt>"
+        # Re-check the caller's egress IP once a minute. A NAT rotation mid-
+        # launch is indistinguishable from "vLLM still starting" from here —
+        # both look like a connection timeout — and it used to burn the whole
+        # readiness budget. Checking inside the loop turns a wedged launch into
+        # a ~1-minute hiccup, and the extra HTTPS lookups are negligible next
+        # to a multi-minute model load.
+        last_ip_check = 0.0
         while time.time() < deadline:
             try:
                 req = urllib.request.Request(
@@ -348,6 +369,10 @@ class DeploymentRunner:
                 last_error = str(exc)
             except Exception as exc:  # noqa: BLE001
                 last_error = repr(exc)
+            if time.time() - last_ip_check >= 60:
+                last_ip_check = time.time()
+                if self._resources.refresh_caller_ingress():
+                    self.state.caller_ip_cidr = self._resources.caller_ip_cidr
             time.sleep(20)
         raise TimeoutError(
             f"vLLM did not become ready on {url} within {self.ready_timeout_s}s. "

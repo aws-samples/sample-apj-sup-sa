@@ -50,6 +50,11 @@ Parameters:
     Default: lambdas/amplify_hosting.zip
     Description: S3 key for Amplify Hosting Lambda (use hash-versioned key)
 
+  DataFoundationLambdaKey:
+    Type: String
+    Default: lambda/datafoundation_lambda.zip
+    Description: S3 key for DataFoundation toolset Lambda (use hash-versioned key)
+
   InterceptorLambdaKey:
     Type: String
     Default: lambdas/gateway_interceptor.zip
@@ -94,9 +99,40 @@ Parameters:
     Default: lambdas/observability_setup.zip
     Description: S3 key for observability setup Lambda (use hash-versioned key)
 
+  # ── Voice (optional, additive) ──────────────────────────────────────────────
+  EnableVoice:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Deploy the voice layer (Pipecat pipeline). Demo mode only. Default off.
+  VoiceMode:
+    Type: String
+    Default: agentcore
+    AllowedValues: [agentcore, pipecat-cloud]
+    Description: Where the voice pipeline runs when EnableVoice=true. agentcore = its own AgentCore Runtime (WebRTC+KVS). (laptop is a local-dev path, not a CFN value.)
+  VoiceAgentCodeS3Key:
+    Type: String
+    Default: voice/voice_agent_code.zip
+    Description: S3 key of the voice bot code zip (CodeBuild source for agentcore mode)
+  DeepgramApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Deepgram API key (required when EnableVoice=true)
+  DeepgramVoiceId:
+    Type: String
+    Default: aura-2-apollo-en
+    Description: Deepgram TTS voice id
+
 Conditions:
   IsDemo: !Equals [!Ref DeployMode, 'demo']
   IsWorkshop: !Equals [!Ref DeployMode, 'workshop']
+  # Voice is demo-only and additive. VoiceAgentCore is the CFN-wired mode (the voice
+  # pipeline runs as its own AgentCore Runtime, WebRTC + KVS TURN, no vendor SFU);
+  # pipecat-cloud is managed by its own custom-resource stack
+  # (infrastructure/voice-pcc-cr) deployed separately.
+  VoiceEnabled: !And [!Equals [!Ref DeployMode, 'demo'], !Equals [!Ref EnableVoice, 'true']]
+  VoiceAgentCore: !And [!Condition VoiceEnabled, !Equals [!Ref VoiceMode, 'agentcore']]
 
 Resources:
   #============================================================================
@@ -245,15 +281,22 @@ Resources:
   CubeStack:
     Type: AWS::CloudFormation::Stack
     Condition: IsWorkshop
+    # DependsOn CodeEditorStack: Cube's SG allows inbound 4000 only from the Code
+    # Editor SG (no public access), so the Code Editor SG must exist first. The
+    # Code Editor reaches Cube's private IP at RUNTIME (tag lookup), so there is no
+    # reverse build-time dependency — no cycle.
     DependsOn:
       - DatabaseInitStack
+      - CodeEditorStack
     Properties:
       TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/cube-stack.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         VpcId: !GetAtt AuroraStack.Outputs.VpcId
-        PublicSubnet1Id: !GetAtt AuroraStack.Outputs.PublicSubnet1Id
+        PrivateSubnet1Id: !GetAtt AuroraStack.Outputs.PrivateSubnet1Id
         LambdaSecurityGroupId: !GetAtt AuroraStack.Outputs.LambdaSecurityGroupId
+        CodeEditorSecurityGroupId: !GetAtt CodeEditorStack.Outputs.CodeEditorSecurityGroupId
+        VPCEndpointSecurityGroupId: !GetAtt AuroraStack.Outputs.VPCEndpointSecurityGroupId
         AuroraSecurityGroupId: !GetAtt AuroraStack.Outputs.AuroraSecurityGroupId
         DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
         AuroraEndpoint: !GetAtt AuroraStack.Outputs.AuroraClusterEndpoint
@@ -286,7 +329,7 @@ Resources:
         KnowledgeBaseId: !GetAtt BedrockKBStack.Outputs.KnowledgeBaseId
         CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
         CognitoClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
-        DataFoundationLambdaKey: lambda/datafoundation_lambda.zip
+        DataFoundationLambdaKey: !Ref DataFoundationLambdaKey
         InterceptorLambdaKey: !Ref InterceptorLambdaKey
         ApiIntegLambdaKey: !Ref ApiIntegLambdaKey
         CustomSqlLambdaKey: !Ref CustomSqlLambdaKey
@@ -295,6 +338,44 @@ Resources:
         PolicyMode: !Ref PolicyMode
         EnableGuardrail: !Ref EnableGuardrail
         AgentCodeS3Key: agent/agent_code.zip
+      Tags:
+        - Key: Project
+          Value: !Ref EnvironmentName
+
+  #============================================================================
+  # Phase 6: Voice (optional, agentcore mode) — the Pipecat pipeline as its OWN
+  # AgentCore Runtime (WebRTC + KVS managed TURN, no vendor SFU). Built before
+  # Amplify so its signaling-proxy URL can be injected into the UI's runtime config.
+  # Reuses the Aurora VPC's private subnets + NAT (VPC NetworkMode is required for
+  # UDP TURN). The pipeline invokes the Strands analytics runtime over Bearer HTTPS.
+  #============================================================================
+  VoiceAgentCoreStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: VoiceAgentCore
+    DependsOn:
+      - CognitoStack
+      - AgentCoreStack
+      - AuroraStack
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/voice-agentcore-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        VoiceAgentCodeS3Key: !Ref VoiceAgentCodeS3Key
+        CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        CognitoClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
+        StrandsAgentRuntimeArn: !GetAtt AgentCoreStack.Outputs.AgentRuntimeArn
+        ChartBucket: !Ref ArtifactsBucket
+        DeepgramApiKey: !Ref DeepgramApiKey
+        DeepgramVoiceId: !Ref DeepgramVoiceId
+        VpcId: !GetAtt AuroraStack.Outputs.VpcId
+        PrivateSubnet1Id: !GetAtt AuroraStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt AuroraStack.Outputs.PrivateSubnet2Id
+        # The voice Runtime builds its own AgentCore-supported-AZ subnets and attaches
+        # them to this NAT-routed private route table (Aurora private subnets can land
+        # in an AgentCore-unsupported AZ like use1-az6).
+        PrivateRouteTableId: !GetAtt AuroraStack.Outputs.PrivateRouteTableId
       Tags:
         - Key: Project
           Value: !Ref EnvironmentName
@@ -319,6 +400,10 @@ Resources:
         CognitoDomain: !GetAtt CognitoStack.Outputs.CognitoDomain
         CognitoIdentityPoolId: !GetAtt CognitoStack.Outputs.IdentityPoolId
         AgentCoreRuntimeEndpoint: !GetAtt AgentCoreStack.Outputs.AgentRuntimeEndpointArn
+        # Empty unless voice (agentcore) is enabled → UI hides the Voice button when blank.
+        # The WebRTC signaling proxy base URL; the SPA POSTs SDP offers / PATCHes ICE
+        # to {this}/api/offer (the proxy forwards to the runtime + unwraps the SSE answer).
+        VoiceSignalingUrl: !If [VoiceAgentCore, !GetAtt VoiceAgentCoreStack.Outputs.VoiceSignalingUrl, '']
         LambdaS3Key: !Sub ${ArtifactsPrefix}${AmplifyLambdaKey}
         UIBuildKey: !Sub ${ArtifactsPrefix}${UIBuildKey}
       Tags:

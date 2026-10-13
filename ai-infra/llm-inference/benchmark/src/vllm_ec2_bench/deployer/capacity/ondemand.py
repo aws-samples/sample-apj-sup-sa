@@ -104,6 +104,11 @@ def _build_run_instances_params(ctx: LaunchContext) -> dict:
             "Ebs": {
                 "VolumeSize": cfg.root_ebs_gib,
                 "VolumeType": "gp3",
+                # Max gp3 throughput/IOPS so DP=8 (8 vLLM engines each reading a
+                # ~50 GiB weight copy off this root volume) isn't I/O-bound.
+                # Default gp3 is 125 MB/s — the bottleneck that wedged p6 DP=8.
+                "Throughput": 1000,
+                "Iops": 16000,
                 "DeleteOnTermination": True,
                 "Encrypted": True,
             },

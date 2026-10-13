@@ -8,7 +8,7 @@
     "test": "node --test tests/"
   },
   "dependencies": {
-    "mppx": "^0.6.7",
+    "mppx": "^0.8.2",
     "@aws-sdk/client-secrets-manager": "^3.0.0",
     "@aws-sdk/client-bedrock-runtime": "^3.0.0"
   }

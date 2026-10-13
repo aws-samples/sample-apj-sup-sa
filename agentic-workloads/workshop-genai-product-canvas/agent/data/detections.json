@@ -1,0 +1,3592 @@
+{
+  "metadata": {
+    "program": "Desaru Camera Trap Programme",
+    "operator": "AnyCompany Conservation Trust",
+    "region": "Desaru, Kota Tinggi, Johor, Malaysia",
+    "period": "2026-01 to 2026-07",
+    "stations": 6,
+    "species_tracked": 12,
+    "total_records": 504,
+    "notes": "Monthly aggregated detection counts from infrared camera traps. Each record = unique independent detection event (30-min quiet period between triggers for same species at same station)."
+  },
+  "stations": [
+    {
+      "station_id": "STN-01",
+      "name": "Tanjung Balau Forest",
+      "lat": 1.5842,
+      "lon": 104.2531,
+      "habitat": "Lowland dipterocarp",
+      "elevation_m": 28
+    },
+    {
+      "station_id": "STN-02",
+      "name": "Panti Bird Sanctuary Edge",
+      "lat": 1.5673,
+      "lon": 104.1987,
+      "habitat": "Peat swamp margin",
+      "elevation_m": 12
+    },
+    {
+      "station_id": "STN-03",
+      "name": "Sungai Lebam Corridor",
+      "lat": 1.5421,
+      "lon": 104.2103,
+      "habitat": "Riparian forest",
+      "elevation_m": 18
+    },
+    {
+      "station_id": "STN-04",
+      "name": "Tanjung Balau Mangrove Buffer",
+      "lat": 1.5689,
+      "lon": 104.2845,
+      "habitat": "Mangrove ecotone",
+      "elevation_m": 3
+    },
+    {
+      "station_id": "STN-05",
+      "name": "Gunung Panti Foothills",
+      "lat": 1.5234,
+      "lon": 104.1756,
+      "habitat": "Hill dipterocarp",
+      "elevation_m": 85
+    },
+    {
+      "station_id": "STN-06",
+      "name": "Teluk Ramunia Plantation Edge",
+      "lat": 1.5012,
+      "lon": 104.2412,
+      "habitat": "Secondary growth / oil palm fringe",
+      "elevation_m": 9
+    }
+  ],
+  "detections": [
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-01",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 6
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 6
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-02",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 6
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-03",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 6
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 6
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-04",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 7
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-05",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-06",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Malayan Tapir",
+      "scientific_name": "Tapirus indicus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Red Junglefowl",
+      "scientific_name": "Gallus gallus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Lesser Mouse-Deer",
+      "scientific_name": "Tragulus kanchil",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Southern Red Muntjac",
+      "scientific_name": "Muntiacus muntjak",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Malayan Porcupine",
+      "scientific_name": "Hystrix brachyura",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Wild Boar",
+      "scientific_name": "Sus scrofa",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 5
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Long-tailed Macaque",
+      "scientific_name": "Macaca fascicularis",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Malayan Civet",
+      "scientific_name": "Viverra tangalunga",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Asian Palm Civet",
+      "scientific_name": "Paradoxurus hermaphroditus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 3
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 2
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 4
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "White-breasted Waterhen",
+      "scientific_name": "Amaurornis phoenicurus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 1
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Asian Elephant",
+      "scientific_name": "Elephas maximus",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-01",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-02",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-03",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-04",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-05",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    },
+    {
+      "month": "2026-07",
+      "station_id": "STN-06",
+      "species": "Sunda Pangolin",
+      "scientific_name": "Manis javanica",
+      "detection_count": 0
+    }
+  ]
+}
