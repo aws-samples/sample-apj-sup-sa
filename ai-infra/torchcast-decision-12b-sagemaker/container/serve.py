@@ -36,7 +36,7 @@ VLLM_PORT = 8890
 MODEL_DIR = "/opt/ml/model"
 SERVED_NAME = "torchcast-decision-12b"
 HF_MODEL_ID = "torchcast-ai/torchcast-decision-12b"
-HF_REVISION = "49107b5589bf2dc4ec3f5acd54316971dd5978b1"   # the revision TorchCast's v1.0.0 release pins
+HF_REVISION = "49107b5589bf2dc4ec3f5acd54316971dd5978b1"   # the revision TorchCast's v1.0.0 release pins  # pragma: allowlist secret (public git commit / file checksum, not a secret)
 
 # decision_server.py and torchcast_shim.py read these at import time.
 os.environ.setdefault("SHIM_VLLM", f"http://127.0.0.1:{VLLM_PORT}/v1/chat/completions")
@@ -73,7 +73,7 @@ def vllm_command():
 def vllm_healthy():
     try:
         # A fixed loopback URL.
-        with urllib.request.urlopen(f"http://127.0.0.1:{VLLM_PORT}/health", timeout=2) as r:  # nosec B310
+        with urllib.request.urlopen(f"http://127.0.0.1:{VLLM_PORT}/health", timeout=2) as r:  # nosec B310 nosemgrep
             return r.status == 200
     except OSError:
         return False
