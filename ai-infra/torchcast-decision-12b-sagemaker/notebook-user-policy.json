@@ -1,0 +1,80 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WhoAmI",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "PullAwsVllmDlc",
+      "Effect": "Allow",
+      "Action": ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:BatchCheckLayerAvailability"],
+      "Resource": "arn:aws:ecr:REGION:763104351884:repository/vllm"
+    },
+    {
+      "Sid": "ServingImageRepository",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository", "ecr:TagResource", "ecr:ListTagsForResource", "ecr:DescribeRepositories",
+        "ecr:DescribeImages", "ecr:DescribeImageScanFindings", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:DeleteRepository"
+      ],
+      "Resource": "arn:aws:ecr:REGION:ACCOUNT_ID:repository/torchcast-decision-12b-sagemaker"
+    },
+    {
+      "Sid": "ExecutionRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:TagRole", "iam:GetRole", "iam:ListRoleTags", "iam:UpdateAssumeRolePolicy",
+        "iam:PutRolePolicy", "iam:ListRolePolicies", "iam:DeleteRolePolicy", "iam:DeleteRole"
+      ],
+      "Resource": "arn:aws:iam::ACCOUNT_ID:role/torchcast-decision-12b-sagemaker-execution"
+    },
+    {
+      "Sid": "PassExecutionRoleToSageMakerOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::ACCOUNT_ID:role/torchcast-decision-12b-sagemaker-execution",
+      "Condition": {"StringEquals": {"iam:PassedToService": "sagemaker.amazonaws.com"}}
+    },
+    {
+      "Sid": "Endpoint",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:CreateModel", "sagemaker:CreateEndpointConfig", "sagemaker:CreateEndpoint", "sagemaker:AddTags",
+        "sagemaker:ListTags", "sagemaker:DescribeModel", "sagemaker:DescribeEndpointConfig",
+        "sagemaker:DescribeEndpoint", "sagemaker:InvokeEndpoint", "sagemaker:DeleteEndpoint",
+        "sagemaker:DeleteEndpointConfig", "sagemaker:DeleteModel"
+      ],
+      "Resource": [
+        "arn:aws:sagemaker:REGION:ACCOUNT_ID:model/torchcast-decision-12b",
+        "arn:aws:sagemaker:REGION:ACCOUNT_ID:endpoint-config/torchcast-decision-12b",
+        "arn:aws:sagemaker:REGION:ACCOUNT_ID:endpoint/torchcast-decision-12b"
+      ]
+    },
+    {
+      "Sid": "ReadEndpointMetrics",
+      "Effect": "Allow",
+      "Action": "cloudwatch:GetMetricStatistics",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DeleteEndpointLogs",
+      "Effect": "Allow",
+      "Action": "logs:DeleteLogGroup",
+      "Resource": [
+        "arn:aws:logs:REGION:ACCOUNT_ID:log-group:/aws/sagemaker/Endpoints/torchcast-decision-12b",
+        "arn:aws:logs:REGION:ACCOUNT_ID:log-group:/aws/sagemaker/Endpoints/torchcast-decision-12b:*"
+      ]
+    }
+  ]
+}
