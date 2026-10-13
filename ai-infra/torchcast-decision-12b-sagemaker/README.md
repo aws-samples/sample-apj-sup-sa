@@ -46,7 +46,8 @@ release. `container/serve.py` starts vLLM on loopback and puts the decision serv
 | [`deploy-and-invoke.ipynb`](deploy-and-invoke.ipynb) | Image build and push, execution role, endpoint, invocation, concurrency run with latency percentiles, CloudWatch metrics, clean-up |
 | [`decisions.py`](decisions.py) | Request bodies, a generator of distinct synthetic support tickets, response checks and the concurrency runner |
 | [`container/`](container/) | The serving image: `Dockerfile` on the AWS vLLM DLC, `serve.py` (entry point), `build.sh` (build, push and manifest check) |
-| [`notebook-user-policy.json`](notebook-user-policy.json) | Least-privilege IAM policy for the identity that runs the notebook |
+| [`notebook-user-policy.json`](notebook-user-policy.json) | IAM policy for the identity that runs the notebook. It grants no IAM write access |
+| [`execution-role-policy.json`](execution-role-policy.json), [`execution-role-trust-policy.json`](execution-role-trust-policy.json) | The endpoint's execution role, which an administrator creates once (see Prerequisites) |
 | `requirements.txt` | Pinned Python packages for the notebook |
 
 ## Prerequisites
@@ -59,13 +60,35 @@ release. `container/serve.py` starts vLLM on loopback and puts the decision serv
   the build is much slower.
 * Outbound HTTPS from that machine to `raw.githubusercontent.com` (TorchCast's serving files) and ECR, and from
   the endpoint to `huggingface.co` (the weights).
-* The IAM permissions in [`notebook-user-policy.json`](notebook-user-policy.json). Replace `REGION` and
-  `ACCOUNT_ID`. The policy covers creating and deleting the ECR repository, the execution role (and passing it to
-  SageMaker only), the model, endpoint config and endpoint, invoking the endpoint, reading its metrics and deleting
-  its log group, each limited to this sample's resource names.
+* An execution role for the endpoint, created once by an administrator (see below). In the notebook's configuration
+  cell, set `EXISTING_ROLE_ARN` to its ARN, `arn:aws:iam::<account-id>:role/torchcast-decision-12b-sagemaker-execution`.
+* The IAM permissions in [`notebook-user-policy.json`](notebook-user-policy.json) for the identity that runs the
+  notebook. Replace `REGION` and `ACCOUNT_ID`. The policy covers creating and deleting the ECR repository, reading the
+  execution role and passing it to SageMaker only, the model, endpoint config and endpoint, invoking the endpoint,
+  reading its metrics and deleting its log group, each limited to this sample's resource names. It grants no IAM write
+  access: whoever can create a role, edit its trust policy or put a policy on it, and also pass or assume it, can
+  give that role administrator access and use it.
 * A Region that offers `ml.g6e.xlarge` for SageMaker hosting and publishes the AWS DLCs from account
   `763104351884`. The notebook defaults to us-east-2. For an opt-in Region that publishes the DLCs from another
   account, set `DLC_ACCOUNT` for `build.sh`.
+
+### One-time step for an administrator: the execution role
+
+Create the role from the two policy files in this folder, after replacing `REGION` and `ACCOUNT_ID` in both:
+
+```bash
+aws iam create-role --role-name torchcast-decision-12b-sagemaker-execution \
+  --assume-role-policy-document file://execution-role-trust-policy.json \
+  --description "torchcast-decision-12b SageMaker endpoint"
+aws iam put-role-policy --role-name torchcast-decision-12b-sagemaker-execution --policy-name endpoint \
+  --policy-document file://execution-role-policy.json
+```
+
+The role may pull from the sample's ECR repository and write the endpoint's logs and metrics, and only SageMaker in
+your account can assume it. If you load the weights from S3 (`WEIGHTS_S3_URI`, below), also allow `s3:GetObject` on
+the prefix and `s3:ListBucket` on the bucket with an `s3:prefix` condition. The role carries no
+`created-by=torchcast-decision-12b-sagemaker-sample` tag, so the notebook's clean-up leaves it in place for later
+runs; delete it with `aws iam delete-role-policy` and `aws iam delete-role` when you no longer need it.
 
 ## Cost
 
@@ -86,9 +109,11 @@ jupyter lab deploy-and-invoke.ipynb
 Run the notebook from this folder, top to bottom:
 
 1. Install the pinned packages.
-2. Set `REGION` and, if you want them, a named `PROFILE`, an existing image or an existing execution role.
+2. Set `REGION`, `EXISTING_ROLE_ARN` (the execution role from the administrator step) and, if you want them, a
+   named `PROFILE` or an existing image.
 3. Build and push the image with `container/build.sh`, and check that ECR holds a Docker v2 schema 2 manifest.
-4. Create the execution role.
+4. Use the execution role. With `EXISTING_ROLE_ARN = None` the notebook creates the role itself, which needs IAM
+   write access that `notebook-user-policy.json` does not grant; run it that way only as an administrator.
 5. Create the model, endpoint config and endpoint, and wait for `InService`. In our run the container started 16
    minutes after `CreateEndpoint`; vLLM then downloads the 24 GB of weights and loads them before `/ping` turns
    healthy.
@@ -231,7 +256,8 @@ Amazon Bedrock Guardrails or an equivalent filter in front of it.
 ## Clean up
 
 The last cell of the notebook deletes the endpoint (which stops the hourly charge), the endpoint config, the model,
-the endpoint's log group, the execution role and the ECR repository, each only if it carries the notebook's tag
+the endpoint's log group, the execution role (only one the notebook created) and the ECR repository, each only if it
+carries the notebook's tag
 `created-by=torchcast-decision-12b-sagemaker-sample`. If the notebook stopped before that cell, run the configuration
 cell and then the clean-up cell, or delete the resources yourself:
 

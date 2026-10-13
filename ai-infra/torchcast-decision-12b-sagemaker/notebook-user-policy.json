@@ -31,12 +31,9 @@
       "Resource": "arn:aws:ecr:REGION:ACCOUNT_ID:repository/torchcast-decision-12b-sagemaker"
     },
     {
-      "Sid": "ExecutionRole",
+      "Sid": "ReadExecutionRoleOnly",
       "Effect": "Allow",
-      "Action": [
-        "iam:CreateRole", "iam:TagRole", "iam:GetRole", "iam:ListRoleTags", "iam:UpdateAssumeRolePolicy",
-        "iam:PutRolePolicy", "iam:ListRolePolicies", "iam:DeleteRolePolicy", "iam:DeleteRole"
-      ],
+      "Action": ["iam:GetRole", "iam:ListRoleTags"],
       "Resource": "arn:aws:iam::ACCOUNT_ID:role/torchcast-decision-12b-sagemaker-execution"
     },
     {
