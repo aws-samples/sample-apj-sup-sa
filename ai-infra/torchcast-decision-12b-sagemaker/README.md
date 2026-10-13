@@ -53,7 +53,9 @@ release. `container/serve.py` starts vLLM on loopback and puts the decision serv
 ## Prerequisites
 
 * In Service Quotas, SageMaker `ml.g6e.xlarge for endpoint usage` (quota code `L-B0729CB4`) must be
-  at least 1 in your Region. New accounts often have 0; request an increase before you start.
+  at least 1 in your Region. New accounts often have 0; request an increase before you start. The endpoint falls
+  back to `ml.g6e.2xlarge`, `ml.g6e.4xlarge` and `ml.g6e.8xlarge` when SageMaker AI has no `ml.g6e.xlarge` capacity
+  (instance pools), so a quota of 1 for those (`L-F8D7F460`, `L-93531071`, `L-96A28D02`) makes the fallback usable.
 * A machine with Docker 23 or later with `buildx`, plus `curl`, the AWS CLI v2, Python 3.12 and about 60 GB of free
   disk for the image build. An x86_64 Linux host, such as an EC2 instance in the same Region, builds fastest and
   measures the endpoint without your internet path in the way. On arm64 (Apple silicon) Docker emulates x86_64 and
@@ -93,7 +95,9 @@ runs; delete it with `aws iam delete-role-policy` and `aws iam delete-role` when
 ## Cost
 
 `ml.g6e.xlarge` costs $2.6054 per hour in us-east-1, us-east-2 and us-west-2, and more in some other Regions (for
-example $3.7786 in ap-northeast-1, Tokyo), on-demand list prices on 13 October 2026. Plan on about an hour of
+example $3.7786 in ap-northeast-1, Tokyo), on-demand list prices on 13 October 2026. If the endpoint falls back, the
+hour costs $2.8026 (`ml.g6e.2xlarge`), $3.7553 (`ml.g6e.4xlarge`) or $5.6607 (`ml.g6e.8xlarge`) in those three Regions;
+the notebook prints the type it got. Plan on about an hour of
 endpoint time for a full run of the notebook, most of it while the endpoint starts, plus the first image build.
 ECR stores the image (several GB) until the clean-up deletes the repository. Check the current
 [SageMaker AI pricing](https://aws.amazon.com/sagemaker/ai/pricing/) for your Region.
@@ -215,7 +219,9 @@ you run it outside the Region every latency includes your network path.
 * Pinned inputs. The base image is a versioned AWS DLC tag; TorchCast's serving files come from a fixed commit and are
   checked against SHA-256 sums; the weights are a fixed Hugging Face revision. The image tag is a hash of the
   Dockerfile, `serve.py`, the serving files and the base image, the ECR repository has immutable tags and scans each
-  push, and the notebook prints the scan's severity counts.
+  push, and the notebook prints the scan's severity counts. On 13 October 2026 the scan reported 5 critical and 36 high
+  findings, all in operating-system and Python packages of the AWS vLLM DLC base image, none in this sample's files.
+  Rebuild on the newest DLC tag before you deploy, and review the findings against your own policy.
 * Least-privilege execution role. Pull from this one repository, write logs and metrics, and, with
   `WEIGHTS_S3_URI`, read that one S3 prefix. The trust policy names your account in `aws:SourceAccount`.
 
