@@ -233,7 +233,7 @@ notebook. The model then mounts the prefix at `/opt/ml/model`, `serve.py` loads 
 with network isolation. We benchmarked the Hugging Face path, not this one.
 
 ```bash
-pip install huggingface_hub
+pip install huggingface_hub==2.2.0
 hf download torchcast-ai/torchcast-decision-12b --revision 49107b5589bf2dc4ec3f5acd54316971dd5978b1 --local-dir build/weights
 aws s3 sync build/weights s3://<your-bucket>/torchcast-decision-12b/49107b55/ --exclude ".cache/*"
 ```

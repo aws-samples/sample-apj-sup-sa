@@ -24,13 +24,13 @@ otherwise from Hugging Face at the pinned revision.
 Environment (defaults in brackets): TP [1]  MAX_MODEL_LEN [16384]  GPU_UTIL [0.90]  MAX_PARALLEL [256]
     PREFIX_CACHE [on]  NODELAY [on]  HF_MODEL_ID [torchcast-ai/torchcast-decision-12b]  HF_REVISION [49107b55...]
 """
+import http.client
 import os
 # vLLM is started with a fixed argument list, never through a shell.
 import subprocess  # nosec B404
 import sys
 import threading
 import time
-import urllib.request
 
 VLLM_PORT = 8890
 MODEL_DIR = "/opt/ml/model"
@@ -71,16 +71,18 @@ def vllm_command():
 
 
 def vllm_healthy():
+    conn = http.client.HTTPConnection("127.0.0.1", VLLM_PORT, timeout=2)   # vLLM on loopback inside the container
     try:
-        # A fixed loopback URL.
-        with urllib.request.urlopen(f"http://127.0.0.1:{VLLM_PORT}/health", timeout=2) as r:  # nosec B310 nosemgrep
-            return r.status == 200
-    except OSError:
+        conn.request("GET", "/health")
+        return conn.getresponse().status == 200
+    except (OSError, http.client.HTTPException):
         return False
+    finally:
+        conn.close()
 
 
 def main():
-    vllm = subprocess.Popen(vllm_command())  # nosec B603  # noqa: S603
+    vllm = subprocess.Popen(vllm_command())  # nosec B603  # noqa: S603  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit (fixed argv built in this file, no shell)
     import decision_server as ds  # reads the TORCHCAST_* and SHIM_* settings above
 
     class Handler(ds.Handler):
