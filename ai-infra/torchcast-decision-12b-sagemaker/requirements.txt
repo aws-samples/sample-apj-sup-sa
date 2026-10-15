@@ -1,0 +1,6 @@
+# Exact versions for the notebook (Python 3.12). The serving image gets its packages from the AWS vLLM DLC.
+boto3==1.43.112
+botocore==1.43.112
+pandas==3.0.6
+jupyter==1.1.1
+ipykernel==7.4.0

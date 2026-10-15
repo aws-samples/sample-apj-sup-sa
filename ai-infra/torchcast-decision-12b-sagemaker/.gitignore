@@ -1,0 +1,7 @@
+# TorchCast's serving files, downloaded and checked by container/build.sh
+container/serving/
+
+# Local run artifacts
+results.json
+.ipynb_checkpoints/
+__pycache__/
