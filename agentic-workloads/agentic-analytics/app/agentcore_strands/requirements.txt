@@ -6,7 +6,7 @@ python-multipart
 python-dotenv==1.0.0
 strands-agents[otel]==1.44.0
 strands-agents-tools==0.8.1
-mcp==1.28.0
+mcp==1.30.0
 requests
 bedrock-agentcore==1.18.1
 requests-aws4auth
