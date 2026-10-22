@@ -299,6 +299,7 @@ class GatewayService:
             message = self._response_converter.convert_response(
                 response,
                 self._response_model_name(context, request.model),
+                tool_name_map=getattr(self._request_converter, "tool_name_map", None),
             )
             usage = self._response_converter.extract_usage(response)
             await self._usage_service.record_success(context, usage)
@@ -398,6 +399,7 @@ class GatewayService:
                     if self._metrics
                     else None
                 ),
+                tool_name_map=getattr(self._request_converter, "tool_name_map", None),
             )
         except AppError as error:
             if isinstance(error, BedrockThrottlingError):

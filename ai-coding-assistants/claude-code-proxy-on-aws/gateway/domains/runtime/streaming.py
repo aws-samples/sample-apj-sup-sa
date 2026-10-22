@@ -84,10 +84,12 @@ class StreamProcessor:
         bedrock_stream: dict[str, Any],
         context,  # type: ignore[no-untyped-def]
         on_done: Callable[[], None] | None = None,
+        tool_name_map: dict[str, str] | None = None,
     ) -> AsyncGenerator[str, None]:
         state = StreamState(
             message_id=f"msg_{getattr(context, 'request_id', 'unknown')}",
             model_name=self._response_model_name(context),
+            tool_name_map=tool_name_map or {},
         )
         stream = bedrock_stream["stream"]
         iterator = iter(stream)

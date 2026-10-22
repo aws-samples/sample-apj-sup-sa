@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +10,99 @@ import pytest
 from gateway.domains.runtime.converter.request_converter import AnthropicToBedrockConverter
 from gateway.domains.runtime.types import MessageRequest
 from shared.exceptions import ValidationError
+
+_BEDROCK_TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
+
+def _tool(name: str) -> dict:
+    return {
+        "name": name,
+        "description": "x",
+        "input_schema": {"type": "object", "properties": {}},
+    }
+
+
+def _convert_with_tools(tools: list[dict], tool_choice: dict | None = None):
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[{"role": "user", "content": "hi"}],
+        tools=tools,
+        tool_choice=tool_choice,
+    )
+    converted = converter.convert_request(
+        request, SimpleNamespace(bedrock_model_id="bedrock-model"), "none"
+    )
+    return converter, converted
+
+
+def _tool_names(converted: dict) -> list[str]:
+    return [t["toolSpec"]["name"] for t in converted["toolConfig"]["tools"]]
+
+
+# --- #1/#2: tool name length + charset sanitization with reverse mapping ---
+
+def test_long_tool_name_is_truncated_to_64_and_reverse_mapped() -> None:
+    long_name = "mcp__aws-sentral-mcp__get_customer_influences_by_account_and_service"  # 68
+    assert len(long_name) > 64
+    converter, converted = _convert_with_tools([_tool(long_name)])
+    (sanitized,) = _tool_names(converted)
+    assert _BEDROCK_TOOL_NAME_RE.match(sanitized)
+    assert len(sanitized) <= 64
+    # reverse map lets the response side restore the original name
+    assert converter.tool_name_map[sanitized] == long_name
+
+
+def test_invalid_charset_tool_name_is_sanitized() -> None:
+    converter, converted = _convert_with_tools([_tool("aws.sentral.get.customer")])
+    (sanitized,) = _tool_names(converted)
+    assert _BEDROCK_TOOL_NAME_RE.match(sanitized)
+    assert "." not in sanitized
+    assert converter.tool_name_map[sanitized] == "aws.sentral.get.customer"
+
+
+def test_colliding_sanitized_tool_names_stay_unique_and_reversible() -> None:
+    # both sanitize to "a_b" before dedupe
+    converter, converted = _convert_with_tools([_tool("a.b"), _tool("a/b")])
+    names = _tool_names(converted)
+    assert len(set(names)) == 2, names
+    for n in names:
+        assert _BEDROCK_TOOL_NAME_RE.match(n)
+    # every sanitized name maps back to its distinct original
+    assert converter.tool_name_map[names[0]] == "a.b"
+    assert converter.tool_name_map[names[1]] == "a/b"
+
+
+def test_valid_tool_names_pass_through_without_map_entries() -> None:
+    converter, converted = _convert_with_tools([_tool("read_file"), _tool("get-weather")])
+    assert _tool_names(converted) == ["read_file", "get-weather"]
+    assert converter.tool_name_map == {}
+
+
+def test_tool_choice_tool_name_is_sanitized_to_match_spec() -> None:
+    long_name = "mcp__server__" + "x" * 60
+    converter, converted = _convert_with_tools(
+        [_tool(long_name)], tool_choice={"type": "tool", "name": long_name}
+    )
+    (spec_name,) = _tool_names(converted)
+    assert converted["toolConfig"]["toolChoice"] == {"tool": {"name": spec_name}}
+
+
+# --- #3: tool_choice none / unsupported type must not break Bedrock ---
+
+def test_tool_choice_none_omits_toolchoice() -> None:
+    _converter, converted = _convert_with_tools(
+        [_tool("read_file")], tool_choice={"type": "none"}
+    )
+    assert "toolChoice" not in converted["toolConfig"]
+
+
+def test_tool_choice_unknown_type_is_dropped() -> None:
+    _converter, converted = _convert_with_tools(
+        [_tool("read_file")], tool_choice={"type": "totally_unknown"}
+    )
+    assert "toolChoice" not in converted["toolConfig"]
 
 
 def _resolved_model(
@@ -1368,3 +1462,47 @@ def test_convert_request_marks_tool_result_with_is_error_as_error_status() -> No
     )
 
     assert converted["messages"][0]["content"][0]["toolResult"]["status"] == "error"
+
+
+# --- #4: document name uniqueness within a request ---
+
+def _doc(title: str | None) -> dict:
+    import base64 as _b64
+
+    data = _b64.b64encode(b"x").decode()
+    block: dict = {
+        "type": "document",
+        "source": {"type": "base64", "media_type": "text/plain", "data": data},
+    }
+    if title is not None:
+        block["title"] = title
+    return block
+
+
+def _doc_names(tools_msg_content: list[dict]) -> list[str]:
+    return [b["document"]["name"] for b in tools_msg_content if "document" in b]
+
+
+def _convert_docs(blocks: list[dict]) -> dict:
+    converter = AnthropicToBedrockConverter()
+    request = MessageRequest(
+        model="claude-sonnet-4-6",
+        max_tokens=64,
+        messages=[{"role": "user", "content": blocks}],
+    )
+    return converter.convert_request(
+        request, SimpleNamespace(bedrock_model_id="bedrock-model"), "none"
+    )
+
+
+def test_duplicate_document_titles_get_unique_names() -> None:
+    converted = _convert_docs([_doc("report"), _doc("report"), {"type": "text", "text": "sum"}])
+    names = _doc_names(converted["messages"][0]["content"])
+    assert names == ["report", "report (2)"]
+
+
+def test_untitled_documents_get_unique_names() -> None:
+    converted = _convert_docs([_doc(None), _doc(None)])
+    names = _doc_names(converted["messages"][0]["content"])
+    assert names == ["document", "document (2)"]
+    assert len(set(names)) == 2
