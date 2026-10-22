@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgentCore Memory: one shopper, two agents, one shared memory</title>
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="assets/colors_and_type.css" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="app" class="app">
+  <header class="masthead">
+    <div class="masthead-inner">
+      <img class="aws-logo" src="assets/aws-logo-gray850.svg" alt="AWS" />
+      <div class="masthead-text">
+        <div class="eyebrow">Amazon Bedrock AgentCore &middot; Memory behind Gateway &middot; multi-tenant demo</div>
+        <h1 class="headline">One shopper, two agents, one shared memory</h1>
+        <p class="lede">Three retail brands share one AgentCore Memory resource, reached only through one
+          AgentCore Gateway. At Borealis, the Shopping Assistant and Order Support remember the same shopper.
+          Every other brand sees nothing.</p>
+      </div>
+      <div class="masthead-actions">
+        <label class="field compact"><span class="field-label">Model</span><select id="model-select"></select></label>
+        <button id="how-it-works-btn" class="btn btn-secondary">How it works</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="stepper" id="guided-steps">
+    <div class="stepper-head">
+      <div class="eyebrow">Guided demo &middot; <span id="guided-step-label">Step 1 of 5</span></div>
+      <div class="step-actions">
+        <button id="guided-reset" class="btn btn-ghost">Restart</button>
+        <button id="guided-next" class="btn btn-primary">Next step</button>
+      </div>
+    </div>
+    <ol id="guided-step-list" class="step-list"></ol>
+    <p id="guided-step-text" class="step-text"></p>
+  </section>
+
+  <main class="workspace">
+    <section class="panel context-panel">
+      <div class="eyebrow">Who is talking</div>
+      <label class="field"><span class="field-label">Brand</span><select id="tenant-select"></select></label>
+      <label id="agent-select-wrap" class="field"><span class="field-label">Agent</span><select id="agent-select"></select></label>
+
+      <div class="identity">
+        <div class="identity-row">
+          <span class="field-label">Shopper id (browser)</span>
+          <code id="shopper-id-display"></code>
+        </div>
+        <button id="new-shopper" class="btn btn-ghost small">New shopper</button>
+      </div>
+
+      <div class="eyebrow section-gap">Namespace map &middot; this shopper</div>
+      <div id="ns-map" class="ns-map"></div>
+      <p class="hint">Each path ends in <code>/&lt;shopper id&gt;/</code>. Coloured: this agent can read and
+        write. Grey: out of reach &mdash; the brand comes from the JWT, and IAM denies any other prefix.</p>
+    </section>
+
+    <section class="panel chat-panel">
+      <div class="chat-head">
+        <div class="eyebrow">Chat</div>
+        <div id="chat-title" class="chat-title"></div>
+      </div>
+      <div id="chat-log" class="chat-log"></div>
+      <div class="chat-input-row">
+        <input id="chat-input" type="text" maxlength="1000" placeholder="Ask the assistant something&hellip;" />
+        <button id="chat-send" class="btn btn-primary">Send</button>
+      </div>
+      <div id="suggestions" class="suggestions">
+        <span class="field-label">Policy questions (knowledge base)</span>
+        <button class="chip" data-prompt="What's your return window?">Return window</button>
+        <button class="chip" data-prompt="Do your jackets run small?">Jacket fit</button>
+        <button class="chip" data-prompt="How much is express shipping?">Express shipping</button>
+      </div>
+      <div id="cost-line" class="cost-line"></div>
+    </section>
+
+    <aside class="panel memory-panel">
+      <div class="memory-head">
+        <div>
+          <div class="eyebrow">AgentCore Memory &middot; what this agent can see</div>
+          <h2 id="memory-title" class="panel-title"></h2>
+        </div>
+        <button id="refresh-memory" class="btn btn-ghost small">Refresh</button>
+      </div>
+
+      <div class="actor-strip">
+        <span class="field-label">actorId</span>
+        <code id="actor-id-display">&mdash;</code>
+        <span class="actor-note">server-derived from the JWT + shopper id; keys short-term events</span>
+      </div>
+
+      <div class="ns-block shared">
+        <div class="ns-head">
+          <span class="tag tag-shared">Shared</span>
+          <span id="shared-audience" class="ns-audience"></span>
+        </div>
+        <code id="ns-shared" class="ns-path">&mdash;</code>
+        <ul id="memory-shared" class="memory-list"></ul>
+      </div>
+
+      <div class="ns-block private">
+        <div class="ns-head">
+          <span class="tag tag-private">Agent-private</span>
+          <span id="private-audience" class="ns-audience"></span>
+        </div>
+        <code id="ns-private" class="ns-path">&mdash;</code>
+        <ul id="memory-private" class="memory-list"></ul>
+      </div>
+
+      <dl class="legend">
+        <div><dt><span class="status status-indexed">Indexed</span></dt><dd>Long-term memory record, searchable by meaning.</dd></div>
+        <div><dt><span class="status status-pending">Pending</span></dt><dd>Just written. Long-term records take ~40&ndash;60&nbsp;s to index, so it is served from the write-through fast path (CreateEvent / ListEvents) until then.</dd></div>
+      </dl>
+    </aside>
+  </main>
+
+  <section id="attack-panel" class="panel attack-panel">
+    <div class="attack-head">
+      <div>
+        <div class="eyebrow">Isolation proof</div>
+        <h2 class="panel-title">Try to read another brand&rsquo;s memory</h2>
+        <p class="hint">Sends this agent&rsquo;s own JWT with a forged <code>tenant_id</code> and <code>namespace</code> pointing at another brand.</p>
+      </div>
+      <div class="attack-controls">
+        <label class="field compact"><span class="field-label">Target brand</span><select id="attack-target"></select></label>
+        <button id="attack-button" class="btn btn-danger">Attempt cross-brand read</button>
+      </div>
+    </div>
+    <div id="attack-result" class="attack-result"></div>
+  </section>
+
+  <footer class="footer">
+    <span class="caption">Synthetic data only &middot; rate-limited per IP &middot; built on AWS</span>
+  </footer>
+
+  <div id="how-it-works-modal" class="modal-overlay hidden">
+    <div class="modal-box" role="dialog" aria-labelledby="how-it-works-title">
+      <button id="how-it-works-close" class="modal-close" aria-label="Close">&times;</button>
+      <div class="eyebrow">How it works</div>
+      <h2 id="how-it-works-title" class="modal-title">One JWT per brand + agent, from the backend through the Runtime to the Gateway</h2>
+
+      <div class="arch">
+        <div class="arch-lane">
+          <div class="arch-lane-label">Request path</div>
+          <div class="arch-row">
+            <div class="arch-node"><img src="assets/icons/Res_User_48_Light.svg" alt="" /><b>Shopper browser</b><span>Holds only a shopper id &mdash; never a JWT</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node"><img src="assets/icons/Arch_AWS-WAF_48.svg" alt="" /><b>AWS WAF</b><span>100 req / 5 min per IP, managed rules, at the edge</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node"><img src="assets/icons/Arch_Amazon-CloudFront_48.svg" alt="" /><b>Amazon CloudFront</b><span>Static site from S3, <code>/api/*</code> via OAC</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node"><img src="assets/icons/Arch_AWS-Lambda_48.svg" alt="" /><b>Web UI backend</b><span>Mints the brand + agent JWT server-side; Lambda fallback</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node runtime"><img src="assets/icons/Arch_Amazon-Bedrock-AgentCore_48.svg" alt="" /><b>AgentCore Runtime</b><span>The agent. Verifies the JWT, forwards the same JWT to the Gateway</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node"><img src="assets/icons/Arch_Amazon-Bedrock_48.svg" alt="" /><b>Amazon Bedrock</b><span>Claude Haiku / Sonnet, Guardrail, prompt cache</span></div>
+          </div>
+        </div>
+        <div class="arch-lane">
+          <div class="arch-lane-label">Tool calls</div>
+          <div class="arch-row">
+            <div class="arch-node layer1"><img src="assets/icons/Arch_Amazon-Cognito_48.svg" alt="" /><b>Amazon Cognito</b><span>One M2M app client per brand + agent</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node layer1"><img src="assets/icons/Arch_Amazon-Bedrock-AgentCore_48.svg" alt="" /><b>AgentCore Gateway</b><span>CUSTOM_JWT authorizer (layer 1)</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node layer2"><img src="assets/icons/Arch_AWS-Lambda_48.svg" alt="" /><b>Request interceptor</b><span>Strips spoofed tenant args, injects server ones (layer 2)</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node layer3"><img src="assets/icons/Res_AWS-Identity-Access-Management_Role_48.svg" alt="" /><b>Per-tenant IAM role</b><span>namespace / actorId conditions (layer 3)</span></div>
+            <div class="arch-arrow">&rarr;</div>
+            <div class="arch-node memory"><img src="assets/icons/Arch_Amazon-Bedrock-AgentCore_48.svg" alt="" /><b>AgentCore Memory</b><span><code>/tenant/{brand}/{shared|agent}/{shopper}/</code></span></div>
+            <div class="arch-node kb"><img src="assets/icons/Res_Amazon-Simple-Storage-Service_S3-Vectors_48.svg" alt="" /><b>Amazon S3 Vectors</b><span><code>kb_search</code>: one policy index per brand, cited answers</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layers">
+        <div class="layer-card"><div class="num">01 &middot; AuthN</div><p>The Runtime and then the Gateway each verify the Cognito JWT&rsquo;s signature, issuer and client before any code runs.</p></div>
+        <div class="layer-card"><div class="num">02 &middot; Context</div><p>The interceptor maps the JWT&rsquo;s <code>client_id</code> to a brand and agent from a fixed table, and drops any <code>tenant_id</code> / <code>namespace</code> / <code>actor_id</code> the caller sent.</p></div>
+        <div class="layer-card"><div class="num">03 &middot; IAM</div><p>The tools Lambda assumes that brand&rsquo;s own role. It only allows Memory namespaces under <code>/tenant/&lt;brand&gt;/*</code> and the <code>policies-&lt;brand&gt;</code> vector index, so even a code bug cannot cross brands.</p></div>
+      </div>
+      <div class="arch-foot"><img src="assets/icons/Arch_AWS-X-Ray_48.svg" alt="" /><span>Observability: X-Ray traces for the Lambdas and the Runtime agent (GenAI spans per model call), CloudWatch GenAI Observability, and one CloudWatch dashboard for Runtime, Gateway, Lambda and Bedrock metrics.</span></div>
+      <p class="hint">Every reply&rsquo;s &ldquo;What happened&rdquo; trace shows exactly which client, namespaces, actorId and role were used. Detail: README.md and EVIDENCE.md in the repo.</p>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
