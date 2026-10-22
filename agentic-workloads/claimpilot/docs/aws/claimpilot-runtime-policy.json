@@ -1,0 +1,73 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ClaimPilotDynamoDbRuntime",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${CLAIMPILOT_CLAIMS_TABLE_NAME}"
+      ]
+    },
+    {
+      "Sid": "ClaimPilotS3EvidenceRuntime",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${CLAIMPILOT_EVIDENCE_BUCKET_NAME}/claims/*"
+      ]
+    },
+    {
+      "Sid": "ClaimPilotS3BucketMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${CLAIMPILOT_EVIDENCE_BUCKET_NAME}"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "claims/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ClaimPilotBedrockRuntime",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ClaimPilotCloudWatchLogGroupCreate",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ClaimPilotCloudWatchRuntimeLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:DescribeLogStreams",
+        "logs:PutLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:${CLAIMPILOT_CLOUDWATCH_LOG_GROUP_NAME}",
+        "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:${CLAIMPILOT_CLOUDWATCH_LOG_GROUP_NAME}:log-stream:*"
+      ]
+    }
+  ]
+}
