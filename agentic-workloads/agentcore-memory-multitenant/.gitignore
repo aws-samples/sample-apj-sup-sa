@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.zip
+.pytest_cache/
+.build/
+# Deploy-time state: resource ids/ARNs for YOUR account, written by deploy/*.py.
+deploy/state.json
+deploy/state.json.bak
+# Output of deploy/08_probe_iam_conditions.py (account-specific ARNs).
+iam_probe_raw.json
+tests/.tokens_cache.json
