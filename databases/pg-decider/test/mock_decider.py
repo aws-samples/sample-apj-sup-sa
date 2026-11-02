@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT-0
 """Deterministic stand-in for `strands-decider serve`, used by the regression tests.
 
 Speaks the same wire format as strands_decider/server.py and schema.py:

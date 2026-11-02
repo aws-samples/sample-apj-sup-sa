@@ -166,4 +166,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to test changes and cut a release
 
 ## License
 
-[Apache License 2.0](LICENSE), the same license as [Strands Decider](https://github.com/strands-labs/strands-decider). The extension's layout and several techniques (keep-alive connection pooling, cancellable waits, the mock-server test setup) are adapted from [pg-jev](https://github.com/realZachi/pg-jev), which is under the PostgreSQL License. This project isn't affiliated with the Strands or TypeSafe projects.
+[MIT-0](LICENSE), the same license as the rest of this repository. The extension's layout and several techniques (keep-alive connection pooling, cancellable waits, the mock-server test setup) are adapted from [pg-jev](https://github.com/realZachi/pg-jev), which is under the PostgreSQL License. It talks to a [Strands Decider](https://github.com/strands-labs/strands-decider) server, which is a separate project under its own license. This project isn't affiliated with the Strands or TypeSafe projects.

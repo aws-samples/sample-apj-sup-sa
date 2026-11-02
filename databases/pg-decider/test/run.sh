@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT-0
 # Starts a temporary cluster and the mock decider, then runs `make installcheck`.
 # Used by test/Dockerfile; works locally too if initdb/pg_ctl/pg_config are on PATH.
 set -euo pipefail
