@@ -157,9 +157,8 @@ Makefile                  PGXS build: make install / installcheck / docker-test
 Dockerfile                postgres + plpython3u + the extension, ready to run
 test/sql, test/expected   pg_regress tests and their expected output
 test/mock_decider.py      deterministic stand-in for `strands-decider serve`
-test/run.sh, Dockerfile   throwaway cluster + mock server, used by CI
+test/run.sh, Dockerfile   throwaway cluster + mock server, used by `make docker-test`
 test/live/live_test.sql   end-to-end check against a real decider server
-.gitlab-ci.yml            version checks + regression suite on PostgreSQL 14-17
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to test changes and cut a release, and [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
