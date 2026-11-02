@@ -1,0 +1,6 @@
+# decider: plain-language predicates, choices and scores for SQL rows, answered by a Strands Decider server
+comment = 'Plain-language predicates, choices and scores over table rows, judged by a Strands Decider server'
+default_version = '0.1.0'
+relocatable = false
+schema = public
+requires = 'plpython3u'
