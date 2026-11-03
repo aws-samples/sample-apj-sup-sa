@@ -66,6 +66,8 @@ Open the online deck or download `index.html` and open it in a browser. The file
 
 Use **한국어 · English · 日本語** at the bottom left to select a language. Switching languages keeps the current slide, and the browser remembers the selection. Speaker notes remain as you entered them. Screenshots and videos keep their original language.
 
+Select **PDF** to print the deck or save it as a PDF. Slides with tabs print one page for each tab, so the output has 68 pages for the 57 slides. Expandable details and dialogs are not printed.
+
 Features, pricing, and support conditions can change. The slides link to official documentation for checking current details; those links require an internet connection.
 
 ## Licenses
