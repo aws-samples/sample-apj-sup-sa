@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AWS Connect Migration Tool - ConnectMigrationTargetWriter role. Deploy in the
+  TARGET account (any Region; IAM is global). Matches the TargetWriter and
+  trust policies in the README.
+
+Parameters:
+  TargetInstanceArn:
+    Type: String
+    Description: ARN of the target Amazon Connect instance (in this account)
+    AllowedPattern: '^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance/[0-9a-f-]{36}$'
+  TrustedSourceRoleArn:
+    Type: String
+    Description: >-
+      ARN of the ConnectMigrationSourceReader role in the tool (source) account
+      (LambdaRoleArn output of the Lambda stack). Deploy the tool stacks first:
+      IAM rejects a trust policy whose principal does not exist yet.
+    AllowedPattern: '^arn:aws[a-z-]*:iam::\d{12}:role/[\w+=,.@/-]+$'
+  ExternalId:
+    Type: String
+    NoEcho: true
+    MinLength: 2
+    MaxLength: 1224
+    AllowedPattern: '^[\w+=,.@:/-]+$'
+    Description: >-
+      Random value the tool must send with AssumeRole (for example the output of
+      openssl rand -hex 32). Enter the same value in the tool UI.
+  RoleName:
+    Type: String
+    Default: ConnectMigrationTargetWriter
+    AllowedPattern: '^[\w+=,.@-]{1,64}$'
+  AllowPhoneNumberMove:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Grant connect:UpdatePhoneNumber. Only useful for same account, same Region
+      migrations with EnablePhoneNumberMove on the Lambda stack. The tool never moves
+      numbers across accounts or Regions.
+
+Conditions:
+  PhoneNumberMove: !Equals [!Ref AllowPhoneNumberMove, 'true']
+
+Resources:
+  TargetWriterRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cfn-lint:
+        config:
+          # cfn-lint's bundled action list predates the Connect Data Tables API.
+          ignore_checks: [W3037]
+    Properties:
+      RoleName: !Ref RoleName
+      Description: Connect migration tool - write to the target instance
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AssumeFromMigrationTool
+            Effect: Allow
+            Principal:
+              AWS: !Ref TrustedSourceRoleArn
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: TargetWriter
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ConnectWriteTargetInstance
+                Effect: Allow
+                Action:
+                  - connect:ActivateEvaluationForm
+                  - connect:AssociateBot
+                  - connect:AssociateLambdaFunction
+                  - connect:AssociateUserProficiencies
+                  - connect:BatchCreateDataTableValue
+                  - connect:CreateAgentStatus
+                  - connect:CreateContactFlow
+                  - connect:CreateContactFlowModule
+                  - connect:CreateDataTable
+                  - connect:CreateDataTableAttribute
+                  - connect:CreateEvaluationForm
+                  - connect:CreateHoursOfOperation
+                  - connect:CreatePredefinedAttribute
+                  - connect:CreatePrompt
+                  - connect:CreateQueue
+                  - connect:CreateQuickConnect
+                  - connect:CreateRoutingProfile
+                  - connect:CreateRule
+                  - connect:CreateSecurityProfile
+                  - connect:CreateUser
+                  - connect:CreateUserHierarchyGroup
+                  - connect:CreateView
+                  - connect:CreateVocabulary
+                  - connect:UpdateUserHierarchyStructure
+                Resource:
+                  - !Ref TargetInstanceArn
+                  - !Sub '${TargetInstanceArn}/*'
+              - Sid: ConnectReadTargetInstance
+                Effect: Allow
+                Action:
+                  - connect:DescribeUserHierarchyStructure
+                  - connect:DescribeVocabulary
+                  - connect:ListAgentStatuses
+                  - connect:ListBots
+                  - connect:ListContactFlowModules
+                  - connect:ListContactFlows
+                  - connect:ListDataTables
+                  - connect:ListEvaluationForms
+                  - connect:ListHoursOfOperations
+                  - connect:ListLambdaFunctions
+                  - connect:ListPredefinedAttributes
+                  - connect:ListPrompts
+                  - connect:ListQueues
+                  - connect:ListQuickConnects
+                  - connect:ListRoutingProfiles
+                  - connect:ListRules
+                  - connect:ListSecurityProfiles
+                  - connect:ListUserHierarchyGroups
+                  - connect:ListUsers
+                  - connect:ListViews
+                  - connect:SearchVocabularies
+                Resource:
+                  - !Ref TargetInstanceArn
+                  - !Sub '${TargetInstanceArn}/*'
+              # VerifyTarget (read only): the Describe calls it makes on migrated
+              # resources, limited to those resource types inside the target instance.
+              - Sid: ConnectDescribeTargetForVerify
+                Effect: Allow
+                Action:
+                  - connect:DescribeContactFlow
+                  - connect:DescribeContactFlowModule
+                  - connect:DescribeQueue
+                  - connect:DescribeQuickConnect
+                  - connect:DescribeUser
+                Resource:
+                  - !Sub '${TargetInstanceArn}/contact-flow/*'
+                  - !Sub '${TargetInstanceArn}/flow-module/*'
+                  - !Sub '${TargetInstanceArn}/queue/*'
+                  - !Sub '${TargetInstanceArn}/transfer-destination/*'
+                  - !Sub '${TargetInstanceArn}/agent/*'
+              # Tag on create: Connect authorizes the Tags of a Create* call as
+              # connect:TagResource on the new resource (CreateUser and
+              # CreatePrompt are denied without it). Connect has no condition key
+              # that limits TagResource to create time (only aws:RequestTag and
+              # aws:TagKeys, and the source tag keys are arbitrary), so the grant is
+              # limited to resources inside the target instance instead.
+              - Sid: ConnectTagOnCreate
+                Effect: Allow
+                Action: connect:TagResource
+                Resource: !Sub '${TargetInstanceArn}/*'
+              - Sid: ConnectListTargetPhoneNumbers
+                Effect: Allow
+                Action: connect:ListPhoneNumbersV2
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:connect:${Region}:${AWS::AccountId}:phone-number/*'
+                  - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              - Sid: LexDescribeTargetBots
+                Effect: Allow
+                Action:
+                  - lex:DescribeBot
+                  - lex:DescribeBotAlias
+                Resource:
+                  - !Sub
+                    - 'arn:${AWS::Partition}:lex:${Region}:${AWS::AccountId}:bot/*'
+                    - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+                  - !Sub
+                    - 'arn:${AWS::Partition}:lex:${Region}:${AWS::AccountId}:bot-alias/*'
+                    - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              - Sid: QConnectNoResourceLevel
+                Effect: Allow
+                Action:
+                  - wisdom:CreateAIAgent
+                  - wisdom:CreateAIGuardrail
+                  - wisdom:CreateAIPrompt
+                  - wisdom:ListAIAgents
+                  - wisdom:ListAIGuardrails
+                  - wisdom:ListAIPrompts
+                  - wisdom:ListAssistants
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              # Tag on create for the AI resources the tool creates with tags
+              # (CreateAIAgent, CreateAIPrompt, CreateAIGuardrail). Scoped to those three
+              # resource types in the target account and Region. Not yet exercised (AI was
+              # off in testing); remove if a run with AI shows the Create call alone suffices.
+              - Sid: QConnectTagOnCreate
+                Effect: Allow
+                Action: wisdom:TagResource
+                Resource:
+                  - !Sub
+                    - 'arn:${AWS::Partition}:wisdom:${Region}:${AWS::AccountId}:ai-agent/*'
+                    - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+                  - !Sub
+                    - 'arn:${AWS::Partition}:wisdom:${Region}:${AWS::AccountId}:ai-prompt/*'
+                    - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+                  - !Sub
+                    - 'arn:${AWS::Partition}:wisdom:${Region}:${AWS::AccountId}:ai-guardrail/*'
+                    - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              - Sid: ServiceQuotasReadConnect
+                Effect: Allow
+                Action: servicequotas:GetServiceQuota
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:servicequotas:${Region}:${AWS::AccountId}:connect/*'
+                  - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              - Sid: ServiceQuotasDefaultNoResourceLevel
+                Effect: Allow
+                Action: servicequotas:GetAWSDefaultServiceQuota
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              - Sid: PromptTempBucket
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:ListBucket
+                  - s3:PutLifecycleConfiguration
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutBucketPolicy
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:s3:::connect-migration-prompts-temp-${AWS::AccountId}-${Region}'
+                  - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+              - Sid: PromptTempObjects
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:s3:::connect-migration-prompts-temp-${AWS::AccountId}-${Region}/prompts/${InstanceId}/*'
+                  - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+                    InstanceId: !Select [1, !Split ['/', !Ref TargetInstanceArn]]
+              - !If
+                - PhoneNumberMove
+                - Sid: OptInPhoneNumberMove
+                  Effect: Allow
+                  Action: connect:UpdatePhoneNumber
+                  Resource:
+                    - !Ref TargetInstanceArn
+                    - !Sub
+                      - 'arn:${AWS::Partition}:connect:${Region}:${AWS::AccountId}:phone-number/*'
+                      - Region: !Select [3, !Split [':', !Ref TargetInstanceArn]]
+                - !Ref AWS::NoValue
+
+Outputs:
+  TargetRoleArn:
+    Description: Enter this ARN in the tool (TargetRoleArn parameter and the UI)
+    Value: !GetAtt TargetWriterRole.Arn

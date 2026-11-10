@@ -1,0 +1,2810 @@
+{
+  "Comment": "Connect Migration State Machine v6.4 - Read only target verification (VerifyTarget) before the secret cleanup",
+  "TimeoutSeconds": 3600,
+  "StartAt": "CheckMigrationOptions",
+  "States": {
+    "CheckMigrationOptions": {
+      "Type": "Pass",
+      "Next": "DecideIndependentResourcesMigration",
+      "Result": {
+        "createQueuesResult": {
+          "Payload": {
+            "queueMapping": {}
+          }
+        },
+        "createHoursResult": {
+          "Payload": {
+            "hoursMapping": {}
+          }
+        },
+        "phase1Results": [
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED",
+            "hierarchyGroupMapping": {}
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          },
+          {
+            "status": "SKIPPED"
+          }
+        ]
+      },
+      "ResultPath": "$.defaults"
+    },
+    "DecideIndependentResourcesMigration": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.features.agentStatus",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.hierarchyGroups",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.prompts",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.predefinedAttributes",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.dataTables",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.contactFlows",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.contactFlowModules",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.views",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.rules",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.evaluationForms",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.quickConnects",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.phoneNumbers",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.aiAgents",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.aiPrompts",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.aiGuardrails",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        },
+        {
+          "Variable": "$.features.vocabularies",
+          "BooleanEquals": true,
+          "Next": "IndependentResourcesMigrationFlow"
+        }
+      ],
+      "Default": "DecideQueueMigration"
+    },
+    "IndependentResourcesMigrationFlow": {
+      "Type": "Parallel",
+      "Comment": "Phase 1: Independent resources including Lambda/Lex associations",
+      "Branches": [
+        {
+          "StartAt": "CheckAgentStatusMigration",
+          "States": {
+            "CheckAgentStatusMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.agentStatus",
+                  "BooleanEquals": true,
+                  "Next": "ListAgentStatuses"
+                }
+              ],
+              "Default": "AgentStatusSkipped"
+            },
+            "ListAgentStatuses": {
+              "Type": "Task",
+              "Resource": "arn:${Partition}:lambda:${Region}:${AccountId}:function:connect-migration-list-agent-status-${Environment}",
+              "ResultPath": "$.agentStatusesResult",
+              "Next": "CreateAgentStatuses",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AgentStatusError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateAgentStatuses": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-agent-status-${Environment}",
+                "Payload": {
+                  "targetInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "agentStatuses.$": "$.agentStatusesResult.agentStatuses"
+                }
+              },
+              "ResultPath": "$.createAgentStatusesResult",
+              "Next": "AgentStatusComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AgentStatusError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "AgentStatusComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "AgentStatusSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "AgentStatusError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckHierarchyGroupsMigration",
+          "States": {
+            "CheckHierarchyGroupsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.hierarchyGroups",
+                  "BooleanEquals": true,
+                  "Next": "ListHierarchyGroups"
+                }
+              ],
+              "Default": "HierarchyGroupsSkipped"
+            },
+            "ListHierarchyGroups": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-hierarchy-groups-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.hierarchyGroupsResult",
+              "Next": "CreateHierarchyGroups",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "HierarchyGroupsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateHierarchyGroups": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-hierarchy-groups-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "hierarchyGroups.$": "$.hierarchyGroupsResult.Payload.hierarchyGroups",
+                  "hierarchyStructure.$": "$.hierarchyGroupsResult.Payload.hierarchyStructure"
+                }
+              },
+              "ResultPath": "$.createHierarchyGroupsResult",
+              "Next": "HierarchyGroupsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "HierarchyGroupsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "HierarchyGroupsComplete": {
+              "Type": "Pass",
+              "Parameters": {
+                "status": "SUCCESS",
+                "hierarchyGroupMapping.$": "$.createHierarchyGroupsResult.Payload.hierarchyGroupMapping"
+              },
+              "End": true
+            },
+            "HierarchyGroupsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "hierarchyGroupMapping": {}
+              },
+              "End": true
+            },
+            "HierarchyGroupsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "hierarchyGroupMapping": {}
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckPromptsMigration",
+          "States": {
+            "CheckPromptsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.prompts",
+                  "BooleanEquals": true,
+                  "Next": "ListPrompts"
+                }
+              ],
+              "Default": "PromptsSkipped"
+            },
+            "ListPrompts": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-prompts-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.promptsResult",
+              "Next": "CreatePrompts",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "PromptsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreatePrompts": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-prompts-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "prompts.$": "$.promptsResult.Payload.prompts",
+                  "sourceRegion.$": "$.promptsResult.Payload.sourceRegion"
+                }
+              },
+              "ResultPath": "$.createPromptsResult",
+              "Next": "PromptsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "PromptsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "PromptsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "PromptsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "PromptsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckPredefinedAttributesMigration",
+          "States": {
+            "CheckPredefinedAttributesMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.predefinedAttributes",
+                  "BooleanEquals": true,
+                  "Next": "ListPredefinedAttributes"
+                }
+              ],
+              "Default": "PredefinedAttributesSkipped"
+            },
+            "ListPredefinedAttributes": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-predefined-attributes-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.predefinedAttributesResult",
+              "Next": "CreatePredefinedAttributes",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "PredefinedAttributesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreatePredefinedAttributes": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-predefined-attributes-${Environment}",
+                "Payload": {
+                  "targetInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "predefinedAttributes.$": "$.predefinedAttributesResult.Payload.predefinedAttributes"
+                }
+              },
+              "ResultPath": "$.createPredefinedAttributesResult",
+              "Next": "PredefinedAttributesComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "PredefinedAttributesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "PredefinedAttributesComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "PredefinedAttributesSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "PredefinedAttributesError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckDataTablesMigration",
+          "States": {
+            "CheckDataTablesMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.dataTables",
+                  "BooleanEquals": true,
+                  "Next": "ListDataTables"
+                }
+              ],
+              "Default": "DataTablesSkipped"
+            },
+            "ListDataTables": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-data-tables-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.dataTablesResult",
+              "Next": "CreateDataTables",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "DataTablesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateDataTables": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-data-tables-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "dataTables.$": "$.dataTablesResult.Payload.dataTables"
+                }
+              },
+              "ResultPath": "$.createDataTablesResult",
+              "Next": "DataTablesComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "DataTablesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "DataTablesComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS",
+                "message": "Data tables migration completed"
+              },
+              "End": true
+            },
+            "DataTablesSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "message": "Data tables migration skipped"
+              },
+              "End": true
+            },
+            "DataTablesError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "message": "Data tables migration failed"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckViewsMigration",
+          "States": {
+            "CheckViewsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.views",
+                  "BooleanEquals": true,
+                  "Next": "ListViews"
+                }
+              ],
+              "Default": "ViewsSkipped"
+            },
+            "ListViews": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-views-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.viewsResult",
+              "Next": "CreateViews",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "ViewsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateViews": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-views-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "views.$": "$.viewsResult.Payload.views"
+                }
+              },
+              "ResultPath": "$.createViewsResult",
+              "Next": "ViewsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "ViewsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "ViewsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "ViewsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "ViewsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckRulesMigration",
+          "States": {
+            "CheckRulesMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.rules",
+                  "BooleanEquals": true,
+                  "Next": "ListRules"
+                }
+              ],
+              "Default": "RulesSkipped"
+            },
+            "ListRules": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-rules-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.rulesResult",
+              "Next": "CreateRules",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "RulesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateRules": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-rules-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "rules.$": "$.rulesResult.Payload.rules"
+                }
+              },
+              "ResultPath": "$.createRulesResult",
+              "Next": "RulesComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "RulesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "RulesComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "RulesSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "RulesError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckEvaluationFormsMigration",
+          "States": {
+            "CheckEvaluationFormsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.evaluationForms",
+                  "BooleanEquals": true,
+                  "Next": "ListEvaluationForms"
+                }
+              ],
+              "Default": "EvaluationFormsSkipped"
+            },
+            "ListEvaluationForms": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-evaluation-forms-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.evaluationFormsResult",
+              "Next": "CreateEvaluationForms",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "EvaluationFormsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateEvaluationForms": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-evaluation-forms-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "evaluationForms.$": "$.evaluationFormsResult.Payload.evaluationForms"
+                }
+              },
+              "ResultPath": "$.createEvaluationFormsResult",
+              "Next": "EvaluationFormsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "EvaluationFormsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "EvaluationFormsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "EvaluationFormsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "EvaluationFormsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckPhoneNumbersMigration",
+          "States": {
+            "CheckPhoneNumbersMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.phoneNumbers",
+                  "BooleanEquals": true,
+                  "Next": "ListPhoneNumbers"
+                }
+              ],
+              "Default": "PhoneNumbersSkipped"
+            },
+            "ListPhoneNumbers": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-phone-numbers-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.phoneNumbersResult",
+              "Next": "CreatePhoneNumbers",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "PhoneNumbersError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreatePhoneNumbers": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-phone-numbers-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "selectedPhoneNumbers.$": "$.selectedPhoneNumbers"
+                }
+              },
+              "ResultPath": "$.createPhoneNumbersResult",
+              "Next": "PhoneNumbersComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "PhoneNumbersError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "PhoneNumbersComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "PhoneNumbersSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "PhoneNumbersError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckLambdaFunctionsMigration",
+          "States": {
+            "CheckLambdaFunctionsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.lambdaFunctions",
+                  "BooleanEquals": true,
+                  "Next": "ListLambdaFunctions"
+                }
+              ],
+              "Default": "LambdaFunctionsSkipped"
+            },
+            "ListLambdaFunctions": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-lambda-functions-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.lambdaFunctionsResult",
+              "Next": "AssociateLambdaFunctions",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "LambdaFunctionsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "AssociateLambdaFunctions": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-associate-lambda-functions-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "lambdaFunctions.$": "$.lambdaFunctionsResult.Payload.lambdaFunctions"
+                }
+              },
+              "ResultPath": "$.associateLambdaFunctionsResult",
+              "Next": "LambdaFunctionsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "LambdaFunctionsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "LambdaFunctionsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS",
+                "message": "Lambda functions migration completed"
+              },
+              "End": true
+            },
+            "LambdaFunctionsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "message": "Lambda functions migration skipped"
+              },
+              "End": true
+            },
+            "LambdaFunctionsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "message": "Lambda functions migration failed"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckLexBotsMigration",
+          "States": {
+            "CheckLexBotsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.lexBots",
+                  "BooleanEquals": true,
+                  "Next": "ListLexBots"
+                }
+              ],
+              "Default": "LexBotsSkipped"
+            },
+            "ListLexBots": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-lex-bots-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.lexBotsResult",
+              "Next": "AssociateLexBots",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "LexBotsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "AssociateLexBots": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-associate-lex-bots-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "lexV2Bots.$": "$.lexBotsResult.Payload.lexV2Bots"
+                }
+              },
+              "ResultPath": "$.associateLexBotsResult",
+              "Next": "LexBotsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "LexBotsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "LexBotsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS",
+                "message": "Lex bots migration completed"
+              },
+              "End": true
+            },
+            "LexBotsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "message": "Lex bots migration skipped"
+              },
+              "End": true
+            },
+            "LexBotsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "message": "Lex bots migration failed"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckAIGuardrailsMigration",
+          "States": {
+            "CheckAIGuardrailsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.aiGuardrails",
+                  "BooleanEquals": true,
+                  "Next": "ListAIGuardrails"
+                }
+              ],
+              "Default": "AIGuardrailsSkipped"
+            },
+            "ListAIGuardrails": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-ai-guardrails-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.aiGuardrailsResult",
+              "Next": "CreateAIGuardrails",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AIGuardrailsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateAIGuardrails": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-ai-guardrails-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "aiGuardrails.$": "$.aiGuardrailsResult.Payload.aiGuardrails"
+                }
+              },
+              "ResultPath": "$.createAIGuardrailsResult",
+              "Next": "AIGuardrailsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AIGuardrailsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "AIGuardrailsComplete": {
+              "Type": "Pass",
+              "Parameters": {
+                "status": "SUCCESS",
+                "message": "AI Guardrails migration completed",
+                "createAIGuardrailsResult.$": "$.createAIGuardrailsResult"
+              },
+              "End": true
+            },
+            "AIGuardrailsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "message": "AI Guardrails migration skipped",
+                "createAIGuardrailsResult": {
+                  "Payload": {
+                    "aiGuardrailMapping": {}
+                  }
+                }
+              },
+              "End": true
+            },
+            "AIGuardrailsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "message": "AI Guardrails migration failed",
+                "createAIGuardrailsResult": {
+                  "Payload": {
+                    "aiGuardrailMapping": {}
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckAIPromptsMigration",
+          "States": {
+            "CheckAIPromptsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.aiPrompts",
+                  "BooleanEquals": true,
+                  "Next": "ListAIPrompts"
+                }
+              ],
+              "Default": "AIPromptsSkipped"
+            },
+            "ListAIPrompts": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-ai-prompts-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.aiPromptsResult",
+              "Next": "CreateAIPrompts",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AIPromptsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateAIPrompts": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-ai-prompts-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "aiPrompts.$": "$.aiPromptsResult.Payload.aiPrompts"
+                }
+              },
+              "ResultPath": "$.createAIPromptsResult",
+              "Next": "AIPromptsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AIPromptsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "AIPromptsComplete": {
+              "Type": "Pass",
+              "Parameters": {
+                "status": "SUCCESS",
+                "message": "AI Prompts migration completed",
+                "createAIPromptsResult.$": "$.createAIPromptsResult"
+              },
+              "End": true
+            },
+            "AIPromptsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "message": "AI Prompts migration skipped",
+                "createAIPromptsResult": {
+                  "Payload": {
+                    "aiPromptMapping": {}
+                  }
+                }
+              },
+              "End": true
+            },
+            "AIPromptsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "message": "AI Prompts migration failed",
+                "createAIPromptsResult": {
+                  "Payload": {
+                    "aiPromptMapping": {}
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckAIAgentsMigration",
+          "States": {
+            "CheckAIAgentsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.aiAgents",
+                  "BooleanEquals": true,
+                  "Next": "ListAIAgents"
+                }
+              ],
+              "Default": "AIAgentsSkipped"
+            },
+            "ListAIAgents": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-ai-agents-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.aiAgentsResult",
+              "Next": "CreateAIAgents",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AIAgentsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateAIAgents": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-ai-agents-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "aiAgents.$": "$.aiAgentsResult.Payload.aiAgents"
+                }
+              },
+              "ResultPath": "$.createAIAgentsResult",
+              "Next": "AIAgentsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "AIAgentsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "AIAgentsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS",
+                "message": "AI Agents migration completed"
+              },
+              "End": true
+            },
+            "AIAgentsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED",
+                "message": "AI Agents migration skipped"
+              },
+              "End": true
+            },
+            "AIAgentsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED",
+                "message": "AI Agents migration failed"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckVocabulariesMigration",
+          "States": {
+            "CheckVocabulariesMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.vocabularies",
+                  "BooleanEquals": true,
+                  "Next": "ListVocabularies"
+                }
+              ],
+              "Default": "VocabulariesSkipped"
+            },
+            "ListVocabularies": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-vocabularies-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.vocabulariesResult",
+              "Next": "CreateVocabularies",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "VocabulariesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateVocabularies": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-vocabularies-${Environment}",
+                "Payload": {
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "vocabularies.$": "$.vocabulariesResult.Payload.vocabularies"
+                }
+              },
+              "ResultPath": "$.createVocabulariesResult",
+              "Next": "VocabulariesComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "VocabulariesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "VocabulariesComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "VocabulariesSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "VocabulariesError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.phase1Results",
+      "Next": "ContactFlowsPhase",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "HandleError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "DecideQueueMigration": {
+      "Type": "Choice",
+      "Comment": "Queue migration runs BEFORE user migration to provide queueMapping/hoursMapping",
+      "Choices": [
+        {
+          "Variable": "$.features.queues",
+          "BooleanEquals": true,
+          "Next": "ListHoursOfOperations"
+        }
+      ],
+      "Default": "EnsureHoursResult"
+    },
+    "ListHoursOfOperations": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-list-hours-of-operations-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId"
+        }
+      },
+      "ResultPath": "$.hoursResult",
+      "Next": "CreateHoursOfOperations",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "QueuesPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CreateHoursOfOperations": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-create-hours-of-operations-${Environment}",
+        "Payload": {
+          "destinationInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "hoursOfOperations.$": "$.hoursResult.Payload.hoursOfOperations"
+        }
+      },
+      "ResultPath": "$.createHoursResult",
+      "Next": "ListQueues",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "QueuesPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "ListQueues": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-list-queues-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId"
+        }
+      },
+      "ResultPath": "$.queuesResult",
+      "Next": "CreateQueues",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "QueuesPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CreateQueues": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-create-queues-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId",
+          "destinationInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "queues.$": "$.queuesResult.Payload.queues",
+          "hoursMapping.$": "$.createHoursResult.Payload.hoursMapping",
+          "queueOptions.$": "$.queueOptions"
+        }
+      },
+      "ResultPath": "$.createQueuesResult",
+      "Next": "EnsureHoursResult",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "QueuesPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "DecideUserMigration": {
+      "Type": "Choice",
+      "Comment": "User migration runs AFTER queue migration to have access to queueMapping/hoursMapping",
+      "Choices": [
+        {
+          "Variable": "$.features.users",
+          "BooleanEquals": true,
+          "Next": "ListSecurityProfiles"
+        }
+      ],
+      "Default": "MigrationComplete"
+    },
+    "ListSecurityProfiles": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-list-security-profiles-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId"
+        }
+      },
+      "ResultPath": "$.securityProfilesResult",
+      "Next": "CreateSecurityProfiles",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "UsersPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CreateSecurityProfiles": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-create-security-profiles-${Environment}",
+        "Payload": {
+          "destinationInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "securityProfiles.$": "$.securityProfilesResult.Payload.securityProfiles"
+        }
+      },
+      "ResultPath": "$.createSecurityProfilesResult",
+      "Next": "ListRoutingProfiles",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "UsersPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "ListRoutingProfiles": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-list-routing-profiles-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId"
+        }
+      },
+      "ResultPath": "$.routingProfilesResult",
+      "Next": "CreateRoutingProfiles",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "UsersPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CreateRoutingProfiles": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-create-routing-profiles-${Environment}",
+        "Payload": {
+          "destinationInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "routingProfiles.$": "$.routingProfilesResult.Payload.routingProfiles",
+          "queueMapping.$": "$.createQueuesResult.Payload.queueMapping",
+          "hoursMapping.$": "$.createHoursResult.Payload.hoursMapping"
+        }
+      },
+      "ResultPath": "$.createRoutingProfilesResult",
+      "Next": "ListUsers",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "UsersPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "ListUsers": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-list-users-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId"
+        }
+      },
+      "ResultPath": "$.usersResult",
+      "Next": "CreateUsers",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "UsersPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CreateUsers": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-create-users-${Environment}",
+        "Payload": {
+          "destinationInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "users.$": "$.usersResult.Payload.users",
+          "securityProfileMapping.$": "$.createSecurityProfilesResult.Payload.securityProfileMapping",
+          "routingProfileMapping.$": "$.createRoutingProfilesResult.Payload.routingProfileMapping",
+          "hierarchyGroupMapping.$": "$.phase1Results[1].hierarchyGroupMapping",
+          "userOptions.$": "$.userOptions"
+        }
+      },
+      "ResultPath": "$.createUsersResult",
+      "Next": "DecideQuickConnectsMigration",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "UsersPhaseError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "MigrationComplete": {
+      "Type": "Pass",
+      "Result": {
+        "status": "COMPLETE",
+        "fatalError": false
+      },
+      "ResultPath": "$.migrationStatus",
+      "Next": "VerifyTarget"
+    },
+    "VerifyTarget": {
+      "Type": "Task",
+      "Comment": "Read only checks of the target after every migration phase; needs the ExternalId secret, so it runs before CleanupExternalIdSecret. The report reads the full result from the history",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-verify-target-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId",
+          "targetInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "features.$": "$.features",
+          "queueOptions.$": "$.queueOptions",
+          "userOptions.$": "$.userOptions"
+        }
+      },
+      "ResultSelector": {
+        "verdict.$": "$.Payload.verdict"
+      },
+      "ResultPath": "$.verifyTarget",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.verifyTarget",
+          "Next": "VerifyTargetFailed"
+        }
+      ],
+      "Next": "CleanupExternalIdSecret"
+    },
+    "VerifyTargetFailed": {
+      "Type": "Pass",
+      "Comment": "The verify step itself failed: overwrite the caught error with a verdict, still clean up and report, and end Failed",
+      "Result": {
+        "verdict": "ERROR"
+      },
+      "ResultPath": "$.verifyTarget",
+      "Next": "CleanupExternalIdSecret"
+    },
+    "HandleError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "fatalError": true
+      },
+      "ResultPath": "$.migrationStatus",
+      "Next": "CleanupExternalIdSecret"
+    },
+    "ContactFlowsPhase": {
+      "Type": "Parallel",
+      "Comment": "Phase 2: Contact Flows (after Lambda/Lex are associated)",
+      "Branches": [
+        {
+          "StartAt": "CheckContactFlowsMigration",
+          "States": {
+            "CheckContactFlowsMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.contactFlows",
+                  "BooleanEquals": true,
+                  "Next": "ListContactFlows"
+                }
+              ],
+              "Default": "ContactFlowsSkipped"
+            },
+            "ListContactFlows": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-contact-flows-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.contactFlowsResult",
+              "Next": "CreateContactFlows",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "ContactFlowsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateContactFlows": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-contact-flows-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "contactFlows.$": "$.contactFlowsResult.Payload.contactFlows"
+                }
+              },
+              "ResultPath": "$.createContactFlowsResult",
+              "Next": "ContactFlowsComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "ContactFlowsError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "ContactFlowsComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "ContactFlowsSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "ContactFlowsError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckContactFlowModulesMigration",
+          "States": {
+            "CheckContactFlowModulesMigration": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.features.contactFlowModules",
+                  "BooleanEquals": true,
+                  "Next": "ListContactFlowModules"
+                }
+              ],
+              "Default": "ContactFlowModulesSkipped"
+            },
+            "ListContactFlowModules": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-list-contact-flow-modules-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId"
+                }
+              },
+              "ResultPath": "$.contactFlowModulesResult",
+              "Next": "CreateContactFlowModules",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "ContactFlowModulesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CreateContactFlowModules": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "connect-migration-create-contact-flow-modules-${Environment}",
+                "Payload": {
+                  "sourceInstanceId.$": "$.sourceInstanceId",
+                  "destinationInstanceId.$": "$.destinationInstanceId",
+                  "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+                  "externalIdSecretArn.$": "$.externalIdSecretArn",
+                  "contactFlowModules.$": "$.contactFlowModulesResult.Payload.contactFlowModules"
+                }
+              },
+              "ResultPath": "$.createContactFlowModulesResult",
+              "Next": "ContactFlowModulesComplete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Next": "ContactFlowModulesError",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "ContactFlowModulesComplete": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SUCCESS"
+              },
+              "End": true
+            },
+            "ContactFlowModulesSkipped": {
+              "Type": "Pass",
+              "Result": {
+                "status": "SKIPPED"
+              },
+              "End": true
+            },
+            "ContactFlowModulesError": {
+              "Type": "Pass",
+              "Result": {
+                "status": "FAILED"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.phase2Results",
+      "Next": "DecideQueueMigration",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "HandleError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "DecideQuickConnectsMigration": {
+      "Type": "Choice",
+      "Comment": "Quick Connects run AFTER users to have access to user mapping",
+      "Choices": [
+        {
+          "Variable": "$.features.quickConnects",
+          "BooleanEquals": true,
+          "Next": "ListQuickConnectsPost"
+        }
+      ],
+      "Default": "MigrationComplete"
+    },
+    "ListQuickConnectsPost": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-list-quick-connects-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId"
+        }
+      },
+      "ResultPath": "$.quickConnectsResult",
+      "Next": "CreateQuickConnectsPost",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "QuickConnectsPostError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CreateQuickConnectsPost": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-create-quick-connects-${Environment}",
+        "Payload": {
+          "sourceInstanceId.$": "$.sourceInstanceId",
+          "targetInstanceId.$": "$.destinationInstanceId",
+          "crossAccountRoleArn.$": "$.crossAccountRoleArn",
+          "externalIdSecretArn.$": "$.externalIdSecretArn",
+          "quickConnects.$": "$.quickConnectsResult.Payload.quickConnects"
+        }
+      },
+      "ResultPath": "$.createQuickConnectsResult",
+      "Next": "MigrationComplete",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "QuickConnectsPostError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "QuickConnectsPostError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED",
+        "message": "Quick Connects migration failed"
+      },
+      "ResultPath": "$.quickConnectsStatus",
+      "Next": "MigrationComplete"
+    },
+    "CleanupExternalIdSecret": {
+      "Type": "Task",
+      "Comment": "Delete the per execution ExternalId secret on success and on failure, before the report so the report includes the result",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-cleanup-external-id-${Environment}",
+        "Payload": {
+          "externalIdSecretArn.$": "$.externalIdSecretArn"
+        }
+      },
+      "ResultSelector": {
+        "status.$": "$.Payload.status"
+      },
+      "ResultPath": "$.externalIdSecretCleanup",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.externalIdSecretCleanupError",
+          "Next": "CleanupExternalIdSecretFailed"
+        }
+      ],
+      "Next": "BuildMigrationReport"
+    },
+    "CleanupExternalIdSecretFailed": {
+      "Type": "Pass",
+      "Result": {
+        "status": "FAILED"
+      },
+      "ResultPath": "$.externalIdSecretCleanup",
+      "Next": "BuildMigrationReport"
+    },
+    "QueuesPhaseError": {
+      "Type": "Pass",
+      "Comment": "Queues failed; the report marks the step FAILED and the next phase still runs",
+      "Result": {
+        "status": "FAILED"
+      },
+      "ResultPath": "$.queuesPhaseStatus",
+      "Next": "EnsureHoursResult"
+    },
+    "UsersPhaseError": {
+      "Type": "Pass",
+      "Comment": "Users failed; the report marks the step FAILED and the next phase still runs",
+      "Result": {
+        "status": "FAILED"
+      },
+      "ResultPath": "$.usersPhaseStatus",
+      "Next": "DecideQuickConnectsMigration"
+    },
+    "BuildMigrationReport": {
+      "Type": "Task",
+      "Comment": "Summarise every step and the secret cleanup; FAILED if any step, item or the cleanup failed",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "connect-migration-build-migration-report-${Environment}",
+        "Payload": {
+          "executionArn.$": "$$.Execution.Id",
+          "fatalError.$": "$.migrationStatus.fatalError",
+          "externalIdSecretCleanup.$": "$.externalIdSecretCleanup.status"
+        }
+      },
+      "ResultSelector": {
+        "status.$": "$.Payload.status",
+        "failedItemCount.$": "$.Payload.failedItemCount"
+      },
+      "ResultPath": "$.migrationReport",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.migrationReportError",
+          "Next": "BuildMigrationReportFailed"
+        }
+      ],
+      "Next": "FinalMigrationStatus"
+    },
+    "BuildMigrationReportFailed": {
+      "Type": "Pass",
+      "Comment": "No report: never report success",
+      "Result": {
+        "status": "FAILED",
+        "failedItemCount": 0
+      },
+      "ResultPath": "$.migrationReport",
+      "Next": "FinalMigrationStatus"
+    },
+    "FinalMigrationStatus": {
+      "Type": "Choice",
+      "Comment": "Succeed only if the report succeeded (it fails on a FAIL or ERROR verification) and no ExternalId secret is left behind; otherwise end Failed with the most specific reason",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.migrationReport.status",
+              "StringEquals": "SUCCEEDED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.externalIdSecretCleanup.status",
+                  "StringEquals": "DELETED"
+                },
+                {
+                  "Variable": "$.externalIdSecretCleanup.status",
+                  "StringEquals": "ALREADY_DELETED"
+                },
+                {
+                  "Variable": "$.externalIdSecretCleanup.status",
+                  "StringEquals": "NOT_NEEDED"
+                }
+              ]
+            }
+          ],
+          "Next": "MigrationSucceeded"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.verifyTarget.verdict",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.verifyTarget.verdict",
+              "StringEquals": "ERROR"
+            }
+          ],
+          "Next": "TargetVerificationErrored"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.verifyTarget.verdict",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.verifyTarget.verdict",
+              "StringEquals": "FAIL"
+            }
+          ],
+          "Next": "TargetVerificationFailed"
+        }
+      ],
+      "Default": "MigrationFailed"
+    },
+    "MigrationSucceeded": {
+      "Type": "Succeed"
+    },
+    "TargetVerificationErrored": {
+      "Type": "Fail",
+      "Error": "TargetVerificationError",
+      "Cause": "The VerifyTarget step could not run, so the target was not verified. Its error code is in the verification section of the migration report."
+    },
+    "TargetVerificationFailed": {
+      "Type": "Fail",
+      "Error": "TargetVerificationFailed",
+      "Cause": "The VerifyTarget step found problems in the target. See the verification section and the failed steps of the migration report."
+    },
+    "MigrationFailed": {
+      "Type": "Fail",
+      "Error": "MigrationFailed",
+      "Cause": "One or more steps or items failed, or the ExternalId secret cleanup failed. See the migration report."
+    },
+    "EnsureHoursResult": {
+      "Type": "Choice",
+      "Comment": "Seed $.createHoursResult from $.defaults if an earlier phase was skipped or failed",
+      "Choices": [
+        {
+          "Variable": "$.createHoursResult",
+          "IsPresent": false,
+          "Next": "SeedHoursResult"
+        }
+      ],
+      "Default": "EnsureQueuesResult"
+    },
+    "SeedHoursResult": {
+      "Type": "Pass",
+      "InputPath": "$.defaults.createHoursResult",
+      "ResultPath": "$.createHoursResult",
+      "Next": "EnsureQueuesResult"
+    },
+    "EnsureQueuesResult": {
+      "Type": "Choice",
+      "Comment": "Seed $.createQueuesResult from $.defaults if an earlier phase was skipped or failed",
+      "Choices": [
+        {
+          "Variable": "$.createQueuesResult",
+          "IsPresent": false,
+          "Next": "SeedQueuesResult"
+        }
+      ],
+      "Default": "EnsurePhase1Result"
+    },
+    "SeedQueuesResult": {
+      "Type": "Pass",
+      "InputPath": "$.defaults.createQueuesResult",
+      "ResultPath": "$.createQueuesResult",
+      "Next": "EnsurePhase1Result"
+    },
+    "EnsurePhase1Result": {
+      "Type": "Choice",
+      "Comment": "Seed $.phase1Results from $.defaults if an earlier phase was skipped or failed",
+      "Choices": [
+        {
+          "Variable": "$.phase1Results",
+          "IsPresent": false,
+          "Next": "SeedPhase1Result"
+        }
+      ],
+      "Default": "DecideUserMigration"
+    },
+    "SeedPhase1Result": {
+      "Type": "Pass",
+      "InputPath": "$.defaults.phase1Results",
+      "ResultPath": "$.phase1Results",
+      "Next": "DecideUserMigration"
+    }
+  }
+}

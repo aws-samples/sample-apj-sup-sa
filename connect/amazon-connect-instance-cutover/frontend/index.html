@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Connect Customer Migration Tool v6.1</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; }
+        .header { background: #232f3e; color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.1em; opacity: 0.9; }
+        .version { font-size: 0.9em; opacity: 0.7; margin-top: 10px; }
+        .auth-bar { margin-top: 15px; font-size: 0.95em; }
+        .auth-button { width: auto; padding: 6px 14px; font-size: 14px; margin: 0 0 0 10px; }
+        .report-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+        .report-table th, .report-table td { padding: 8px; text-align: left; border-bottom: 1px solid #e9ecef; vertical-align: top; word-break: break-word; }
+        .report-table th { background: #232f3e; color: white; }
+        .content { padding: 40px; }
+        .step { background: #f8f9fa; border-radius: 8px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #ff9900; }
+        .step h3 { color: #232f3e; margin-bottom: 15px; font-size: 1.3em; }
+        .form-group { margin: 15px 0; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #333; }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; transition: border-color 0.3s; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #ff9900; }
+        .checkbox-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px; }
+        .checkbox-item { background: white; border: 2px solid #e9ecef; border-radius: 6px; padding: 20px; cursor: pointer; transition: all 0.3s; }
+        .checkbox-item:hover { border-color: #ff9900; }
+        .checkbox-item input[type="checkbox"] { margin-right: 10px; transform: scale(1.2); }
+        .checkbox-item.selected { border-color: #ff9900; background: #fff3e0; }
+        .button { background: #ff9900; color: white; padding: 15px 30px; border: none; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: 600; transition: background 0.3s; width: 100%; margin-top: 20px; }
+        .button:hover { background: #e88800; }
+        .button:disabled { background: #ccc; cursor: not-allowed; }
+        .button.secondary { background: #6c757d; color: white; }
+        .button.secondary:hover { background: #5a6268; }
+        .status { margin-top: 25px; padding: 20px; border-radius: 6px; display: none; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .progress { background: #e9ecef; border-radius: 10px; height: 20px; margin: 15px 0; overflow: hidden; }
+        .progress-bar { background: #ff9900; height: 100%; width: 0%; transition: width 0.3s; }
+        .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .execution-details { background: #f8f9fa; border-radius: 8px; padding: 20px; margin-top: 20px; display: none; }
+        .execution-details h4 { color: #232f3e; margin-bottom: 15px; }
+        .execution-link { color: #ff9900; text-decoration: none; font-weight: 600; }
+        .phone-number-warning { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 15px; margin: 15px 0; color: #856404; }
+        .phone-number-warning ul { margin: 10px 0 0 20px; }
+        .phone-number-warning li { margin: 5px 0; }
+        .dropdown-container { position: relative; margin: 15px 0; }
+        .dropdown-header { background: white; border: 2px solid #ddd; border-radius: 6px; padding: 12px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .dropdown-header:hover { border-color: #ff9900; }
+        .dropdown-header.active { border-color: #ff9900; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .dropdown-arrow { color: #666; }
+        .dropdown-content { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #ff9900; border-top: none; border-radius: 0 0 6px 6px; max-height: 250px; overflow-y: auto; z-index: 1000; }
+        .dropdown-content.show { display: block; }
+        .phone-number-item { display: flex; align-items: center; padding: 10px; margin: 5px; background: white; border: 1px solid #e9ecef; border-radius: 4px; cursor: pointer; }
+        .phone-number-item:hover { border-color: #ff9900; background: #fff3e0; }
+        .phone-number-item.selected { border-color: #ff9900; background: #fff3e0; }
+        .phone-number-item input[type="checkbox"] { margin-right: 10px; }
+        .phone-number-details { flex: 1; }
+        .phone-number-details strong { color: #232f3e; }
+        .phone-number-details small { color: #666; display: block; margin-top: 2px; }
+        .phone-number-summary { background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 6px; padding: 15px; margin-top: 15px; }
+        .phone-number-summary p { margin: 5px 0; color: #0c5460; }
+        @media (max-width: 768px) { .two-column { grid-template-columns: 1fr; } }
+        .quota-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .quota-table th, .quota-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e9ecef; }
+        .quota-table th { background: #232f3e; color: white; font-weight: 600; }
+        .quota-table tr:hover { background: #f8f9fa; }
+        .quota-status-ok { color: #28a745; font-weight: 600; }
+        .quota-status-warning { color: #dc3545; font-weight: 600; }
+        .quota-warning-box { background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 15px; margin: 10px 0; }
+        .quota-warning-box h5 { color: #856404; margin: 0 0 10px 0; }
+        .quota-warning-box p { color: #856404; margin: 5px 0; font-size: 14px; }
+        .quota-ok-box { background: #d4edda; border: 1px solid #28a745; border-radius: 6px; padding: 15px; }
+        .quota-ok-box p { color: #155724; margin: 0; }
+        .checkbox-item-expandable { background: white; border: 2px solid #e9ecef; border-radius: 6px; padding: 0; transition: all 0.3s; }
+        .checkbox-item-expandable:hover { border-color: #ff9900; }
+        .checkbox-item-expandable.selected { border-color: #ff9900; background: #fff3e0; }
+        .checkbox-item-header { padding: 20px; cursor: pointer; display: flex; align-items: flex-start; justify-content: space-between; }
+        .checkbox-item-header input[type="checkbox"] { margin-right: 10px; transform: scale(1.2); }
+        .checkbox-item-content { flex: 1; }
+        .expand-arrow { color: #666; font-size: 12px; margin-left: 10px; }
+        .sub-options { display: none; background: #f8f9fa; border-top: 1px solid #e9ecef; padding: 15px 20px; border-radius: 0 0 4px 4px; }
+        .sub-options.show { display: block; }
+        .sub-option-item { display: flex; align-items: center; padding: 10px; margin: 5px 0; background: white; border: 1px solid #e9ecef; border-radius: 4px; cursor: pointer; }
+        .sub-option-item:hover { border-color: #ff9900; background: #fff8f0; }
+        .sub-option-item.selected { border-color: #ff9900; background: #fff3e0; }
+        .sub-option-item input[type="checkbox"] { margin-right: 10px; }
+        .sub-option-info { font-size: 0.85em; color: #666; margin-top: 5px; }
+        .sub-options-note { font-size: 0.85em; color: #666; font-style: italic; margin-bottom: 10px; padding: 8px; background: #e7f3ff; border-radius: 4px; }
+        .flow-check-results {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .flow-check-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .flow-check-stat {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+        }
+        .flow-check-stat .number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #232f3e;
+        }
+        .flow-check-stat .label {
+            font-size: 0.85em;
+            color: #666;
+        }
+        .flow-check-stat.warning .number {
+            color: #dc3545;
+        }
+        .flow-check-stat.success .number {
+            color: #28a745;
+        }
+        .missing-resources-category {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .missing-resources-header {
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .missing-resources-list {
+            padding: 10px 15px;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .missing-resources-list.show {
+            display: block;
+        }
+        .missing-resource-item {
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.9em;
+        }
+        .flow-issues-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+        .flow-issues-table th, .flow-issues-table td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .flow-issues-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .post-migration-category {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .post-migration-header {
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .post-migration-header.success-header {
+            background: #d4edda;
+            color: #155724;
+        }
+        .post-migration-header.failed-header {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .post-migration-list {
+            padding: 0;
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .post-migration-list.show {
+            display: block;
+        }
+        .post-migration-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.9em;
+        }
+        .post-migration-item:last-child {
+            border-bottom: none;
+        }
+        .post-migration-item.success-item {
+            background: #f8fff8;
+        }
+        .post-migration-item.failed-item {
+            background: #fff8f8;
+        }
+        .error-reason {
+            color: #dc3545;
+            font-size: 0.85em;
+            margin-top: 5px;
+            padding: 5px 10px;
+            background: #fff5f5;
+            border-radius: 4px;
+        }
+        .post-migration-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-card .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #232f3e;
+        }
+        .stat-card .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+        .stat-card.success .stat-number {
+            color: #28a745;
+        }
+        .stat-card.failed .stat-number {
+            color: #dc3545;
+        }
+        .stat-card.skipped .stat-number {
+            color: #ffc107;
+        }
+        .scope-note { background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 6px; padding: 12px 15px; margin: 15px 20px; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Amazon Connect Customer Migration Tool</h1>
+            <p>Seamlessly migrate users and resources between Amazon Connect Customer (formerly Amazon Connect) instances</p>
+            <div class="version">v6.1 - Service Quota Check & Cross-Account Support</div>
+            <div id="authBar" class="auth-bar" role="status" aria-live="polite">Loading...</div>
+        </div>
+        <p class="scope-note" id="scopeNote"><strong>One time cutover.</strong> This tool copies the configuration once so you can move to the target instance and retire the source instance afterwards. It is not a warm standby, a backup or a multi Region setup, and it does not keep the instances in sync. For multi Region resiliency, AWS supports only Amazon Connect Customer Global Resiliency (ACGR).</p>
+
+        <div class="content" id="appContent">
+            <!-- Step 1: Instance Configuration -->
+            <div class="step">
+                <h3>📋 Step 1: Configure Connect Instances</h3>
+                <div class="two-column">
+                    <div class="form-group">
+                        <label for="sourceInstance">Source Connect Instance ARN *</label>
+                        <input type="text" id="sourceInstance" placeholder="arn:aws:connect:REGION:ACCOUNT_ID:instance/INSTANCE_ID" required>
+                        <small>The full ARN of the Connect instance you want to migrate FROM</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="destInstance">Destination Connect Instance ARN *</label>
+                        <input type="text" id="destInstance" placeholder="arn:aws:connect:REGION:ACCOUNT_ID:instance/INSTANCE_ID" required>
+                        <small>The full ARN of the Connect instance you want to migrate TO</small>
+                    </div>
+                </div>
+
+                <!-- Cross-Account Toggle -->
+                <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px solid #dee2e6; border-radius: 8px; text-align: center;">
+                    <label style="display: inline-flex; align-items: center; cursor: pointer; padding: 10px 20px; background: white; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <input type="checkbox" id="enableCrossAccount" onchange="toggleCrossAccountSection()" style="margin-right: 12px; transform: scale(1.3); cursor: pointer;">
+                        <span style="font-size: 1.1em; font-weight: 600; color: #232f3e;">🔐 Enable Cross-Account Migration</span>
+                    </label>
+                    <p style="margin-top: 10px; color: #666; font-size: 0.9em;">Check this if source and destination instances are in different AWS accounts</p>
+                </div>
+
+                <!-- Cross-Account Configuration -->
+                <div id="crossAccountSection" style="display: none; margin-top: 15px; padding: 20px; background: #fffbf0; border: 2px solid #ffc107; border-radius: 8px;">
+                    <div class="phone-number-warning" style="background: #fff3cd; border-color: #ffc107; margin: 0 0 15px 0;">
+                        <p><strong>🔐 Cross-Account Migration Setup</strong></p>
+                        <p style="margin-top: 10px;">To migrate across accounts, you need to create an IAM role in the destination account that allows this tool to access it.</p>
+                    </div>
+
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin: 15px 0;">
+                        <p><strong>Step 1:</strong> In the <strong>destination account</strong>, deploy <code>cloudformation/target-role.yaml</code> (see the README). It creates the least privilege <code>ConnectMigrationTargetWriter</code> role.</p>
+                        <p style="margin-top: 10px;"><strong>Step 2:</strong> Use this deployment's source reader role as <code>TrustedSourceRoleArn</code>:</p>
+                        <div style="background: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 4px; margin: 10px 0; font-family: monospace; font-size: 12px; overflow-x: auto;">
+                            <code id="sourceReaderRoleArn"></code>
+                        </div>
+                        <button type="button" class="button secondary" style="width: auto; padding: 8px 15px; font-size: 14px; margin: 5px 0;" onclick="copySourceRoleArn()">📋 Copy Role ARN</button>
+                        <p style="margin-top: 10px;"><strong>Step 3:</strong> Choose a random <code>ExternalId</code> (for example <code>openssl rand -hex 32</code>), pass it to the template, and enter the same value below.</p>
+                        <p style="margin-top: 10px;"><strong>Step 4:</strong> Enter the <code>TargetRoleArn</code> output below (prefilled when the deployment was configured with it).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="crossAccountRole">Cross-Account IAM Role ARN *</label>
+                        <input type="text" id="crossAccountRole" placeholder="arn:aws:iam::DEST_ACCOUNT_ID:role/ConnectMigrationTargetWriter" autocomplete="off">
+                        <small>The ARN of the IAM role you created in the destination account</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="externalId">External ID *</label>
+                        <input type="password" id="externalId" autocomplete="off" spellcheck="false" aria-describedby="externalIdHelp">
+                        <small id="externalIdHelp">The ExternalId set on the target role trust policy (the ExternalId parameter of target-role.yaml). It is sent with every request that assumes the target role and is never logged.</small>
+                    </div>
+
+                    <div class="phone-number-warning" style="background: #f8d7da; border-color: #f5c6cb; margin-top: 10px;">
+                        <p><strong>⚠️ Note:</strong> The tool moves phone numbers only within one account and Region. Across accounts or Regions, AWS Support moves them or they are ported; include phone numbers in Step 4 and the migration report names the path that applies.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Service Quota Check -->
+            <div class="step" id="quotaCheckSection">
+                <h3>📊 Step 2: Check Service Quotas</h3>
+                <p>Verify that destination instance has sufficient quotas for migration:</p>
+                <div class="phone-number-warning" style="background: #e7f3ff; border-color: #b3d9ff;">
+                    <p><strong>💡 Why check quotas?</strong> Amazon Connect Customer has service quotas for resources. If the destination doesn't have enough quota headroom, you'll need to request increases before migration.</p>
+                </div>
+
+                <button type="button" class="button secondary" onclick="checkServiceQuotas()" id="checkQuotasBtn">📊 Check Service Quotas</button>
+
+                <div id="quotaResults" style="display: none; margin-top: 20px;">
+                    <h4>Quota Comparison Results:</h4>
+                    <div id="quotaSummary" class="phone-number-summary" style="margin-bottom: 15px;"></div>
+                    <div id="quotaTable" style="max-height: 400px; overflow-y: auto;"></div>
+                    <div id="quotaWarnings" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+
+            <!-- Step 3: Migration Features -->
+            <div class="step">
+                <h3>⚙️ Step 3: Select Migration Features</h3>
+                <p>Choose which components you want to migrate:</p>
+                <div class="phone-number-warning" style="background: #e7f3ff; border-color: #b3d9ff;">
+                    <p><strong>🌍 Cross-Region Support:</strong> All features below support cross-region migration. Phone numbers are listed in the migration report with the move path that applies.</p>
+                </div>
+                <div class="checkbox-group">
+                    <div class="checkbox-item-expandable" id="usersContainer">
+                        <div class="checkbox-item-header" onclick="toggleUsersCheckbox(event)">
+                            <div style="display: flex; align-items: flex-start;">
+                                <input type="checkbox" id="users" onclick="event.stopPropagation()">
+                                <div class="checkbox-item-content">
+                                    <strong>👥 Users</strong><br>
+                                    <small>Migrate user accounts with configurable profile and hierarchy options</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="usersExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="usersSubOptions">
+                            <div class="sub-options-note">💡 Configure which user-related resources to migrate.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateRoutingProfiles')">
+                                <input type="checkbox" id="migrateRoutingProfiles" onclick="event.stopPropagation()">
+                                <div><strong>📊 Migrate Routing Profiles</strong><div class="sub-option-info">Copy routing profiles from source</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateSecurityProfiles')">
+                                <input type="checkbox" id="migrateSecurityProfiles" onclick="event.stopPropagation()">
+                                <div><strong>🔒 Migrate Security Profiles</strong><div class="sub-option-info">Copy security profiles from source</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateAgentStatus')">
+                                <input type="checkbox" id="migrateAgentStatus" onclick="event.stopPropagation()">
+                                <div><strong>🟢 Migrate Agent Status</strong><div class="sub-option-info">Copy custom agent status configurations</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateHierarchyGroups')">
+                                <input type="checkbox" id="migrateHierarchyGroups" onclick="event.stopPropagation()">
+                                <div><strong>🏢 Migrate Hierarchy Groups</strong><div class="sub-option-info">Copy user hierarchy structure</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkbox-item-expandable" id="queuesContainer">
+                        <div class="checkbox-item-header" onclick="toggleQueuesCheckbox(event)">
+                            <div style="display: flex; align-items: flex-start;">
+                                <input type="checkbox" id="queues" onclick="event.stopPropagation()">
+                                <div class="checkbox-item-content">
+                                    <strong>📋 Queues</strong><br>
+                                    <small>Migrate contact queues with configurable hours of operation</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="queuesExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="queuesSubOptions">
+                            <div class="sub-options-note">💡 Configure queue-related resources to migrate.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateHoursOfOperation')">
+                                <input type="checkbox" id="migrateHoursOfOperation" onclick="event.stopPropagation()">
+                                <div><strong>🕐 Migrate Hours of Operation</strong><div class="sub-option-info">Copy hours of operation from source</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkbox-item-expandable" id="routingContainer">
+                        <div class="checkbox-item-header" onclick="toggleRoutingExpand(event)" style="cursor: pointer;">
+                            <div style="display: flex; align-items: flex-start;">
+                                <div class="checkbox-item-content">
+                                    <strong>🔀 Routing</strong><br>
+                                    <small>Routing-related resources (prompts, quick connects, attributes)</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="routingExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="routingSubOptions">
+                            <div class="sub-options-note">💡 Select which routing resources to migrate.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migratePrompts')">
+                                <input type="checkbox" id="migratePrompts" onclick="event.stopPropagation()">
+                                <div><strong>🔊 Prompts</strong><div class="sub-option-info">Migrate audio prompts</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateQuickConnects')">
+                                <input type="checkbox" id="migrateQuickConnects" onclick="event.stopPropagation()">
+                                <div><strong>⚡ Quick Connects</strong><div class="sub-option-info">Migrate quick connect configurations</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migratePredefinedAttributes')">
+                                <input type="checkbox" id="migratePredefinedAttributes" onclick="event.stopPropagation()">
+                                <div><strong>🏷️ Predefined Attributes</strong><div class="sub-option-info">Migrate custom predefined contact attributes</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateDataTables')">
+                                <input type="checkbox" id="migrateDataTables" onclick="event.stopPropagation()">
+                                <div><strong>📊 Data Tables</strong><div class="sub-option-info">Migrate data tables with attributes and values</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkbox-item-expandable" id="flowsContainer">
+                        <div class="checkbox-item-header" onclick="toggleFlowsExpand(event)" style="cursor: pointer;">
+                            <div style="display: flex; align-items: flex-start;">
+                                <div class="checkbox-item-content">
+                                    <strong>📞 Contact Flows</strong><br>
+                                    <small>Contact flows, modules, and views</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="flowsExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="flowsSubOptions">
+                            <div class="sub-options-note">💡 Select which flow resources to migrate.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateContactFlows')">
+                                <input type="checkbox" id="migrateContactFlows" onclick="event.stopPropagation()">
+                                <div><strong>📞 Contact Flows</strong><div class="sub-option-info">Migrate contact flow definitions</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateContactFlowModules')">
+                                <input type="checkbox" id="migrateContactFlowModules" onclick="event.stopPropagation()">
+                                <div><strong>📦 Contact Flow Modules</strong><div class="sub-option-info">Migrate reusable flow modules</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateViews')">
+                                <input type="checkbox" id="migrateViews" onclick="event.stopPropagation()">
+                                <div><strong>👁️ Views</strong><div class="sub-option-info">Migrate agent workspace views</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkbox-item-expandable" id="analyticsContainer">
+                        <div class="checkbox-item-header" onclick="toggleAnalyticsExpand(event)" style="cursor: pointer;">
+                            <div style="display: flex; align-items: flex-start;">
+                                <div class="checkbox-item-content">
+                                    <strong>📊 Analytics & Quality</strong><br>
+                                    <small>Rules, evaluation forms, and analytics configurations</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="analyticsExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="analyticsSubOptions">
+                            <div class="sub-options-note">💡 Select which analytics resources to migrate.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateRules')">
+                                <input type="checkbox" id="migrateRules" onclick="event.stopPropagation()">
+                                <div><strong>📏 Rules</strong><div class="sub-option-info">Migrate Contact Lens rules</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateEvaluationForms')">
+                                <input type="checkbox" id="migrateEvaluationForms" onclick="event.stopPropagation()">
+                                <div><strong>📋 Evaluation Forms</strong><div class="sub-option-info">Migrate agent evaluation forms</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateVocabularies')">
+                                <input type="checkbox" id="migrateVocabularies" onclick="event.stopPropagation()">
+                                <div><strong>📝 Custom Vocabularies</strong><div class="sub-option-info">Migrate Contact Lens custom vocabularies</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkbox-item-expandable" id="aiAgentContainer">
+                        <div class="checkbox-item-header" onclick="toggleAIAgentExpand(event)" style="cursor: pointer;">
+                            <div style="display: flex; align-items: flex-start;">
+                                <div class="checkbox-item-content">
+                                    <strong>🤖 AI agents</strong><br>
+                                    <small>AI agents, AI prompts and AI guardrails</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="aiAgentExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="aiAgentSubOptions">
+                            <div class="phone-number-warning" style="background: #fff3cd; border-color: #ffc107; margin-bottom: 10px;">
+                                <p><strong>⚠️ Important:</strong> AI agents must be enabled at the instance level for both source and destination instances before migrating AI resources.</p>
+                                <p style="margin-top: 8px; font-size: 0.9em;">Go to <strong>Amazon Connect Customer console → instance settings → AI agents</strong> to enable it.</p>
+                            </div>
+                            <div class="phone-number-warning" style="background: #f8d7da; border-color: #f5c6cb; margin-bottom: 10px;">
+                                <p><strong>⚠️ Cross-Region Limitations:</strong></p>
+                                <ul style="margin: 8px 0 0 20px; font-size: 0.9em;">
+                                    <li><strong>AI Prompts:</strong> Cross-region migration of AI Prompts with Bedrock models (e.g., us.amazon.nova-pro) may fail due to model availability differences between regions. Migrate within the same region or recreate prompts manually.</li>
+                                    <li><strong>AI Agents:</strong> Orchestration-type AI Agents are not currently supported for migration. Please create these manually in the destination.</li>
+                                </ul>
+                            </div>
+                            <div class="sub-options-note">💡 Migrate AI agents resources. Requires AI agents enabled on both instances.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateAIAgents')">
+                                <input type="checkbox" id="migrateAIAgents" onclick="event.stopPropagation()">
+                                <div><strong>🤖 AI Agents</strong><div class="sub-option-info">Migrate custom AI Agent configurations</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateAIPrompts')">
+                                <input type="checkbox" id="migrateAIPrompts" onclick="event.stopPropagation()">
+                                <div><strong>💬 AI Prompts</strong><div class="sub-option-info">Migrate custom AI Prompt templates</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateAIGuardrails')">
+                                <input type="checkbox" id="migrateAIGuardrails" onclick="event.stopPropagation()">
+                                <div><strong>🛡️ AI Guardrails</strong><div class="sub-option-info">Migrate AI Guardrail configurations</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkbox-item-expandable" id="integrationsContainer">
+                        <div class="checkbox-item-header" onclick="toggleIntegrationsExpand(event)" style="cursor: pointer;">
+                            <div style="display: flex; align-items: flex-start;">
+                                <div class="checkbox-item-content">
+                                    <strong>🔗 Integrations</strong><br>
+                                    <small>Lambda functions and Lex bots associated with Connect</small>
+                                </div>
+                            </div>
+                            <span class="expand-arrow" id="integrationsExpandArrow">▼</span>
+                        </div>
+                        <div class="sub-options" id="integrationsSubOptions">
+                            <div class="sub-options-note">💡 Select which integrations to migrate. Cross-account requires resource policies.</div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateLambdaFunctions')">
+                                <input type="checkbox" id="migrateLambdaFunctions" onclick="event.stopPropagation()">
+                                <div><strong>λ Lambda Functions</strong><div class="sub-option-info">Associate Lambda functions with destination instance</div></div>
+                            </div>
+                            <div class="sub-option-item" onclick="toggleSubOption('migrateLexBots')">
+                                <input type="checkbox" id="migrateLexBots" onclick="event.stopPropagation()">
+                                <div><strong>🤖 Lex Bots</strong><div class="sub-option-info">Associate Lex V2 bots (Lex V1 bots are not supported)</div></div>
+                            </div>
+
+                            <!-- Flow Pre-Check Section -->
+                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+                                <div class="sub-options-note" style="background: #fff3cd;">
+                                    🔍 <strong>Pre-Check:</strong> Analyze flows before migration to identify missing resources in the destination.
+                                </div>
+                                <button type="button" class="button secondary" onclick="checkFlowDependencies()" id="checkFlowDepsBtn" style="width: auto; padding: 10px 20px; font-size: 14px; margin-top: 10px;">
+                                    🔍 Check Flow Dependencies
+                                </button>
+                                <div id="flowDependencyResults" style="display: none; margin-top: 15px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Phone Number Migration -->
+            <div class="step" id="phoneNumberSection">
+                <h3>📞 Step 4: Phone Number Migration (Advanced)</h3>
+                <div class="phone-number-warning">
+                    <p><strong>⚠️ Important:</strong> How a number reaches the target depends on the accounts and Regions:</p>
+                    <ul>
+                        <li>📍 <strong>Same account and Region</strong>: a self move with UpdatePhoneNumber. The tool does this only when the deployment opts in. The number is <strong>moved, not copied</strong>, and calls to it can fail while it moves.</li>
+                        <li>🛠️ <strong>Different account or different Region</strong>: AWS Support moves the numbers. One case per account, scheduled Monday to Friday, about <strong>20 to 30 minutes per number</strong>. The number must not be the outbound caller ID on any queue at migration time.</li>
+                        <li>🔁 <strong>Different account and different Region</strong>: porting.</li>
+                        <li>📞 In every case, set the outbound caller ID on the target queues again afterwards.</li>
+                    </ul>
+                    <p>The tool never moves numbers in the last two cases; the migration report lists the phone number IDs and count with the path that applies.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enablePhoneNumberMigration" onchange="togglePhoneNumberMigration()">
+                        Include phone numbers
+                    </label>
+                </div>
+                <div id="phoneMoveDisabledNote" class="phone-number-warning" style="display: none;">
+                    <p><strong>Moving is off in this deployment.</strong> Moving numbers is an explicit opt in (stack parameters <code>EnablePhoneNumberMove</code> and <code>AllowPhoneNumberMove</code>) and only works within one account and Region. Included numbers are listed in the migration report with the path that applies; nothing is moved.</p>
+                </div>
+
+                <div id="phoneNumberControls" style="display: none;">
+                    <div class="form-group">
+                        <button type="button" class="button secondary" onclick="loadPhoneNumbers()" id="loadPhoneNumbersBtn">📋 Load Phone Numbers from Source Instance</button>
+                    </div>
+
+                    <div id="phoneNumbersList" style="display: none;">
+                        <h4>Select Phone Numbers to Migrate:</h4>
+                        <div class="dropdown-container">
+                            <div class="dropdown-header" onclick="togglePhoneNumbersDropdown()">
+                                <span id="dropdownText">Select phone numbers...</span>
+                                <span class="dropdown-arrow">▼</span>
+                            </div>
+                            <div id="phoneNumbersDropdown" class="dropdown-content"></div>
+                        </div>
+                        <div class="phone-number-summary">
+                            <p><strong>Selected:</strong> <span id="selectedCount">0</span> phone numbers</p>
+                            <p><strong>AWS Support move time (about 20 to 30 minutes per number):</strong> <span id="estimatedDowntime">0</span> minutes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Migration Controls -->
+            <button class="button" onclick="startMigration()" id="startBtn">🚀 Start Migration</button>
+
+            <div id="status" class="status"></div>
+
+            <!-- Execution Details -->
+            <div id="executionDetails" class="execution-details">
+                <h4>📊 Migration Execution Details</h4>
+                <p><strong>Status:</strong> <span id="executionStatus">RUNNING</span></p>
+                <p><strong>Started:</strong> <span id="executionStartTime"></span></p>
+                <p><a href="#" id="consoleLink" class="execution-link" target="_blank">View in AWS Console</a></p>
+                <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+                <div id="progressText">Initializing migration...</div>
+            </div>
+
+            <!-- Migration report: failed steps, target verification and manual follow up -->
+            <div id="migrationReport" class="step" style="display: none; margin-top: 25px;" aria-live="polite">
+                <h3>📝 Migration Report</h3>
+                <div id="failedStepsReport"></div>
+                <div id="verificationReport"></div>
+                <div id="followUpReport"></div>
+            </div>
+
+            <!-- Post-Migration Check Section: runs the same checks as the VerifyTarget step -->
+            <div class="step" id="postMigrationSection" style="display: none; margin-top: 25px;">
+                <h3>✅ Step 5: Post-Migration Verification</h3>
+                <p>Run the read only target verification again (the migration report above shows the result of the run):</p>
+                <button type="button" class="button secondary" onclick="runPostMigrationCheck()" id="postMigrationBtn">📋 Run Post-Migration Verification</button>
+
+                <div id="postMigrationResults" style="display: none; margin-top: 20px;" aria-live="polite">
+                    <div id="postMigrationSummary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        // ------------------------------------------------------------------
+        // Runtime configuration. config.js is generated by scripts/deploy.sh
+        // from the CloudFormation stack outputs; nothing is hardcoded here.
+        // ------------------------------------------------------------------
+        const CONFIG = window.APP_CONFIG || null;
+
+        // ------------------------------------------------------------------
+        // Sign in: Cognito managed login, authorization code flow with PKCE.
+        // Tokens live in sessionStorage (cleared when the tab closes).
+        // ------------------------------------------------------------------
+        const TOKEN_KEY = 'cmt.tokens';
+        const PKCE_KEY = 'cmt.pkce';
+        const STATE_KEY = 'cmt.state';
+
+        function base64Url(bytes) {
+            return btoa(String.fromCharCode(...new Uint8Array(bytes)))
+                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        function randomString(byteLength) {
+            return base64Url(crypto.getRandomValues(new Uint8Array(byteLength)));
+        }
+
+        function redirectUri() {
+            return window.location.origin + '/';
+        }
+
+        async function signIn() {
+            const verifier = randomString(64);
+            const state = randomString(16);
+            sessionStorage.setItem(PKCE_KEY, verifier);
+            sessionStorage.setItem(STATE_KEY, state);
+            const challenge = base64Url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: CONFIG.userPoolClientId,
+                redirect_uri: redirectUri(),
+                scope: 'openid email',
+                state: state,
+                code_challenge_method: 'S256',
+                code_challenge: challenge
+            });
+            window.location.assign(`https://${CONFIG.cognitoDomain}/oauth2/authorize?${params}`);
+        }
+
+        function signOut() {
+            sessionStorage.removeItem(TOKEN_KEY);
+            const params = new URLSearchParams({ client_id: CONFIG.userPoolClientId, logout_uri: redirectUri() });
+            window.location.assign(`https://${CONFIG.cognitoDomain}/logout?${params}`);
+        }
+
+        async function requestTokens(form) {
+            const response = await fetch(`https://${CONFIG.cognitoDomain}/oauth2/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ client_id: CONFIG.userPoolClientId, ...form })
+            });
+            if (!response.ok) throw new Error(`Sign in failed (${response.status})`);
+            const tokens = await response.json();
+            const previous = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || '{}');
+            const stored = {
+                idToken: tokens.id_token,
+                refreshToken: tokens.refresh_token || previous.refreshToken,
+                expiresAt: Date.now() + (tokens.expires_in - 60) * 1000
+            };
+            sessionStorage.setItem(TOKEN_KEY, JSON.stringify(stored));
+            return stored;
+        }
+
+        // Exchange the ?code= returned by Cognito, then remove it from the address bar.
+        async function completeSignInRedirect() {
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has('code')) return;
+            const expectedState = sessionStorage.getItem(STATE_KEY);
+            const verifier = sessionStorage.getItem(PKCE_KEY);
+            sessionStorage.removeItem(STATE_KEY);
+            sessionStorage.removeItem(PKCE_KEY);
+            window.history.replaceState({}, document.title, redirectUri());
+            if (!expectedState || params.get('state') !== expectedState || !verifier) {
+                throw new Error('Sign in response did not match this browser session. Please sign in again.');
+            }
+            await requestTokens({
+                grant_type: 'authorization_code',
+                code: params.get('code'),
+                redirect_uri: redirectUri(),
+                code_verifier: verifier
+            });
+        }
+
+        async function getIdToken() {
+            const stored = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || 'null');
+            if (stored && stored.idToken && Date.now() < stored.expiresAt) return stored.idToken;
+            if (stored && stored.refreshToken) {
+                try {
+                    return (await requestTokens({ grant_type: 'refresh_token', refresh_token: stored.refreshToken })).idToken;
+                } catch (error) {
+                    sessionStorage.removeItem(TOKEN_KEY);
+                }
+            }
+            return null;
+        }
+
+        function signedInEmail() {
+            const stored = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || 'null');
+            if (!stored || !stored.idToken) return null;
+            try {
+                const payload = stored.idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+                return JSON.parse(atob(payload)).email || 'signed in';
+            } catch (error) {
+                return 'signed in';
+            }
+        }
+
+        // POST to the API with the Cognito ID token. Resolves to the parsed JSON body.
+        async function apiFetch(path, body) {
+            const token = await getIdToken();
+            if (!token) {
+                await signIn();
+                throw new Error('Signing in...');
+            }
+            const response = await fetch(CONFIG.apiBaseUrl + path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': token },
+                body: JSON.stringify(body)
+            });
+            if (response.status === 401) {
+                sessionStorage.removeItem(TOKEN_KEY);
+                await signIn();
+                throw new Error('Session expired, signing in again...');
+            }
+            let data = {};
+            try { data = await response.json(); } catch (error) { data = {}; }
+            if (!response.ok) {
+                throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+            }
+            return data;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        async function initApp() {
+            if (!CONFIG) {
+                document.getElementById('authBar').innerHTML =
+                    '<strong>config.js is missing.</strong> Deploy with scripts/deploy.sh, which generates it from the stack outputs.';
+                document.getElementById('startBtn').disabled = true;
+                return;
+            }
+            try {
+                await completeSignInRedirect();
+            } catch (error) {
+                showStatus(`❌ ${error.message}`, 'error');
+            }
+            const token = await getIdToken();
+            const bar = document.getElementById('authBar');
+            if (!token) {
+                bar.innerHTML = '<span>You must sign in to use this tool.</span> <button type="button" class="button secondary auth-button" onclick="signIn()">Sign in</button>';
+                document.getElementById('appContent').setAttribute('aria-hidden', 'true');
+                document.getElementById('appContent').style.display = 'none';
+                return;
+            }
+            bar.innerHTML = `<span>Signed in as <strong>${escapeHtml(signedInEmail())}</strong></span> <button type="button" class="button secondary auth-button" onclick="signOut()">Sign out</button>`;
+
+            // Values from the deployment: the source reader role the target role must trust,
+            // and the target role this deployment is allowed to assume.
+            document.getElementById('sourceReaderRoleArn').textContent = CONFIG.sourceReaderRoleArn || '(see the LambdaRoleArn stack output)';
+            if (CONFIG.targetRoleArn) {
+                document.getElementById('crossAccountRole').value = CONFIG.targetRoleArn;
+                document.getElementById('enableCrossAccount').checked = true;
+                toggleCrossAccountSection();
+            }
+            if (!CONFIG.phoneNumberMoveEnabled) {
+                // Numbers are still listed in the report with the path that applies; nothing is moved.
+                document.getElementById('phoneMoveDisabledNote').style.display = 'block';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        // Cross-account toggle function
+        function toggleCrossAccountSection() {
+            const checkbox = document.getElementById('enableCrossAccount');
+            const section = document.getElementById('crossAccountSection');
+            if (checkbox.checked) {
+                section.style.display = 'block';
+            } else {
+                section.style.display = 'none';
+            }
+        }
+
+        // Target role ARN and ExternalId, sent with every request that may assume the target role.
+        // The ExternalId is never written to the console or to the page.
+        function getTargetAccess() {
+            const enabled = document.getElementById('enableCrossAccount').checked;
+            const roleArn = document.getElementById('crossAccountRole').value.trim();
+            const externalId = document.getElementById('externalId').value;
+            if (!enabled || !roleArn) return { crossAccountRoleArn: null, externalId: null };
+            return { crossAccountRoleArn: roleArn, externalId: externalId || null };
+        }
+
+        // Returns an error message, or null when the role/ExternalId combination is usable.
+        function validateTargetAccess(sourceArn, destArn) {
+            const access = getTargetAccess();
+            const crossAccount = sourceArn.split(':')[4] !== destArn.split(':')[4];
+            if (crossAccount && !access.crossAccountRoleArn) {
+                return 'Source and destination are in different accounts. Enable cross-account migration and enter the target role ARN and External ID.';
+            }
+            if (access.crossAccountRoleArn) {
+                if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/.+$/i.test(access.crossAccountRoleArn)) {
+                    return 'Please enter a valid IAM role ARN.';
+                }
+                if (!access.externalId) {
+                    return 'The External ID is required when a target role is used.';
+                }
+                if (!/^[\w+=,.@:\/-]{2,1224}$/.test(access.externalId)) {
+                    return 'The External ID may only contain letters, digits and +=,.@:/- (2 to 1224 characters).';
+                }
+            }
+            return null;
+        }
+
+        function copySourceRoleArn() {
+            const arn = document.getElementById('sourceReaderRoleArn').textContent;
+            navigator.clipboard.writeText(arn).then(() => {
+                showStatus('✅ Role ARN copied to clipboard!', 'success');
+            }).catch(() => {
+                showStatus('❌ Failed to copy. Please select and copy manually.', 'error');
+            });
+        }
+
+        async function checkServiceQuotas() {
+            const sourceInstance = document.getElementById('sourceInstance').value.trim();
+            const destInstance = document.getElementById('destInstance').value.trim();
+
+            if (!sourceInstance || !destInstance) {
+                showStatus('Please enter both source and destination Connect instance ARNs first.', 'error');
+                return;
+            }
+
+            const arnPattern = /^arn:aws:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
+            if (!arnPattern.test(sourceInstance) || !arnPattern.test(destInstance)) {
+                showStatus('Please enter valid Connect instance ARNs.', 'error');
+                return;
+            }
+
+            // Check the target role and ExternalId
+            const accessError = validateTargetAccess(sourceInstance, destInstance);
+            if (accessError) {
+                showStatus(accessError, 'error');
+                return;
+            }
+
+            const checkBtn = document.getElementById('checkQuotasBtn');
+            checkBtn.disabled = true;
+            checkBtn.textContent = '🔄 Checking Quotas...';
+
+            const usersChecked = document.getElementById('users').checked;
+            const features = {
+                users: usersChecked,
+                queues: document.getElementById('queues').checked,
+                quickConnects: document.getElementById('migrateQuickConnects').checked,
+                agentStatus: usersChecked && document.getElementById('migrateAgentStatus').checked,
+                hierarchyGroups: usersChecked && document.getElementById('migrateHierarchyGroups').checked,
+                prompts: document.getElementById('migratePrompts').checked,
+                predefinedAttributes: document.getElementById('migratePredefinedAttributes').checked,
+                dataTables: document.getElementById('migrateDataTables')?.checked || false,
+                contactFlows: document.getElementById('migrateContactFlows').checked,
+                contactFlowModules: document.getElementById('migrateContactFlowModules').checked,
+                views: document.getElementById('migrateViews').checked,
+                rules: document.getElementById('migrateRules').checked,
+                evaluationForms: document.getElementById('migrateEvaluationForms').checked,
+                vocabularies: document.getElementById('migrateVocabularies').checked,
+                lambdaFunctions: document.getElementById('migrateLambdaFunctions').checked,
+                lexBots: document.getElementById('migrateLexBots').checked,
+                aiAgents: document.getElementById('migrateAIAgents')?.checked || false,
+                aiPrompts: document.getElementById('migrateAIPrompts')?.checked || false,
+                aiGuardrails: document.getElementById('migrateAIGuardrails')?.checked || false,
+                phoneNumbers: document.getElementById('enablePhoneNumberMigration').checked
+            };
+
+            const requestBody = {
+                sourceInstanceId: sourceInstance,
+                destinationInstanceId: destInstance,
+                features: features,
+                ...getTargetAccess()
+            };
+
+            try {
+                const result = await apiFetch('/check-quotas', requestBody);
+                displayQuotaResults(result);
+            } catch (error) {
+                showStatus(`❌ Failed to check quotas: ${error.message}`, 'error');
+            } finally {
+                checkBtn.disabled = false;
+                checkBtn.textContent = '📊 Check Service Quotas';
+            }
+        }
+
+        function displayQuotaResults(result) {
+            const quotaResults = document.getElementById('quotaResults');
+            const quotaSummary = document.getElementById('quotaSummary');
+            const quotaTable = document.getElementById('quotaTable');
+            const quotaWarnings = document.getElementById('quotaWarnings');
+
+            if (result.error) {
+                showStatus(`❌ Error: ${result.error}`, 'error');
+                return;
+            }
+
+            const summary = result.summary || {};
+            quotaSummary.innerHTML = `
+                <p><strong>Source Region:</strong> ${escapeHtml(result.sourceRegion || 'N/A')}</p>
+                <p><strong>Destination Region:</strong> ${escapeHtml(result.destinationRegion || 'N/A')}</p>
+                <p><strong>Quotas Checked:</strong> ${escapeHtml(summary.totalChecked || 0)}</p>
+                <p><strong>Warnings:</strong> <span style="color: ${escapeHtml(summary.totalWarnings > 0 ? '#dc3545' : '#28a745')};">${escapeHtml(summary.totalWarnings || 0)}</span></p>
+                <p><strong>Can Proceed:</strong> <span style="color: ${escapeHtml(summary.canProceed ? '#28a745' : '#dc3545')};">${escapeHtml(summary.canProceed ? '✅ Yes' : '⚠️ Review Warnings')}</span></p>
+            `;
+
+            if (result.quotas && result.quotas.length > 0) {
+                const sourceLabels = { 'applied-instance': 'applied (instance)', 'applied-account': 'applied (account)', 'aws-default': 'AWS default', 'unknown': 'unknown' };
+                let tableHtml = '<table class="quota-table"><thead><tr><th scope="col">Resource</th><th scope="col">Source</th><th scope="col">Dest</th><th scope="col">After</th><th scope="col">Dest quota</th><th scope="col">Status</th></tr></thead><tbody>';
+                result.quotas.forEach(q => {
+                    const statusClass = q.wouldExceed ? 'quota-status-warning' : 'quota-status-ok';
+                    const quota = q.destinationQuota === null ? 'n/a' : q.destinationQuota;
+                    const quotaSource = sourceLabels[q.destinationQuotaSource] || q.destinationQuotaSource;
+                    const statusIcon = q.status === 'unknown' ? '❔' : (q.wouldExceed ? '⚠️' : '✅');
+                    const capacity = q.kind === 'capacity';
+                    const sourceCell = capacity ? `quota ${q.sourceQuota === null ? 'n/a' : q.sourceQuota}` : q.sourceCount;
+                    const destCell = capacity ? 'n/a' : q.destinationCount;
+                    const afterCell = capacity ? 'n/a' : q.projectedCount;
+                    tableHtml += `<tr><td>${escapeHtml(q.resource)}</td><td>${escapeHtml(sourceCell)}</td><td>${escapeHtml(destCell)}</td><td>${escapeHtml(afterCell)}</td><td>${escapeHtml(quota)} <small>${escapeHtml(quotaSource)}${escapeHtml(q.adjustable === false ? ', not adjustable' : '')}</small></td><td class="${statusClass}">${statusIcon}</td></tr>`;
+                });
+                tableHtml += '</tbody></table>';
+                quotaTable.innerHTML = tableHtml;
+            }
+
+            if (result.warnings && result.warnings.length > 0) {
+                quotaWarnings.innerHTML = result.warnings.map(w => `<div class="quota-warning-box"><h5>${escapeHtml(w.resource)}</h5><p>${escapeHtml(w.message)}</p></div>`).join('');
+            } else {
+                quotaWarnings.innerHTML = '<div class="quota-ok-box"><p>✅ All quotas look good!</p></div>';
+            }
+
+            quotaResults.style.display = 'block';
+        }
+
+        function toggleUsersCheckbox(event) {
+            const checkbox = document.getElementById('users');
+            const container = document.getElementById('usersContainer');
+            const subOptions = document.getElementById('usersSubOptions');
+            const expandArrow = document.getElementById('usersExpandArrow');
+            if (event.target.type === 'checkbox') return;
+            checkbox.checked = !checkbox.checked;
+            if (checkbox.checked) {
+                container.classList.add('selected');
+                subOptions.classList.add('show');
+                expandArrow.classList.add('rotated');
+            } else {
+                container.classList.remove('selected');
+                subOptions.classList.remove('show');
+                expandArrow.classList.remove('rotated');
+            }
+        }
+
+        function toggleQueuesCheckbox(event) {
+            const checkbox = document.getElementById('queues');
+            const container = document.getElementById('queuesContainer');
+            const subOptions = document.getElementById('queuesSubOptions');
+            const expandArrow = document.getElementById('queuesExpandArrow');
+            if (event.target.type === 'checkbox') return;
+            checkbox.checked = !checkbox.checked;
+            if (checkbox.checked) {
+                container.classList.add('selected');
+                subOptions.classList.add('show');
+                expandArrow.classList.add('rotated');
+            } else {
+                container.classList.remove('selected');
+                subOptions.classList.remove('show');
+                expandArrow.classList.remove('rotated');
+            }
+        }
+
+        function toggleRoutingExpand(event) {
+            document.getElementById('routingSubOptions').classList.toggle('show');
+            document.getElementById('routingExpandArrow').classList.toggle('rotated');
+        }
+
+        function toggleFlowsExpand(event) {
+            document.getElementById('flowsSubOptions').classList.toggle('show');
+            document.getElementById('flowsExpandArrow').classList.toggle('rotated');
+        }
+
+        function toggleAnalyticsExpand(event) {
+            document.getElementById('analyticsSubOptions').classList.toggle('show');
+            document.getElementById('analyticsExpandArrow').classList.toggle('rotated');
+        }
+
+        function toggleAIAgentExpand(event) {
+            document.getElementById('aiAgentSubOptions').classList.toggle('show');
+            document.getElementById('aiAgentExpandArrow').classList.toggle('rotated');
+        }
+
+        function toggleIntegrationsExpand(event) {
+            document.getElementById('integrationsSubOptions').classList.toggle('show');
+            document.getElementById('integrationsExpandArrow').classList.toggle('rotated');
+        }
+
+        function toggleSubOption(id) {
+            const checkbox = document.getElementById(id);
+            const item = checkbox.closest('.sub-option-item');
+            checkbox.checked = !checkbox.checked;
+            item.classList.toggle('selected', checkbox.checked);
+        }
+
+        function togglePhoneNumberMigration() {
+            const checkbox = document.getElementById('enablePhoneNumberMigration');
+            const controls = document.getElementById('phoneNumberControls');
+
+            controls.style.display = checkbox.checked ? 'block' : 'none';
+            if (!checkbox.checked) {
+                document.getElementById('phoneNumbersList').style.display = 'none';
+            }
+        }
+
+        async function loadPhoneNumbers() {
+            const sourceInstance = document.getElementById('sourceInstance').value.trim();
+            if (!sourceInstance) {
+                showStatus('Please enter the source Connect instance ARN first.', 'error');
+                return;
+            }
+
+            const loadBtn = document.getElementById('loadPhoneNumbersBtn');
+            loadBtn.disabled = true;
+            loadBtn.textContent = '🔄 Loading...';
+
+            try {
+                const result = await apiFetch('/list-phone-numbers', { sourceInstanceId: sourceInstance });
+
+                if (result.phoneNumbers && result.phoneNumbers.length > 0) {
+                    displayPhoneNumbers(result.phoneNumbers);
+                    showStatus(`✅ Loaded ${result.phoneNumbers.length} phone numbers.`, 'success');
+                } else {
+                    showStatus('ℹ️ No phone numbers found.', 'info');
+                }
+            } catch (error) {
+                showStatus(`❌ Failed to load phone numbers: ${error.message}`, 'error');
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = '📋 Load Phone Numbers from Source Instance';
+            }
+        }
+
+        function displayPhoneNumbers(phoneNumbers) {
+            const dropdown = document.getElementById('phoneNumbersDropdown');
+            window.loadedPhoneNumbers = phoneNumbers;
+            dropdown.innerHTML = '';
+
+            phoneNumbers.forEach((pn, i) => {
+                const item = document.createElement('div');
+                item.className = 'phone-number-item';
+                item.onclick = () => { document.getElementById(`phone_${i}`).checked = !document.getElementById(`phone_${i}`).checked; updatePhoneNumberSummary(); updateDropdownText(); };
+                item.innerHTML = `<input type="checkbox" id="phone_${i}" onclick="event.stopPropagation(); updatePhoneNumberSummary(); updateDropdownText();"><div class="phone-number-details"><strong>${escapeHtml(pn.PhoneNumber)}</strong><small>Type: ${escapeHtml(pn.PhoneNumberType)} | Country: ${escapeHtml(pn.PhoneNumberCountryCode)}</small></div>`;
+                dropdown.appendChild(item);
+            });
+
+            document.getElementById('phoneNumbersList').style.display = 'block';
+        }
+
+        function togglePhoneNumbersDropdown() {
+            document.getElementById('phoneNumbersDropdown').classList.toggle('show');
+            document.querySelector('.dropdown-header').classList.toggle('active');
+        }
+
+        function updateDropdownText() {
+            const checked = document.querySelectorAll('#phoneNumbersDropdown input:checked');
+            document.getElementById('dropdownText').textContent = checked.length === 0 ? 'Select phone numbers...' : `${checked.length} selected`;
+        }
+
+        function updatePhoneNumberSummary() {
+            const count = document.querySelectorAll('#phoneNumbersDropdown input:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('estimatedDowntime').textContent = `${count * 20} to ${count * 30}`;
+        }
+
+        function getSelectedPhoneNumbers() {
+            const selected = [];
+            document.querySelectorAll('#phoneNumbersDropdown input:checked').forEach(cb => {
+                const idx = cb.id.replace('phone_', '');
+                if (window.loadedPhoneNumbers && window.loadedPhoneNumbers[idx]) {
+                    // IDs and ARNs only: the number itself never enters the execution input.
+                    const pn = window.loadedPhoneNumbers[idx];
+                    selected.push({ PhoneNumberId: pn.PhoneNumberId, PhoneNumberArn: pn.PhoneNumberArn });
+                }
+            });
+            return selected;
+        }
+
+        function validateForm() {
+            const sourceInstance = document.getElementById('sourceInstance').value.trim();
+            const destInstance = document.getElementById('destInstance').value.trim();
+
+            if (!sourceInstance || !destInstance) {
+                showStatus('Please enter both source and destination Connect instance ARNs.', 'error');
+                return false;
+            }
+
+            if (sourceInstance === destInstance) {
+                showStatus('Source and destination instances cannot be the same.', 'error');
+                return false;
+            }
+
+            const arnPattern = /^arn:aws:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
+            if (!arnPattern.test(sourceInstance) || !arnPattern.test(destInstance)) {
+                showStatus('Please enter valid Connect instance ARNs.', 'error');
+                return false;
+            }
+
+            // Check the target role and ExternalId
+            const accessError = validateTargetAccess(sourceInstance, destInstance);
+            if (accessError) {
+                showStatus(accessError, 'error');
+                return false;
+            }
+
+            const features = ['users', 'queues', 'migratePrompts', 'migrateQuickConnects', 'migratePredefinedAttributes', 'migrateDataTables', 'migrateContactFlows', 'migrateContactFlowModules', 'migrateViews', 'migrateRules', 'migrateEvaluationForms', 'migrateVocabularies', 'migrateLambdaFunctions', 'migrateLexBots', 'migrateAIAgents', 'migrateAIPrompts', 'migrateAIGuardrails'];
+            const selectedFeatures = features.filter(f => document.getElementById(f).checked);
+            const phoneEnabled = document.getElementById('enablePhoneNumberMigration').checked;
+
+            if (selectedFeatures.length === 0 && !phoneEnabled) {
+                showStatus('Please select at least one migration feature.', 'error');
+                return false;
+            }
+
+            if (phoneEnabled && getSelectedPhoneNumbers().length === 0) {
+                showStatus('Please select at least one phone number.', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        async function checkPhoneNumberQuickConnects() {
+            // Check if there are phone number type quick connects and warn about country prefixes
+            const sourceInstance = document.getElementById('sourceInstance').value.trim();
+
+            try {
+                showStatus('🔍 Checking quick connects for phone number prefixes...', 'info');
+
+                // Call the list quick connects API to get phone prefixes
+                const result = await apiFetch('/list-quick-connects', { sourceInstanceId: sourceInstance });
+                const phonePrefixes = result.phonePrefixes || [];
+
+                if (phonePrefixes.length > 0) {
+                    // Show warning popup with phone prefixes
+                    const prefixList = phonePrefixes.join(', ');
+                    const warningMessage = `⚠️ Phone Number Quick Connects Detected\n\n` +
+                        `The following country/region prefixes were found in your quick connects:\n\n` +
+                        `${prefixList}\n\n` +
+                        `Please ensure these countries/prefixes are allowlisted in your destination Connect instance before proceeding.\n\n` +
+                        `Go to: Amazon Connect Customer console → Telephony → Phone numbers → Countries you can call\n\n` +
+                        `Do you want to continue with the migration?`;
+
+                    const userConfirmed = confirm(warningMessage);
+                    if (!userConfirmed) {
+                        showStatus('Migration cancelled. Please allowlist the required country prefixes first.', 'info');
+                        return false;
+                    }
+                }
+
+                return true;
+
+            } catch (error) {
+                console.log('Error checking phone prefixes:', error);
+                // Don't block migration if check fails
+                return true;
+            }
+        }
+
+        async function startMigration() {
+            if (!validateForm()) return;
+
+            // Check for phone number quick connects and show warning
+            if (document.getElementById('migrateQuickConnects').checked) {
+                const phonePrefixWarningShown = await checkPhoneNumberQuickConnects();
+                if (phonePrefixWarningShown === false) {
+                    return; // User cancelled
+                }
+            }
+
+            const usersChecked = document.getElementById('users').checked;
+            const queuesChecked = document.getElementById('queues').checked;
+
+            const migrationConfig = {
+                sourceInstanceId: document.getElementById('sourceInstance').value.trim(),
+                destinationInstanceId: document.getElementById('destInstance').value.trim(),
+                features: {
+                    users: usersChecked,
+                    queues: queuesChecked,
+                    quickConnects: document.getElementById('migrateQuickConnects').checked,
+                    agentStatus: usersChecked && document.getElementById('migrateAgentStatus').checked,
+                    hierarchyGroups: usersChecked && document.getElementById('migrateHierarchyGroups').checked,
+                    prompts: document.getElementById('migratePrompts').checked,
+                    predefinedAttributes: document.getElementById('migratePredefinedAttributes').checked,
+                    dataTables: document.getElementById('migrateDataTables')?.checked || false,
+                    contactFlows: document.getElementById('migrateContactFlows').checked,
+                    contactFlowModules: document.getElementById('migrateContactFlowModules').checked,
+                    views: document.getElementById('migrateViews').checked,
+                    rules: document.getElementById('migrateRules').checked,
+                    evaluationForms: document.getElementById('migrateEvaluationForms').checked,
+                    vocabularies: document.getElementById('migrateVocabularies').checked,
+                    lambdaFunctions: document.getElementById('migrateLambdaFunctions').checked,
+                    lexBots: document.getElementById('migrateLexBots').checked,
+                    aiAgents: document.getElementById('migrateAIAgents')?.checked || false,
+                    aiPrompts: document.getElementById('migrateAIPrompts')?.checked || false,
+                    aiGuardrails: document.getElementById('migrateAIGuardrails')?.checked || false,
+                    phoneNumbers: document.getElementById('enablePhoneNumberMigration').checked
+                },
+                userOptions: {
+                    migrateRoutingProfiles: document.getElementById('migrateRoutingProfiles').checked,
+                    migrateSecurityProfiles: document.getElementById('migrateSecurityProfiles').checked,
+                    migrateAgentStatus: document.getElementById('migrateAgentStatus').checked,
+                    migrateHierarchyGroups: document.getElementById('migrateHierarchyGroups').checked
+                },
+                queueOptions: {
+                    migrateHoursOfOperation: document.getElementById('migrateHoursOfOperation').checked
+                }
+            };
+
+            Object.assign(migrationConfig, getTargetAccess());
+
+            if (document.getElementById('enablePhoneNumberMigration').checked) {
+                migrationConfig.selectedPhoneNumbers = getSelectedPhoneNumbers();
+            }
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').textContent = '🔄 Starting Migration...';
+
+            try {
+                showStatus('🚀 Starting migration process...', 'info');
+
+                const result = await apiFetch('/start', migrationConfig);
+
+                if (result.executionArn) {
+                    lastExecutionArn = result.executionArn;
+                    document.getElementById('executionStartTime').textContent = new Date().toLocaleString();
+                    const executionRegion = result.executionArn.split(':')[3];
+                    document.getElementById('consoleLink').href = `https://console.aws.amazon.com/states/home?region=${encodeURIComponent(executionRegion)}#/v2/executions/details/${encodeURIComponent(result.executionArn)}`;
+                    document.getElementById('executionDetails').style.display = 'block';
+                    showStatus('✅ Migration started successfully!', 'success');
+                    monitorExecution(result.executionArn);
+                } else {
+                    throw new Error('No execution ARN returned');
+                }
+            } catch (error) {
+                showStatus(`❌ Failed to start migration: ${error.message}`, 'error');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('startBtn').textContent = '🚀 Start Migration';
+            }
+        }
+
+        async function monitorExecution(executionArn) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const statusElement = document.getElementById('executionStatus');
+
+            lastExecutionArn = executionArn;
+            let pollCount = 0;
+            const maxPolls = 120; // 10 minutes max (5 second intervals)
+
+            async function checkStatus() {
+                try {
+                    const result = await apiFetch('/check-migration-status', { executionArn: executionArn });
+
+                    const status = result.status || 'RUNNING';
+                    pollCount++;
+
+                    // Update progress bar based on poll count (rough estimate)
+                    const progressPercent = Math.min(95, (pollCount / maxPolls) * 100);
+                    progressBar.style.width = `${progressPercent}%`;
+
+                    if (status === 'RUNNING') {
+                        progressText.textContent = `Migration in progress... (${Math.floor(pollCount * 5 / 60)}m ${(pollCount * 5) % 60}s)`;
+                        statusElement.textContent = 'RUNNING';
+                        statusElement.style.color = '#ffc107';
+
+                        if (pollCount < maxPolls) {
+                            setTimeout(checkStatus, 5000); // Poll every 5 seconds
+                        } else {
+                            progressText.textContent = 'Migration taking longer than expected. Check Step Functions console.';
+                            statusElement.textContent = 'TIMEOUT';
+                            statusElement.style.color = '#ffc107';
+                            document.getElementById('startBtn').disabled = false;
+                        }
+                    } else if (status === 'SUCCEEDED') {
+                        progressBar.style.width = '100%';
+                        progressText.textContent = 'Migration completed successfully!';
+                        statusElement.textContent = 'SUCCEEDED';
+                        statusElement.style.color = '#28a745';
+                        showStatus('🎉 Migration completed successfully! Click "Run Post-Migration Verification" to verify results.', 'success');
+                        document.getElementById('startBtn').disabled = false;
+                        document.getElementById('startBtn').textContent = '🚀 Start New Migration';
+                        renderMigrationReport(result);
+                        showPostMigrationSection();
+                    } else if (status === 'FAILED' || status === 'TIMED_OUT' || status === 'ABORTED') {
+                        progressBar.style.width = '100%';
+                        progressBar.style.backgroundColor = '#dc3545';
+                        progressText.textContent = `Migration ${status.toLowerCase()}. See the migration report below.`;
+                        statusElement.textContent = status;
+                        statusElement.style.color = '#dc3545';
+                        showStatus(`❌ Migration ${status.toLowerCase()}. See the migration report for failed steps and items.`, 'error');
+                        document.getElementById('startBtn').disabled = false;
+                        document.getElementById('startBtn').textContent = '🚀 Start New Migration';
+                        renderMigrationReport(result);
+                        showPostMigrationSection();
+                    } else {
+                        // Unknown status, keep polling
+                        progressText.textContent = `Status: ${status}...`;
+                        if (pollCount < maxPolls) {
+                            setTimeout(checkStatus, 5000);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error checking status:', error);
+                    progressText.textContent = 'Error checking status. Retrying...';
+                    if (pollCount < maxPolls) {
+                        setTimeout(checkStatus, 5000);
+                    }
+                }
+            }
+
+            // Start polling
+            progressText.textContent = 'Starting migration...';
+            statusElement.textContent = 'STARTING';
+            statusElement.style.color = '#ffc107';
+            setTimeout(checkStatus, 3000); // First check after 3 seconds
+        }
+
+        // Target verification: the VerifyTarget step result in the migration report, or the
+        // on demand /verify-migration answer (same shape). Verdict, one row per check with
+        // counts, issue and follow up codes and the listed resource IDs, then the flows that
+        // still reference the source or hold placeholders. The result holds IDs, codes and
+        // counts only, and every value is escaped.
+        function verificationHtml(verification) {
+            const v = verification || {};
+            const checks = v.checks || [];
+            const codes = counts => Object.entries(counts || {}).map(([code, count]) => `${code}: ${count}`).join(', ');
+            const icons = { PASS: '✅', PASS_WITH_FOLLOW_UPS: '🟡', FAIL: '❌', ERROR: '❌' };
+            const flows = checks.flatMap(c => (c.flows || []).map(f => ({ type: c.type, ...f })));
+            const notChecked = Object.keys(v.notChecked || {}).join(', ');
+            const parts = [
+                `<h4>${escapeHtml(icons[v.verdict] || 'ℹ️')} Target verification: ${escapeHtml(v.verdict || 'NOT_RUN')}${escapeHtml(v.errorCode ? ` (error code ${v.errorCode}${v.action ? `, action ${v.action}` : ''})` : '')}</h4>`
+            ];
+            if (checks.length > 0) {
+                parts.push(`<table class="report-table"><thead><tr><th scope="col">Check</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Checked</th><th scope="col">Found / missing / extra / skipped</th><th scope="col">Issues</th><th scope="col">Follow ups</th><th scope="col">Resource IDs</th></tr></thead><tbody>${checks.map(c => `<tr><td>${escapeHtml(c.check)}</td><td>${escapeHtml(c.type)}</td><td>${escapeHtml(c.status)}</td><td>${escapeHtml(c.checked)}</td><td>${escapeHtml(c.check === 'names' ? `${c.found} / ${c.missing} / ${c.extra} / ${c.skipped}` : '')}</td><td>${escapeHtml(codes(c.issues))}</td><td>${escapeHtml(codes(c.followUps))}</td><td>${escapeHtml((c.ids || []).join(', '))}${escapeHtml(c.unlistedIssues ? ` and ${c.unlistedIssues} more` : '')}</td></tr>`).join('')}</tbody></table>`);
+            }
+            if (flows.length > 0) {
+                parts.push(`<h4>Flows that still reference the source or hold placeholders (${escapeHtml(flows.length)})</h4><table class="report-table"><thead><tr><th scope="col">Type</th><th scope="col">Target ID</th><th scope="col">Source ARN types</th><th scope="col">Mappable (fail)</th><th scope="col">Follow up reasons</th><th scope="col">Placeholders</th></tr></thead><tbody>${flows.map(f => `<tr><td>${escapeHtml(f.type)}</td><td>${escapeHtml(f.id)}</td><td>${escapeHtml(codes(f.sourceArnTypes))}</td><td>${escapeHtml(f.mappable || 0)}</td><td>${escapeHtml(codes(f.followUps))}</td><td>${escapeHtml(f.placeholders)}</td></tr>`).join('')}</tbody></table>`);
+            }
+            if (v.verdict === 'PASS_WITH_FOLLOW_UPS') {
+                parts.push('<p>🟡 PASS_WITH_FOLLOW_UPS: every check passed, but the target still needs the manual follow ups listed below (for example a flow that references a source resource the tool cannot map). The migration counts as succeeded; each follow up says how to resolve it.</p>');
+            }
+            // On demand verification only: the migration report shows these in its follow up list.
+            const followUps = v.manualFollowUp || [];
+            if (followUps.length > 0) {
+                parts.push(`<h4>🛠️ Manual follow up (${escapeHtml(followUps.length)})</h4><table class="report-table"><thead><tr><th scope="col">Type</th><th scope="col">Target ID</th><th scope="col">ARN type</th><th scope="col">Reason code</th><th scope="col">Count</th><th scope="col">What to do</th></tr></thead><tbody>${followUps.map(f => `<tr><td>${escapeHtml(f.resourceType)}</td><td>${escapeHtml(f.flowId)}</td><td>${escapeHtml(f.arnType)}</td><td>${escapeHtml(f.reasonCode)}</td><td>${escapeHtml(f.count)}</td><td>${escapeHtml(f.action)}</td></tr>`).join('')}</tbody></table>`);
+            }
+            if (notChecked) {
+                parts.push(`<p>Not compared by name (copied differently or not at all): ${escapeHtml(notChecked)}</p>`);
+            }
+            return parts.join('');
+        }
+
+        // Migration report from /check-migration-status: overall verdict, per step
+        // status with failed item counts and error codes, failed steps and manual
+        // follow up items (phone numbers, Lambda functions, Lex bots, unmapped ARNs).
+        function renderMigrationReport(result) {
+            const failed = result.failedSteps || [];
+            const followUp = result.manualFollowUp || [];
+            const steps = result.steps || [];
+            const failedDiv = document.getElementById('failedStepsReport');
+            const followDiv = document.getElementById('followUpReport');
+            const verdict = result.migrationStatus === 'SUCCEEDED' ? (followUp.length ? '🟡' : '✅') : '❌';
+
+            const stepRows = steps.map(s => {
+                const codes = Object.entries(s.errorCodes || {}).map(([code, count]) => `${code}: ${count}`).join(', ');
+                return `<tr><td>${escapeHtml(s.state)}</td><td>${escapeHtml(s.status)}</td><td>${escapeHtml(s.failedItems)}</td><td>${escapeHtml(codes)}</td></tr>`;
+            }).join('');
+            const stepTable = steps.length === 0 ? '' :
+                `<table class="report-table"><thead><tr><th scope="col">Step</th><th scope="col">Status</th><th scope="col">Failed items</th><th scope="col">Error codes</th></tr></thead><tbody>${stepRows}</tbody></table>`;
+            const failedTable = failed.length === 0 ? '<p>✅ No step failed.</p>' :
+                '<h4>❌ Failed steps</h4><table class="report-table"><thead><tr><th scope="col">Step</th><th scope="col">Error</th></tr></thead><tbody>' +
+                failed.map(f => `<tr><td>${escapeHtml(f.state)}</td><td>${escapeHtml(f.error)}</td></tr>`).join('') +
+                '</tbody></table>';
+            const secret = result.externalIdSecret || {};
+            const secretWarning = secret.mayRemain ?
+                `<p role="alert">⚠️ ${escapeHtml(secret.message || 'The ExternalId secret of this execution may be left behind.')}</p>` : '';
+            const scope = result.scope && result.scope.message ? `<p class="scope-note">ℹ️ ${escapeHtml(result.scope.message)}</p>` : '';
+            failedDiv.innerHTML = `<h4>${escapeHtml(verdict)} Migration report: ${escapeHtml(result.migrationStatus || 'UNKNOWN')} (${escapeHtml(result.failedItemCount || 0)} failed items)</h4>${scope}${secretWarning}${stepTable}${failedTable}`;
+            document.getElementById('verificationReport').innerHTML = verificationHtml(result.verification);
+
+            followDiv.innerHTML = followUp.length === 0 ? '<p>✅ No manual follow up needed.</p>' :
+                `<h4>🛠️ Manual follow up (${escapeHtml(followUp.length)})</h4><table class="report-table"><thead><tr><th scope="col">Type</th><th scope="col">Item</th><th scope="col">Used by</th><th scope="col">What to do</th></tr></thead><tbody>` +
+                followUp.map(f => {
+                    // flowReference: a target flow or module that still points at a source resource the
+                    // tool cannot map (from VerifyTarget, listed on every run): flow ID, ARN type, reason code.
+                    if (f.type === 'flowReference') {
+                        return `<tr><td>${escapeHtml(`${f.resourceType} ${f.arnType} reference`)}</td><td>${escapeHtml(f.flowId)}</td><td>${escapeHtml(`${f.reasonCode} (${f.count})`)}</td><td>${escapeHtml(f.action)}</td></tr>`;
+                    }
+                    // phoneNumber: the move path that applies (reason code), the count and the phone number IDs.
+                    if (f.type === 'phoneNumber' && f.reasonCode) {
+                        return `<tr><td>${escapeHtml(`phoneNumber ${f.reasonCode} (${f.count})`)}</td><td>${escapeHtml((f.phoneNumberIds || []).join(', '))}</td><td></td><td>${escapeHtml(f.action)}</td></tr>`;
+                    }
+                    const item = f.name || f.queue || f.phoneNumberId || f.queueId || f.source || '';
+                    const usedBy = (f.flows || []).join(', ') || f.queue || '';
+                    const detail = f.source && f.source !== item ? `<br><small>${escapeHtml(f.source)}</small>` : '';
+                    return `<tr><td>${escapeHtml(f.type)}</td><td>${escapeHtml(item)}${detail}</td><td>${escapeHtml(usedBy)}</td><td>${escapeHtml(f.action)}</td></tr>`;
+                }).join('') + '</tbody></table>';
+
+            document.getElementById('migrationReport').style.display = 'block';
+        }
+
+        // Messages often contain server or Connect text, so never parse them as HTML.
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+            if (type === 'success') setTimeout(() => { status.style.display = 'none'; }, 8000);
+        }
+
+        // Flow Dependencies Pre-Check with Pagination
+        let flowCheckResults = null;
+
+        async function checkFlowDependencies() {
+            const sourceInstance = document.getElementById('sourceInstance').value.trim();
+            const destInstance = document.getElementById('destInstance').value.trim();
+
+            if (!sourceInstance || !destInstance) {
+                showStatus('Please enter both source and destination Connect instance ARNs first.', 'error');
+                return;
+            }
+
+            const arnPattern = /^arn:aws:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
+            if (!arnPattern.test(sourceInstance) || !arnPattern.test(destInstance)) {
+                showStatus('Please enter valid Connect instance ARNs.', 'error');
+                return;
+            }
+
+            const accessError = validateTargetAccess(sourceInstance, destInstance);
+            if (accessError) {
+                showStatus(accessError, 'error');
+                return;
+            }
+
+            const checkBtn = document.getElementById('checkFlowDepsBtn');
+            checkBtn.disabled = true;
+
+            // Reset accumulated results
+            flowCheckResults = {
+                summary: { totalFlows: 0, canMigrate: 0, hasIssues: 0 },
+                missingResources: { lambdas: [], lexBots: [] },
+                flowAnalysis: [],
+                seenResources: { lambdas: new Set(), lexBots: new Set() }
+            };
+
+            let offset = 0;
+            let hasMore = true;
+            let batchNum = 1;
+
+            try {
+                while (hasMore) {
+                    checkBtn.textContent = `🔄 Analyzing Batch ${batchNum}...`;
+
+                    const requestBody = {
+                        sourceInstanceId: sourceInstance,
+                        destinationInstanceId: destInstance,
+                        offset: offset,
+                        ...getTargetAccess()
+                    };
+
+                    const result = await apiFetch('/check-flow-dependencies', requestBody);
+
+                    // Accumulate results
+                    flowCheckResults.summary.totalFlows = result.summary.totalFlows;
+                    flowCheckResults.summary.canMigrate += result.summary.canMigrate;
+                    flowCheckResults.summary.hasIssues += result.summary.hasIssues;
+                    flowCheckResults.summary.isCrossAccount = result.summary.isCrossAccount;
+                    flowCheckResults.summary.isCrossRegion = result.summary.isCrossRegion;
+                    flowCheckResults.flowAnalysis.push(...result.flowAnalysis);
+
+                    // Merge missing resources (deduplicate)
+                    for (const cat of Object.keys(result.missingResources)) {
+                        if (!flowCheckResults.seenResources[cat]) {
+                            flowCheckResults.seenResources[cat] = new Set();
+                            flowCheckResults.missingResources[cat] = [];
+                        }
+                        for (const item of result.missingResources[cat]) {
+                            if (!flowCheckResults.seenResources[cat].has(item.name)) {
+                                flowCheckResults.seenResources[cat].add(item.name);
+                                flowCheckResults.missingResources[cat].push(item);
+                            }
+                        }
+                    }
+
+                    hasMore = result.summary.hasMore;
+                    const nextOffset = result.summary.nextOffset || 0;
+                    // A batch may stop early at the server's time budget (summary.stopReason
+                    // TimeBudget); the next request resumes at nextOffset, which must move forward.
+                    if (hasMore && nextOffset <= offset) {
+                        throw new Error('the flow check made no progress');
+                    }
+                    offset = nextOffset;
+                    batchNum++;
+
+                    // Update progress display
+                    displayFlowDependencyResults(flowCheckResults, !hasMore);
+                }
+
+                showStatus(`✅ Analyzed all ${flowCheckResults.summary.totalFlows} flows!`, 'success');
+            } catch (error) {
+                showStatus(`❌ Failed to check flow dependencies: ${error.message}`, 'error');
+            } finally {
+                checkBtn.disabled = false;
+                checkBtn.textContent = '🔍 Check Flow Dependencies';
+            }
+        }
+
+        function displayFlowDependencyResults(result, isComplete = true) {
+            const resultsDiv = document.getElementById('flowDependencyResults');
+            if (result.error) {
+                resultsDiv.innerHTML = `<div class="quota-warning-box"><p>❌ Error: ${escapeHtml(result.error)}</p></div>`;
+                resultsDiv.style.display = 'block';
+                return;
+            }
+
+            const summary = result.summary || {};
+            const missingResources = result.missingResources || {};
+            const analyzed = result.flowAnalysis ? result.flowAnalysis.length : 0;
+
+            let html = '<div class="flow-check-results">';
+
+            // Progress indicator
+            if (!isComplete) {
+                const pct = Math.round((analyzed / summary.totalFlows) * 100);
+                html += `<div style="margin-bottom: 15px; padding: 10px; background: #e7f3ff; border-radius: 4px;">
+                    <strong>🔄 Analyzing...</strong> ${escapeHtml(analyzed)} of ${escapeHtml(summary.totalFlows)} flows (${pct}%)
+                    <div style="background: #ddd; height: 8px; border-radius: 4px; margin-top: 5px;">
+                        <div style="background: #ff9900; height: 100%; width: ${pct}%; border-radius: 4px;"></div>
+                    </div>
+                </div>`;
+            }
+
+            html += '<div class="flow-check-summary">';
+            html += `<div class="flow-check-stat"><div class="number">${escapeHtml(summary.totalFlows || 0)}</div><div class="label">Total Flows</div></div>`;
+            html += `<div class="flow-check-stat success"><div class="number">${escapeHtml(summary.canMigrate || 0)}</div><div class="label">Ready</div></div>`;
+            html += `<div class="flow-check-stat ${escapeHtml(summary.hasIssues > 0 ? 'warning' : '')}"><div class="number">${escapeHtml(summary.hasIssues || 0)}</div><div class="label">Have Issues</div></div>`;
+            html += '</div>';
+
+            const categories = [
+                { key: 'lambdas', label: '⚡ Lambda Functions' },
+                { key: 'lexBots', label: '🤖 Lex Bots' },
+                { key: 'flows', label: '📞 Flows that could not be read' }
+            ];
+
+            let hasMissing = false;
+            categories.forEach(cat => {
+                const items = missingResources[cat.key] || [];
+                if (items.length > 0) {
+                    hasMissing = true;
+                    html += `<div class="missing-resources-category">
+                        <div class="missing-resources-header" onclick="this.nextElementSibling.classList.toggle('show')">
+                            <span>${cat.label} (${escapeHtml(items.length)})</span><span>▼</span>
+                        </div>
+                        <div class="missing-resources-list">
+                            ${items.map(i => `<div class="missing-resource-item"><strong>${escapeHtml(i.name)}</strong><br><small>${escapeHtml(i.reason)}</small></div>`).join('')}
+                        </div>
+                    </div>`;
+                }
+            });
+
+            if (isComplete && !hasMissing) {
+                html += '<div class="quota-ok-box" style="margin: 10px 0;"><p>✅ All flow dependencies are satisfied!</p></div>';
+            }
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        // Post-Migration Check
+        let lastExecutionArn = null;
+
+        async function runPostMigrationCheck() {
+            const sourceInstance = document.getElementById('sourceInstance').value.trim();
+            const destInstance = document.getElementById('destInstance').value.trim();
+
+            if (!sourceInstance || !destInstance) {
+                showStatus('Please enter both source and destination Connect instance ARNs.', 'error');
+                return;
+            }
+
+            const postMigrationBtn = document.getElementById('postMigrationBtn');
+            postMigrationBtn.disabled = true;
+            postMigrationBtn.textContent = '🔄 Comparing Resources...';
+
+            // Get selected features - use correct checkbox IDs
+            const usersChecked = document.getElementById('users')?.checked || false;
+            const queuesChecked = document.getElementById('queues')?.checked || false;
+            const features = {
+                agentStatus: usersChecked && (document.getElementById('migrateAgentStatus')?.checked || false),
+                hierarchyGroups: usersChecked && (document.getElementById('migrateHierarchyGroups')?.checked || false),
+                prompts: document.getElementById('migratePrompts')?.checked || false,
+                queues: queuesChecked,
+                users: usersChecked,
+                contactFlows: document.getElementById('migrateContactFlows')?.checked || false,
+                contactFlowModules: document.getElementById('migrateContactFlowModules')?.checked || false,
+                quickConnects: document.getElementById('migrateQuickConnects')?.checked || false,
+                views: document.getElementById('migrateViews')?.checked || false,
+                predefinedAttributes: document.getElementById('migratePredefinedAttributes')?.checked || false,
+                dataTables: document.getElementById('migrateDataTables')?.checked || false,
+                evaluationForms: document.getElementById('migrateEvaluationForms')?.checked || false,
+                vocabularies: document.getElementById('migrateVocabularies')?.checked || false,
+                rules: document.getElementById('migrateRules')?.checked || false,
+                aiAgents: document.getElementById('migrateAIAgents')?.checked || false,
+                aiPrompts: document.getElementById('migrateAIPrompts')?.checked || false,
+                aiGuardrails: document.getElementById('migrateAIGuardrails')?.checked || false
+            };
+
+            const accessError = validateTargetAccess(sourceInstance, destInstance);
+            if (accessError) {
+                showStatus(accessError, 'error');
+                postMigrationBtn.disabled = false;
+                postMigrationBtn.textContent = '📋 Run Post-Migration Verification';
+                return;
+            }
+
+            try {
+                const result = await apiFetch('/verify-migration', {
+                        sourceInstanceId: sourceInstance,
+                        destinationInstanceId: destInstance,
+                        features: features,
+                        userOptions: {
+                            migrateRoutingProfiles: document.getElementById('migrateRoutingProfiles')?.checked ?? true,
+                            migrateSecurityProfiles: document.getElementById('migrateSecurityProfiles')?.checked ?? true
+                        },
+                        queueOptions: {
+                            migrateHoursOfOperation: document.getElementById('migrateHoursOfOperation')?.checked ?? true
+                        },
+                        ...getTargetAccess()
+                    });
+
+                // Handle both direct response and API Gateway wrapped response
+                let data = result;
+                if (result.body) {
+                    data = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                }
+
+                displayPostMigrationResults(data);
+            } catch (error) {
+                showStatus(`❌ Failed to verify migration: ${error.message}`, 'error');
+            } finally {
+                postMigrationBtn.disabled = false;
+                postMigrationBtn.textContent = '📋 Run Post-Migration Verification';
+            }
+        }
+
+        function displayPostMigrationResults(result) {
+            const resultsDiv = document.getElementById('postMigrationResults');
+            const summaryDiv = document.getElementById('postMigrationSummary');
+            if (result.error) {
+                summaryDiv.innerHTML = `<p style="color: #dc3545;">❌ Error: ${escapeHtml(result.error)}${escapeHtml(result.action ? ` (action ${result.action})` : '')}</p>`;
+            } else {
+                summaryDiv.innerHTML = verificationHtml(result);
+            }
+            resultsDiv.style.display = 'block';
+        }
+
+        function showPostMigrationSection() {
+            document.getElementById('postMigrationSection').style.display = 'block';
+        }
+
+    </script>
+</body>
+</html>

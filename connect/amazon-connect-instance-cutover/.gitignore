@@ -1,0 +1,15 @@
+# Generated at deploy time by scripts/deploy.sh from stack outputs
+frontend/config.js
+
+# Build and packaging output
+.build/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# macOS
+.DS_Store
