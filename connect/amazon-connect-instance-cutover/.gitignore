@@ -1,6 +1,9 @@
 # Generated at deploy time by scripts/deploy.sh from stack outputs
 frontend/config.js
 
+# Local ExternalId file written by README step 1 (a secret; never commit it)
+externalid.txt
+
 # Build and packaging output
 .build/
 
