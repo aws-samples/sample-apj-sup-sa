@@ -12,6 +12,15 @@ Lex V1 (Lex Classic) bots are not supported: the tool lists, matches and associa
 
 > **Voice ID**: Amazon Connect Customer Voice ID reached end of support on May 20, 2026, and the tool does not migrate it (no domains, speakers, watchlists or settings). Target verification lists every migrated flow or module that still has a Set Voice ID or Check Voice ID block as a follow up with reason `VoiceIdEndOfSupport`.
 
+## Supported Regions
+
+The tool works in any Region where Amazon Connect Customer is available ([Amazon Connect Customer Regions](https://docs.aws.amazon.com/connect/latest/adminguide/regions.html)). It checks Region codes by format only and keeps no Region list, so a Region launched later needs no code change.
+
+- **A feature a Region doesn't offer is skipped and reported.** For example, when the source or target Region doesn't offer AI agents, that step ends `SKIPPED` instead of failing, and the migration report lists a `FeatureNotAvailableInRegion` follow up with the side (source or target), the Region, the error code and, for a create step, the number of items not created. Target verification reports the same code as a follow up, not a failure. A quota the preflight can't read in a Region is reported as `unknown`.
+- **AI prompts keep their model ID.** When the source and target Regions differ, the report lists each created AI prompt so you can check that the target Region offers its model or inference profile.
+- **Cross partition moves aren't supported**, for example from a commercial Region to AWS GovCloud (US). The source instance, the target instance and the target role must be in the same partition; the start API refuses any other pair with `CrossPartitionNotSupported`.
+- **The web UI stack can't be deployed in AWS GovCloud (US)**, because Amazon CloudFront isn't offered there. `scripts/deploy.sh` deploys that stack (`connect-migration-frontend-<env>`) first and passes its artifacts bucket, Cognito user pool and CloudFront URL to the other three stacks, so the script stops in an AWS GovCloud (US) Region. Deploying the tool in a commercial Region doesn't help: the tool runs in the source account, and a move can't cross partitions. The Lambda and state machine templates take every ARN partition from `${AWS::Partition}` and need nothing from the web UI stack except two parameter values (`S3Bucket`, an artifacts bucket of your own, and `AllowedOrigin`, any `https://` origin). So a move between two AWS GovCloud (US) instances needs those two stacks deployed without the scripts and each execution started directly (see Starting an execution directly). The scripts don't do this, and it hasn't been tested in AWS GovCloud (US).
+
 ## Scope: a one time cutover
 
 The tool copies configuration once, for a cutover: you migrate, move traffic and phone numbers to the target instance, and retire the source instance afterwards. It is not a warm standby, a backup or a multi Region setup, and it does not keep the two instances in sync. A later run creates only what the target is still missing (matched by name); it never updates or deletes what is already there.
@@ -24,7 +33,7 @@ For multi Region resiliency, AWS supports only Amazon Connect Customer Global Re
 
 1. **AWS Enterprise Support or AWS Unified Operations** is required to onboard to Global Resiliency. This tool needs no AWS Support plan.
 2. **SAML 2.0 on a production instance**: the source must be an existing production instance with SAML 2.0 enabled. This tool works with any identity management type (users get new random passwords, see Needs manual follow up).
-3. **A supported Region pair**: US East (N. Virginia) and US West (Oregon) in either direction, Europe (Frankfurt) and Europe (London) in either direction, or Asia Pacific (Tokyo) to Asia Pacific (Osaka). This tool copies between any two Regions where the service is available.
+3. **A supported Region pair**: US East (N. Virginia) and US West (Oregon) in either direction, Europe (Frankfurt) and Europe (London) in either direction, or Asia Pacific (Tokyo) to Asia Pacific (Osaka). This tool copies between any two Regions in one partition where Amazon Connect Customer is available (see Supported Regions).
 4. **Same account only**: the replica is created in the same AWS account as the source instance. This tool also copies to another account.
 5. **Bidirectional sync**: Global Resiliency mirrors configuration between the two linked instances so both stay in service. This tool copies once, for a cutover after which the source instance is retired.
 
@@ -230,7 +239,7 @@ If an organization requires a customer managed KMS key on the cleanup failure qu
 
 ## Minimum IAM permissions
 
-These are exactly the policies the templates create (rendered with placeholder values).
+These are exactly the policies the templates create (rendered with placeholder values). The blocks show the `aws` partition; the templates use `${AWS::Partition}`, so in AWS GovCloud (US) every ARN starts with `arn:aws-us-gov:`.
 
 ### Tool account: `ConnectMigrationSourceReader`
 
@@ -678,7 +687,7 @@ The self move is disabled by default. With `--enable-phone-number-move` on `depl
 
 - AI agents: the first assistant in each account and Region is used, not necessarily the one linked to the instance.
 - Prompts are copied through a pre signed URL from the list step; very large prompt sets can outlive the URL or the 256 KB Step Functions payload.
-- The quota check covers 14 per instance Connect quotas with their real Service Quotas codes, including Concurrent active calls per instance (target quota compared with the source quota) and Amazon Lex bots per instance. Each value is labelled `applied-instance`, `applied-account` or `aws-default` (used only when no applied value exists); there are no built in guesses. Agent status per instance cannot be increased.
+- The quota check covers 14 per instance Connect quotas with their real Service Quotas codes, including Concurrent active calls per instance (target quota compared with the source quota) and Amazon Lex bots per instance. Each value is labelled `applied-instance`, `applied-account` or `aws-default` (used only when no applied value exists); there are no built in guesses, and a value or count that can't be read is `unknown`. Agent status per instance cannot be increased.
 - Verification checks names, references and the settings listed under Target verification; it does not compare every attribute (for example routing profile queue priorities or flow logic), and Lambda functions, Lex bots and phone numbers are only covered through the flow content check.
 
 ## Cleanup

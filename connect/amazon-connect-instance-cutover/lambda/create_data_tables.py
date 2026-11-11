@@ -11,6 +11,7 @@ from region_utils import create_destination_client
 from region_utils import reraise_if_fatal, error_code_of, EXISTS_ERROR_CODES
 from region_utils import describe_error, failure_entry, redact
 from region_utils import resolve_external_id
+from region_utils import feature_skipped_result, is_feature_unavailable
 from region_utils import step_handler
 
 @step_handler
@@ -81,6 +82,9 @@ def lambda_handler(event, context):
 
     # Tables already in the target (summary key Id, not DataTableId), listed once before any create
     existing = ExistingIndex(connect_client, instance_id, 'dataTables')
+    if existing.error is not None and is_feature_unavailable(existing.error):
+        return feature_skipped_result('dataTables', region, 'target', error_code_of(existing.error),
+                                      count=len(data_tables), tableMapping={})
 
     for table in data_tables:
         original_id = table.get('Id')

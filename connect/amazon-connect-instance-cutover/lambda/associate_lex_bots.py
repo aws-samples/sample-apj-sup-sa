@@ -31,6 +31,7 @@ from region_utils import (
 )
 from region_utils import redact
 from region_utils import describe_error, error_code_of
+from region_utils import feature_skipped_result, feature_unavailable_follow_up
 from region_utils import resolve_external_id
 from region_utils import step_handler
 
@@ -57,6 +58,7 @@ def lambda_handler(event, context):
     print(f"Cross-account migration: {is_cross_account}")
 
     associated_v2, matched_v2, skipped, failed, follow_up = [], [], [], [], []
+    lex_unavailable = {}  # {Region: error code} where Lex V2 is not offered
 
     # Lex V2 -------------------------------------------------------------
     if lex_v2_bots:
@@ -64,9 +66,21 @@ def lambda_handler(event, context):
             source_client, connect_client, source_instance_id, destination_instance_id,
             source_lex_factory=lambda region: boto3.client('lexv2-models', region_name=region, config=BOTO_CONFIG),
             dest_lex_factory=lambda region: dest_session.client('lexv2-models', region_name=region, config=BOTO_CONFIG),
+            unavailable=lex_unavailable,
         )
     else:
         lex_map, lex_names = {}, {}
+
+    # The target Region does not offer Lex V2: nothing can be matched, associated or rebuilt there.
+    if destination_region in lex_unavailable:
+        return feature_skipped_result(
+            'lexBots', destination_region, 'target', lex_unavailable[destination_region], count=len(lex_v2_bots),
+            associatedV2=[], matchedV2=[], skipped=[], failed=[],
+            summary={'totalV2': len(lex_v2_bots), 'associatedV2': 0, 'matchedV2': 0, 'manualFollowUp': 1,
+                     'skipped': 0, 'failed': 0})
+    # A source alias Region without Lex V2: its aliases cannot be matched by name (listed below as usual).
+    for region, code in sorted(lex_unavailable.items()):
+        follow_up.append(feature_unavailable_follow_up('lexBots', region, 'source', code))
 
     for bot in lex_v2_bots:
         alias_arn = bot.get('aliasArn')

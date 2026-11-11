@@ -72,9 +72,11 @@ from region_utils import (
     create_destination_session,
     error_code_of,
     extract_account_id_from_arn,
+    is_feature_unavailable,
     reraise_if_fatal,
     resolve_external_id,
 )
+from region_utils import FEATURE_NOT_AVAILABLE
 from region_utils import step_handler
 
 PASS, FAIL = 'PASS', 'FAIL'
@@ -199,6 +201,7 @@ class Side:
         self.connect, self.instance_id, self.instance_arn, self.qconnect = connect, instance_id, instance_arn, qconnect
         self.is_source = is_source
         self._lists, self._assistant, self._phone_number_ids = {}, _UNSET, None
+        self.ai_unavailable = None  # error code when the Region does not offer AI agents (qconnect)
 
     def rate_scope(self):
         """Account and Region of the instance (API rate quotas apply per account and Region)."""
@@ -206,20 +209,33 @@ class Side:
         return (parts[4], parts[3]) if len(parts) > 5 else ('instance', self.instance_id)
 
     def assistant_id(self):
-        """First AI agents assistant in the Region (same rule as the AI create steps), or None."""
+        """First AI agents assistant in the Region (same rule as the AI create steps), or None.
+
+        None also when the Region does not offer AI agents; ai_unavailable then holds the error code
+        and every qconnect listing reports FeatureNotAvailableInRegion as a follow up.
+        """
         if self._assistant is _UNSET:
-            self._assistant = None
+            assistant = None
             if self.qconnect is not None:
-                for page in self.qconnect.get_paginator('list_assistants').paginate():
-                    summaries = page.get('assistantSummaries') or []
-                    if summaries:
-                        self._assistant = summaries[0]['assistantId']
-                        break
+                try:
+                    for page in self.qconnect.get_paginator('list_assistants').paginate():
+                        summaries = page.get('assistantSummaries') or []
+                        if summaries:
+                            assistant = summaries[0]['assistantId']
+                            break
+                except Exception as err:
+                    reraise_if_fatal(err, self.instance_id)
+                    if not is_feature_unavailable(err, self.qconnect):
+                        raise
+                    self.ai_unavailable = error_code_of(err)
+            self._assistant = assistant
         return self._assistant
 
     def _pages(self, spec):
         if spec.service == 'qconnect':
             assistant_id = self.assistant_id()
+            if self.ai_unavailable:
+                raise ListUnavailable(FEATURE_NOT_AVAILABLE, follow_up=True)
             if not assistant_id:
                 return []
             return self.qconnect.get_paginator(spec.operation).paginate(assistantId=assistant_id, **spec.extra)
@@ -255,11 +271,18 @@ class Side:
                         else:
                             skipped += 1
                 self._lists[kind] = (everything, compared, skipped)
+            except ListUnavailable as err:
+                self._lists[kind] = err
             except OperationNotPageableError:
                 self._lists[kind] = ListUnavailable('SdkLacksOperation', follow_up=True)
             except Exception as err:
                 reraise_if_fatal(err, self.instance_id)
-                self._lists[kind] = ListUnavailable(error_code_of(err))
+                # A feature the Region does not offer is a follow up, not a failing issue.
+                feature_client = self.qconnect if spec.service == 'qconnect' else None
+                if is_feature_unavailable(err, feature_client):
+                    self._lists[kind] = ListUnavailable(FEATURE_NOT_AVAILABLE, follow_up=True)
+                else:
+                    self._lists[kind] = ListUnavailable(error_code_of(err))
         cached = self._lists[kind]
         if isinstance(cached, ListUnavailable):
             raise cached

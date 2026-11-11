@@ -22,6 +22,7 @@ import json
 MAX_HISTORY_PAGES = 50
 FAILURE_LIST_KEYS = ('failedItems', 'not_created', 'notMigrated')
 SUCCEEDED, FAILED, COMPLETED_WITH_FAILURES = 'SUCCEEDED', 'FAILED', 'COMPLETED_WITH_FAILURES'
+SKIPPED = 'SKIPPED'
 # The report step itself and the secret cleanup are not migration steps.
 REPORT_STATE = 'BuildMigrationReport'
 REPORT_FAILED_STATE = 'BuildMigrationReportFailed'
@@ -224,6 +225,9 @@ def build_report(sfn, execution_arn, fatal_error=None, extra_results=None, clean
             if marker not in seen_follow_up:
                 seen_follow_up.add(marker)
                 follow_up.append((state, item))
+        # A feature the Region does not offer: a clean skip (its follow up says why), not a failure.
+        if isinstance(payload.get('featureNotAvailable'), dict) and step['status'] == SUCCEEDED:
+            step['status'] = SKIPPED
 
     for item in events:
         kind = item.get('type') or ''

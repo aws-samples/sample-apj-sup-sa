@@ -17,10 +17,11 @@ import functools
 import re
 import threading
 import time
+from urllib.parse import urlsplit
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 # Standard retry mode retries throttling errors with backoff before the
 # error reaches our code. Anything that still fails is treated as fatal.
@@ -82,10 +83,20 @@ THROTTLING_CODES = frozenset({
     'SlowDown',
 })
 
+# An invalid or unrecognised security token. It means the credentials are wrong, never that a
+# Region lacks a feature, so it fails the step (and the run) like AccessDenied.
+INVALID_TOKEN_CODES = frozenset({
+    'UnrecognizedClientException',
+})
+
 # STS ExternalId constraints: 2 to 1224 characters from this set.
 EXTERNAL_ID_PATTERN = re.compile(r'^[\w+=,.@:/-]{2,1224}$')
 
 ROLE_ARN_PATTERN = re.compile(r'^arn:aws[a-z-]*:iam::\d{12}:role/[\w+=,.@/-]{1,512}$')
+
+# Region codes are checked by format only, never against a list, so a Region that
+# Amazon Connect Customer launches later works without a code change.
+REGION_PATTERN = re.compile(r'^[a-z]{2,}(?:-[a-z]+)+-\d+$')
 
 _UUID_PATTERN = re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE
@@ -253,7 +264,12 @@ def fatal_error(err, resource=None):
     """
     code = error_code(err)
     action = getattr(err, 'operation_name', None) or 'unknown action'
-    error_type = 'AccessDenied' if code in ACCESS_DENIED_CODES else 'Throttling'
+    if code in ACCESS_DENIED_CODES:
+        error_type = 'AccessDenied'
+    elif code in INVALID_TOKEN_CODES:
+        error_type = 'InvalidToken'
+    else:
+        error_type = 'Throttling'
     resource_id = resource or 'unknown resource'
     print(f"FATAL: {error_type} ({code}) calling {action} on {resource_id}")
     return MigrationStepError(f"{error_type} ({code}) calling {action} on {resource_id}",
@@ -276,13 +292,105 @@ def error_text(err):
 def reraise_if_fatal(err, resource=None):
     """Re-raise errors that must fail the step; return normally for anything else.
 
-    Use as the first statement of a broad exception handler so that IAM gaps
-    and throttling are never reported as an empty result or a skipped item.
+    Use as the first statement of a broad exception handler so that IAM gaps,
+    invalid security tokens and throttling are never reported as an empty
+    result or a skipped item.
     """
     if isinstance(err, MigrationStepError):
         raise err
-    if error_code(err) in ACCESS_DENIED_CODES or error_code(err) in THROTTLING_CODES:
+    code = error_code(err)
+    if code in ACCESS_DENIED_CODES or code in INVALID_TOKEN_CODES or code in THROTTLING_CODES:
         raise fatal_error(err, resource) from err
+
+
+# A feature the Region does not offer (for example AI agents in a Region without them). Amazon Connect
+# Customer does not document one error code for this per feature, and it cannot be verified without API
+# calls, so one constant set is used: the code AWS returns for an operation it does not serve there.
+# AccessDenied is never in it: an IAM gap and a Region gap look the same, so that stays fatal. Neither is
+# UnrecognizedClientException: it means an invalid security token (INVALID_TOKEN_CODES), which fails.
+FEATURE_UNAVAILABLE_CODES = frozenset({'UnknownOperationException'})
+FEATURE_NOT_AVAILABLE = 'FeatureNotAvailableInRegion'
+# Fixed wording per feature key (the keys of the start API 'features' input).
+FEATURE_LABELS = {
+    'rules': 'rules',
+    'evaluationForms': 'performance evaluations',
+    'dataTables': 'data tables',
+    'views': 'views',
+    'predefinedAttributes': 'predefined attributes',
+    'vocabularies': 'custom vocabularies',
+    'aiAgents': 'AI agents',
+    'aiPrompts': 'AI prompts',
+    'aiGuardrails': 'AI guardrails',
+    'lexBots': 'Amazon Lex V2 bots',
+}
+
+
+def _host(url):
+    return urlsplit(url or '').hostname or ''
+
+
+def is_feature_unavailable(err, feature_client=None):
+    """True when err means the Region does not offer the feature, so the step skips it with a follow up.
+
+    Run reraise_if_fatal first: AccessDenied and throttling never reach this check. An
+    EndpointConnectionError only counts when it names the endpoint of feature_client, the feature's
+    own service (for example qconnect or lexv2-models). A connect endpoint that cannot be reached is
+    a failure, never a missing feature.
+    """
+    if error_code(err) in FEATURE_UNAVAILABLE_CODES:
+        return True
+    if isinstance(err, EndpointConnectionError) and feature_client is not None:
+        meta = feature_client.meta
+        if meta.service_model.endpoint_prefix == 'connect':
+            return False
+        host = _host(meta.endpoint_url)
+        return bool(host) and _host(err.kwargs.get('endpoint_url')) == host
+    return False
+
+
+class FeatureUnavailable(Exception):
+    """Raised by a lookup helper when the Region does not offer the feature; holds the error code only."""
+
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
+def raise_if_feature_unavailable(err, feature_client=None):
+    """In a broad handler, after reraise_if_fatal: turn a missing feature into FeatureUnavailable."""
+    if is_feature_unavailable(err, feature_client):
+        raise FeatureUnavailable(error_code_of(err)) from None
+
+
+def feature_unavailable_follow_up(feature, region, side, code, count=None):
+    """One manualFollowUp entry: fixed wording, the feature key, the side, the Region and the error code."""
+    label = FEATURE_LABELS.get(feature, feature)
+    entry = {
+        'type': FEATURE_NOT_AVAILABLE, 'feature': feature, 'side': side, 'region': region, 'errorCode': code,
+        'action': (f"The {side} Region {region} does not offer {label} in Amazon Connect Customer, so this "
+                   "step skipped them. See the Amazon Connect Customer Regions page. Recreate them by hand "
+                   "if the Region offers the feature later, or use a Region that offers it."),
+    }
+    if count is not None:
+        entry['count'] = count
+    return entry
+
+
+def feature_skipped_result(feature, region, side, code, count=None, **result):
+    """Step result for a feature the Region does not offer: SKIPPED, no failed item, one follow up.
+
+    count is the number of items a create step could not create; with nothing to create (0) there
+    is no follow up. A list step passes no count: the source items could not be read.
+    """
+    print(f"{feature} not available in the {side} Region {region} ({code}): step skipped")
+    follow_up = [] if count == 0 else [feature_unavailable_follow_up(feature, region, side, code, count)]
+    return {
+        'statusCode': 200,
+        'status': 'SKIPPED',
+        'featureNotAvailable': {'feature': feature, 'side': side, 'region': region, 'errorCode': code},
+        **result,
+        'manualFollowUp': follow_up,
+    }
 
 
 def _clean_arn(arn):
@@ -308,7 +416,27 @@ def extract_region_from_arn(instance_arn):
     region = _connect_arn_parts(instance_arn)[3]
     if not region:
         raise ArnFormatError(f"No region found in ARN: {instance_arn}")
+    if not REGION_PATTERN.match(region):
+        raise ArnFormatError(f"Invalid Region format in ARN: {region}")
     return region
+
+
+def sdk_region_warning(instance_arn):
+    """Soft warning when this SDK's endpoint data does not list the Region for Amazon Connect Customer.
+
+    Returns fixed text with the Region and partition, or None. It never blocks a run:
+    the SDK still builds the standard regional endpoint for a Region it does not list.
+    """
+    partition = extract_partition_from_arn(instance_arn)
+    region = extract_region_from_arn(instance_arn)
+    try:
+        known = boto3.session.Session().get_available_regions('connect', partition_name=partition)
+    except Exception:  # endpoint data unreadable: no warning rather than a failed start
+        return None
+    if region in known:
+        return None
+    return (f"Region {region} is not in this SDK's endpoint data for Amazon Connect Customer "
+            f"(partition {partition}). The run continues with the standard regional endpoint.")
 
 
 def extract_account_id_from_arn(instance_arn):

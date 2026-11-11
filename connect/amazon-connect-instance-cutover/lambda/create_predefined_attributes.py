@@ -5,6 +5,7 @@ from arn_mapping import ExistingIndex
 from region_utils import reraise_if_fatal
 from region_utils import EXISTS_ERROR_CODES, describe_error, error_code, failure_entry
 from region_utils import resolve_external_id
+from region_utils import error_code_of, feature_skipped_result, is_feature_unavailable
 from region_utils import step_handler
 
 @step_handler
@@ -35,6 +36,9 @@ def lambda_handler(event, context):
         failed_items = []
         # Attributes already in the target, listed once before any create
         existing = ExistingIndex(connect, target_instance_id, 'predefinedAttributes')
+        if existing.error is not None and is_feature_unavailable(existing.error):
+            return feature_skipped_result('predefinedAttributes', target_region, 'target',
+                                          error_code_of(existing.error), count=len(attributes))
 
         for attr in attributes:
             print(f"Processing predefined attribute ({len(attr.get('Values', {}) or {})} value sets)")

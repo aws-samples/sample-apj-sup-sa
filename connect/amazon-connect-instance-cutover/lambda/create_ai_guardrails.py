@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 from region_utils import reraise_if_fatal, error_code_of
 from region_utils import describe_error, failure_entry, redact
 from region_utils import resolve_external_id
+from region_utils import FeatureUnavailable, feature_skipped_result, is_feature_unavailable, raise_if_feature_unavailable
 from region_utils import step_handler
 
 def json_serial(obj):
@@ -39,6 +40,7 @@ def get_assistant_id(destination_arn, cross_account_role_arn=None, external_id=N
 
     except Exception as e:
         reraise_if_fatal(e)
+        raise_if_feature_unavailable(e, qconnect_client)
         print(f"Error listing assistants: {describe_error(e)}")
         return None, qconnect_client
 
@@ -76,7 +78,12 @@ def lambda_handler(event, context):
         print(f"Cross-account migration enabled with role: {cross_account_role_arn}")
 
     # Get the assistant ID in destination
-    assistant_id, qconnect_client = get_assistant_id(destination_instance_arn, cross_account_role_arn, external_id)
+    try:
+        assistant_id, qconnect_client = get_assistant_id(destination_instance_arn, cross_account_role_arn,
+                                                         external_id)
+    except FeatureUnavailable as e:
+        return feature_skipped_result('aiGuardrails', destination_region, 'target', e.code,
+                                      count=len(ai_guardrails), aiGuardrailMapping={})
 
     if not assistant_id:
         return {
@@ -202,6 +209,10 @@ def lambda_handler(event, context):
 
     except Exception as e:
         reraise_if_fatal(e)
+        if is_feature_unavailable(e, qconnect_client):
+            done = len(created_guardrails) + len(skipped_guardrails) + len(failed_guardrails)
+            return feature_skipped_result('aiGuardrails', destination_region, 'target', error_code_of(e),
+                                          count=len(ai_guardrails) - done, aiGuardrailMapping=guardrail_mapping)
         print(f"Error creating AI Guardrails: {describe_error(e)}")
         return {
             'statusCode': 400,

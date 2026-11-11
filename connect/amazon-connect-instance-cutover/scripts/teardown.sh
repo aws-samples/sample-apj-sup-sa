@@ -66,7 +66,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 die() { echo "[x] $1" >&2; exit 1; }
-REGION_PATTERN='^[a-z]{2}(-[a-z]+)+-[0-9]$'
+# Format only (any Region code, including ones launched later); never a Region list.
+REGION_PATTERN='^[a-z]{2,}(-[a-z]+)+-[0-9]+$'
 [[ "$REGION" =~ $REGION_PATTERN ]] || die "--region is required (for example the Region you deployed to)"
 TARGET_REGION="${TARGET_REGION:-$REGION}"
 [[ "$TARGET_REGION" =~ $REGION_PATTERN ]] || die "--target-region is not a Region name"

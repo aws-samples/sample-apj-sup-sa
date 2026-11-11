@@ -87,6 +87,15 @@ def test_every_function_name_is_environment_scoped():
     assert all(r.startswith('arn:${Partition}:lambda:${Region}:${AccountId}:function:') for r in resources)
 
 
+def test_every_arn_takes_the_partition_from_the_substitution():
+    """No 'arn:aws:' literal: AWS GovCloud (US) needs arn:aws-us-gov (CloudFormation fills ${Partition})."""
+    assert 'arn:aws:' not in DEFINITION
+    definition = json.loads(rendered_numbers())
+    resources = [n['Resource'] for n in walk(definition) if isinstance(n.get('Resource'), str)]
+    assert resources and all(r.startswith('arn:${Partition}:') for r in resources)
+    assert sum(r == 'arn:${Partition}:states:::lambda:invoke' for r in resources) == 48
+
+
 def test_create_queues_gets_source_instance_for_flow_mapping():
     definition = json.loads(rendered_numbers())
     payload = next(n['Payload'] for n in walk(definition)

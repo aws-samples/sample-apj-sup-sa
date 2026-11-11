@@ -188,8 +188,10 @@ def test_the_page_loads_nothing_the_csp_would_block():
     # Scripts: config.js from the same origin and the inline script only; no other external resource.
     assert re.findall(r'<script[^>]*src="([^"]+)"', page) == ['config.js']
     assert not re.search(r'<link[^>]+href=|@import|<iframe|<object|<embed|<form', page)
-    # The only absolute URLs the page builds are the Cognito domain (token call, sign in, sign out).
-    assert set(re.findall(r'https://\$\{([^}]+)\}', page)) == {'CONFIG.cognitoDomain'}
+    # The only absolute URLs the page builds are the Cognito domain (token call, sign in, sign out) and the
+    # console link, a navigation target (not a fetched resource) whose host comes from the fixed CONSOLE_HOSTS map.
+    assert set(re.findall(r'https://\$\{([^}]+)\}', page)) == {'CONFIG.cognitoDomain', 'consoleHost'}
+    assert 'const consoleHost = CONSOLE_HOSTS[' in page
     assert 'CONFIG.apiBaseUrl' in page  # API calls go to the configured API (connect-src)
 
 

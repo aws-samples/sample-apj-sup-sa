@@ -10,6 +10,7 @@ from region_utils import BOTO_CONFIG, create_destination_session, extract_region
 from region_utils import reraise_if_fatal, error_code_of
 from region_utils import describe_error, failure_entry, redact
 from region_utils import resolve_external_id
+from region_utils import FeatureUnavailable, feature_skipped_result, is_feature_unavailable, raise_if_feature_unavailable
 from migration_filters import AI_LIST_PARAMS
 from region_utils import step_handler
 
@@ -41,6 +42,7 @@ def get_assistant_id(qconnect_client):
 
     except Exception as e:
         reraise_if_fatal(e)
+        raise_if_feature_unavailable(e, qconnect_client)
         print(f"Error listing assistants: {describe_error(e)}")
         return None
 
@@ -152,8 +154,15 @@ def lambda_handler(event, context):
     dest_client = get_qconnect_client(destination_instance_arn, cross_account_role_arn, external_id)
 
     # Get assistant IDs
-    source_assistant_id = get_assistant_id(source_client) if source_client else None
-    dest_assistant_id = get_assistant_id(dest_client)
+    try:
+        source_assistant_id = get_assistant_id(source_client) if source_client else None
+    except FeatureUnavailable:
+        source_assistant_id = None  # no source mapping; ListAIAgents already reported the source Region
+    try:
+        dest_assistant_id = get_assistant_id(dest_client)
+    except FeatureUnavailable as e:
+        return feature_skipped_result('aiAgents', destination_region, 'target', e.code, count=len(ai_agents),
+                                      aiAgentMapping={})
 
     if not dest_assistant_id:
         return {
@@ -295,6 +304,10 @@ def lambda_handler(event, context):
 
     except Exception as e:
         reraise_if_fatal(e)
+        if is_feature_unavailable(e, dest_client):
+            done = len(created_agents) + len(skipped_agents) + len(failed_agents)
+            return feature_skipped_result('aiAgents', destination_region, 'target', error_code_of(e),
+                                          count=len(ai_agents) - done, aiAgentMapping=agent_mapping)
         print(f"Error creating AI Agents: {describe_error(e)}")
         return {
             'statusCode': 400,

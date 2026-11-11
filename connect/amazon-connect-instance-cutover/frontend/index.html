@@ -666,6 +666,9 @@
         const TOKEN_KEY = 'cmt.tokens';
         const PKCE_KEY = 'cmt.pkce';
         const STATE_KEY = 'cmt.state';
+        // AWS Management Console host per partition (from the execution ARN, never a Region list).
+        // A partition not listed here gets no console link rather than a wrong one.
+        const CONSOLE_HOSTS = { 'aws': 'console.aws.amazon.com', 'aws-us-gov': 'console.amazonaws-us-gov.com' };
 
         function base64Url(bytes) {
             return btoa(String.fromCharCode(...new Uint8Array(bytes)))
@@ -893,7 +896,7 @@
                 return;
             }
 
-            const arnPattern = /^arn:aws:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
+            const arnPattern = /^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
             if (!arnPattern.test(sourceInstance) || !arnPattern.test(destInstance)) {
                 showStatus('Please enter valid Connect instance ARNs.', 'error');
                 return;
@@ -981,9 +984,9 @@
                     const quotaSource = sourceLabels[q.destinationQuotaSource] || q.destinationQuotaSource;
                     const statusIcon = q.status === 'unknown' ? '❔' : (q.wouldExceed ? '⚠️' : '✅');
                     const capacity = q.kind === 'capacity';
-                    const sourceCell = capacity ? `quota ${q.sourceQuota === null ? 'n/a' : q.sourceQuota}` : q.sourceCount;
-                    const destCell = capacity ? 'n/a' : q.destinationCount;
-                    const afterCell = capacity ? 'n/a' : q.projectedCount;
+                    const sourceCell = capacity ? `quota ${q.sourceQuota === null ? 'unknown' : q.sourceQuota}` : (q.sourceCount ?? 'unknown');
+                    const destCell = capacity ? 'n/a' : (q.destinationCount ?? 'unknown');
+                    const afterCell = capacity ? 'n/a' : (q.projectedCount ?? 'unknown');
                     tableHtml += `<tr><td>${escapeHtml(q.resource)}</td><td>${escapeHtml(sourceCell)}</td><td>${escapeHtml(destCell)}</td><td>${escapeHtml(afterCell)}</td><td>${escapeHtml(quota)} <small>${escapeHtml(quotaSource)}${escapeHtml(q.adjustable === false ? ', not adjustable' : '')}</small></td><td class="${statusClass}">${statusIcon}</td></tr>`;
                 });
                 tableHtml += '</tbody></table>';
@@ -1164,7 +1167,7 @@
                 return false;
             }
 
-            const arnPattern = /^arn:aws:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
+            const arnPattern = /^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
             if (!arnPattern.test(sourceInstance) || !arnPattern.test(destInstance)) {
                 showStatus('Please enter valid Connect instance ARNs.', 'error');
                 return false;
@@ -1298,8 +1301,11 @@
                 if (result.executionArn) {
                     lastExecutionArn = result.executionArn;
                     document.getElementById('executionStartTime').textContent = new Date().toLocaleString();
-                    const executionRegion = result.executionArn.split(':')[3];
-                    document.getElementById('consoleLink').href = `https://console.aws.amazon.com/states/home?region=${encodeURIComponent(executionRegion)}#/v2/executions/details/${encodeURIComponent(result.executionArn)}`;
+                    const [, executionPartition, , executionRegion] = result.executionArn.split(':');
+                    const consoleHost = CONSOLE_HOSTS[executionPartition];
+                    const consoleLink = document.getElementById('consoleLink');
+                    consoleLink.parentElement.hidden = !consoleHost;
+                    consoleLink.href = consoleHost ? `https://${consoleHost}/states/home?region=${encodeURIComponent(executionRegion)}#/v2/executions/details/${encodeURIComponent(result.executionArn)}` : '#';
                     document.getElementById('executionDetails').style.display = 'block';
                     showStatus('✅ Migration started successfully!', 'success');
                     monitorExecution(result.executionArn);
@@ -1465,6 +1471,12 @@
                     if (f.type === 'phoneNumber' && f.reasonCode) {
                         return `<tr><td>${escapeHtml(`phoneNumber ${f.reasonCode} (${f.count})`)}</td><td>${escapeHtml((f.phoneNumberIds || []).join(', '))}</td><td></td><td>${escapeHtml(f.action)}</td></tr>`;
                     }
+                    // FeatureNotAvailableInRegion: the source or target Region does not offer the feature, so the
+                    // step skipped it: feature key, side, Region, error code and (create steps) the item count.
+                    if (f.type === 'FeatureNotAvailableInRegion') {
+                        const counted = f.count === undefined ? f.errorCode : `${f.count} not created, ${f.errorCode}`;
+                        return `<tr><td>${escapeHtml(`${f.feature} not available in Region`)}</td><td>${escapeHtml(`${f.side} Region ${f.region}`)}</td><td>${escapeHtml(counted)}</td><td>${escapeHtml(f.action)}</td></tr>`;
+                    }
                     const item = f.name || f.queue || f.phoneNumberId || f.queueId || f.source || '';
                     const usedBy = (f.flows || []).join(', ') || f.queue || '';
                     const detail = f.source && f.source !== item ? `<br><small>${escapeHtml(f.source)}</small>` : '';
@@ -1495,7 +1507,7 @@
                 return;
             }
 
-            const arnPattern = /^arn:aws:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
+            const arnPattern = /^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance\/[0-9a-f-]+$/i;
             if (!arnPattern.test(sourceInstance) || !arnPattern.test(destInstance)) {
                 showStatus('Please enter valid Connect instance ARNs.', 'error');
                 return;

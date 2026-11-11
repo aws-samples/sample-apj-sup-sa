@@ -29,10 +29,11 @@ import json
 import re
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from migration_filters import QUEUE_LIST_PARAMS, VIEW_LIST_PARAMS
 from region_utils import BOTO_CONFIG, describe_error, error_code, failure_entry, reraise_if_fatal
+from region_utils import error_code_of, is_feature_unavailable
 
 LAMBDA_PLACEHOLDER_PREFIX = 'MIGRATION-PLACEHOLDER-'
 # Lex V2 IDs are 10 upper case alphanumerics; these are easy to search for.
@@ -374,8 +375,13 @@ def list_lex_v2_alias_arns(connect_client, instance_id):
     return arns
 
 
-def describe_lex_alias(lex_client_factory, alias_arn):
-    """Return (bot_name, alias_name) or None when the bot or alias no longer exists."""
+def describe_lex_alias(lex_client_factory, alias_arn, unavailable=None):
+    """Return (bot_name, alias_name) or None when the bot or alias no longer exists.
+
+    Also None when the alias Region does not offer Lex V2 (see region_utils.is_feature_unavailable):
+    the alias is then not mapped by name, as for a deleted bot. When a dict is passed as
+    unavailable, that Region is recorded in it with the error code.
+    """
     parsed = ARN_PATTERN.fullmatch(alias_arn)
     resource = LEX_ALIAS_RESOURCE.match(parsed.group('resource')) if parsed else None
     if not resource:
@@ -384,31 +390,38 @@ def describe_lex_alias(lex_client_factory, alias_arn):
     try:
         bot = client.describe_bot(botId=resource.group('bot'))
         alias = client.describe_bot_alias(botId=resource.group('bot'), botAliasId=resource.group('alias'))
-    except ClientError as err:
+    except (ClientError, EndpointConnectionError) as err:
         reraise_if_fatal(err, resource=alias_arn)
         if error_code(err) == 'ResourceNotFoundException':
             print(f"Lex alias not found, cannot map by name: {alias_arn}")
+            return None
+        if is_feature_unavailable(err, client):
+            region = parsed.group('region')
+            print(f"Lex V2 not available in {region} ({error_code_of(err)}): {alias_arn}")
+            if unavailable is not None:
+                unavailable.setdefault(region, error_code_of(err))
             return None
         raise
     return bot['botName'], alias['botAliasName']
 
 
 def build_lex_map(source_connect, dest_connect, source_instance_id, dest_instance_id,
-                  source_lex_factory, dest_lex_factory):
+                  source_lex_factory, dest_lex_factory, unavailable=None):
     """Map source Lex V2 alias ARNs to target alias ARNs by (bot name, alias name).
 
     Only bots associated with each instance are considered. Returns
     (lex_map, lex_names) where lex_names holds the names for reporting.
+    unavailable: optional dict that collects {Region: error code} where Lex V2 is not offered.
     """
     target_by_name = {}
     for alias_arn in list_lex_v2_alias_arns(dest_connect, dest_instance_id):
-        names = describe_lex_alias(dest_lex_factory, alias_arn)
+        names = describe_lex_alias(dest_lex_factory, alias_arn, unavailable)
         if names:
             target_by_name.setdefault(names, alias_arn)
 
     lex_map, lex_names = {}, {}
     for alias_arn in list_lex_v2_alias_arns(source_connect, source_instance_id):
-        names = describe_lex_alias(source_lex_factory, alias_arn)
+        names = describe_lex_alias(source_lex_factory, alias_arn, unavailable)
         if not names:
             continue
         lex_names[alias_arn] = names

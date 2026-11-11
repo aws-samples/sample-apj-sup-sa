@@ -34,17 +34,21 @@ import json
 import os
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from region_utils import (
     BOTO_CONFIG,
     THROTTLING_CODES,
+    FeatureUnavailable,
     MigrationStepError,
     create_connect_client_from_arn,
     create_destination_session,
     error_code,
+    error_code_of,
     extract_instance_id_from_arn,
     extract_region_from_arn,
+    is_feature_unavailable,
+    raise_if_feature_unavailable,
     reraise_if_fatal,
 )
 from region_utils import describe_error, error_text
@@ -125,29 +129,40 @@ def _no_such_resource(err, quota_code):
 
 
 def get_quota_value(sq_client, quota_code, instance_arn):
-    """Return (value, source) for one per instance quota; (None, 'unknown') if no value exists.
+    """Return (value, source) for one per instance quota; (None, 'unknown') if no value can be read.
 
-    AccessDenied and throttling fail the request.
+    AccessDenied and throttling fail the request. Service Quotas not serving the Region (see
+    region_utils.is_feature_unavailable) also gives 'unknown', never a guessed value.
     """
-    for kwargs, source in (({'ContextId': instance_arn}, 'applied-instance'), ({}, 'applied-account')):
+    try:
+        for kwargs, source in (({'ContextId': instance_arn}, 'applied-instance'), ({}, 'applied-account')):
+            try:
+                quota = sq_client.get_service_quota(ServiceCode='connect', QuotaCode=quota_code, **kwargs)
+                return quota['Quota']['Value'], source
+            except ClientError as err:
+                if not _no_such_resource(err, quota_code):
+                    raise
         try:
-            quota = sq_client.get_service_quota(ServiceCode='connect', QuotaCode=quota_code, **kwargs)
-            return quota['Quota']['Value'], source
+            quota = sq_client.get_aws_default_service_quota(ServiceCode='connect', QuotaCode=quota_code)
+            return quota['Quota']['Value'], 'aws-default'
         except ClientError as err:
             if not _no_such_resource(err, quota_code):
                 raise
-    try:
-        quota = sq_client.get_aws_default_service_quota(ServiceCode='connect', QuotaCode=quota_code)
-        return quota['Quota']['Value'], 'aws-default'
-    except ClientError as err:
-        if not _no_such_resource(err, quota_code):
+    except (ClientError, EndpointConnectionError) as err:
+        reraise_if_fatal(err, resource=f"connect/{quota_code}")
+        if not is_feature_unavailable(err, sq_client):
             raise
+        print(f"Service Quotas cannot read connect/{quota_code} ({error_code_of(err)})")
+        return None, 'unknown'
     print(f"No applied or default value for connect/{quota_code}")
     return None, 'unknown'
 
 
 def get_resource_count(connect_client, instance_id, resource_type):
-    """Number of items counted against the quota, or None for a capacity quota (nothing to count)."""
+    """Number of items counted against the quota, or None for a capacity quota (nothing to count).
+
+    Raises FeatureUnavailable when the Region does not offer the count API (see count_or_unknown).
+    """
     if COUNTERS[resource_type] is None:
         return None
     operation, list_key, extra = COUNTERS[resource_type]
@@ -156,7 +171,17 @@ def get_resource_count(connect_client, instance_id, resource_type):
         return sum(len(page.get(list_key, [])) for page in pages)
     except ClientError as err:
         reraise_if_fatal(err, resource=f"instance {instance_id}")
+        raise_if_feature_unavailable(err)
         raise
+
+
+def count_or_unknown(connect_client, instance_id, resource_type):
+    """(count, None), or (None, error code) when the count cannot be read in this Region."""
+    try:
+        return get_resource_count(connect_client, instance_id, resource_type), None
+    except FeatureUnavailable as err:
+        print(f"Count for {resource_type} unavailable in this Region ({err.code})")
+        return None, err.code
 
 
 def quota_row(quota_key, info, source, destination):
@@ -165,17 +190,20 @@ def quota_row(quota_key, info, source, destination):
     A count quota fails when the target count plus the source count exceeds the target quota. A
     capacity quota (concurrent active calls) has nothing to copy: it fails when the target quota is
     lower than the source quota, because the target carries the source's traffic after the cutover.
+    A value that cannot be read (quota or count) makes the row 'unknown', never 'ok'.
     """
     (source_quota, source_quota_source, source_count) = source
     (dest_quota, dest_quota_source, dest_count) = destination
     capacity = quota_key in CAPACITY_QUOTAS
     if capacity:
         projected = None
-        would_exceed = dest_quota is not None and source_quota is not None and dest_quota < source_quota
+        known = dest_quota is not None and source_quota is not None
+        would_exceed = known and dest_quota < source_quota
         needed = source_quota
     else:
-        projected = dest_count + source_count
-        would_exceed = dest_quota is not None and projected > dest_quota
+        projected = None if source_count is None or dest_count is None else dest_count + source_count
+        known = dest_quota is not None and projected is not None
+        would_exceed = known and projected > dest_quota
         needed = projected
     row = {
         'resource': info['name'], 'quotaCode': info['quota_code'], 'adjustable': info['adjustable'],
@@ -187,7 +215,7 @@ def quota_row(quota_key, info, source, destination):
         'destinationQuotaSource': dest_quota_source,
         'destinationCount': dest_count,
         'projectedCount': projected, 'wouldExceed': would_exceed,
-        'status': 'unknown' if dest_quota is None else 'warning' if would_exceed else 'ok',
+        'status': 'unknown' if not known else 'warning' if would_exceed else 'ok',
     }
     if not would_exceed:
         return row, None
@@ -257,13 +285,16 @@ def lambda_handler(event, context):
             info = CONNECT_QUOTAS[quota_key]
             source_quota, source_quota_source = get_quota_value(source_sq, info['quota_code'], source_instance_arn)
             dest_quota, dest_quota_source = get_quota_value(dest_sq, info['quota_code'], dest_instance_arn)
-            source_count = get_resource_count(source_connect, source_instance_id, quota_key)
-            dest_count = get_resource_count(dest_connect, dest_instance_id, quota_key)
+            source_count, source_count_error = count_or_unknown(source_connect, source_instance_id, quota_key)
+            dest_count, dest_count_error = count_or_unknown(dest_connect, dest_instance_id, quota_key)
             for side, value_source in (('source', source_quota_source), ('destination', dest_quota_source)):
                 if value_source == 'aws-default':
                     defaults_used.append({'resource': info['name'], 'quotaCode': info['quota_code'], 'side': side})
             row, warning = quota_row(quota_key, info, (source_quota, source_quota_source, source_count),
                                      (dest_quota, dest_quota_source, dest_count))
+            for key, code in (('sourceCountError', source_count_error), ('destinationCountError', dest_count_error)):
+                if code:
+                    row[key] = code
             results.append(row)
             if warning:
                 warnings.append(warning)

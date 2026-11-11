@@ -24,7 +24,13 @@ from region_utils import (
     external_id_from_api_request,
     extract_account_id_from_arn,
     extract_instance_id_from_arn,
+    extract_partition_from_arn,
+    extract_region_from_arn,
+    sdk_region_warning,
 )
+
+CROSS_PARTITION_ERROR = ('The source instance, the target instance and the target role must be in the same AWS '
+                         'partition (CrossPartitionNotSupported)')
 
 # Only these keys reach the state machine input.
 ALLOWED_KEYS = ('sourceInstanceId', 'destinationInstanceId', 'crossAccountRoleArn', 'externalIdSecretArn',
@@ -56,9 +62,15 @@ def build_execution_input(body):
     try:
         extract_instance_id_from_arn(source)
         extract_instance_id_from_arn(dest)
+        extract_region_from_arn(source)  # format only, never a Region list
+        extract_region_from_arn(dest)
+        partition = extract_partition_from_arn(source)
         cross_account = extract_account_id_from_arn(source) != extract_account_id_from_arn(dest)
     except ValueError as err:
         return None, None, error_text(err)
+    # A role cannot be assumed across partitions (for example aws and aws-us-gov).
+    if extract_partition_from_arn(dest) != partition:
+        return None, None, CROSS_PARTITION_ERROR
 
     role = (body.get('crossAccountRoleArn') or '').strip() or None
     external_id = external_id_from_api_request(body)
@@ -67,6 +79,8 @@ def build_execution_input(body):
     if role:
         if not ROLE_ARN_PATTERN.match(role):
             return None, None, 'crossAccountRoleArn is not a valid IAM role ARN'
+        if role.split(':')[1] != partition:
+            return None, None, CROSS_PARTITION_ERROR
         if not external_id:
             return None, None, 'externalId is required when a target role is used'
         if not EXTERNAL_ID_PATTERN.match(external_id):
@@ -147,7 +161,15 @@ def lambda_handler(event, context):
             discard_secret_after_failed_start(name, secret_arn)
         print(f"StartExecution failed for {name}: {describe_error(start_error)}")
         raise  # always the original start error, never the delete error
-    return response(200, {'executionArn': result['executionArn'], 'message': 'Migration started successfully'})
+    body = {'executionArn': result['executionArn'], 'message': 'Migration started successfully'}
+    # Soft warnings only: a Region this SDK does not list still runs.
+    warnings = [w for w in (sdk_region_warning(execution_input['sourceInstanceId']),
+                            sdk_region_warning(execution_input['destinationInstanceId'])) if w]
+    for warning in warnings:
+        print(f"Warning: {warning}")
+    if warnings:
+        body['warnings'] = warnings
+    return response(200, body)
 
 
 def discard_secret_after_failed_start(name, secret_arn):

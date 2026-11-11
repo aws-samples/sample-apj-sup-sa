@@ -9,6 +9,7 @@ import boto3
 from region_utils import create_connect_client_from_arn
 from region_utils import reraise_if_fatal
 from region_utils import describe_error, error_code_of, redact
+from region_utils import feature_skipped_result, is_feature_unavailable
 from region_utils import step_handler
 
 @step_handler
@@ -154,10 +155,9 @@ def lambda_handler(event, context):
 
     except Exception as e:
         reraise_if_fatal(e)
+        if is_feature_unavailable(e):
+            return feature_skipped_result('dataTables', region, 'source', error_code_of(e), dataTables=[])
         print(f"Error listing data tables: {describe_error(e)}")
-        # Data tables might not be available in this region/instance (matched on the error code only)
-        if error_code_of(e) == 'UnknownOperationException':
-            print("Data tables feature may not be available for this instance")
 
     return {
         'statusCode': 200,

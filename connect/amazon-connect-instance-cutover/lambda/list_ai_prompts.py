@@ -8,6 +8,8 @@ from datetime import datetime
 from region_utils import create_connect_client_from_arn
 from region_utils import reraise_if_fatal
 from region_utils import describe_error, redact
+from region_utils import (FeatureUnavailable, error_code_of, feature_skipped_result, is_feature_unavailable,
+                          raise_if_feature_unavailable)
 from migration_filters import AI_LIST_PARAMS
 from region_utils import step_handler
 
@@ -37,6 +39,7 @@ def get_assistant_id(region):
 
     except Exception as e:
         reraise_if_fatal(e)
+        raise_if_feature_unavailable(e, qconnect_client)
         print(f"Error listing assistants: {describe_error(e)}")
         return None, qconnect_client
 
@@ -50,6 +53,7 @@ def lambda_handler(event, context):
     # Create region-specific Connect client for source instance
     print(f"Creating Connect client from source instance ARN: {source_instance_arn}")
     connect_client, source_instance_id, source_region = create_connect_client_from_arn(source_instance_arn)
+    qconnect_client = None
 
     try:
         print(f"Looking for an AI agents assistant in region: {source_region}")
@@ -106,8 +110,14 @@ def lambda_handler(event, context):
             'sourceRegion': source_region
         }
 
+    except FeatureUnavailable as e:
+        return feature_skipped_result('aiPrompts', source_region, 'source', e.code,
+                                      aiPrompts=[], sourceRegion=source_region)
     except Exception as e:
         reraise_if_fatal(e)
+        if is_feature_unavailable(e, qconnect_client):
+            return feature_skipped_result('aiPrompts', source_region, 'source', error_code_of(e),
+                                          aiPrompts=[], sourceRegion=source_region)
         print(f"Error listing AI Prompts: {describe_error(e)}")
         return {
             'statusCode': 400,

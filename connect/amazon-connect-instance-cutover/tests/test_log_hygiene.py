@@ -43,6 +43,7 @@ SAFE_NAMES = {
     'caller_sub',  # Cognito subject, a pseudonymous ID
     'action',    # an AWS operation name (MigrationStepError.action, fatal_error)
     'warning',   # check_flow_dependencies: fixed text plus an error code
+    'feature', 'side',  # region_utils.feature_skipped_result: a fixed FEATURE_LABELS key and 'source' or 'target'
     'boto3.__version__',
 }
 SAFE_CALLS = {'len', 'redact', 'describe_error', 'error_code', 'error_code_of', 'error_text',

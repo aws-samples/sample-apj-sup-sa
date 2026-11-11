@@ -6,6 +6,7 @@ Lex V1 (Lex Classic) bots are not supported and are not listed.
 from region_utils import create_connect_client_from_arn
 from region_utils import reraise_if_fatal
 from region_utils import describe_error
+from region_utils import error_code_of, feature_skipped_result, is_feature_unavailable
 from region_utils import step_handler
 
 
@@ -44,6 +45,9 @@ def lambda_handler(event, context):
             print(f"Found {len(lex_v2_bots)} Lex V2 bots")
         except Exception as e:
             reraise_if_fatal(e)
+            if is_feature_unavailable(e):
+                return feature_skipped_result('lexBots', source_region, 'source', error_code_of(e), lexV2Bots=[],
+                                              sourceRegion=source_region, summary={'v2Count': 0, 'total': 0})
             print(f"Error listing Lex V2 bots: {describe_error(e)}")
 
         return {

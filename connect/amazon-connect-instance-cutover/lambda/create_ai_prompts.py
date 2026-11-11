@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 from region_utils import reraise_if_fatal, error_code_of
 from region_utils import describe_error, failure_entry, redact
 from region_utils import resolve_external_id
+from region_utils import FeatureUnavailable, feature_skipped_result, is_feature_unavailable, raise_if_feature_unavailable
 from migration_filters import AI_LIST_PARAMS
 from region_utils import step_handler
 
@@ -40,6 +41,7 @@ def get_assistant_id(destination_arn, cross_account_role_arn=None, external_id=N
 
     except Exception as e:
         reraise_if_fatal(e)
+        raise_if_feature_unavailable(e, qconnect_client)
         print(f"Error listing assistants: {describe_error(e)}")
         return None, qconnect_client
 
@@ -71,13 +73,20 @@ def lambda_handler(event, context):
 
     # Extract destination region from ARN
     destination_region = destination_instance_arn.split(':')[3]
+    source_instance_arn = event.get('sourceInstanceId')
+    source_region = extract_region_from_arn(source_instance_arn) if source_instance_arn else None
 
     print(f"Creating AI Prompts in region: {destination_region}")
     if cross_account_role_arn:
         print(f"Cross-account migration enabled with role: {cross_account_role_arn}")
 
     # Get the assistant ID in destination
-    assistant_id, qconnect_client = get_assistant_id(destination_instance_arn, cross_account_role_arn, external_id)
+    try:
+        assistant_id, qconnect_client = get_assistant_id(destination_instance_arn, cross_account_role_arn,
+                                                         external_id)
+    except FeatureUnavailable as e:
+        return feature_skipped_result('aiPrompts', destination_region, 'target', e.code, count=len(ai_prompts),
+                                      aiPromptMapping={})
 
     if not assistant_id:
         return {
@@ -89,6 +98,7 @@ def lambda_handler(event, context):
     created_prompts = []
     skipped_prompts = []
     failed_prompts = []
+    model_follow_up = []
 
     try:
         print(f"Creating AI Prompts in assistant: {assistant_id}")
@@ -127,29 +137,23 @@ def lambda_handler(event, context):
                 if prompt.get('description'):
                     create_params['description'] = prompt['description']
 
-                # Handle modelId - map cross-region models to destination region equivalents
+                # Keep the source modelId. A model or inference profile ID can be Region specific (for
+                # example a us. or eu. cross Region inference profile), and which one the target Region
+                # offers is not derivable from the Region code, so nothing is guessed: when the Regions
+                # differ the prompt is listed for a manual check.
+                model_note = None
                 if prompt.get('modelId'):
                     model_id = prompt['modelId']
-                    print(f"Original modelId: {model_id}")
-
-                    # Determine destination region prefix for Bedrock models
-                    dest_region_prefix = 'eu' if destination_region.startswith('eu-') else 'us'
-
-                    # Map Bedrock model IDs (us.* or eu.*) to destination region
-                    if model_id.startswith('us.') and dest_region_prefix == 'eu':
-                        # Convert US Bedrock model to EU equivalent
-                        mapped_model = model_id.replace('us.', 'eu.')
-                        print(f"Mapping Bedrock model {model_id} -> {mapped_model} for EU region")
-                        create_params['modelId'] = mapped_model
-                    elif model_id.startswith('eu.') and dest_region_prefix == 'us':
-                        # Convert EU Bedrock model to US equivalent
-                        mapped_model = model_id.replace('eu.', 'us.')
-                        print(f"Mapping Bedrock model {model_id} -> {mapped_model} for US region")
-                        create_params['modelId'] = mapped_model
-                    else:
-                        # Keep the same model ID (same region or standard model)
-                        create_params['modelId'] = model_id
-                        print(f"Using modelId as-is: {model_id}")
+                    create_params['modelId'] = model_id
+                    print(f"Using modelId as is: {model_id}")
+                    if source_region and source_region != destination_region:
+                        model_note = {
+                            'type': 'aiPromptModel', 'source': original_prompt_id, 'modelId': model_id,
+                            'action': (f"The AI prompt keeps model ID {model_id} from source Region {source_region}. "
+                                       f"Check that target Region {destination_region} offers this model or "
+                                       "inference profile; if not, edit the AI prompt in the target to one it "
+                                       "offers."),
+                        }
 
                 if prompt.get('tags'):
                     create_params['tags'] = prompt['tags']
@@ -164,6 +168,8 @@ def lambda_handler(event, context):
                     'type': prompt['type'],
                     'status': 'created'
                 })
+                if model_note:
+                    model_follow_up.append(model_note)
 
                 print(f"Created AI Prompt: {redact(prompt_name)} ({original_prompt_id} -> {new_prompt_id})")
 
@@ -203,6 +209,7 @@ def lambda_handler(event, context):
             'createdPrompts': created_prompts,
             'skippedPrompts': skipped_prompts,
             'failedPrompts': failed_prompts,
+            'manualFollowUp': model_follow_up,
             'summary': {
                 'totalPrompts': len(ai_prompts),
                 'created': len(created_prompts),
@@ -213,6 +220,10 @@ def lambda_handler(event, context):
 
     except Exception as e:
         reraise_if_fatal(e)
+        if is_feature_unavailable(e, qconnect_client):
+            done = len(created_prompts) + len(skipped_prompts) + len(failed_prompts)
+            return feature_skipped_result('aiPrompts', destination_region, 'target', error_code_of(e),
+                                          count=len(ai_prompts) - done, aiPromptMapping=prompt_mapping)
         print(f"Error creating AI Prompts: {describe_error(e)}")
         return {
             'statusCode': 400,

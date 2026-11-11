@@ -9,6 +9,7 @@ from botocore.exceptions import ClientError
 from region_utils import reraise_if_fatal, error_code_of
 from region_utils import describe_error, failure_entry, redact
 from region_utils import resolve_external_id
+from region_utils import feature_skipped_result, is_feature_unavailable
 from region_utils import step_handler
 
 def json_serial(obj):
@@ -162,6 +163,12 @@ def lambda_handler(event, context):
 
             except ClientError as e:
                 reraise_if_fatal(e)
+                if is_feature_unavailable(e):
+                    return feature_skipped_result(
+                        'vocabularies', destination_region, 'target', error_code_of(e),
+                        count=len(vocabularies) - len(created_vocabs) - len(skipped_vocabs) - len(failed_vocabs),
+                        vocabularyMapping=vocab_mapping, createdVocabularies=created_vocabs,
+                        failedVocabularies=failed_vocabs)
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceInUseException':
                     print(f"Vocabulary '{redact(vocab_name)}' already exists (caught exception)")

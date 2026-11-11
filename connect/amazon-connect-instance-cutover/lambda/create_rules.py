@@ -6,8 +6,17 @@ from arn_mapping import ExistingIndex
 from region_utils import reraise_if_fatal, error_code_of, EXISTS_ERROR_CODES
 from region_utils import describe_error, redact
 from region_utils import resolve_external_id
+from region_utils import feature_skipped_result, is_feature_unavailable
 from migration_filters import QUEUE_LIST_PARAMS
 from region_utils import step_handler
+
+# A Connect ARN in any partition (aws, aws-us-gov, ...); the partition is never hard coded.
+CONNECT_ARN = re.compile(r'^arn:(aws[a-z-]*):connect:')
+CONNECT_ARN_PREFIX = re.compile(r'arn:(aws[a-z-]*):connect:[^:]+:[^:]+:')
+
+
+def is_connect_arn(value):
+    return bool(CONNECT_ARN.match(value))
 
 @step_handler
 def lambda_handler(event, context):
@@ -58,6 +67,9 @@ def lambda_handler(event, context):
         rule_mapping = {}
         # Rules already in the target (RuleSummary Name and RuleId), listed once before any create
         existing = ExistingIndex(dest_client, destination_instance_id, 'rules')
+        if existing.error is not None and is_feature_unavailable(existing.error):
+            return feature_skipped_result('rules', destination_region, 'target', error_code_of(existing.error),
+                                          count=len(rules), ruleMapping={})
 
         for rule in rules:
             try:
@@ -311,16 +323,20 @@ def map_arn(arn, destination_instance_id, destination_region, dest_account_id, r
 
     # Extract resource ID from ARN
     match = re.search(r'/([a-f0-9-]+)$', arn)
-    if match:
+    partition = CONNECT_ARN.match(arn)
+    if match and partition:
         source_resource_id = match.group(1)
         if source_resource_id in resource_mapping:
             dest_resource_id = resource_mapping[source_resource_id]
+            # Source and target share a partition (the start API refuses a cross partition pair).
+            prefix = (f"arn:{partition.group(1)}:connect:{destination_region}:{dest_account_id}:"
+                      f"instance/{destination_instance_id}")
             if '/queue/' in arn:
-                return f"arn:aws:connect:{destination_region}:{dest_account_id}:instance/{destination_instance_id}/queue/{dest_resource_id}"
+                return f"{prefix}/queue/{dest_resource_id}"
             elif '/agent/' in arn:
-                return f"arn:aws:connect:{destination_region}:{dest_account_id}:instance/{destination_instance_id}/agent/{dest_resource_id}"
+                return f"{prefix}/agent/{dest_resource_id}"
             elif '/contact-flow/' in arn:
-                return f"arn:aws:connect:{destination_region}:{dest_account_id}:instance/{destination_instance_id}/contact-flow/{dest_resource_id}"
+                return f"{prefix}/contact-flow/{dest_resource_id}"
 
     return arn
 
@@ -340,9 +356,8 @@ def map_trigger_event_source(trigger_event_source, destination_instance_id, dest
                 f'instance/{destination_instance_id}',
                 integration_arn
             )
-            mapped['IntegrationAssociationId'] = re.sub(
-                r'arn:aws:connect:[^:]+:[^:]+:',
-                f'arn:aws:connect:{destination_region}:{dest_account_id}:',
+            mapped['IntegrationAssociationId'] = CONNECT_ARN_PREFIX.sub(
+                lambda m: f'arn:{m.group(1)}:connect:{destination_region}:{dest_account_id}:',
                 mapped['IntegrationAssociationId']
             )
 
@@ -376,7 +391,7 @@ def map_function_conditions(function, destination_instance_id, destination_regio
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if isinstance(value, str):
-                    if value.startswith('arn:aws:connect:'):
+                    if is_connect_arn(value):
                         if '/queue/' in value:
                             obj[key] = map_arn(value, destination_instance_id, destination_region, dest_account_id, queue_mapping)
                         elif '/agent/' in value:
@@ -390,7 +405,7 @@ def map_function_conditions(function, destination_instance_id, destination_regio
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
                 if isinstance(item, str):
-                    if item.startswith('arn:aws:connect:'):
+                    if is_connect_arn(item):
                         if '/queue/' in item:
                             obj[i] = map_arn(item, destination_instance_id, destination_region, dest_account_id, queue_mapping)
                         elif '/agent/' in item:
@@ -421,7 +436,7 @@ def map_actions(actions, destination_instance_id, destination_region, dest_accou
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if isinstance(value, str):
-                    if value.startswith('arn:aws:connect:'):
+                    if is_connect_arn(value):
                         if '/queue/' in value:
                             obj[key] = map_arn(value, destination_instance_id, destination_region, dest_account_id, queue_mapping)
                         elif '/agent/' in value:
@@ -448,7 +463,7 @@ def map_actions(actions, destination_instance_id, destination_region, dest_accou
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
                 if isinstance(item, str):
-                    if item.startswith('arn:aws:connect:'):
+                    if is_connect_arn(item):
                         if '/queue/' in item:
                             obj[i] = map_arn(item, destination_instance_id, destination_region, dest_account_id, queue_mapping)
                         elif '/agent/' in item:

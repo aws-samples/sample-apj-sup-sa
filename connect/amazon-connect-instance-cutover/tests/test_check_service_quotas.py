@@ -135,7 +135,10 @@ def run_handler(monkeypatch, quota_key, dest_values, source_count, dest_count, s
     def count(client, instance_id, key):
         if key in check_service_quotas.CAPACITY_QUOTAS:
             return None
-        return source_count if instance_id == 'src-id' else dest_count
+        value = source_count if instance_id == 'src-id' else dest_count
+        if isinstance(value, Exception):
+            raise value
+        return value
 
     monkeypatch.setattr(check_service_quotas, 'get_resource_count', count)
     result = check_service_quotas.lambda_handler({'httpMethod': 'POST', 'body': json.dumps({
@@ -165,6 +168,51 @@ def test_unknown_destination_quota_is_reported_not_guessed(monkeypatch):
     row = row_for(body, 'users')
     assert row['status'] == 'unknown' and row['destinationQuota'] is None and not row['wouldExceed']
     assert body['warnings'] == []
+
+
+def test_capacity_quota_with_an_unknown_source_value_is_unknown_not_ok(monkeypatch):
+    body = run_handler(monkeypatch, 'concurrentActiveCalls', (10.0, 'applied-account'), None, None,
+                       source_values=(None, 'unknown'))
+    row = row_for(body, 'concurrentActiveCalls')
+    assert row['status'] == 'unknown' and not row['wouldExceed'] and body['warnings'] == []
+
+
+@pytest.mark.parametrize('side', ['source', 'destination'])
+def test_a_count_the_region_cannot_read_is_unknown_and_the_preflight_still_answers(monkeypatch, side):
+    from region_utils import FeatureUnavailable
+    error = FeatureUnavailable('UnknownOperationException')
+    counts = (error, 0) if side == 'source' else (5, error)
+    body = run_handler(monkeypatch, 'predefinedAttributes', (100.0, 'applied-account'), *counts)
+    row = row_for(body, 'predefinedAttributes')
+    assert row['status'] == 'unknown' and row['projectedCount'] is None and not row['wouldExceed']
+    assert row[f'{side}CountError'] == 'UnknownOperationException'
+    assert body['summary']['totalChecked'] == 2  # plus concurrent active calls, checked on every run
+
+
+def test_count_api_the_region_lacks_raises_feature_unavailable(stubbed):
+    from region_utils import FeatureUnavailable
+    client, stub = stubbed('connect', 'af-south-1')
+    stub.add_client_error('list_predefined_attributes', service_error_code='UnknownOperationException')
+    with pytest.raises(FeatureUnavailable):
+        check_service_quotas.get_resource_count(client, 'src-id', 'predefinedAttributes')
+
+
+@pytest.mark.parametrize('region', ['af-south-1', 'us-gov-west-1', 'zz-future-10'])
+def test_service_quotas_not_serving_the_region_gives_unknown(stubbed, region):
+    client, stub = stubbed('service-quotas', region)
+    stub.add_client_error('get_service_quota', service_error_code='UnknownOperationException')
+    assert get_quota_value(client, CODE, SOURCE_INSTANCE_ARN) == (None, 'unknown')
+
+
+def test_service_quotas_endpoint_unreachable_gives_unknown(monkeypatch):
+    from botocore.exceptions import EndpointConnectionError
+    from conftest import make_client
+    client = make_client('service-quotas', 'af-south-1')
+
+    def unreachable(**kwargs):
+        raise EndpointConnectionError(endpoint_url=client.meta.endpoint_url)
+    monkeypatch.setattr(client, 'get_service_quota', unreachable)
+    assert get_quota_value(client, CODE, SOURCE_INSTANCE_ARN) == (None, 'unknown')
 
 
 def test_new_quotas_are_adjustable_and_only_agent_status_is_not():

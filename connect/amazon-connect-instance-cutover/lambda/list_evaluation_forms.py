@@ -3,6 +3,7 @@ from datetime import datetime
 from region_utils import create_connect_client_from_arn
 from region_utils import reraise_if_fatal
 from region_utils import describe_error, redact
+from region_utils import error_code_of, feature_skipped_result, is_feature_unavailable
 from migration_filters import migrates_evaluation_form
 from region_utils import step_handler
 
@@ -66,6 +67,9 @@ def lambda_handler(event, context):
 
     except Exception as e:
         reraise_if_fatal(e)
+        if is_feature_unavailable(e):
+            return feature_skipped_result('evaluationForms', source_region, 'source', error_code_of(e),
+                                          evaluationForms=[])
         print(f"Error listing evaluation forms: {describe_error(e)}")
         return {
             'statusCode': 400,
