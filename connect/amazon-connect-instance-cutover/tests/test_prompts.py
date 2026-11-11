@@ -1,5 +1,6 @@
 """Temporary prompt bucket: ownership check and hardening (stubbed S3, no AWS)."""
 import json
+import re
 
 import pytest
 
@@ -43,6 +44,36 @@ def test_existing_bucket_is_verified_as_ours_and_hardened_again(stubbed):
     stub.add_response('head_bucket', {}, {'Bucket': BUCKET, 'ExpectedBucketOwner': ACCOUNT})
     expect_hardening(stub)
     assert create_prompts.get_or_create_temp_bucket(s3, REGION, ACCOUNT) == BUCKET
+
+
+TWELVE_DIGITS = re.compile(r'\d{12}')
+MASKED_BUCKET = f'connect-migration-prompts-temp-<account>-{REGION}'
+
+
+def test_existing_bucket_log_line_masks_the_account_id(stubbed, capsys):
+    s3, stub = stubbed('s3', REGION)
+    stub.add_response('head_bucket', {}, {'Bucket': BUCKET, 'ExpectedBucketOwner': ACCOUNT})
+    expect_hardening(stub)
+    assert create_prompts.get_or_create_temp_bucket(s3, REGION, ACCOUNT) == BUCKET
+    out = capsys.readouterr().out
+    assert f'Using existing bucket: {MASKED_BUCKET}' in out
+    assert not TWELVE_DIGITS.search(out)
+
+
+def test_new_bucket_log_lines_mask_the_account_id(stubbed, capsys):
+    s3, stub = stubbed('s3', REGION)
+    stub.add_client_error('head_bucket', service_error_code='404', http_status_code=404,
+                          expected_params={'Bucket': BUCKET, 'ExpectedBucketOwner': ACCOUNT})
+    stub.add_response('create_bucket', {}, {'Bucket': BUCKET, 'CreateBucketConfiguration': {'LocationConstraint': REGION}})
+    stub.add_response('put_bucket_lifecycle_configuration', {}, {
+        'Bucket': BUCKET, 'LifecycleConfiguration': {'Rules': [{
+            'ID': 'DeleteTempPrompts', 'Status': 'Enabled', 'Filter': {'Prefix': 'prompts/'}, 'Expiration': {'Days': 1}}]}})
+    expect_hardening(stub)
+    assert create_prompts.get_or_create_temp_bucket(s3, REGION, ACCOUNT) == BUCKET
+    out = capsys.readouterr().out
+    assert f'Creating bucket: {MASKED_BUCKET}' in out
+    assert f'Created bucket with lifecycle policy: {MASKED_BUCKET}' in out
+    assert not TWELVE_DIGITS.search(out)
 
 
 class FakeResponse:
@@ -179,6 +210,21 @@ def run_one_prompt(monkeypatch, tmp_path, download, s3=None):
         'prompts': [{'Name': 'p', 'PromptId': 'src-prompt-7', 'PromptPresignedUrl': 'https://bucket.s3.amazonaws.com/p'}],
     }, None)
     return result, made
+
+
+def test_handler_log_lines_mask_the_account_id_but_use_the_real_bucket(tmp_path, monkeypatch, capsys):
+    s3 = FakeS3()
+    result, _ = run_one_prompt(monkeypatch, tmp_path, lambda url, path: open(path, 'wb').write(b'RIFF'), s3)
+    assert s3.uploads[0][0] == BUCKET  # the API call keeps the real bucket name
+    out = capsys.readouterr().out
+    bucket_lines = [line for line in out.splitlines()
+                    if line.startswith(('Using temporary S3 bucket:', 'Uploaded prompt to S3:'))]
+    assert len(bucket_lines) == 2, out
+    assert bucket_lines[0] == f'Using temporary S3 bucket: {MASKED_BUCKET}'
+    assert bucket_lines[1].startswith(f'Uploaded prompt to S3: s3://{MASKED_BUCKET}/prompts/')
+    assert ACCOUNT not in bucket_lines[1].split('/prompts/')[0]
+    assert not TWELVE_DIGITS.search(bucket_lines[0])
+    assert result['promptMapping'] == {'src-prompt-7': 'dst-prompt-1'}
 
 
 def test_prompt_file_goes_to_a_tempfile_directory_that_is_removed(tmp_path, monkeypatch):

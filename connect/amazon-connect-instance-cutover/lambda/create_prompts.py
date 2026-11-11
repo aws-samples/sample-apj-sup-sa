@@ -21,7 +21,7 @@ from region_utils import (
 from botocore.exceptions import ClientError
 from arn_mapping import ExistingIndex
 from region_utils import reraise_if_fatal, error_code_of, EXISTS_ERROR_CODES
-from region_utils import describe_error, redact
+from region_utils import describe_error, mask_account_ids, redact
 from region_utils import resolve_external_id
 from region_utils import step_handler
 
@@ -107,7 +107,7 @@ def lambda_handler(event, context):
 
     try:
         print(f"Creating prompts in instance: {destination_instance_id} in region: {destination_region}")
-        print(f"Using temporary S3 bucket: {temp_bucket}")
+        print(f"Using temporary S3 bucket: {mask_account_ids(temp_bucket)}")
 
         for prompt in prompts:
             try:
@@ -169,7 +169,8 @@ def lambda_handler(event, context):
                         s3_client.upload_file(temp_file_path, temp_bucket, s3_key,
                                               ExtraArgs={'ExpectedBucketOwner': dest_account_id})
                         s3_uri = f's3://{temp_bucket}/{s3_key}'
-                        print(f"Uploaded prompt to S3: {s3_uri}")
+                        # Mask the bucket only: the key holds IDs that the logs keep.
+                        print(f"Uploaded prompt to S3: s3://{mask_account_ids(temp_bucket)}/{s3_key}")
                     except Exception as e:
                         reraise_if_fatal(e)
                         print(f"Error uploading to S3: {describe_error(e)}")
@@ -311,7 +312,7 @@ def get_or_create_temp_bucket(s3_client, region, account_id):
     try:
         # Check if bucket exists and is ours
         s3_client.head_bucket(Bucket=bucket_name, ExpectedBucketOwner=account_id)
-        print(f"Using existing bucket: {bucket_name}")
+        print(f"Using existing bucket: {mask_account_ids(bucket_name)}")
         harden_temp_bucket(s3_client, bucket_name, account_id)
         return bucket_name
     except ClientError as e:
@@ -319,7 +320,7 @@ def get_or_create_temp_bucket(s3_client, region, account_id):
         error_code = e.response['Error']['Code']
         if error_code == '404' or error_code == '403':
             # Bucket doesn't exist or we don't have access, try to create it
-            print(f"Creating bucket: {bucket_name}")
+            print(f"Creating bucket: {mask_account_ids(bucket_name)}")
             try:
                 if region == 'us-east-1':
                     s3_client.create_bucket(Bucket=bucket_name)
@@ -345,7 +346,7 @@ def get_or_create_temp_bucket(s3_client, region, account_id):
                 )
                 harden_temp_bucket(s3_client, bucket_name, account_id)
 
-                print(f"Created bucket with lifecycle policy: {bucket_name}")
+                print(f"Created bucket with lifecycle policy: {mask_account_ids(bucket_name)}")
                 return bucket_name
             except Exception as create_error:
                 reraise_if_fatal(create_error)

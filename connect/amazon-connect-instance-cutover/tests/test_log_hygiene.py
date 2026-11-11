@@ -37,7 +37,8 @@ SAFE_IDENTIFIER = re.compile(
 )
 SAFE_NAMES = {
     'quota_code', 'model_id', 'mapped_model', 'language_code', 'list_func', 'resource_type',
-    'temp_bucket', 'bucket_name', 's3_uri', 'temp_file_path', 'prompt_field', 'guardrail_field',
+    'temp_file_path', 'prompt_field', 'guardrail_field',
+    's3_key',  # create_prompts: 'prompts/' plus the instance ID, the source prompt ID and a random hex suffix
     'agent_type', 'destination_arn', 'instance_id', 'region', 'offset', 'attributes_created',
     'values_created', 'alias_arn', 'lambda_arn', 'name',  # 'name' is the execution name in api_start_migration
     'caller_sub',  # Cognito subject, a pseudonymous ID
@@ -48,6 +49,9 @@ SAFE_NAMES = {
 }
 SAFE_CALLS = {'len', 'redact', 'describe_error', 'error_code', 'error_code_of', 'error_text',
               'http_status'}  # verify_migration.http_status: an HTTP status number for the error
+# Values that embed an account ID (the temp bucket name holds it): loggable only
+# through region_utils.mask_account_ids().
+MASKED_ONLY = {'temp_bucket', 'bucket_name', 's3_uri'}
 SAFE_STRING_KEYS = re.compile(
     r'(?:Id|Arn|Status|Type|type|Code|LanguageCode|ValueType|Primary|TimeZone|ValueLockLevel|matched|missing)$')
 # Reviewed by hand: counts per mapping kind (the keys are fixed kind names such as 'queues').
@@ -77,6 +81,9 @@ def is_safe(node):
         func = terminal_name(node.func)
         if func in SAFE_CALLS:
             return True
+        # mask_account_ids(bucket_name): a value with its account ID masked
+        if func == 'mask_account_ids' and len(node.args) == 1:
+            return ast.unparse(node.args[0]) in MASKED_ONLY or is_safe(node.args[0])
         # x.get('SomeId'), x.get('SomeId', default)
         if func == 'get' and node.args and isinstance(node.args[0], ast.Constant) \
                 and SAFE_STRING_KEYS.search(str(node.args[0].value)):
@@ -126,6 +133,43 @@ def test_classifier_rejects_personal_data_and_accepts_ids():
     for good in ('user_id', 'pn["PhoneNumberId"]', 'len(users)', 'describe_error(e)', 'redact(name_of_thing)',
                  'destination_region', 'q.get("QueueId")'):
         assert check(good), good
+
+
+def test_classifier_requires_masking_for_bucket_names():
+    def check(src):
+        return is_safe(ast.parse(src, mode='eval').body)
+    for bad in ('bucket_name', 'temp_bucket', 's3_uri', 'mask_account_ids(username)', 'mask_account_ids(qc)'):
+        assert not check(bad), bad
+    for good in ('mask_account_ids(bucket_name)', 'mask_account_ids(temp_bucket)', 'mask_account_ids(s3_uri)',
+                 'mask_account_ids(instance_id)'):
+        assert check(good), good
+
+
+def test_static_check_fails_on_unmasked_bucket_logging(tmp_path, monkeypatch):
+    bad = tmp_path / 'create_example.py'
+    bad.write_text(
+        "def f(bucket_name, temp_bucket, s3_uri):\n"
+        "    print(f'Using existing bucket: {bucket_name}')\n"
+        "    print(f'Using temporary S3 bucket: {temp_bucket}')\n"
+        "    print(f'Uploaded prompt to S3: {s3_uri}')\n"
+        "    print(f'Created bucket: {mask_account_ids(bucket_name)}')\n")
+    monkeypatch.setattr(__import__(__name__), 'LAMBDA', tmp_path)
+    found = unsafe_log_expressions()
+    assert [line.split(':')[1] for line in found] == ['2', '3', '4'], found
+
+
+@pytest.mark.parametrize('value, expected', [
+    ('connect-migration-prompts-temp-222222222222-ap-southeast-2',
+     'connect-migration-prompts-temp-<account>-ap-southeast-2'),
+    ('s3://b-111111111111-us-east-1/prompts/i/p/x.wav', 's3://b-<account>-us-east-1/prompts/i/p/x.wav'),
+    ('a1234567890123b', 'a<account>b'),  # a longer run is masked whole
+    ('ap-southeast-2 12345678901', 'ap-southeast-2 12345678901'),  # 11 digits is not an account ID
+    (222222222222, '<account>'),
+])
+def test_mask_account_ids(value, expected):
+    masked = region_utils.mask_account_ids(value)
+    assert masked == expected
+    assert not re.search(r'\d{12}', masked)
 
 
 # ---------------------------------------------------------------------------

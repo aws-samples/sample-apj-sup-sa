@@ -213,6 +213,20 @@ def redact(_value):
     return REDACTED
 
 
+ACCOUNT_PLACEHOLDER = '<account>'
+# 12 or more digits in a row: an AWS account ID (longer runs are masked whole,
+# so no 12 digit run survives).
+_ACCOUNT_ID_RUN = re.compile(r'\d{12,}')
+
+
+def mask_account_ids(value):
+    """Loggable form of a value that embeds an account ID, such as a bucket name or S3 URI.
+
+    Only for log text: callers keep using the real value for API calls.
+    """
+    return _ACCOUNT_ID_RUN.sub(ACCOUNT_PLACEHOLDER, f'{value}')
+
+
 def describe_error(err):
     """Loggable summary of an exception: error code and operation, never the message.
 
