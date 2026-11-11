@@ -214,17 +214,33 @@ def redact(_value):
 
 
 ACCOUNT_PLACEHOLDER = '<account>'
-# 12 or more digits in a row: an AWS account ID (longer runs are masked whole,
-# so no 12 digit run survives).
-_ACCOUNT_ID_RUN = re.compile(r'\d{12,}')
+# Exactly 12 digits, not part of a longer digit run: an AWS account ID. Longer runs
+# (epoch millisecond timestamps, phone numbers, long numeric IDs) and shorter ones
+# are left alone, so error text stays readable.
+_ACCOUNT_ID = re.compile(r'(?<!\d)\d{12}(?!\d)')
+# Spans that keep their digits: full ARNs (they keep the account ID, the same as the
+# log lines that print ARNs) and UUIDs (a resource ID whose last group can be 12 digits).
+_KEPT_SPAN = re.compile(
+    r'arn:aws[a-z-]*:[^\s\'"(),;<>]*'
+    r'|(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])',
+    re.IGNORECASE,
+)
 
 
 def mask_account_ids(value):
-    """Loggable form of a value that embeds an account ID, such as a bucket name or S3 URI.
+    """value as text with every bare account ID (exactly 12 digits) replaced by <account>.
 
-    Only for log text: callers keep using the real value for API calls.
+    Used for log text that embeds an account ID (a bucket name or S3 URI) and for
+    error text returned to callers (error_text). ARNs and UUIDs are kept whole.
+    Callers keep using the real value for API calls.
     """
-    return _ACCOUNT_ID_RUN.sub(ACCOUNT_PLACEHOLDER, f'{value}')
+    text = f'{value}'
+    parts, pos = [], 0
+    for kept in _KEPT_SPAN.finditer(text):
+        parts += [_ACCOUNT_ID.sub(ACCOUNT_PLACEHOLDER, text[pos:kept.start()]), kept.group(0)]
+        pos = kept.end()
+    parts.append(_ACCOUNT_ID.sub(ACCOUNT_PLACEHOLDER, text[pos:]))
+    return ''.join(parts)
 
 
 def describe_error(err):
@@ -295,12 +311,13 @@ def error_text(err):
 
     MigrationStepError and ArnFormatError texts are built by this module from
     error codes, action names, resource IDs or ARNs and fixed wording, so they
-    are returned as is. Anything else (ClientError, other exceptions) becomes
-    its error code and operation via describe_error.
+    are kept. Anything else (ClientError, other exceptions) becomes its error
+    code and operation via describe_error. Either way, bare account IDs
+    (outside ARNs) are masked, because this text reaches API responses.
     """
     if isinstance(err, (MigrationStepError, ArnFormatError)):
-        return str(err)
-    return describe_error(err)
+        return mask_account_ids(str(err))
+    return mask_account_ids(describe_error(err))
 
 
 def reraise_if_fatal(err, resource=None):
@@ -457,7 +474,7 @@ def extract_account_id_from_arn(instance_arn):
     """Extract the AWS account ID from a Connect instance ARN."""
     account_id = _connect_arn_parts(instance_arn)[4]
     if not account_id or not account_id.isdigit() or len(account_id) != 12:
-        raise ArnFormatError(f"Invalid account ID in ARN: {account_id}")
+        raise ArnFormatError(f"Invalid account ID in ARN: {mask_account_ids(account_id)}")
     return account_id
 
 
@@ -612,8 +629,8 @@ def create_destination_session(destination_arn, cross_account_role_arn=None, ext
     dest_account = extract_account_id_from_arn(destination_arn)
     if current_account != dest_account:
         raise MigrationStepError(
-            f"Cross-account migration detected (tool account: {current_account}, "
-            f"destination account: {dest_account}) but no crossAccountRoleArn provided.",
+            f"Cross-account migration detected (tool account: {mask_account_ids(current_account)}, "
+            f"destination account: {mask_account_ids(dest_account)}) but no crossAccountRoleArn provided.",
             code='MissingTargetRole',
         )
     print('No target role supplied; using the tool role for the target (same account).')

@@ -4,7 +4,8 @@ import datetime
 import pytest
 
 import region_utils
-from conftest import EXTERNAL_ID, SOURCE_ACCOUNT, TARGET_INSTANCE_ARN, TARGET_REGION, TARGET_ROLE_ARN
+from conftest import (EXTERNAL_ID, SOURCE_ACCOUNT, SOURCE_INSTANCE_ARN, TARGET_INSTANCE_ARN, TARGET_REGION,
+                      TARGET_ROLE_ARN)
 from region_utils import MigrationStepError
 
 CREDS = {
@@ -83,6 +84,30 @@ def test_cross_account_without_role_fails(sts):
     with pytest.raises(MigrationStepError) as info:
         region_utils.create_destination_session(TARGET_INSTANCE_ARN)
     assert info.value.code == 'MissingTargetRole'
+
+
+def test_cross_account_without_role_masks_both_account_ids_and_names_the_sides(sts):
+    sts.add_response('get_caller_identity', {'Account': SOURCE_ACCOUNT, 'Arn': 'arn:aws:sts::111111111111:assumed-role/x/y', 'UserId': 'AROAEXAMPLEID'})
+    with pytest.raises(MigrationStepError) as info:
+        region_utils.create_destination_session(TARGET_INSTANCE_ARN)
+    for text in (str(info.value), region_utils.error_text(info.value)):
+        assert SOURCE_ACCOUNT not in text and '222222222222' not in text
+        assert 'tool account: <account>' in text and 'destination account: <account>' in text
+        assert 'no crossAccountRoleArn provided' in text
+
+
+def test_flow_check_api_returns_the_masked_cross_account_error(sts, monkeypatch):
+    import json
+
+    import check_flow_dependencies
+    monkeypatch.setenv('ALLOWED_ORIGIN', 'https://d111111abcdef8.cloudfront.net')
+    sts.add_response('get_caller_identity', {'Account': SOURCE_ACCOUNT, 'Arn': 'arn:aws:sts::111111111111:assumed-role/x/y', 'UserId': 'AROAEXAMPLEID'})
+    result = check_flow_dependencies.lambda_handler({'httpMethod': 'POST', 'body': json.dumps({
+        'sourceInstanceId': SOURCE_INSTANCE_ARN, 'destinationInstanceId': TARGET_INSTANCE_ARN})}, None)
+    body = json.loads(result['body'])
+    assert result['statusCode'] == 400 and body['code'] == 'MissingTargetRole'
+    assert 'tool account: <account>' in body['error'] and 'destination account: <account>' in body['error']
+    assert SOURCE_ACCOUNT not in body['error'] and '222222222222' not in body['error']
 
 
 def test_same_account_without_role_uses_own_credentials(sts):

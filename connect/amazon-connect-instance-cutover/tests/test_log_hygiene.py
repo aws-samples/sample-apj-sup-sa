@@ -162,14 +162,89 @@ def test_static_check_fails_on_unmasked_bucket_logging(tmp_path, monkeypatch):
     ('connect-migration-prompts-temp-222222222222-ap-southeast-2',
      'connect-migration-prompts-temp-<account>-ap-southeast-2'),
     ('s3://b-111111111111-us-east-1/prompts/i/p/x.wav', 's3://b-<account>-us-east-1/prompts/i/p/x.wav'),
-    ('a1234567890123b', 'a<account>b'),  # a longer run is masked whole
-    ('ap-southeast-2 12345678901', 'ap-southeast-2 12345678901'),  # 11 digits is not an account ID
+    ('STS is not activated in this region for account:222222222222. Ask your administrator.',
+     'STS is not activated in this region for account:<account>. Ask your administrator.'),
     (222222222222, '<account>'),
+    # Only exactly 12 digits: longer and shorter runs are not account IDs.
+    ('a1234567890123b', 'a1234567890123b'),  # 13 digits
+    ('started 1794388512000 ms', 'started 1794388512000 ms'),  # 13 digit epoch milliseconds
+    ('ap-southeast-2 12345678901', 'ap-southeast-2 12345678901'),  # 11 digits
+    ('retry after 1794388512', 'retry after 1794388512'),  # 10 digits
+    ('+15555550123', '+15555550123'),  # phone number
+    ('id 1234567890123456789', 'id 1234567890123456789'),  # long numeric ID
+    # ARNs and UUIDs keep their digits.
+    (f'on {TARGET_ROLE_ARN}', f'on {TARGET_ROLE_ARN}'),
+    ('instance 11111111-1111-4111-8111-111111111111', 'instance 11111111-1111-4111-8111-111111111111'),
 ])
 def test_mask_account_ids(value, expected):
     masked = region_utils.mask_account_ids(value)
     assert masked == expected
-    assert not re.search(r'\d{12}', masked)
+
+
+# A realistic AWS AccessDenied text for sts:AssumeRole (ARNs hold account IDs) plus
+# the STS RegionDisabledException text, which holds a bare account ID.
+ASSUME_ROLE_DENIED = (
+    'User: arn:aws:sts::111111111111:assumed-role/ConnectMigrationLambdaRole/ConnectMigration-222222222222 '
+    f'is not authorized to perform: sts:AssumeRole on resource: {TARGET_ROLE_ARN}. '
+    'STS is not activated in this region for account:222222222222.')
+
+
+def test_error_text_masks_bare_account_ids_and_keeps_arns():
+    text = region_utils.error_text(region_utils.MigrationStepError(ASSUME_ROLE_DENIED, code='AccessDenied'))
+    assert 'for account:<account>.' in text
+    assert 'arn:aws:sts::111111111111:assumed-role/ConnectMigrationLambdaRole/ConnectMigration-222222222222' in text
+    assert TARGET_ROLE_ARN in text
+    without_arns = text.replace(TARGET_ROLE_ARN, '').replace(
+        'arn:aws:sts::111111111111:assumed-role/ConnectMigrationLambdaRole/ConnectMigration-222222222222', '')
+    assert not re.search(r'(?<!\d)\d{12}(?!\d)', without_arns)
+
+
+def test_error_text_never_returns_the_aws_message_of_a_client_error():
+    err = ClientError({'Error': {'Code': 'AccessDenied', 'Message': ASSUME_ROLE_DENIED}}, 'AssumeRole')
+    text = region_utils.error_text(err)
+    assert text == 'AccessDenied (AssumeRole)'
+    assert '111111111111' not in text and '222222222222' not in text
+
+
+def test_error_text_keeps_timestamps_and_short_numbers():
+    own = region_utils.MigrationStepError('quota 1234567890 reached at 1794388512000, account 222222222222')
+    assert region_utils.error_text(own) == 'quota 1234567890 reached at 1794388512000, account <account>'
+
+
+def account_text_offenders(paths):
+    """Error texts (MigrationStepError, ArnFormatError, 'error' keys) that interpolate an account value unmasked."""
+    offenders = []
+    for path in paths:
+        tree = ast.parse(path.read_text())
+        texts = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and terminal_name(node.func) in ('MigrationStepError', 'ArnFormatError'):
+                texts.extend(node.args)
+            elif isinstance(node, ast.Dict):
+                texts.extend(v for k, v in zip(node.keys, node.values)
+                             if isinstance(k, ast.Constant) and k.value == 'error')
+        for text in texts:
+            for part in (v.value for v in getattr(text, 'values', []) if isinstance(v, ast.FormattedValue)):
+                name = terminal_name(part) or ''
+                if 'account' in name.lower() and not name.lower().endswith(('arn', 'arns')):
+                    offenders.append(f'{path.name}:{part.lineno}: unmasked account value {ast.unparse(part)}')
+    return offenders
+
+
+def test_no_error_text_interpolates_an_unmasked_account_id():
+    assert account_text_offenders(ALL_LAMBDA_FILES) == []
+
+
+def test_account_text_check_catches_unmasked_account_ids(tmp_path):
+    bad = tmp_path / 'region_example.py'
+    bad.write_text(
+        "def f(current_account, dest_account, account_id, role_arn):\n"
+        "    raise MigrationStepError(f'tool account: {current_account}, target: {dest_account}')\n"
+        "    raise ArnFormatError(f'Invalid account ID in ARN: {account_id}')\n"
+        "    return {'error': f'account {self.target.account}'}\n"
+        "    raise MigrationStepError(f'ok {mask_account_ids(current_account)} on {role_arn}')\n")
+    found = account_text_offenders([bad])
+    assert [int(line.split(':')[1]) for line in found] == [2, 2, 3, 4], found
 
 
 # ---------------------------------------------------------------------------
