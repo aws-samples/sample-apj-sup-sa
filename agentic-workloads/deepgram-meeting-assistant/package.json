@@ -50,10 +50,10 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.966.0",
-    "@aws-sdk/client-s3": "^3.972.0",
-    "@aws-sdk/client-transcribe": "^3.972.0",
-    "@aws-sdk/client-transcribe-streaming": "^3.966.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1166.0",
+    "@aws-sdk/client-s3": "^3.1166.0",
+    "@aws-sdk/client-transcribe": "^3.1166.0",
+    "@aws-sdk/client-transcribe-streaming": "^3.1166.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "better-sqlite3": "^12.6.0",
     "electron-squirrel-startup": "^1.0.1",
