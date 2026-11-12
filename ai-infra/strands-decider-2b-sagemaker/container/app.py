@@ -88,8 +88,11 @@ BUSY_SINCE: float | None = None          # when the engine thread started its cu
 UNHEALTHY: str | None = None             # the GPU context is broken; this worker is about to exit
 # The engine is synchronous and not thread-safe: one thread runs it, taking requests in arrival order.
 RUNNER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="engine")
-IN_FLIGHT = 0                            # requests handed to RUNNER and not finished, the running one included
-WAITING: deque[float] = deque()          # when each queued request was admitted, oldest first (RUNNER is FIFO)
+IN_FLIGHT = 0                            # requests handed to RUNNER whose job has not finished, the running one included
+# Queued requests not started yet: a token per request -> when it was admitted, oldest first (dicts keep insertion
+# order). The event loop and the engine thread both change WAITING and IN_FLIGHT, so they hold WAITING_LOCK.
+WAITING: dict[object, float] = {}
+WAITING_LOCK = threading.Lock()
 RECENT: deque[float] = deque(maxlen=32)  # engine seconds of the latest requests (engine thread only)
 ENGINE_S = 0.5                           # their median, read by admission; seeded by warm-up
 # Errors after which every CUDA call in this process fails. A transient failure such as an allocation that
@@ -240,22 +243,30 @@ async def invocations(request: Request) -> JSONResponse:
         # The header lets the front (serve.py) try another worker before it passes the 503 on.
         return JSONResponse({"error": f"busy: {busy}; retry later"}, status_code=503,
                             headers={"x-decider-worker": "busy"})
-    IN_FLIGHT += 1                    # only this event loop thread changes IN_FLIGHT and appends to WAITING
-    WAITING.append(time.monotonic())
+    token = object()
+    with WAITING_LOCK:
+        IN_FLIGHT += 1
+        WAITING[token] = time.monotonic()
     try:
-        return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived)
+        return await asyncio.get_running_loop().run_in_executor(RUNNER, _evaluate, req, arrived, token)
     finally:
-        IN_FLIGHT -= 1
+        # Whoever removes the token counts the request out, so it happens exactly once. Normally _evaluate removed it
+        # when the job started and counts the request out when the job ends, even if this handler was cancelled
+        # meanwhile. If this handler was cancelled first (on shutdown, or by a server version that cancels on disconnect),
+        # it removes the token here and _evaluate, if the job still starts, does no work; otherwise a leftover entry
+        # would make every later request look as if it had waited.
+        with WAITING_LOCK:
+            if WAITING.pop(token, None) is not None:
+                IN_FLIGHT -= 1
 
 
 def _busy() -> str | None:
     """Why a new request should be refused now, or None to admit it."""
     if IN_FLIGHT >= MAX_QUEUE:
         return f"{IN_FLIGHT} requests queued"
-    try:
-        waited = time.monotonic() - WAITING[0]
-    except IndexError:                # nothing queued (or the engine thread just took the last one)
-        waited = 0.0
+    with WAITING_LOCK:
+        oldest = next(iter(WAITING.values()), None)
+    waited = 0.0 if oldest is None else time.monotonic() - oldest
     if waited > MAX_QUEUE_WAIT_S:
         return f"the oldest queued request has waited {waited:.0f} s"
     if IN_FLIGHT * ENGINE_S > MAX_QUEUE_WAIT_S:
@@ -263,14 +274,19 @@ def _busy() -> str | None:
     return None
 
 
-def _evaluate(req: SystemOneRequest, arrived: float) -> Response:
-    global BUSY_SINCE
-    WAITING.popleft()                 # this request has left the queue
+def _evaluate(req: SystemOneRequest, arrived: float, token: object) -> Response:
+    global BUSY_SINCE, IN_FLIGHT
+    with WAITING_LOCK:
+        started = WAITING.pop(token, None) is not None    # this request has left the queue
+    if not started:                   # its handler was cancelled and has counted it out: nobody wants the answer
+        return JSONResponse({"error": "request cancelled"}, status_code=503)
     BUSY_SINCE = time.monotonic()
     try:
         return _run(req, arrived)
     finally:
         BUSY_SINCE = None
+        with WAITING_LOCK:
+            IN_FLIGHT -= 1            # the job is done, whether or not its handler is still waiting for it
 
 
 def _run(req: SystemOneRequest, arrived: float) -> Response:

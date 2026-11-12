@@ -35,6 +35,7 @@ InvokeEndpoint ──► /invocations  (container/serve.py front → app.py work
 | [`02-deploy-and-benchmark.ipynb`](02-deploy-and-benchmark.ipynb) | Image build and push, S3 artifact, two endpoints, correctness checks, benchmark, CloudWatch metrics, cost, clean-up |
 | [`container/`](container/) | The serving image: `Dockerfile` on the AWS PyTorch DLC, `serve.py` (launcher), `app.py` (server), pinned `requirements.txt` |
 | `data/decider_bench.jsonl` | The generated dataset, committed so notebook 2 runs on its own |
+| [`tests/`](tests/) | Admission tests for `container/app.py` with a stub engine, no GPU needed: `pip install -r tests/requirements.txt`, then `python -m pytest tests` |
 
 ## Quick start
 
