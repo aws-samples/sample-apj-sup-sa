@@ -50,6 +50,11 @@ Parameters:
 Resources:
   PatSecret:
     Type: AWS::SecretsManager::Secret
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Encrypted with the AWS managed key for Secrets Manager; a customer managed key adds cost and no control in a single-account sample.
     Properties:
       Name: !Sub '${EnvironmentName}-pcc-pat'
       SecretString: !Ref PccPrivateApiKey

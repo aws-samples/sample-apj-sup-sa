@@ -100,13 +100,14 @@ async def main():
         b64 = m.group(1).strip()
         try:
             raw = base64.b64decode(b64)
-            print(f"chart b64 len: {len(b64):,}  png bytes: {len(raw):,}  valid PNG: {raw[:8] == b'\x89PNG\r\n\x1a\n'}")
+            valid_png = raw[:8] == b'\x89PNG\r\n\x1a\n'
+            print(f"chart b64 len: {len(b64):,}  png bytes: {len(raw):,}  valid PNG: {valid_png}")
         except Exception as e:
             print(f"chart decode FAILED: {e}")
     # Show what comes right after </speak> so we see the displayed-track head.
     if "</speak>" in full:
         tail = full.split("</speak>", 1)[1]
-        print(f"\npost-</speak> head (300): {tail[:300]!r}")
+        print(f"\npost-</speak> text: {len(tail):,} chars")
 
 
 if __name__ == "__main__":

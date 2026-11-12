@@ -90,7 +90,7 @@ def _patch_build_zip_with_config(src_path, dst_path, runtime_config):
     print(f"Injected runtime config keys: {sorted(runtime_config.keys())}")
 
 
-def _add_url_to_cognito_client(user_pool_id, client_id, app_url):
+def _add_url_to_cognito_client(user_pool_id, client_id, app_url, write_attributes=None):
     """Add the Amplify app URL to the user-pool client's callback/logout lists.
 
     Best-effort — logs and returns False on error rather than failing the stack,
@@ -119,6 +119,12 @@ def _add_url_to_cognito_client(user_pool_id, client_id, app_url):
     logout_url = callback_url
 
     changed = False
+    # Users must not write their own custom:role or custom:account_id. An earlier
+    # version of this function dropped WriteAttributes, and Cognito then allows
+    # every attribute, so put the template's list back when it differs.
+    if write_attributes is not None and sorted(existing.get('WriteAttributes') or []) != sorted(write_attributes):
+        existing['WriteAttributes'] = list(write_attributes)
+        changed = True
     if callback_url not in callback_urls:
         callback_urls.append(callback_url)
         changed = True
@@ -130,7 +136,8 @@ def _add_url_to_cognito_client(user_pool_id, client_id, app_url):
         print("Cognito client already allows the Amplify URL")
         return True
 
-    # update_user_pool_client requires re-passing fields it would otherwise clear.
+    # update_user_pool_client resets every field it is not given. A missing
+    # WriteAttributes means all attributes become user-writable.
     update_args = {
         'UserPoolId': user_pool_id,
         'ClientId': client_id,
@@ -144,6 +151,16 @@ def _add_url_to_cognito_client(user_pool_id, client_id, app_url):
         'SupportedIdentityProviders',
         'ExplicitAuthFlows',
         'ClientName',
+        'ReadAttributes',
+        'WriteAttributes',
+        'RefreshTokenValidity',
+        'AccessTokenValidity',
+        'IdTokenValidity',
+        'TokenValidityUnits',
+        'PreventUserExistenceErrors',
+        'EnableTokenRevocation',
+        'EnablePropagateAdditionalUserContextData',
+        'AuthSessionValidity',
     ):
         if field in existing:
             update_args[field] = existing[field]
@@ -169,8 +186,10 @@ def lambda_handler(event, context):
         EnvironmentVariables: Dict of env vars for the app (also injected as runtime config)
         CognitoUserPoolId: User pool whose client to patch with the Amplify URL
         CognitoUserClientId: Client ID to patch
+        CognitoWriteAttributes: Attributes users may write (enforced on the client)
     """
-    print(f"Event: {json.dumps(event)}")
+    # The event holds a presigned ResponseURL; log only what identifies the request.
+    print(f"Event: {event.get('RequestType')} {event.get('LogicalResourceId')}")
 
     request_type = event.get('RequestType', 'Create')
     props = event.get('ResourceProperties', {})
@@ -182,6 +201,7 @@ def lambda_handler(event, context):
     env_vars = props.get('EnvironmentVariables', {}) or {}
     cognito_user_pool_id = props.get('CognitoUserPoolId', '')
     cognito_user_client_id = props.get('CognitoUserClientId', '')
+    cognito_write_attributes = props.get('CognitoWriteAttributes')
 
     try:
         if request_type == 'Delete':
@@ -219,7 +239,7 @@ def lambda_handler(event, context):
 
         # Bug fix: the Cognito user-pool client only allows localhost callbacks
         # by default, so OAuth from the Amplify URL would fail. Add it now.
-        _add_url_to_cognito_client(cognito_user_pool_id, cognito_user_client_id, app_url)
+        _add_url_to_cognito_client(cognito_user_pool_id, cognito_user_client_id, app_url, cognito_write_attributes)
 
         send_cfn_response(event, context, 'SUCCESS', {
             'AppId': app_id,

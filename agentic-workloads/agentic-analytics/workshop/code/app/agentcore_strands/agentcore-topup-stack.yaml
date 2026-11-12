@@ -32,6 +32,18 @@ Parameters:
     Default: agentic-analytics
     Description: Resource name prefix; MUST match the base stack so Fn::ImportValue names resolve.
 
+  AgentModelId:
+    Type: String
+    Default: global.anthropic.claude-sonnet-5-5
+    AllowedValues:
+      - global.anthropic.claude-sonnet-5-5
+      - global.anthropic.claude-opus-5-5
+      - global.anthropic.claude-opus-4-6-v1
+    Description: >-
+      Bedrock model the analytics agent runs on (Global cross-Region inference).
+      Sonnet 5.5 is the default (fast, near-Opus quality); Opus 5.5 for the hardest
+      questions; Opus 4.6 as a fallback for accounts without 5.5 access.
+
   ArtifactsBucket:
     Type: String
     Description: S3 bucket holding the Lambda/agent code zips (from config.env, passed by `make`).
@@ -111,7 +123,30 @@ Parameters:
 #   ${EnvironmentName}-GlueDatabaseName        -> Glue catalog db (custom-SQL schema)
 #   ${EnvironmentName}-UserPoolId / -UserLoginClientId -> Cognito JWT authorizer
 
+  EnableFrontDoor:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Step 7c turns this on with `make deploy FRONT_DOOR=true`. It puts an AgentCore Gateway
+      (Cognito JWT, AWS WAF, per-user rate limit) in front of the agent runtime and switches the
+      runtime to IAM auth, so the front door becomes the only way in.
+
+  WafBodyRulesAction:
+    Type: String
+    Default: COUNT
+    AllowedValues: [COUNT, BLOCK]
+    Description: What the front-door WAF does when the request-body rule groups (Common, SQL injection) match. COUNT logs only; BLOCK rejects.
+
+  FrontDoorRequestsPerMinute:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Requests per minute each signed-in user (JWT sub) may send through the front door.
+
 Conditions:
+  FrontDoorEnabled: !Equals [!Ref EnableFrontDoor, 'true']
+  WafBodyRulesBlock: !Equals [!Ref WafBodyRulesAction, 'BLOCK']
   NeedsPsycopg2Layer: !Equals [!Ref Psycopg2LayerArn, '']
   NeedsPyJwtLayer: !Equals [!Ref PyJwtLayerArn, '']
 
@@ -176,6 +211,8 @@ Resources:
       FunctionName: !Ref InterceptorLambda
       Action: lambda:InvokeFunction
       Principal: bedrock-agentcore.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
 
   # NOTE: The optional Cube SemanticLayer toolset is intentionally NOT part of
   # this top-up. The semantic-layer lab keeps its own parallel two-agent
@@ -211,9 +248,52 @@ Resources:
                 Action: lambda:InvokeFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-*
+              # Gateway service-role actions: read its own config, call the policy
+              # engine, and call the AWS-owned Web Search tool.
               - Effect: Allow
                 Action:
-                  - bedrock-agentcore:*
+                  - bedrock-agentcore:GetGateway
+                  - bedrock-agentcore:InvokeGateway
+                  - bedrock-agentcore:GetConfigurationBundleVersion
+                Resource:
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:configuration-bundle/*
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:GetPolicyEngine
+                  - bedrock-agentcore:AuthorizeAction
+                  - bedrock-agentcore:PartiallyAuthorizeActions
+                Resource:
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:policy-engine/*
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
+              - Effect: Allow
+                Action: bedrock-agentcore:InvokeWebSearch
+                Resource: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:aws:tool/web-search.v1
+              # The gateway gets a workload access token for its own identity before
+              # it calls targets (CloudTrail showed AccessDenied without this).
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:GetWorkloadAccessToken
+                  - bedrock-agentcore:GetWorkloadAccessTokenForJWT
+                  - bedrock-agentcore:GetWorkloadAccessTokenForUserId
+                Resource:
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/*
+              # BusinessContext connector target (Step 6): validate and query the managed KB.
+              - Effect: Allow
+                Action:
+                  - bedrock:GetKnowledgeBase
+                  - bedrock:Retrieve
+                Resource:
+                  Fn::Sub:
+                    - arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KbId}
+                    - KbId:
+                        Fn::ImportValue: !Sub '${EnvironmentName}-KnowledgeBaseId'
+              # Step 7b: guardrail conditions in Cedar policies call Bedrock guardrail
+              # checks with this role's credentials. They use no account guardrail
+              # resource, so the action is granted on '*'; it can only score content.
+              - Effect: Allow
+                Action: bedrock:InvokeGuardrailChecks
                 Resource: '*'
 
   #============================================================================
@@ -287,8 +367,12 @@ Resources:
 #               - Effect: Allow
 #                 Action:
 #                   - bedrock:InvokeModel
-#                   - bedrock-agent-runtime:Retrieve
-#                 Resource: '*'
+#                 Resource:
+#                   - arn:aws:bedrock:*::foundation-model/*
+#                   - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+#               - Effect: Allow
+#                 Action: bedrock:Retrieve
+#                 Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*
 
 #   DataFoundationLambda:
 #     Type: AWS::Lambda::Function
@@ -344,7 +428,10 @@ Resources:
 #     Type: AWS::Lambda::Version
 #     Properties:
 #       FunctionName: !Ref DataFoundationLambda
-#       Description: Version fronted by the live alias for provisioned concurrency
+#       # The code key is in the description on purpose: a Version is only re-published when
+#       # one of its own properties changes, and a new S3 key on the function alone does not
+#       # count. Without this the 'live' alias keeps serving the first deployed code.
+#       Description: !Sub 'live alias version for ${DataFoundationLambdaKey}'
 
 #   DataFoundationAlias:
 #     Type: AWS::Lambda::Alias
@@ -361,6 +448,8 @@ Resources:
 #       FunctionName: !Ref DataFoundationAlias
 #       Action: lambda:InvokeFunction
 #       Principal: bedrock-agentcore.amazonaws.com
+#       SourceAccount: !Ref AWS::AccountId
+#       SourceArn: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
 
 #   # psycopg2 layer (created only if not provided)
 #   Psycopg2Layer:
@@ -433,7 +522,7 @@ Resources:
 #                       customer_type: { Type: string }
 #                       limit: { Type: integer }
 #                 - Name: get_bookings_tool
-#                   Description: Get bookings with date range
+#                   Description: Get booking rows whose start date is between start_date and end_date (YYYY-MM-DD, both inclusive; max 200 rows)
 #                   InputSchema:
 #                     Type: object
 #                     Properties:
@@ -448,7 +537,7 @@ Resources:
 #                       transaction_type: { Type: string }
 #                       limit: { Type: integer }
 #                 - Name: get_unicorn_availability_tool
-#                   Description: Get unicorn availability history
+#                   Description: Get unicorn status history and its upcoming bookings (check before booking)
 #                   InputSchema:
 #                     Type: object
 #                     Properties:
@@ -481,10 +570,13 @@ Resources:
 #                   Description: Get monthly revenue summary
 #                   InputSchema: { Type: object }
 #                 - Name: get_daily_bookings_summary_tool
-#                   Description: Get daily bookings with customer/unicorn details
+#                   Description: Bookings by start date. Pass group_by=day for one row per day (counts, rental hours); without it, returns booking rows (max 200)
 #                   InputSchema:
 #                     Type: object
 #                     Properties:
+#                       start_date: { Type: string, Description: 'YYYY-MM-DD, inclusive' }
+#                       end_date: { Type: string, Description: 'YYYY-MM-DD, inclusive' }
+#                       group_by: { Type: string, Description: "Only value: 'day' (per-day aggregates)" }
 #                       limit: { Type: integer }
 #                 - Name: get_monthly_revenue_summary_tool
 #                   Description: Get monthly revenue breakdown
@@ -630,7 +722,10 @@ Resources:
 #     Type: AWS::Lambda::Version
 #     Properties:
 #       FunctionName: !Ref ApiIntegLambda
-#       Description: Version fronted by the live alias for provisioned concurrency
+#       # The code key is in the description on purpose: a Version is only re-published when
+#       # one of its own properties changes, and a new S3 key on the function alone does not
+#       # count. Without this the 'live' alias keeps serving the first deployed code.
+#       Description: !Sub 'live alias version for ${ApiIntegLambdaKey}'
 
 #   ApiIntegAlias:
 #     Type: AWS::Lambda::Alias
@@ -647,6 +742,8 @@ Resources:
 #       FunctionName: !Ref ApiIntegAlias
 #       Action: lambda:InvokeFunction
 #       Principal: bedrock-agentcore.amazonaws.com
+#       SourceAccount: !Ref AWS::AccountId
+#       SourceArn: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
 
 #   #============================================================================
 #   # Gateway Target — APIInteg (create_booking write tool)
@@ -723,10 +820,13 @@ Resources:
 #                 Resource: '*'
 #               - Effect: Allow
 #                 Action:
-#                   - bedrock:Retrieve
 #                   - bedrock:InvokeModel
-#                   - bedrock-agent-runtime:Retrieve
-#                 Resource: '*'
+#                 Resource:
+#                   - arn:aws:bedrock:*::foundation-model/*
+#                   - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+#               - Effect: Allow
+#                 Action: bedrock:Retrieve
+#                 Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*
 
 #   CustomSqlLambda:
 #     Type: AWS::Lambda::Function
@@ -778,7 +878,10 @@ Resources:
 #     Type: AWS::Lambda::Version
 #     Properties:
 #       FunctionName: !Ref CustomSqlLambda
-#       Description: Version fronted by the live alias for provisioned concurrency
+#       # The code key is in the description on purpose: a Version is only re-published when
+#       # one of its own properties changes, and a new S3 key on the function alone does not
+#       # count. Without this the 'live' alias keeps serving the first deployed code.
+#       Description: !Sub 'live alias version for ${CustomSqlLambdaKey}'
 
 #   CustomSqlAlias:
 #     Type: AWS::Lambda::Alias
@@ -795,6 +898,8 @@ Resources:
 #       FunctionName: !Ref CustomSqlAlias
 #       Action: lambda:InvokeFunction
 #       Principal: bedrock-agentcore.amazonaws.com
+#       SourceAccount: !Ref AWS::AccountId
+#       SourceArn: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
 
 #   #============================================================================
 #   # Gateway Target — CustomSQL (text-to-SQL with human approval)
@@ -822,6 +927,10 @@ Resources:
 #                     Type: object
 #                     Properties:
 #                       question: { Type: string, Description: Natural language analytics question }
+#                       tables:
+#                         Type: array
+#                         Items: { Type: string }
+#                         Description: 'Tables or views to include in full. Leave empty first; if the reply is a table index (schema too large), call again with the ones you need.'
 #                     Required: [question]
 #                 - Name: get_schema_context_tool
 #                   Description: Get database table schemas from Glue catalog. Use to understand available tables and columns.
@@ -839,7 +948,83 @@ Resources:
 #                     Properties:
 #                       sql: { Type: string, Description: 'The SQL query to execute (must be SELECT only)' }
 #                     Required: [sql]
+#   #============================================================================
+#   # Gateway Target — BusinessContext (Bedrock Managed Knowledge Base connector)
+#   #
+#   # Gives the agent a direct Retrieve tool over the business glossary, so a
+#   # question like "how do we define an at-risk customer?" is answered from the
+#   # knowledge base through the same gateway, policy engine and logs as every
+#   # other tool. The KB id is bound here and hidden from the agent; it only sees
+#   # the query text. The custom SQL Lambda still retrieves business context on
+#   # its own while it assembles text-to-SQL context.
+#   #============================================================================
+#   BusinessContextTarget:
+#     Type: AWS::BedrockAgentCore::GatewayTarget
+#     Properties:
+#       GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
+#       Name: BusinessContext
+#       Description: Business definitions, metrics and rules from the managed knowledge base
+#       TargetConfiguration:
+#         Mcp:
+#           Connector:
+#             Source:
+#               ConnectorId: bedrock-knowledge-bases
+#             Configurations:
+#               - Name: Retrieve
+#                 Description: Search the business glossary (metric definitions, business rules, sample questions). Use for "what does X mean" or "how is X calculated" questions.
+#                 ParameterValues:
+#                   knowledgeBaseId:
+#                     Fn::ImportValue: !Sub '${EnvironmentName}-KnowledgeBaseId'
+#                   retrievalConfiguration:
+#                     managedSearchConfiguration:
+#                       numberOfResults: 5
+#                 ParameterOverrides:
+#                   - Path: $.retrievalQuery.text
+#                     Description: The business term or question to look up, in plain words
+#                     Visible: true
+#       CredentialProviderConfigurations:
+#         - CredentialProviderType: GATEWAY_IAM_ROLE
+
   # ===== UNCOMMENT TO HERE (Step 6) ======
+
+  # ===== UNCOMMENT FROM HERE (Step 6b: Web Search connector) ======
+#   #============================================================================
+#   # Gateway Target — WebSearch (AgentCore Web Search connector)
+#   #
+#   # Public web context for questions the database cannot answer on its own:
+#   # public holidays, seasonal demand, industry benchmarks. AWS runs the search;
+#   # there is no API key. The gateway role calls it as itself (GATEWAY_IAM_ROLE),
+#   # which needs bedrock-agentcore:InvokeWebSearch on the AWS-owned tool ARN
+#   # arn:aws:bedrock-agentcore:<region>:aws:tool/web-search.v1 (covered by the
+#   # gateway role's bedrock-agentcore statement). The agent sees one MCP tool,
+#   # WebSearch; Cedar names it WebSearch___WebSearch. The exclude list is
+#   # enforced server-side and the agent cannot relax it.
+#   #============================================================================
+#   WebSearchTarget:
+#     Type: AWS::BedrockAgentCore::GatewayTarget
+#     Properties:
+#       GatewayIdentifier: !GetAtt Gateway.GatewayIdentifier
+#       Name: WebSearch
+#       Description: Public web search for market, holiday and industry context (never tenant data)
+#       TargetConfiguration:
+#         Mcp:
+#           Connector:
+#             Source:
+#               ConnectorId: web-search
+#             Configurations:
+#               - Name: WebSearch
+#                 ParameterValues:
+#                   domainFilter:
+#                     exclude:
+#                       - facebook.com
+#                       - instagram.com
+#                       - tiktok.com
+#                       - reddit.com
+#                       - x.com
+#                       - twitter.com
+#       CredentialProviderConfigurations:
+#         - CredentialProviderType: GATEWAY_IAM_ROLE
+  # ===== UNCOMMENT TO HERE (Step 6b) ======
 
   # ===== UNCOMMENT FROM HERE (Step 7a: Cedar policy engine + RBAC policies) ======
 
@@ -862,15 +1047,15 @@ Resources:
 #       Name: allow_all_tools
 #       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
 #       ValidationMode: IGNORE_ALL_FINDINGS
-#       Description: Base permit — allow all tools for any authenticated principal
+#       Description: Base permit — allow all tools for a signed-in user with a role
 #       Definition:
 #         Cedar:
 #           Statement: !Sub |
 #             permit(
-#               principal,
+#               principal is AgentCore::OAuthUser,
 #               action,
 #               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
-#             );
+#             ) when { principal.hasTag("custom:role") };
 
 #   # Cedar action names use triple underscore: TargetName___tool_name.
 #   # These two policies enforce role-based access on top of allow_all_tools.
@@ -896,6 +1081,30 @@ Resources:
 #             when {
 #               principal.hasTag("custom:role") &&
 #               principal.getTag("custom:role") == "analyst"
+#             };
+
+#   # Staff run day-to-day bookings; web research is for analysts and admins.
+#   ForbidWebSearchStaffPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn:
+#       - AllowAllToolsPolicy
+#       - WebSearchTarget
+#     Properties:
+#       Name: forbid_websearch_staff
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Forbid web search for staff role
+#       Definition:
+#         Cedar:
+#           Statement: !Sub |
+#             forbid(
+#               principal is AgentCore::OAuthUser,
+#               action == AgentCore::Action::"WebSearch___WebSearch",
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             )
+#             when {
+#               principal.hasTag("custom:role") &&
+#               principal.getTag("custom:role") == "staff"
 #             };
 
 #   ForbidCustomSqlStaffPolicy:
@@ -925,6 +1134,90 @@ Resources:
 #               principal.getTag("custom:role") == "staff"
 #             };
   # ===== UNCOMMENT TO HERE (Step 7a) ======
+
+  # ===== UNCOMMENT FROM HERE (Step 7b: guardrails and a temporal rule in Cedar policy) ======
+#   # Guardrails in policy: the gateway screens tool inputs with Bedrock guardrail
+#   # checks before the tool runs. forbid subtracts from the base permit above.
+#   # Scores are discrete (0, 0.2, ... 1.0); 0.4 is the documented default for
+#   # prompt-attack detection.
+#   ForbidCustomSqlPromptAttackPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn:
+#       - AllowAllToolsPolicy
+#       - CustomSqlTarget
+#     Properties:
+#       Name: forbid_text2sql_prompt_attack
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Block text-to-SQL questions that look like prompt injection or jailbreak attempts
+#       Definition:
+#         Policy:
+#           Statement: !Sub |
+#             forbid(
+#               principal is AgentCore::OAuthUser,
+#               action == AgentCore::Action::"CustomSQL___text_to_sql_tool",
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             )
+#             when guardrails {
+#               BedrockGuardrails::PromptAttack(["PROMPT_INJECTION", "JAILBREAK"], [context.input.question]).maxConfidenceScore().greaterThan(decimal("0.4"))
+#             };
+
+#   # Keep personal data out of the public web: a search query that names a person or
+#   # carries an email or phone number is refused at the gateway. ADDRESS is left out
+#   # because place names ("public holidays Singapore") score as addresses. Measured
+#   # on 12 queries: 6/6 public queries allowed, 5/6 personal-data queries blocked
+#   # (an invented fantasy name slipped through), so the SOP rule stays the first line.
+#   ForbidWebSearchPersonalDataPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn:
+#       - AllowAllToolsPolicy
+#       - WebSearchTarget
+#     Properties:
+#       Name: forbid_websearch_personal_data
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Block web searches whose query contains personal data
+#       Definition:
+#         Policy:
+#           Statement: !Sub |
+#             forbid(
+#               principal is AgentCore::OAuthUser,
+#               action == AgentCore::Action::"WebSearch___WebSearch",
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             )
+#             when guardrails {
+#               BedrockGuardrails::SensitiveInformation(["NAME", "EMAIL", "PHONE"], [context.input.query]).maxConfidenceScore().greaterThan(decimal("0.4"))
+#             };
+
+#   # Temporal rule: a booking is refused unless this conversation (policy session)
+#   # looked up that unicorn's availability in the last 15 minutes. The input match
+#   # (input.unicorn_id) stops "check unicorn A, then book unicorn B".
+#   ForbidBookingWithoutAvailabilityPolicy:
+#     Type: AWS::BedrockAgentCore::Policy
+#     DependsOn:
+#       - AllowAllToolsPolicy
+#       - ApiIntegTarget
+#       - DataToolsTarget
+#     Properties:
+#       Name: forbid_booking_without_availability_check
+#       PolicyEngineId: !GetAtt PolicyEngine.PolicyEngineId
+#       ValidationMode: IGNORE_ALL_FINDINGS
+#       Description: Refuse create_booking unless the same unicorn's availability was checked in this conversation within 15 minutes
+#       Definition:
+#         Policy:
+#           Statement: !Sub |
+#             forbid(
+#               principal is AgentCore::OAuthUser,
+#               action == AgentCore::Action::"APIInteg___create_booking_tool",
+#               resource == AgentCore::Gateway::"${Gateway.GatewayArn}"
+#             )
+#             unless {
+#               temporal {
+#                 formerly within 15m (AgentCore::Action::"PrebakedSQL___get_unicorn_availability_tool"::response{
+#                   input.unicorn_id: context.input.unicorn_id, eventResource: resource })
+#               }
+#             };
+  # ===== UNCOMMENT TO HERE (Step 7b) ======
 
   #============================================================================
   # AgentCore Observability — vended-log + trace delivery
@@ -993,6 +1286,11 @@ Resources:
   # ---- TRACES → X-Ray (custom resource for both Gateway and Memory) ----
   TracesSetupRole:
     Type: AWS::IAM::Role
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_111
+            comment: Remaining wildcard is for actions that take no resource ARN (see the comments on each statement).
     Properties:
       RoleName: !Sub ${EnvironmentName}-traces-setup-role
       AssumeRolePolicyDocument:
@@ -1009,7 +1307,8 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Logs delivery management — same surface as logs:DeliveryDestination handler
+              # Delivery sources, destinations and deliveries this stack creates
+              # (named ${EnvironmentName}-gw-* and ${EnvironmentName}-mem-*).
               - Effect: Allow
                 Action:
                   - logs:PutDeliverySource
@@ -1024,28 +1323,35 @@ Resources:
                   - logs:CreateDelivery
                   - logs:DeleteDelivery
                   - logs:GetDelivery
+                  - logs:TagResource
+                  - logs:ListTagsForResource
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:delivery-source:${EnvironmentName}-*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:delivery-destination:${EnvironmentName}-*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:delivery:*
+              # List calls and the vended-log permission check do not take a resource ARN.
+              - Effect: Allow
+                Action:
                   - logs:DescribeDeliveries
                   - logs:DescribeDeliverySources
                   - logs:DescribeDeliveryDestinations
                   - logs:AllowVendedLogDeliveryForResource
-                  - logs:TagResource
-                  - logs:ListTagsForResource
                 Resource: '*'
-              # Source-resource permission — required by put_delivery_source for vended logs
+              # The traces source is this stack's gateway or memory.
               - Effect: Allow
                 Action:
                   - bedrock-agentcore:AllowVendedLogDeliveryForResource
-                Resource: '*'
-              # X-Ray destination permissions (workshop's deploy_observability.py runs
-              # as Admin, which has these implicitly; our Lambda needs them explicit)
+                Resource:
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:memory/*
+              # An X-Ray delivery destination needs the X-Ray resource policy; these
+              # actions have no resource-level permissions.
               - Effect: Allow
                 Action:
                   - xray:PutResourcePolicy
                   - xray:GetResourcePolicy
                   - xray:DeleteResourcePolicy
                   - xray:ListResourcePolicies
-                  - xray:PutTraceSegments
-                  - xray:GetTraceSummaries
                 Resource: '*'
 
   TracesSetupFunction:
@@ -1187,8 +1493,28 @@ Resources:
     Type: AWS::BedrockAgentCore::Memory
     Properties:
       Name: unicorn_rental_agent_memory
-      Description: Short-term conversation memory for unicorn rental analytics agent
+      Description: Conversation memory plus long-term episodes and preferences for the unicorn rental analytics agent
       EventExpiryDuration: 7
+      # Long-term memory, extracted in the background from the conversation events
+      # the agent already writes. Records are scoped per signed-in user (actorId =
+      # the JWT sub), so one user never sees another user's memory.
+      #  - Episodic: what the user asked and how it went ("checked Q3 revenue, then
+      #    drilled into the top breed"), with reflections across episodes.
+      #  - User preference: stable likes ("prefers charts", "reports in SGD").
+      MemoryStrategies:
+        - EpisodicMemoryStrategy:
+            Name: analytics_episodes
+            Description: Past analytics tasks per user and what worked
+            Namespaces:
+              - /analytics/{actorId}/episodes/{sessionId}
+            ReflectionConfiguration:
+              Namespaces:
+                - /analytics/{actorId}/episodes
+        - UserPreferenceMemoryStrategy:
+            Name: analytics_preferences
+            Description: Stable reporting preferences per user
+            Namespaces:
+              - /analytics/{actorId}/preferences
 
   # ===== UNCOMMENT FROM HERE (Step 8: Bedrock Guardrail) ======
 
@@ -1283,8 +1609,12 @@ Resources:
                 Action:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
-                  - bedrock:ApplyGuardrail
-                Resource: '*'
+                Resource:
+                  - arn:aws:bedrock:*::foundation-model/*
+                  - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+              - Effect: Allow
+                Action: bedrock:ApplyGuardrail
+                Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:guardrail/*
               - Effect: Allow
                 Action:
                   - bedrock-agentcore:CreateEvent
@@ -1298,7 +1628,10 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:GetObject
-                Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/*
+                # The chart PNGs only. The bucket also holds the raw dataset,
+                # and charts are presigned with this role.
+                Resource:
+                  - !Sub arn:aws:s3:::${ArtifactsBucket}/charts/*
               # Chart code interpreter: the runtime role must be allowed to START
               # and drive sessions on the custom CI (the CI's OWN execution role only
               # governs what the sandbox can do once running — it does NOT grant the
@@ -1320,7 +1653,8 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: '*'
+                # Only this service's own log groups.
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/*
               # Observability: the agent runs under opentelemetry-instrument (see the
               # Dockerfile CMD) and exports spans to the AgentCore-provided OTLP
               # collector, which delivers to X-Ray / CloudWatch Transaction Search.
@@ -1357,6 +1691,11 @@ Resources:
   #============================================================================
   AgentECRRepo:
     Type: AWS::ECR::Repository
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_136
+            comment: AES-256 at rest (ECR default). A KMS key forces replacement of this named repository on existing stacks.
     Properties:
       RepositoryName: !Sub ${EnvironmentName}-agent
       # Let delete-stack remove the repo even though CodeBuild pushed images into it
@@ -1364,7 +1703,9 @@ Resources:
       # the voice ECR repo in voice-agentcore-stack.yaml).
       EmptyOnDelete: true
       ImageScanningConfiguration:
-        ScanOnPush: false
+        ScanOnPush: true
+      # Images are encrypted at rest with AES-256 (ECR default). A KMS key would force a
+      # repository replacement on existing stacks and adds no control in a single-account sample.
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
 
@@ -1392,7 +1733,8 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: '*'
+                # Only this service's own log groups.
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -1557,7 +1899,7 @@ Resources:
   # the PNG to s3://${ArtifactsBucket}/charts/ and print only the S3 key. A CUSTOM
   # interpreter is required because the default aws.codeinterpreter.v1 has NO
   # execution role and therefore cannot reach S3. The agent then presigns the key
-  # for the UI (its runtime role already has s3:GetObject on the bucket).
+  # for the UI (its runtime role has s3:GetObject on charts/*).
   #============================================================================
   ChartCodeInterpreterRole:
     Type: AWS::IAM::Role
@@ -1584,7 +1926,8 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: '*'
+                # Only this service's own log groups.
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/*
 
   ChartCodeInterpreter:
     Type: AWS::BedrockAgentCore::CodeInterpreterCustom
@@ -1637,8 +1980,15 @@ Resources:
                   - bedrock:ListFoundationModelAgreementOffers
                   - bedrock:CreateFoundationModelAgreement
                   - aws-marketplace:ViewSubscriptions
-                  - aws-marketplace:Subscribe
                 Resource: '*'
+              # Subscribe only through Bedrock's model-agreement flow, so this role can
+              # accept a Bedrock model's Marketplace offer and nothing else.
+              - Effect: Allow
+                Action: aws-marketplace:Subscribe
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:CalledViaLast: bedrock.amazonaws.com
 
   ModelSubscriptionFunction:
     Type: AWS::Lambda::Function
@@ -1662,7 +2012,7 @@ Resources:
               if event['RequestType'] == 'Delete':
                   send(event, context, 'SUCCESS'); return
               try:
-                  # ModelIds: comma-separated BASE model ids (e.g. anthropic.claude-sonnet-4-6),
+                  # ModelIds: comma-separated BASE model ids (e.g. anthropic.claude-sonnet-5-5),
                   # NOT the global./us. inference-profile ids.
                   ids = [m.strip() for m in event['ResourceProperties'].get('ModelIds','').split(',') if m.strip()]
                   br = boto3.client('bedrock')
@@ -1694,8 +2044,9 @@ Resources:
       - ModelSubscriptionFunction
     Properties:
       ServiceToken: !GetAtt ModelSubscriptionFunction.Arn
-      # Base model id behind the global.anthropic.claude-opus-4-6-v1 inference profile.
-      ModelIds: anthropic.claude-opus-4-6-v1
+      # Base model ids behind the global.* inference profiles the agent may use
+      # (AgentModelId choices + Haiku 5.5 for light tasks). Idempotent, best-effort.
+      ModelIds: anthropic.claude-sonnet-5-5,anthropic.claude-opus-5-5,anthropic.claude-haiku-5-5,anthropic.claude-opus-4-6-v1
 
   AgentRuntime:
     Type: AWS::BedrockAgentCore::Runtime
@@ -1717,32 +2068,32 @@ Resources:
           ContainerUri: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-agent:${AgentImageTag}
       NetworkConfiguration:
         NetworkMode: PUBLIC
-      # JWT-native inbound auth: callers (SPA + voice bot) present the signed-in
-      # user's Cognito ACCESS token as `Authorization: Bearer`. The runtime validates
-      # signature/issuer/client_id before invoking the agent — replacing IAM/SigV4.
-      # Cognito access tokens carry no 'aud', so we validate on client_id (AllowedClients),
-      # matching the Gateway authorizer above. The request-header allowlist passes the
-      # Authorization header through so the agent can read claims (context.request_headers).
-      AuthorizerConfiguration:
-        CustomJWTAuthorizer:
-          DiscoveryUrl:
-            Fn::Sub:
-              - https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}/.well-known/openid-configuration
-              - PoolId:
-                  Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
-          AllowedClients:
-            - Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+      # Inbound auth. Before Step 7c the runtime checks the user's Cognito JWT itself
+      # (callers send it as Authorization: Bearer). With the front door on, the runtime
+      # switches to IAM auth: AgentRuntimeResourcePolicy lets only the front door's role
+      # call it, and the gateway forwards the user's JWT in the custom user-token header.
+      AuthorizerConfiguration: !If
+        - FrontDoorEnabled
+        - !Ref AWS::NoValue
+        - CustomJWTAuthorizer:
+              DiscoveryUrl:
+                Fn::Sub:
+                  - https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}/.well-known/openid-configuration
+                  - PoolId:
+                      Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+              AllowedClients:
+                - Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
       RequestHeaderConfiguration:
-        RequestHeaderAllowlist:
-          - Authorization
+        RequestHeaderAllowlist: !If
+          - FrontDoorEnabled
+          - [X-Amzn-Bedrock-AgentCore-Runtime-Custom-User-Token]
+          - [Authorization]
       EnvironmentVariables:
         GATEWAY_URL: !GetAtt Gateway.GatewayUrl
         AWS_REGION: !Ref AWS::Region
-        # Opus 4.6: Opus 4.8/4.7 require account Containment Score >=350 to invoke
-        # (a gate separate from model access); fresh Workshop Studio sandbox accounts
-        # start below that, so 4.8 is AccessDenied for participants. 4.6-v1 has no
-        # C-Score gate and works in every fresh account.
-        BEDROCK_MODEL_ID: global.anthropic.claude-opus-4-6-v1
+        # Model comes from the AgentModelId parameter (default Sonnet 5.5). Its base model
+        # agreement is accepted by the ModelSubscription custom resource above.
+        BEDROCK_MODEL_ID: !Ref AgentModelId
         BYPASS_TOOL_CONSENT: 'true'
         # --- Observability (OTEL → CloudWatch Transaction Search / aws/spans) ---
         # These activate the ADOT distro the image installs; the AgentCore Runtime
@@ -1760,10 +2111,14 @@ Resources:
         GUARDRAIL_ID: ''        # Step 8: replace '' with  !Ref Guardrail
         GUARDRAIL_VERSION: ''   # Step 8: replace '' with  'DRAFT'
         MEMORY_ID: !GetAtt AgentMemory.MemoryId
-        SOP_S3_BUCKET: !Ref ArtifactsBucket
+        # The agent verifies the user token (memory is scoped to its sub).
+        COGNITO_USER_POOL_ID: {'Fn::ImportValue': !Sub '${EnvironmentName}-UserPoolId'}
+        COGNITO_USER_LOGIN_CLIENT_ID: {'Fn::ImportValue': !Sub '${EnvironmentName}-UserLoginClientId'}
+        # No SOP_S3_BUCKET here: nothing uploads a SOP to this bucket in the
+        # workshop, so the agent uses the SOP baked into the image (`make build`).
         # Charts: the agent renders matplotlib PNGs in the custom Code Interpreter
         # below (which can write to S3), then presigns the key for the UI. The agent
-        # role already has s3:GetObject on the bucket, so it can presign.
+        # role has s3:GetObject on charts/*, so it can presign them.
         ENABLE_CHART_TOOL: 'true'
         CHART_CI_ID: !GetAtt ChartCodeInterpreter.CodeInterpreterId
         CHART_BUCKET: !Ref ArtifactsBucket
@@ -1780,7 +2135,529 @@ Resources:
       Name: agentic_analytics_endpoint
       Description: Production endpoint for Agentic Analytics agent
 
+  #============================================================================
+  # Front door (Step 7c): AgentCore Gateway in front of the runtime, with AWS WAF
+  # Created only when EnableFrontDoor=true (`make deploy FRONT_DOOR=true`).
+  #
+  #   UI / voice bot --JWT--> FrontDoorGateway (Cognito JWT authorizer, WAF,
+  #   per-user rate limit) --SigV4 as FrontDoorGatewayRole--> AgentRuntime
+  #
+  # The runtime uses IAM auth and its resource policy denies every principal except
+  # the front door's role, so the WAF and rate limit cannot be bypassed by calling
+  # the runtime directly. The gateway has no ProtocolType: that makes it an HTTP
+  # gateway, which is the kind that can carry a runtime target (an MCP gateway cannot).
+  #============================================================================
+  FrontDoorGatewayRole:
+    Condition: FrontDoorEnabled
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-frontdoor-gateway-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*
+      Policies:
+        - PolicyName: InvokeAgentRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: bedrock-agentcore:InvokeAgentRuntime
+                Resource:
+                  - !GetAtt AgentRuntime.AgentRuntimeArn
+                  - !Sub ${AgentRuntime.AgentRuntimeArn}/*
+
+  FrontDoorGateway:
+    Condition: FrontDoorEnabled
+    Type: AWS::BedrockAgentCore::Gateway
+    Properties:
+      Name: !Sub ${EnvironmentName}-frontdoor
+      Description: Public entry point to the agent runtime (JWT auth, WAF, per-user rate limit)
+      RoleArn: !GetAtt FrontDoorGatewayRole.Arn
+      AuthorizerType: CUSTOM_JWT
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl:
+            Fn::Sub:
+              - https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}/.well-known/openid-configuration
+              - PoolId:
+                  Fn::ImportValue: !Sub '${EnvironmentName}-UserPoolId'
+          AllowedClients:
+            - Fn::ImportValue: !Sub '${EnvironmentName}-UserLoginClientId'
+
+  AgentRuntimeResourcePolicy:
+    Condition: FrontDoorEnabled
+    Type: AWS::BedrockAgentCore::ResourcePolicy
+    Properties:
+      ResourceArn: !GetAtt AgentRuntime.AgentRuntimeArn
+      Policy: !Sub |
+        {"Version": "2012-10-17", "Statement": [
+          {"Sid": "AllowFrontDoorGateway", "Effect": "Allow",
+           "Principal": {"AWS": "${FrontDoorGatewayRole.Arn}"},
+           "Action": "bedrock-agentcore:InvokeAgentRuntime",
+           "Resource": "${AgentRuntime.AgentRuntimeArn}"},
+          {"Sid": "DenyEveryoneElse", "Effect": "Deny",
+           "Principal": {"AWS": "*"},
+           "Action": "bedrock-agentcore:InvokeAgentRuntime",
+           "Resource": "${AgentRuntime.AgentRuntimeArn}",
+           "Condition": {"ArnNotEquals": {"aws:PrincipalArn": "${FrontDoorGatewayRole.Arn}"}}}]}
+
+  FrontDoorAgentTarget:
+    Condition: FrontDoorEnabled
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    DependsOn: AgentRuntimeResourcePolicy
+    Properties:
+      GatewayIdentifier: !GetAtt FrontDoorGateway.GatewayIdentifier
+      Name: agent
+      Description: The analytics agent runtime
+      TargetConfiguration:
+        Http:
+          AgentcoreRuntime:
+            Arn: !GetAtt AgentRuntime.AgentRuntimeArn
+            Qualifier: DEFAULT
+      CredentialProviderConfigurations:
+        - CredentialProviderType: GATEWAY_IAM_ROLE
+      # Forward the user's token and the app's session id. Without the session-id
+      # header the gateway would pick its own, and text and voice turns would stop
+      # sharing one memory thread.
+      MetadataConfiguration:
+        AllowedRequestHeaders:
+          - X-Amzn-Bedrock-AgentCore-Runtime-Custom-User-Token
+          - X-Amzn-Bedrock-AgentCore-Runtime-Session-Id
+
+  FrontDoorRateLimit:
+    Condition: FrontDoorEnabled
+    Type: AWS::BedrockAgentCore::GatewayRateLimit
+    Properties:
+      GatewayIdentifier: !GetAtt FrontDoorGateway.GatewayIdentifier
+      Description: Requests per minute per signed-in user
+      DimensionKeys: ['$.context.jwt.sub']
+      Entries:
+        - Dimensions:
+            '$.context.jwt.sub': '*'
+          Requests:
+            - Rate: !Ref FrontDoorRequestsPerMinute
+              Period: minute
+
+  # The Gateway resource's own WebAclArn property is not applied by CloudFormation
+  # today, so the web ACL is attached with an explicit association.
+  FrontDoorWebAcl:
+    Condition: FrontDoorEnabled
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub ${EnvironmentName}-frontdoor
+      Scope: REGIONAL
+      Description: Front-door protection for the agent runtime
+      DefaultAction:
+        Allow: {}
+      CustomResponseBodies:
+        Blocked:
+          ContentType: APPLICATION_JSON
+          Content: '{"success":false,"error":"Request blocked by WAF"}'
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub ${EnvironmentName}-frontdoor
+      Rules:
+        - Name: RatePerIp
+          Priority: 0
+          Action:
+            Block:
+              CustomResponse: {ResponseCode: 429, CustomResponseBodyKey: Blocked}
+          Statement:
+            RateBasedStatement:
+              Limit: 300
+              EvaluationWindowSec: 300
+              AggregateKeyType: IP
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: rate-per-ip}
+        - Name: IpReputation
+          Priority: 1
+          OverrideAction: {None: {}}
+          Statement:
+            ManagedRuleGroupStatement: {VendorName: AWS, Name: AWSManagedRulesAmazonIpReputationList}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: ip-reputation}
+        - Name: KnownBadInputs
+          Priority: 2
+          OverrideAction: {None: {}}
+          Statement:
+            ManagedRuleGroupStatement: {VendorName: AWS, Name: AWSManagedRulesKnownBadInputsRuleSet}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: known-bad-inputs}
+        - Name: CommonRules
+          Priority: 3
+          OverrideAction: !If [WafBodyRulesBlock, {None: {}}, {Count: {}}]
+          Statement:
+            ManagedRuleGroupStatement: {VendorName: AWS, Name: AWSManagedRulesCommonRuleSet}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: common-rules}
+        - Name: SqlInjection
+          Priority: 4
+          OverrideAction: !If [WafBodyRulesBlock, {None: {}}, {Count: {}}]
+          Statement:
+            ManagedRuleGroupStatement: {VendorName: AWS, Name: AWSManagedRulesSQLiRuleSet}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: sql-injection}
+
+  FrontDoorWebAclAssociation:
+    Condition: FrontDoorEnabled
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !GetAtt FrontDoorGateway.GatewayArn
+      WebACLArn: !GetAtt FrontDoorWebAcl.Arn
+
+
+  # ===== UNCOMMENT FROM HERE (Step 10: online evaluation) ======
+#   #============================================================================
+#   # Online evaluation (AgentCore Evaluations)
+#   #
+#   # Samples finished conversations from the runtime's spans and scores them with
+#   # built-in evaluators. Scores land in a results log group and as CloudWatch
+#   # metrics (namespace Bedrock-AgentCore/Evaluations), so quality can be watched
+#   # and alarmed on like latency or errors.
+#   #============================================================================
+#   EvaluationRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal:
+#               Service: bedrock-agentcore.amazonaws.com
+#             Action: sts:AssumeRole
+#             Condition:
+#               StringEquals:
+#                 aws:SourceAccount: !Ref AWS::AccountId
+#       Policies:
+#         - PolicyName: ReadSpansAndScore
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               # DescribeLogGroups is a list call: scoped to a log group, CreateOnlineEvaluationConfig
+#               # fails with "execution role does not have permissions to access the specified log groups".
+#               - Effect: Allow
+#                 Action: logs:DescribeLogGroups
+#                 Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+#               - Effect: Allow
+#                 Action:
+#                   - logs:StartQuery
+#                   - logs:GetQueryResults
+#                   - logs:StopQuery
+#                 Resource:
+#                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/*
+#                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:aws/spans*
+#               - Effect: Allow
+#                 Action:
+#                   - logs:CreateLogGroup
+#                   - logs:CreateLogStream
+#                   - logs:PutLogEvents
+#                 Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/evaluations/*
+#               - Effect: Allow
+#                 Action: cloudwatch:PutMetricData
+#                 Resource: '*'
+#                 Condition:
+#                   StringEquals:
+#                     cloudwatch:namespace: Bedrock-AgentCore/Evaluations
+#               - Effect: Allow
+#                 Action:
+#                   - bedrock:InvokeModel
+#                   - bedrock:InvokeModelWithResponseStream
+#                 Resource:
+#                   - arn:aws:bedrock:*::foundation-model/*
+#                   - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*
+#
+#   OnlineEvaluation:
+#     Type: AWS::BedrockAgentCore::OnlineEvaluationConfig
+#     DependsOn: AgentRuntimeEndpoint
+#     Properties:
+#       OnlineEvaluationConfigName: unicorn_rental_online_eval
+#       # Without this the config is created paused (executionStatus DISABLED) and scores nothing.
+#       ExecutionStatus: ENABLED
+#       Description: Answer quality and tool use checks on sampled analytics conversations
+#       EvaluationExecutionRoleArn: !GetAtt EvaluationRole.Arn
+#       DataSourceConfig:
+#         CloudWatchLogs:
+#           # An exact name, not LogGroupNamePrefixes: with a prefix the config is created but every
+#           # scheduled run fails with "log group name prefixes could not be queried". The runtime
+#           # creates this group with its DEFAULT endpoint, before the endpoint this resource waits on.
+#           LogGroupNames:
+#             - !Sub /aws/bedrock-agentcore/runtimes/${AgentRuntime.AgentRuntimeId}-DEFAULT
+#           ServiceNames:
+#             - agentic_analytics_agent.DEFAULT
+#       Rule:
+#         SamplingConfig:
+#           SamplingPercentage: 10
+#         SessionConfig:
+#           SessionTimeoutMinutes: 15
+#       Evaluators:
+#         - EvaluatorId: Builtin.Correctness
+#         - EvaluatorId: Builtin.Faithfulness
+#         - EvaluatorId: Builtin.Helpfulness
+#         - EvaluatorId: Builtin.ToolSelectionAccuracy
+#         - EvaluatorId: Builtin.GoalSuccessRate
+  # ===== UNCOMMENT TO HERE (Step 10) ======
+
+  # ===== UNCOMMENT FROM HERE (Step 11: schema change pipeline) ======
+#   #============================================================================
+#   # Step 11: schema change pipeline
+#   #
+#   # Snapshot the Postgres catalog, diff it with the last published one, describe
+#   # what changed with the agent's model, wait for approval when a change can break
+#   # queries, then publish Glue descriptions and one KB card per table or view.
+#   # A tenant table (it has account_id) without row-level security stops the run.
+#   # Runs after every Glue crawler success. Needs Step 4 (psycopg2 layer).
+#   #============================================================================
+#   SchemaSyncRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       RoleName: !Sub ${EnvironmentName}-schema-sync-role
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal: { Service: lambda.amazonaws.com }
+#             Action: sts:AssumeRole
+#       ManagedPolicyArns:
+#         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+#       Policies:
+#         - PolicyName: SchemaSync
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               - Effect: Allow
+#                 Action: secretsmanager:GetSecretValue
+#                 Resource: {'Fn::ImportValue': !Sub '${EnvironmentName}-DatabaseSecretArn'}
+#               - Effect: Allow
+#                 Action: [s3:GetObject, s3:PutObject]
+#                 Resource: !Sub arn:aws:s3:::${ArtifactsBucket}/${ArtifactsPrefix}schema/*
+#               - Effect: Allow
+#                 Action: s3:ListBucket
+#                 Resource: !Sub arn:aws:s3:::${ArtifactsBucket}
+#                 Condition:
+#                   StringLike: { 's3:prefix': !Sub '${ArtifactsPrefix}schema/*' }
+#               - Effect: Allow
+#                 Action: [s3:PutObject, s3:DeleteObject]
+#                 Resource: !Sub
+#                   - arn:aws:s3:::${Bucket}/docs/schema/*
+#                   - Bucket: {'Fn::ImportValue': !Sub '${EnvironmentName}-KBDocsBucketName'}
+#               - Effect: Allow
+#                 Action: [glue:GetTable, glue:UpdateTable, glue:CreateTable, glue:DeleteTable]
+#                 Resource:
+#                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+#                   - !Sub
+#                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${Db}
+#                     - Db: {'Fn::ImportValue': !Sub '${EnvironmentName}-GlueDatabaseName'}
+#                   - !Sub
+#                     - arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${Db}/*
+#                     - Db: {'Fn::ImportValue': !Sub '${EnvironmentName}-GlueDatabaseName'}
+#               - Effect: Allow
+#                 Action: bedrock:InvokeModel
+#                 Resource:
+#                   - !Sub arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/${AgentModelId}
+#                   - !Sub
+#                     - arn:aws:bedrock:*::foundation-model/${BaseModel}*
+#                     - BaseModel: !Select [1, !Split ['global.', !Ref AgentModelId]]
+#               - Effect: Allow
+#                 Action: bedrock:StartIngestionJob
+#                 Resource: !Sub
+#                   - arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${Kb}
+#                   - Kb: {'Fn::ImportValue': !Sub '${EnvironmentName}-KnowledgeBaseId'}
+#               - Effect: Allow
+#                 Action: events:PutEvents
+#                 Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+#
+#   SchemaSyncFunction:
+#     Type: AWS::Lambda::Function
+#     Properties:
+#       FunctionName: !Sub ${EnvironmentName}-schema-sync
+#       Description: Schema change pipeline steps (snapshot, describe, hold, publish)
+#       Runtime: python3.12
+#       Handler: schema_sync_lambda.lambda_handler
+#       Role: !GetAtt SchemaSyncRole.Arn
+#       Timeout: 300
+#       MemorySize: 512
+#       ReservedConcurrentExecutions: 2
+#       Layers: [!If [NeedsPsycopg2Layer, !Ref Psycopg2Layer, !Ref Psycopg2LayerArn]]
+#       Code:
+#         S3Bucket: !Ref ArtifactsBucket
+#         S3Key: !Sub ${ArtifactsPrefix}lambdas/schema_sync.zip
+#       VpcConfig:
+#         SubnetIds:
+#           - {'Fn::ImportValue': !Sub '${EnvironmentName}-PrivateSubnet1Id'}
+#           - {'Fn::ImportValue': !Sub '${EnvironmentName}-PrivateSubnet2Id'}
+#         SecurityGroupIds:
+#           - {'Fn::ImportValue': !Sub '${EnvironmentName}-LambdaSecurityGroupId'}
+#       Environment:
+#         Variables:
+#           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+#           SCHEMA_PREFIX: !Sub ${ArtifactsPrefix}schema/
+#           KB_DOCS_BUCKET: {'Fn::ImportValue': !Sub '${EnvironmentName}-KBDocsBucketName'}
+#           KNOWLEDGE_BASE_ID: {'Fn::ImportValue': !Sub '${EnvironmentName}-KnowledgeBaseId'}
+#           KB_DATA_SOURCE_ID: {'Fn::ImportValue': !Sub '${EnvironmentName}-KnowledgeBaseDataSourceId'}
+#           GLUE_DATABASE: {'Fn::ImportValue': !Sub '${EnvironmentName}-GlueDatabaseName'}
+#           AURORA_DATABASE: timely_unicorn
+#           AURORA_ENDPOINT: {'Fn::ImportValue': !Sub '${EnvironmentName}-AuroraClusterEndpoint'}
+#           DB_SECRET_ARN: {'Fn::ImportValue': !Sub '${EnvironmentName}-DatabaseSecretArn'}
+#           DESCRIBE_MODEL_ID: !Ref AgentModelId
+#
+#   StateMachineRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal: { Service: states.amazonaws.com }
+#             Action: sts:AssumeRole
+#       Policies:
+#         - PolicyName: InvokeSchemaSync
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               - Effect: Allow
+#                 Action: lambda:InvokeFunction
+#                 Resource: !GetAtt SchemaSyncFunction.Arn
+#
+#   SchemaSyncStateMachine:
+#     Type: AWS::StepFunctions::StateMachine
+#     Properties:
+#       StateMachineName: !Sub ${EnvironmentName}-schema-sync
+#       RoleArn: !GetAtt StateMachineRole.Arn
+#       Definition:
+#         Comment: Detect schema changes, describe them, ask for approval when they break things, publish.
+#         StartAt: Snapshot
+#         States:
+#           Snapshot:
+#             Type: Task
+#             Resource: arn:aws:states:::lambda:invoke
+#             Parameters:
+#               FunctionName: !GetAtt SchemaSyncFunction.Arn
+#               Payload:
+#                 action: snapshot
+#                 input.$: $
+#             OutputPath: $.Payload
+#             Next: Classify
+#           Classify:
+#             Type: Choice
+#             Choices:
+#               - Variable: $.severity
+#                 StringEquals: blocked
+#                 Next: BlockedNoRowLevelSecurity
+#               - Variable: $.severity
+#                 StringEquals: none
+#                 Next: NothingToPublish
+#             Default: Describe
+#           Describe:
+#             Type: Task
+#             Resource: arn:aws:states:::lambda:invoke
+#             Parameters:
+#               FunctionName: !GetAtt SchemaSyncFunction.Arn
+#               Payload:
+#                 action: describe
+#                 run_id.$: $.run_id
+#                 snapshot_key.$: $.snapshot_key
+#                 baseline.$: $.baseline
+#                 severity.$: $.severity
+#                 changes.$: $.changes
+#                 summary.$: $.summary
+#             OutputPath: $.Payload
+#             Next: NeedsApproval
+#           NeedsApproval:
+#             Type: Choice
+#             Choices:
+#               - Variable: $.severity
+#                 StringEquals: breaking
+#                 Next: WaitForApproval
+#             Default: Publish
+#           WaitForApproval:
+#             Type: Task
+#             Resource: arn:aws:states:::lambda:invoke.waitForTaskToken
+#             TimeoutSeconds: 86400
+#             Parameters:
+#               FunctionName: !GetAtt SchemaSyncFunction.Arn
+#               Payload:
+#                 action: hold
+#                 task_token.$: $$.Task.Token
+#                 run_id.$: $.run_id
+#                 summary.$: $.summary
+#                 changes.$: $.changes
+#             ResultPath: $.approval
+#             Next: Publish
+#           Publish:
+#             Type: Task
+#             Resource: arn:aws:states:::lambda:invoke
+#             Parameters:
+#               FunctionName: !GetAtt SchemaSyncFunction.Arn
+#               Payload:
+#                 action: publish
+#                 run_id.$: $.run_id
+#                 snapshot_key.$: $.snapshot_key
+#                 severity.$: $.severity
+#                 changes.$: $.changes
+#                 descriptions.$: $.descriptions
+#             OutputPath: $.Payload
+#             # A KB data source runs one ingestion job at a time. If the previous run's job is
+#             # still going, StartIngestionJob raises ConflictException; Publish is idempotent
+#             # (current.json is written last), so wait and run it again.
+#             Retry:
+#               - ErrorEquals: [ConflictException]
+#                 IntervalSeconds: 30
+#                 BackoffRate: 1.5
+#                 MaxAttempts: 8
+#             End: true
+#           NothingToPublish:
+#             Type: Succeed
+#           BlockedNoRowLevelSecurity:
+#             Type: Fail
+#             Error: TenantTableWithoutRowLevelSecurity
+#             Cause: A tenant table (it has account_id) has no row-level security policy. Add RLS, then run the pipeline again.
+#
+#   EventsRole:
+#     Type: AWS::IAM::Role
+#     Properties:
+#       AssumeRolePolicyDocument:
+#         Version: '2012-10-17'
+#         Statement:
+#           - Effect: Allow
+#             Principal: { Service: events.amazonaws.com }
+#             Action: sts:AssumeRole
+#       Policies:
+#         - PolicyName: StartSchemaSync
+#           PolicyDocument:
+#             Version: '2012-10-17'
+#             Statement:
+#               - Effect: Allow
+#                 Action: states:StartExecution
+#                 Resource: !Ref SchemaSyncStateMachine
+#
+#   CrawlerSucceededRule:
+#     Type: AWS::Events::Rule
+#     Properties:
+#       Description: Run the schema pipeline after the Glue crawler finishes
+#       EventPattern:
+#         source: [aws.glue]
+#         detail-type: [Glue Crawler State Change]
+#         detail:
+#           crawlerName:
+#             - {'Fn::ImportValue': !Sub '${EnvironmentName}-GlueCrawlerName'}
+#           state: [Succeeded]
+#       Targets:
+#         - Id: schema-sync
+#           Arn: !Ref SchemaSyncStateMachine
+#           RoleArn: !GetAtt EventsRole.Arn
+  # ===== UNCOMMENT TO HERE (Step 11) ======
+
 Outputs:
+  FrontDoorUrl:
+    Condition: FrontDoorEnabled
+    Description: Front-door gateway URL; the UI and voice bot POST to <FrontDoorUrl>/agent/invocations
+    Value: !GetAtt FrontDoorGateway.GatewayUrl
+
   GatewayId:
     Description: AgentCore Gateway ID
     Value: !GetAtt Gateway.GatewayIdentifier

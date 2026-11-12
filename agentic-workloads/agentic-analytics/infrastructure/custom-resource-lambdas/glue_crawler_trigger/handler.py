@@ -157,7 +157,8 @@ def send_cfn_response(event, context, status, data=None, reason=None):
 
 def lambda_handler(event, context):
     """Lambda handler for both CFN Custom Resource and direct invocation."""
-    print(f"Event: {json.dumps(event)}")
+    # The event holds a presigned ResponseURL; log only what identifies the request.
+    print(f"Event: {event.get('RequestType')} {event.get('LogicalResourceId')}")
     
     is_cfn = 'RequestType' in event and 'ResponseURL' in event
     

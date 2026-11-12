@@ -29,9 +29,13 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 REGION="${AWS_REGION:-us-west-2}"
 ENV_NAME="${ENV_NAME:-agentic-analytics}"
 MAIN_STACK="${MAIN_STACK:-agentic-analytics-demo}"
-ARTIFACTS_BUCKET="${ARTIFACTS_BUCKET:-agentic-analytics-artifacts}"
+ARTIFACTS_BUCKET="${ARTIFACTS_BUCKET:?Set ARTIFACTS_BUCKET to your own artifacts bucket, for example agentic-analytics-<account-id>}"
 AGENT_NAME="${PCC_AGENT:-voice-analytics-agent}"
 PROXY_STACK="${PROXY_STACK:-${ENV_NAME}-voice-proxy}"
+# Refuse to package into a bucket this account does not own (bucket-squatting guard).
+aws s3api head-bucket --bucket "$ARTIFACTS_BUCKET" \
+  --expected-bucket-owner "$(aws sts get-caller-identity --query Account --output text)" >/dev/null \
+  || { echo "ERROR: $ARTIFACTS_BUCKET does not exist or is not owned by this account" >&2; exit 1; }
 
 for v in PCC_PAT PCC_PUBLIC_KEY PCC_PRIVATE_KEY DEEPGRAM_API_KEY DAILY_API_KEY; do
   [ -n "${!v:-}" ] || { echo "ERROR: $v is required"; exit 1; }
@@ -68,6 +72,9 @@ if [ -z "$AGENT_ARN" ] || [ "$AGENT_ARN" = "None" ]; then
     AGENT_ARN="$(aws bedrock-agentcore-control get-agent-runtime --agent-runtime-id "$AGENT_RT_ID" --region "$REGION" --query 'agentRuntimeArn' --output text 2>/dev/null)"
 fi
 [ -n "$AGENT_ARN" ] && [ "$AGENT_ARN" != "None" ] || { echo "ERROR: could not resolve analytics AgentRuntimeArn from $MAIN_STACK"; exit 1; }
+FRONTDOOR_URL="$(aws cloudformation describe-stacks --stack-name "$AGENTCORE_STACK" --region "$REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='FrontDoorUrl'].OutputValue" --output text 2>/dev/null)"
+[ "$FRONTDOOR_URL" = "None" ] && FRONTDOOR_URL=""
 
 echo "==> 1/5 PCC secret set (Deepgram/Daily keys on Pipecat's side)"
 # The Pipecat Cloud CLI ships as the 'cloud' extension of the 'pipecat' CLI
@@ -80,7 +87,7 @@ PATH="$ROOT/app/voice/.venv/bin:$PATH" PIPECAT_TOKEN="$PCC_PAT" \
     DEEPGRAM_API_KEY="$DEEPGRAM_API_KEY" DAILY_API_KEY="$DAILY_API_KEY" \
     DEEPGRAM_VOICE_ID="${DEEPGRAM_VOICE_ID:-aura-2-apollo-en}" \
     AWS_REGION="$REGION" COGNITO_CLIENT_ID="$CLIENT_ID" \
-    AWS_AGENT_ARN="$AGENT_ARN" \
+    AWS_AGENT_ARN="$AGENT_ARN" AWS_AGENT_FRONTDOOR_URL="$FRONTDOOR_URL" \
     AWS_AGENT_QUALIFIER="${AGENT_QUALIFIER:-agentic_analytics_endpoint}" \
     CHART_BUCKET="$ARTIFACTS_BUCKET" >/dev/null
 echo "    secret set ready (analytics runtime: $AGENT_ARN)"
@@ -95,7 +102,7 @@ PCC_API_KEY="$PCC_PRIVATE_KEY" MIN_AGENTS="${MIN_AGENTS:-0}" AWS_REGION="$REGION
 echo "==> 3/5 JWT start proxy (API Gateway + Cognito authorizer)"
 ( cd "$ROOT/infrastructure/voice-proxy"
   rm -rf build && mkdir -p build && cp index.py build/
-  pip3 install --quiet --target build "python-jose[cryptography]==3.3.0" 2>/dev/null
+  pip3 install --quiet --target build "python-jose[cryptography]==3.5.0" 2>/dev/null
   aws cloudformation package --template-file voice-proxy-stack.yaml \
     --s3-bucket "$ARTIFACTS_BUCKET" --s3-prefix voice-proxy --region "$REGION" \
     --output-template-file build/packaged.yaml >/dev/null

@@ -160,9 +160,15 @@ const MarkdownContent = ({ children }) => (
       h2: ({ node, ...props }) => <Typography variant="subtitle1" sx={{ mt: 1, mb: 0.5, fontWeight: 600 }} {...props} />,
       h3: ({ node, ...props }) => <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5, fontWeight: 600 }} {...props} />,
       li: ({ node, ordered, ...props }) => <li style={{ marginBottom: 2, fontSize: '0.875rem' }} {...props} />,
-      code: ({ node, inline, ...props }) => inline
-        ? <code style={{ backgroundColor: '#1e1e1e', padding: '2px 4px', borderRadius: 3, fontSize: '0.8rem' }} {...props} />
-        : <pre style={{ backgroundColor: '#1e1e1e', padding: 8, borderRadius: 4, overflowX: 'auto', fontSize: '0.8rem' }}><code {...props} /></pre>,
+      // react-markdown 9 has no `inline` prop: a fenced block has a language class or
+      // a newline; anything else is inline (e.g. `bookings.total_revenue` in a sentence).
+      pre: ({ children }) => <>{children}</>,
+      code: ({ node, className, children, ...props }) => {
+        const block = /language-/.test(className || '') || String(children).includes('\n');
+        return block
+          ? <pre style={{ backgroundColor: '#1e1e1e', color: '#d4d4d4', padding: 8, borderRadius: 4, overflowX: 'auto', fontSize: '0.8rem' }}><code className={className} {...props}>{children}</code></pre>
+          : <code style={{ backgroundColor: 'rgba(124, 58, 237, 0.08)', color: '#5b21b6', padding: '1px 4px', borderRadius: 3, fontSize: '0.8rem', wordBreak: 'break-word' }} {...props}>{children}</code>;
+      },
     }}
   >
     {children}
@@ -185,10 +191,10 @@ const SqlApprovalCard = ({ sql, query_plan, query_steps, explanation, textBefore
       </Paper>
       {explanation && <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{explanation}</Typography>}
       <Box sx={{ display: 'flex', gap: 1 }}>
-        <Button variant="contained" color="success" size="small" startIcon={<Check />} onClick={() => onApprove(sql)} disabled={disabled}>
+        <Button variant="contained" color="success" size="small" startIcon={<Check />} onClick={() => onApprove(sql)} disabled={disabled} aria-label="Approve and run query">
           Approve & Run
         </Button>
-        <Button variant="outlined" color="error" size="small" startIcon={<Close />} onClick={onCancel} disabled={disabled}>
+        <Button variant="outlined" color="error" size="small" startIcon={<Close />} onClick={onCancel} disabled={disabled} aria-label="Cancel query">
           Cancel
         </Button>
       </Box>

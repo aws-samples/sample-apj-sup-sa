@@ -1,0 +1,35 @@
+# AWS Automated Security Helper (ASH) v3 configuration.
+# Each suppression below was checked by hand; the reason says why it is not a finding.
+project_name: agentic-analytics
+global_settings:
+  severity_threshold: MEDIUM
+  suppressions:
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: "infrastructure/**/*.yaml"
+      reason: >-
+        Matches the word "secret" in IAM actions (secretsmanager:*), {{resolve:secretsmanager:...}}
+        dynamic references, Secret ARNs built with !Sub and Cognito GenerateSecret: false.
+        No secret value is in any template.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: "workshop/code/**/*.yaml"
+      reason: Same as the infrastructure templates (participant copy of the top-up stack).
+    - rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+      path: infrastructure/stacks/code-editor-stack.yaml
+      reason: >-
+        CUBE_RESOLVE_B64 is a base64-encoded bash helper script written to the Code Editor
+        instance at boot, not a credential.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: "*.sample*"
+      reason: Placeholder ARNs and names in sample config files.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: "**/*.sample*"
+      reason: Placeholder ARNs and names in sample config files.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: app/voice/pcc-deploy.toml
+      reason: secret_set is the name of a Pipecat Cloud secret set; the keys live in that service.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: .ash/.ash.yaml
+      reason: The reasons in this file quote the words secretsmanager and secret; there is no value.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: specs/research/pipecat-cloud-deploy-and-ui-integration.md
+      reason: Research note showing a placeholder variable name, no value.

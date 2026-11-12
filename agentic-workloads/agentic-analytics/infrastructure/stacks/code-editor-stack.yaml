@@ -128,12 +128,25 @@ Parameters:
     Default: ''
     Description: Git repo URL (optional - if empty, downloads from S3 artifacts bucket)
 
+Mappings:
+  # Managed prefix list com.amazonaws.global.cloudfront.origin-facing, per Region.
+  CloudFrontOriginFacing:
+    us-east-1:
+      PrefixListId: pl-3b927c52
+    us-west-2:
+      PrefixListId: pl-82a045eb
+
 Resources:
   #============================================================================
   # Code Editor Password Secret
   #============================================================================
   CodeEditorSecret:
     Type: AWS::SecretsManager::Secret
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Encrypted with the AWS managed key for Secrets Manager; a customer managed key adds cost and no control in a single-account sample.
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -154,16 +167,15 @@ Resources:
       GroupDescription: Code Editor EC2 security group
       VpcId: !Ref VpcId
       SecurityGroupIngress:
+        # Only CloudFront's origin-facing addresses can reach the instance, so the
+        # IDE is not exposed to the internet directly. CloudFront terminates TLS for
+        # the browser; the CloudFront-to-instance hop is HTTP inside AWS's network.
+        # For production, front the instance with an ALB (HTTPS origin) or a VPC origin.
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: 0.0.0.0/0
-          # Justification: Port 80 is open to 0.0.0.0/0 because CloudFront requires
-          # HTTP access to the EC2 origin. CloudFront does not support security group
-          # restrictions. The Code Editor is password-protected via code-server auth
-          # token embedded in the CloudFront URL. In production, use an ALB with
-          # WAF and CloudFront origin access control.
-          Description: HTTP for CloudFront origin (password-protected via code-server)
+          SourcePrefixListId: !FindInMap [CloudFrontOriginFacing, !Ref AWS::Region, PrefixListId]
+          Description: HTTP from CloudFront only (origin-facing managed prefix list)
       SecurityGroupEgress:
         - IpProtocol: tcp
           FromPort: 443
@@ -215,6 +227,30 @@ Resources:
   #============================================================================
   CodeEditorRole:
     Type: AWS::IAM::Role
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F3
+            reason: >-
+              Workshop participants deploy CloudFormation stacks (Lambda, IAM roles, AgentCore,
+              Glue, EC2) from this Code Editor instance, so the role needs service-wide actions.
+              It exists only in a single-use Workshop Studio sandbox account.
+          - id: F38
+            reason: >-
+              The stacks participants deploy create their own roles with generated names and
+              pass them to Lambda, AgentCore and Glue, so PassRole cannot be scoped to known ARNs.
+      checkov:
+        skip:
+          - id: CKV_AWS_107
+            comment: 'Participant''s workshop role: deploys every stack from Code Editor in a single-use Workshop Studio account.'
+          - id: CKV_AWS_108
+            comment: 'Participant''s workshop role: deploys every stack from Code Editor in a single-use Workshop Studio account.'
+          - id: CKV_AWS_110
+            comment: 'Participant''s workshop role: creates the roles of the stacks they deploy.'
+          - id: CKV_AWS_109
+            comment: Workshop sandbox deployment role, see cfn_nag reason.
+          - id: CKV_AWS_111
+            comment: Workshop sandbox deployment role, see cfn_nag reason.
     Properties:
       RoleName: !Sub ${EnvironmentName}-code-editor-role
       AssumeRolePolicyDocument:
@@ -226,42 +262,73 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
         - PolicyName: WorkshopPermissions
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Secrets Manager
+              # SANDBOX ONLY. This role lets a workshop participant deploy every lab
+              # stack from Code Editor in a single-use Workshop Studio account, so
+              # several services keep service-wide actions. Do not reuse it outside a
+              # disposable account; narrow each grant to the actions and ARNs you use.
+
+              # The role cannot change its own permissions or instance profile.
+              - Effect: Deny
+                Action: iam:*
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${EnvironmentName}-code-editor-role
+                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/*-CodeEditorInstanceProfile-*
+
+              # Secrets Manager: read this account's secrets (Aurora, Cube), write only
+              # the workshop's own.
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*
+              - Effect: Allow
+                Action:
                   - secretsmanager:CreateSecret
                   - secretsmanager:PutSecretValue
-                Resource: '*'
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-*
 
-              # RDS Data API
+              # RDS Data API: Step 11 runs DDL on the workshop's Aurora cluster.
               - Effect: Allow
-                Action: rds-data:*
-                Resource: '*'
+                Action:
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
+                  - rds-data:BeginTransaction
+                  - rds-data:CommitTransaction
+                  - rds-data:RollbackTransaction
+                Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${EnvironmentName}-*
 
-              # S3
+              # S3: read any bucket (the event assets bucket is not ours); write only
+              # the workshop's buckets (<env>-*) and the bedrock-agentcore-* staging bucket below.
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:ListBucket
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - s3:PutObject
                   - s3:DeleteObject
-                Resource: '*'
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-*/*
 
-              # Bedrock - Full access (Converse, InvokeModel, Guardrails, KB, etc.)
+              # Bedrock: models and inference profiles, and this account's guardrails and
+              # knowledge bases (the console steps edit the managed KB). Read calls take no ARN.
               - Effect: Allow
                 Action: bedrock:*
-                Resource: '*'
+                Resource:
+                  - arn:aws:bedrock:*::foundation-model/*
+                  - !Sub arn:aws:bedrock:*:${AWS::AccountId}:*
               - Effect: Allow
-                Action: bedrock-agent-runtime:*
+                Action:
+                  - bedrock:List*
+                  - bedrock:Get*
+                  - bedrock:PutUseCaseForModelAccess
+                  - bedrock:CreateFoundationModelAgreement
                 Resource: '*'
 
               # AWS Marketplace - Bedrock model subscription verification
@@ -271,29 +338,196 @@ Resources:
                   - aws-marketplace:Subscribe
                 Resource: '*'
 
-              # Glue
+              # Glue: this account's catalog, databases, tables and crawlers.
               - Effect: Allow
                 Action: glue:*
-                Resource: '*'
+                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:*
 
-              # Lambda - Full access for deploy scripts
+              # Lambda: the workshop's functions and layers (<env>-*, plus the Cube
+              # lab's semantic-layer-*); read-only everywhere else.
               - Effect: Allow
                 Action: lambda:*
-                Resource: '*'
-
-              # IAM - Full access for creating roles/policies
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:semantic-layer-*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:${EnvironmentName}-*
               - Effect: Allow
-                Action: iam:*
+                Action:
+                  - lambda:Get*
+                  - lambda:List*
                 Resource: '*'
 
-              # EC2 - VPC endpoints, security groups, network interfaces
+              # IAM - participants' stacks create their own roles. Every role the
+              # workshop creates is named ${EnvironmentName}-* (CloudFormation
+              # auto-names start with the stack name, which also starts with it),
+              # plus the Cube lab's semantic-layer-* role and the AgentCore starter
+              # toolkit's AmazonBedrockAgentCoreSDK* roles. Nothing else is writable.
               - Effect: Allow
-                Action: ec2:*
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:UpdateRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:UpdateRoleDescription
+                  - iam:PutRolePermissionsBoundary
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:CreatePolicy
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicy
+                  - iam:DeletePolicyVersion
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                  - iam:SetDefaultPolicyVersion
+                  - iam:TagInstanceProfile
+                  - iam:UntagInstanceProfile
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${EnvironmentName}-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/semantic-layer-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/AmazonBedrockAgentCoreSDK*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/service-role/AmazonBedrockAgentCoreSDK*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:policy/${EnvironmentName}-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/${EnvironmentName}-*
+              # Roles are passed only to the services the lab stacks use.
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${EnvironmentName}-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/semantic-layer-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/AmazonBedrockAgentCoreSDK*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/service-role/AmazonBedrockAgentCoreSDK*
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - lambda.amazonaws.com
+                      - bedrock-agentcore.amazonaws.com
+                      - bedrock.amazonaws.com
+                      - glue.amazonaws.com
+                      - codebuild.amazonaws.com
+                      - states.amazonaws.com
+                      - events.amazonaws.com
+                      - amplify.amazonaws.com
+                      - apigateway.amazonaws.com
+              # Blocks attaching the AWS admin-level managed policies to lab roles. It does
+              # not stop broad inline or customer managed policies, and created roles need no
+              # permissions boundary, so this role can reach admin-equivalent access. That is
+              # acceptable only because the Workshop Studio participant already has
+              # AdministratorAccess in this single-use account. Outside such an account, add
+              # a required permissions boundary on iam:CreateRole and the policy-writing actions.
+              - Effect: Deny
+                Action: iam:AttachRolePolicy
+                Resource: '*'
+                Condition:
+                  ArnLike:
+                    iam:PolicyARN:
+                      - arn:aws:iam::aws:policy/AdministratorAccess
+                      - arn:aws:iam::aws:policy/PowerUserAccess
+                      - arn:aws:iam::aws:policy/IAMFullAccess
+              - Effect: Allow
+                Action:
+                  - iam:Get*
+                  - iam:List*
+                Resource: '*'
+              - Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/*
+
+              # EC2 - the only network resources participants create are the voice
+              # stack's two subnets and one security group (Step 5). Reads stay on
+              # '*'; writes are limited to this account and Region, and changes to an
+              # existing subnet or security group only to ones the voice stack owns,
+              # so the base VPC, Aurora and endpoint security groups are out of reach.
+              - Effect: Allow
+                Action:
+                  - ec2:Describe*
+                  - ec2:Get*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:CreateSubnet
+                  - ec2:CreateSecurityGroup
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+              - Effect: Allow
+                Action: ec2:CreateTags
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+                Condition:
+                  StringEquals:
+                    ec2:CreateAction:
+                      - CreateSubnet
+                      - CreateSecurityGroup
+              - Effect: Allow
+                Action:
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:DeleteSubnet
+                  - ec2:ModifySubnetAttribute
+                  - ec2:AssociateRouteTable
+                  - ec2:DisassociateRouteTable
+                  - ec2:DeleteSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+                Condition:
+                  StringLike:
+                    ec2:ResourceTag/aws:cloudformation:stack-name: agentic-analytics-voice*
+              # The voice subnets join the base private route table; that table
+              # carries the base stack's tags, so the association is allowed on it
+              # here and the subnet side is checked by the statement above.
+              - Effect: Allow
+                Action:
+                  - ec2:AssociateRouteTable
+                  - ec2:DisassociateRouteTable
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
+
+              # WAF for the Step 7c front door: the web ACL is named <env>-frontdoor and
+              # uses AWS managed rule groups, which CreateWebACL/UpdateWebACL also
+              # authorize against the managed rule set ARNs.
+              - Effect: Allow
+                Action:
+                  - wafv2:CreateWebACL
+                  - wafv2:UpdateWebACL
+                  - wafv2:DeleteWebACL
+                  - wafv2:GetWebACL
+                  - wafv2:AssociateWebACL
+                  - wafv2:DisassociateWebACL
+                  - wafv2:TagResource
+                  - wafv2:UntagResource
+                  - wafv2:ListTagsForResource
+                Resource:
+                  - !Sub arn:aws:wafv2:${AWS::Region}:${AWS::AccountId}:regional/webacl/${EnvironmentName}-frontdoor/*
+                  - !Sub arn:aws:wafv2:${AWS::Region}:${AWS::AccountId}:regional/managedruleset/*/*
+              - Effect: Allow
+                Action:
+                  - wafv2:ListWebACLs
+                  - wafv2:GetWebACLForResource
                 Resource: '*'
 
-              # AgentCore - Full access
+              # AgentCore: resources in this account and Region; List calls take no ARN.
               - Effect: Allow
                 Action: bedrock-agentcore:*
+                Resource: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:List*
                 Resource: '*'
 
               # Voice lab (optional) - the voice stack creates an API Gateway
@@ -302,15 +536,28 @@ Resources:
               # `make voice-deploy` rolls back with AccessDenied on apigateway:POST
               # (SignalingHttpApi) and on the KVS signaling channel.
               - Effect: Allow
+                Action: apigateway:*
+                Resource: !Sub arn:aws:apigateway:${AWS::Region}::/*
+              - Effect: Allow
+                Action: execute-api:*
+                Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action: kinesisvideo:*
+                Resource: !Sub arn:aws:kinesisvideo:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
                 Action:
-                  - apigateway:*
-                  - execute-api:*
-                  - kinesisvideo:*
+                  - kinesisvideo:List*
+                  - kinesisvideo:Describe*
                 Resource: '*'
 
-              # Cognito - Full access for Gateway auth setup
+              # Cognito: this account's user pools (app clients, users, domains).
               - Effect: Allow
                 Action: cognito-idp:*
+                Resource: !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:ListUserPools
+                  - cognito-idp:DescribeUserPoolDomain
                 Resource: '*'
 
               # CloudFormation - Read stack outputs for auto-detection (any stack)
@@ -321,6 +568,8 @@ Resources:
                   - cloudformation:ListStacks
                   - cloudformation:DescribeStackEvents
                   - cloudformation:GetTemplateSummary
+                  # Step 11.2 reads the Aurora cluster and secret ARNs from the exports.
+                  - cloudformation:ListExports
                 Resource: '*'
               # CloudFormation - participants deploy the AgentCore top-up + voice
               # stacks via `make deploy` / `make voice-deploy` (aws cloudformation
@@ -343,43 +592,118 @@ Resources:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/agentic-analytics-voice/*
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/awscli-cloudformation-package-deploy-*
 
-              # Amplify - Deploy UI
+              # Amplify: apps in this account and Region; CreateApp/ListApps take no ARN.
               - Effect: Allow
                 Action: amplify:*
+                Resource: !Sub arn:aws:amplify:${AWS::Region}:${AWS::AccountId}:apps/*
+              - Effect: Allow
+                Action:
+                  - amplify:CreateApp
+                  - amplify:ListApps
                 Resource: '*'
 
-              # SSM - Parameter store
+              # SSM: the workshop's parameters (/<env>/...), public AMI parameters that
+              # CloudFormation resolves, and Run Command on this account's instances
+              # (Cube lab model sync). Session Manager comes from AmazonSSMManagedInstanceCore.
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
+                  - ssm:GetParameters
                   - ssm:PutParameter
+                  - ssm:DeleteParameter
+                  # CloudFormation reads parameter tags when the top-up stack updates one.
+                  - ssm:ListTagsForResource
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/*
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub arn:aws:ssm:${AWS::Region}::parameter/aws/service/*
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+                  - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+              - Effect: Allow
+                Action:
+                  - ssm:GetCommandInvocation
+                  - ssm:ListCommandInvocations
+                  - ssm:DescribeParameters
                 Resource: '*'
 
-              # ECR - Container registry for AgentCore Runtime
+              # ECR: the agent and voice repositories (<env>-*) and the AgentCore
+              # toolkit's bedrock-agentcore-* repositories.
               - Effect: Allow
                 Action: ecr:*
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EnvironmentName}-*
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/bedrock-agentcore-*
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:DescribeRepositories
                 Resource: '*'
 
-              # CodeBuild - Build containers for AgentCore Runtime
+              # CodeBuild: the agent and voice image builds.
               - Effect: Allow
                 Action: codebuild:*
-                Resource: '*'
-
-              # STS - Service bearer tokens
+                Resource:
+                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${EnvironmentName}-*
+                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/bedrock-agentcore-*
               - Effect: Allow
-                Action: sts:*
+                Action:
+                  - codebuild:ListProjects
+                  - codebuild:ListBuilds
                 Resource: '*'
 
-              # CloudWatch Logs
+              # STS: scripts and the Makefile look up the account id.
+              - Effect: Allow
+                Action: sts:GetCallerIdentity
+                Resource: '*'
+
+              # CloudWatch Logs: this account's log groups and deliveries; Describe calls take no ARN.
               - Effect: Allow
                 Action: logs:*
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - logs:Describe*
+                  - logs:StartQuery
+                  - logs:GetQueryResults
                 Resource: '*'
 
               # X-Ray (for traces delivery configuration)
               - Effect: Allow
                 Action:
-                  - xray:*
+                  - xray:GetTraceSummaries
+                  - xray:BatchGetTraces
+                  - xray:GetTraceGraph
+                  - xray:GetServiceGraph
+                  - xray:GetTraceSegmentDestination
+                  - xray:UpdateTraceSegmentDestination
+                  - xray:GetIndexingRules
+                  - xray:UpdateIndexingRule
+                  - xray:ListResourcePolicies
+                  - xray:PutResourcePolicy
                 Resource: '*'
+
+              # Step 11 schema change pipeline: `make deploy` creates the state machine and
+              # the crawler-succeeded rule; `make schema-sync` / `make approve` drive it.
+              - Effect: Allow
+                Action: states:*
+                Resource:
+                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*
+                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:*
+              - Effect: Allow
+                Action:
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                  - states:ListStateMachines
+                Resource: '*'
+              - Effect: Allow
+                Action: events:*
+                Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*
 
               # S3 - CodeBuild source bucket for AgentCore Runtime builds
               - Effect: Allow
@@ -388,18 +712,6 @@ Resources:
                   - arn:aws:s3:::bedrock-agentcore-*
                   - arn:aws:s3:::bedrock-agentcore-*/*
 
-              # EC2 - For VPC config lookups + resolving the Cube private IP by tag
-              # (cube-resolve.sh points the cube-tunnel socat forwarder at Cube)
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeVpcs
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeSecurityGroups
-                  - ec2:CreateNetworkInterface
-                  - ec2:DeleteNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DescribeInstances
-                Resource: '*'
 
   CodeEditorInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -418,7 +730,9 @@ Resources:
       ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}'
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref CodeEditorInstanceProfile
-      SubnetId: !Ref PublicSubnetId
+      # Private subnet: the instance has no public address. CloudFront reaches it
+      # through a VPC origin; package installs go out through the NAT gateway.
+      SubnetId: !GetAtt OriginSubnet.SubnetId
       SecurityGroupIds:
         - !Ref CodeEditorSecurityGroup
       BlockDeviceMappings:
@@ -451,7 +765,8 @@ Resources:
 
           # Install packages (skip curl - curl-minimal is pre-installed on AL2023)
           dnf update -y -q
-          dnf install -y -q unzip nginx jq git wget python3.11 python3.11-pip nodejs gcc make postgresql16
+          dnf install -y -q unzip nginx jq git wget python3.11 python3.11-pip nodejs22 nodejs22-npm gcc make postgresql16
+          node --version && npm --version   # nodejs22 is the active Node.js via alternatives
 
           # AWS CLI v2 (arch-detected so this works on both arm64 and x86_64)
           cd /tmp
@@ -533,7 +848,7 @@ Resources:
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                   proxy_read_timeout 86400;
               }
-              # React UI dev server proxy — keeps /app prefix (React uses PUBLIC_URL=/app)
+              # React UI dev server proxy — keeps /app prefix (Vite dev server base is /app/)
               location /app {
                   proxy_pass http://127.0.0.1:3001;
                   proxy_set_header Host localhost;
@@ -544,6 +859,24 @@ Resources:
               # Redirect /ports/3001/ to /app for Code Editor Ports panel
               location /ports/3001/ {
                   return 301 /app;
+              }
+              # Cube Playground (optional semantic-layer lab). The Ports panel opens it at
+              # /ports/4000/, but the Playground loads its assets and calls its API from
+              # absolute root paths, which would otherwise hit the Code Editor and 404.
+              # Route those paths to the Cube tunnel, only for a signed-in Code Editor
+              # session: auth_request asks the Code Editor's own (authenticated) port proxy.
+              location ~ ^/(assets/|fonts/|antd\.min\.css|favicon-|playground/|cubejs-api/|cubejs-system/) {
+                  auth_request /_code_editor_session;
+                  proxy_pass http://127.0.0.1:4000;
+                  proxy_set_header Host localhost;
+                  proxy_read_timeout 300;
+              }
+              location = /_code_editor_session {
+                  internal;
+                  proxy_pass http://127.0.0.1:8080/ports/4000/favicon-16x16.png;
+                  proxy_pass_request_body off;
+                  proxy_set_header Content-Length "";
+                  proxy_set_header Host $http_host;
               }
           }
           NGINXEOF
@@ -636,22 +969,22 @@ Resources:
           # Install the CLI globally (nodejs is installed above) and configure it to
           # use Bedrock via the EC2 instance role (no API key). The instance role
           # already grants bedrock:* + aws-marketplace:Subscribe/ViewSubscriptions.
-          # Model is pinned to the cross-region Sonnet 4.6 inference profile — the
-          # model reliably invocable in fresh Bedrock accounts (Opus 4.7/4.8 are
-          # gated behind account containment score; opus-4-6 needs a per-account
-          # Marketplace subscription that may not exist). Claude Code uses the
+          # Model is pinned to the Global Sonnet 5.5 inference profile, whose
+          # Marketplace agreement is already AVAILABLE in fresh Workshop Studio
+          # accounts (verified 2026-10-23). Use global.* IDs: us.* Haiku 5.5 is
+          # denied by the sandbox's private marketplace. Claude Code uses the
           # default AWS SDK credential chain, so the instance role is picked up
           # automatically.
-          npm install -g @anthropic-ai/claude-code 2>&1 || echo "claude-code install failed (non-fatal)"
+          npm install -g @anthropic-ai/claude-code@2.1.309 2>&1 || echo "claude-code install failed (non-fatal)"
           cat >> "/home/$CODE_EDITOR_USER/.bashrc" << CLAUDEEOF
           # Claude Code -> Amazon Bedrock (instance-role auth, no API key)
           export CLAUDE_CODE_USE_BEDROCK=1
-          export ANTHROPIC_MODEL='us.anthropic.claude-sonnet-4-6'
-          export ANTHROPIC_DEFAULT_SONNET_MODEL='us.anthropic.claude-sonnet-4-6'
+          export ANTHROPIC_MODEL='global.anthropic.claude-sonnet-5-5'
+          export ANTHROPIC_DEFAULT_SONNET_MODEL='global.anthropic.claude-sonnet-5-5'
           CLAUDEEOF
 
           # Python venv setup
-          sudo -u "$CODE_EDITOR_USER" python3.11 -m pip install --user --upgrade pip
+          sudo -u "$CODE_EDITOR_USER" python3.11 -m pip install --user pip==26.2.2
           cd "$HOME_FOLDER/agentic-analytics/app/agentcore_strands"
           sudo -u "$CODE_EDITOR_USER" python3.11 -m venv "$HOME_FOLDER/.venv"
           sudo -u "$CODE_EDITOR_USER" "$HOME_FOLDER/.venv/bin/pip" install -r requirements.txt || true
@@ -697,10 +1030,89 @@ Resources:
             QueryStringBehavior: all
 
   #============================================================================
+  # Private subnet for the instance. CloudFront VPC origins do not run in
+  # us-east-1 AZ use1-az3, so pick the first private subnet outside it.
+  #============================================================================
+  OriginSubnetPickerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DescribeSubnets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:DescribeSubnets
+                Resource: '*'
+
+  OriginSubnetPickerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt OriginSubnetPickerRole.Arn
+      Code:
+        ZipFile: |
+          # cfnresponse is not importable in this runtime, so reply to CloudFormation directly.
+          import boto3, json, urllib.request
+          UNSUPPORTED = {"use1-az3", "usw1-az2", "apne1-az3", "cac1-az3"}
+          def send(event, context, status, data, physical_id=None, reason="OK"):
+              body = json.dumps({"Status": status, "Reason": reason, "PhysicalResourceId": physical_id or event.get("PhysicalResourceId") or context.log_stream_name, "StackId": event["StackId"], "RequestId": event["RequestId"], "LogicalResourceId": event["LogicalResourceId"], "Data": data})
+              urllib.request.urlopen(urllib.request.Request(event["ResponseURL"], data=body.encode(), headers={"Content-Type": ""}, method="PUT"))
+          def handler(event, context):
+              try:
+                  if event["RequestType"] == "Delete":
+                      return send(event, context, "SUCCESS", {})
+                  ids = [i for i in event["ResourceProperties"]["SubnetIds"] if i]
+                  subnets = boto3.client("ec2").describe_subnets(SubnetIds=ids)["Subnets"]
+                  by_id = {s["SubnetId"]: s for s in subnets}
+                  pick = next(i for i in ids if by_id[i]["AvailabilityZoneId"] not in UNSUPPORTED)
+                  send(event, context, "SUCCESS", {"SubnetId": pick}, pick)
+              except Exception as e:
+                  print(f"subnet pick failed: {e}")
+                  send(event, context, "FAILED", {}, reason=f"subnet pick failed: {e}"[:250])
+
+  OriginSubnet:
+    Type: Custom::OriginSubnet
+    Properties:
+      ServiceToken: !GetAtt OriginSubnetPickerFunction.Arn
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+
+  # CloudFront connects to the instance privately, inside the VPC.
+  CodeEditorVpcOrigin:
+    Type: AWS::CloudFront::VpcOrigin
+    Properties:
+      VpcOriginEndpointConfig:
+        Name: !Sub ${EnvironmentName}-code-editor
+        Arn: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${CodeEditorInstance}
+        HTTPPort: 80
+        HTTPSPort: 443
+        OriginProtocolPolicy: http-only
+
+  #============================================================================
   # CloudFront Distribution
   #============================================================================
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_86
+            comment: Workshop IDE distribution; no access-log requirement for a single-use sandbox.
+          - id: CKV_AWS_68
+            comment: The origin only accepts CloudFront traffic and the IDE is token-gated.
     DependsOn: CodeEditorInstance
     # checkov:skip=CKV_AWS_174: uses the default *.cloudfront.net viewer cert
     #   (already TLS 1.2+); MinimumProtocolVersion only applies with a custom ACM cert.
@@ -718,9 +1130,9 @@ Resources:
           ViewerProtocolPolicy: redirect-to-https
         Origins:
           - Id: code-editor-origin
-            DomainName: !GetAtt CodeEditorInstance.PublicDnsName
-            CustomOriginConfig:
-              OriginProtocolPolicy: http-only
+            DomainName: !GetAtt CodeEditorInstance.PrivateDnsName
+            VpcOriginConfig:
+              VpcOriginId: !GetAtt CodeEditorVpcOrigin.Id
               OriginReadTimeout: 60
 
   #============================================================================

@@ -47,7 +47,6 @@ skip-check:
   - CKV_AWS_149   # Secrets Manager KMS CMK — AWS-managed key is fine for a throwaway secret
   - CKV_AWS_136   # ECR KMS — AWS-managed encryption suffices for a transient image repo
   - CKV_AWS_51    # ECR immutable tags — the build pushes :latest by design (workshop)
-  - CKV_AWS_163   # ECR scan-on-push — transient repo, image rebuilt every deploy
   - CKV_AWS_21    # S3 versioning — asset/build buckets, nothing to retain versions of
   - CKV_AWS_18    # S3 access logging — no audit requirement in an ephemeral account
   - CKV_AWS_118   # RDS enhanced monitoring — not needed for a demo Aurora cluster
@@ -68,13 +67,8 @@ skip-check:
   - CKV_AWS_109   # IAM permissions-management — same
   - CKV_AWS_110   # IAM privilege-escalation — same
   - CKV_AWS_111   # IAM write-without-constraint — broad service roles by design
-  - CKV_AWS_364   # Lambda permission SourceArn — single-account demo invokers
 
   # ── Deliberate, documented-in-template demo design decisions ──
-  - CKV_AWS_366   # Cognito unauth identity pool — REQUIRED so the demo SPA can read
-                  #   the public SSM demo-users list before login (commented in template)
-  - CKV_AWS_260   # SG port 80 from 0.0.0.0/0 — CloudFront origin requires it; the
-                  #   Code Editor is password-gated (justified inline in the template)
   - CKV_AWS_88    # EC2 public IP — the Cube instance needs egress for `npm`/Docker
                   #   pulls in accounts without a NAT gateway (documented in template)
   - CKV_AWS_23    # SG rule descriptions — cosmetic

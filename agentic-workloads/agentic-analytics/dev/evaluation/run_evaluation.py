@@ -43,26 +43,33 @@ RESULTS_DIR = EVAL_DIR / "../../dataset/validation/results"
 PERSONAS = {
     "lyra": {
         "username": "lyra.starwhisper@example-mythicalunicorns.com",
-        "password": "Unicorn123!",
         "role": "rental_admin",
         "account_id": "0330c2ef-f3be-4fc0-ae00-6edb9621e092",
         "account_name": "Mythical Unicorns",
     },
     "orion": {
         "username": "orion.moonshadow@example-mythicalunicorns.com",
-        "password": "Unicorn123!",
         "role": "analyst",
         "account_id": "0330c2ef-f3be-4fc0-ae00-6edb9621e092",
         "account_name": "Mythical Unicorns",
     },
     "aria": {
         "username": "aria.skybloom@example-mythicunicorns.com",
-        "password": "Unicorn123!",
         "role": "rental_admin",
         "account_id": "d667a552-4b25-4a45-9d86-31d901fe30c2",
         "account_name": "Mythic Unicorns",
     },
 }
+
+def demo_password():
+    """The demo users share one password, generated at deploy and stored in SSM."""
+    import boto3
+    env = os.environ.get("ENV_NAME", "agentic-analytics")
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    value = boto3.client("ssm", region_name=region).get_parameter(
+        Name=f"/{env}/demo/users", WithDecryption=True)["Parameter"]["Value"]
+    return json.loads(value)[0]["password"]
+
 
 # Gateway config (loaded from .env or gateway_config.json)
 def load_gateway_config():
@@ -78,6 +85,7 @@ def get_cognito_token(persona_key):
     import boto3
 
     persona = PERSONAS[persona_key]
+    persona.setdefault("password", demo_password())
     config = load_gateway_config()
     client_id = config.get("user_login_client_id")
     user_pool_id = config.get("user_pool_id")
@@ -111,7 +119,8 @@ def invoke_agent(prompt, persona_key="lyra", gateway_token=None):
 
     cmd = ["agentcore", "invoke", json.dumps(payload)]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        # Fixed argv list (no shell); the payload is one argument, never parsed by a shell.
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)  # nosec B603 # nosemgrep: dangerous-subprocess-use-audit
         if result.returncode != 0:
             return f"[ERROR] agentcore invoke failed: {result.stderr[:500]}"
         return result.stdout.strip()

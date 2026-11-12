@@ -33,6 +33,11 @@ Resources:
   # no redeploy needed.
   PccApiKeySecret:
     Type: AWS::SecretsManager::Secret
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Encrypted with the AWS managed key for Secrets Manager; a customer managed key adds cost and no control in a single-account sample.
     Properties:
       Name: !Sub '${EnvironmentName}-voice-pcc-key'
       Description: Pipecat Cloud public API key for the start proxy (filled post-deploy)

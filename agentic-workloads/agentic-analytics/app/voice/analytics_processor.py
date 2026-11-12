@@ -13,6 +13,7 @@ import asyncio
 import codecs
 import json
 import os
+import re
 import secrets
 from collections.abc import Callable
 from urllib.parse import quote
@@ -212,6 +213,11 @@ class AnalyticsAgentCoreProcessor(FrameProcessor):
         # Runtime endpoint qualifier for the HTTPS invoke URL (the SigV4 SDK defaulted
         # this; raw HTTPS must pass it). Our endpoint is 'agentic_analytics_endpoint'.
         self._qualifier = qualifier or os.getenv("AWS_AGENT_QUALIFIER", "DEFAULT")
+        # Front-door gateway (Cognito JWT + WAF + per-user rate limit) in front of an
+        # IAM-only analytics runtime. When set, the bot calls <url>/agent/invocations and
+        # passes the user's token in the custom user-token header as well, because
+        # behind the gateway the runtime sees the gateway's SigV4 Authorization.
+        self._front_door_url = (os.getenv("AWS_AGENT_FRONTDOOR_URL") or "").rstrip("/")
         # aiobotocore session retained ONLY for the chart-presign backstop (an S3 call
         # made with the task role, not the user JWT). The agent normally presigns.
         self._aws_session = aiobotocore.session.get_session()
@@ -304,16 +310,21 @@ class AnalyticsAgentCoreProcessor(FrameProcessor):
         # token (gateway_token), so we call InvokeAgentRuntime over plain HTTPS with
         # `Authorization: Bearer` — NOT the SigV4 SDK. AWS docs: OAuth-integrated agents
         # must use a direct HTTPS request. The SSE line-parsing below is unchanged.
-        invoke_url = (
-            f"https://bedrock-agentcore.{self._aws_region}.amazonaws.com/runtimes/"
-            f"{quote(self._agent_arn, safe='')}/invocations?qualifier={quote(self._qualifier, safe='')}"
-        )
+        if self._front_door_url:
+            invoke_url = f"{self._front_door_url}/agent/invocations"
+        else:
+            invoke_url = (
+                f"https://bedrock-agentcore.{self._aws_region}.amazonaws.com/runtimes/"
+                f"{quote(self._agent_arn, safe='')}/invocations?qualifier={quote(self._qualifier, safe='')}"
+            )
         headers = {
             "Authorization": f"Bearer {gateway_token}",
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
             "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": self._session_id,
         }
+        if self._front_door_url:
+            headers["X-Amzn-Bedrock-AgentCore-Runtime-Custom-User-Token"] = gateway_token
         decoder = codecs.getincrementaldecoder("utf-8")()
         buf = ""
         total_bytes = 0
@@ -464,6 +475,10 @@ class AnalyticsAgentCoreProcessor(FrameProcessor):
             return None
         # Guard against the agent emitting an absolute s3:// URI or a stray bucket prefix.
         key = s3key.replace(f"s3://{bucket}/", "").lstrip("/")
+        # Same rule as the agent: only chart PNGs, never other objects in the bucket.
+        if not re.fullmatch(r"charts/[A-Za-z0-9_-]{1,64}\.png", key):
+            logger.warning("refused to presign a key outside charts/")
+            return None
         try:
             async with self._aws_session.create_client(  # pyright: ignore
                 "s3", **self._aws_params  # pyright: ignore

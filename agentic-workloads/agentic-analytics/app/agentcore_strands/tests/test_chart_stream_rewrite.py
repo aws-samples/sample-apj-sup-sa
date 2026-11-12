@@ -16,6 +16,8 @@ import re
 import types
 import importlib.util
 
+import pytest
+
 
 def _load_agent_helpers():
     """Import _rewrite_chart_tags / _split-equivalent from the agent source.
@@ -143,6 +145,26 @@ def test_tag_without_s3key_untouched():
     assert '<chart caption="nope" />' in r
 
 
+class _FakeS3:
+    def generate_presigned_url(self, op, Params, ExpiresIn):
+        return f"https://signed.example/{Params['Key']}?sig=abc"
+
+
+@pytest.mark.parametrize("key,signed", [
+    ("charts/a1b2c3.png", True),
+    ("s3://bkt/charts/a1b2c3.png", True),
+    ("data/customers.csv", False),
+    ("charts/../data/users.csv", False),
+    ("charts/x.png/../../schema/pending/t.json", False),
+    ("sops/unicorn_rental_analytics.sop.md", False),
+])
+def test_presign_only_chart_pngs(monkeypatch, key, signed):
+    mod = _load_agent_helpers()
+    monkeypatch.setenv("CHART_BUCKET", "bkt")
+    monkeypatch.setattr(mod, "_s3_presign_client", _FakeS3())
+    assert (mod._presign_chart_key(key) is not None) is signed
+
+
 if __name__ == "__main__":
     # Allow running directly: python3 test_chart_stream_rewrite.py
     for name, fn in sorted(globals().items()):
@@ -150,3 +172,4 @@ if __name__ == "__main__":
             fn()
             print(f"{name}: PASS")
     print("\nAll chart-stream-rewrite tests passed.")
+

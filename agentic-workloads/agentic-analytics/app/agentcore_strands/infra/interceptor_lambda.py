@@ -4,6 +4,9 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Gateway targets that authenticate with the gateway's own IAM role (connector targets).
+IAM_SIGNED_TARGETS = {"WebSearch", "BusinessContext"}
+
 def lambda_handler(event, context):
     """
     Gateway interceptor that propagates Authorization header to targets.
@@ -41,9 +44,16 @@ def lambda_handler(event, context):
             auth_header = value
             break
     
-    # Build response with headers to propagate
+    # Connector targets (Web Search, Managed KB) are called with the gateway role's
+    # SigV4 signature. Forwarding the user's bearer token to them replaces that
+    # signature, so Retrieve fails with "signature does not match" and Web Search
+    # with "insufficient permissions". Only the Lambda tool targets read the JWT
+    # (for RBAC and row-level security), so the header goes to them alone.
+    tool_name = (request_body.get('params') or {}).get('name') or ''
+    target = tool_name.split('___', 1)[0] if '___' in tool_name else ''
+
     response_headers = {}
-    if auth_header:
+    if auth_header and target not in IAM_SIGNED_TARGETS:
         response_headers['Authorization'] = auth_header
         logger.info("Propagating Authorization header to target")
     

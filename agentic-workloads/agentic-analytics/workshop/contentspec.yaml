@@ -13,6 +13,9 @@ additionalLinks:
 awsAccountConfig:
   accountSources:
     - workshop_studio
+  # Disposable Workshop Studio accounts only: participants use the console across
+  # Bedrock, AgentCore, CloudWatch, Glue and RDS during the labs. Do not copy this
+  # role into a real account; scope it to the services and resources you use.
   participantRole:
     managedPolicies:
       - "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -44,6 +47,6 @@ infrastructure:
         - templateParameter: ArtifactsBucket
           defaultValue: "{{.AssetsBucketName}}"
         - templateParameter: ArtifactsPrefix
-          defaultValue: "{{.AssetsBucketPrefix}}"
+          defaultValue: "{{.AssetsBucketPrefix}}v2/"
         - templateParameter: DeployMode
           defaultValue: workshop

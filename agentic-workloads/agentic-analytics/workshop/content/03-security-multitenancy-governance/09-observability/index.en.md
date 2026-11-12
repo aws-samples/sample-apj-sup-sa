@@ -13,11 +13,11 @@ By the end of this step, you will:
 
 ## Why Observability?
 
-Your agent has implemented many techniques and components by now — but as the platform team, you need to answer: "How do we know the agent is giving correct answers? What if a tenant reports a wrong revenue number?"
+Your agent has implemented many techniques and components by now, but as the platform team, you need to answer: "How do we know the agent is giving correct answers? What if a tenant reports a wrong revenue number?"
 
 :link[AgentCore Observability]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html"} automatically captures every agent interaction as :link[OpenTelemetry]{href="https://opentelemetry.io/"} traces. Everything flows to :link[CloudWatch GenAI Observability]{href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/GenAI-observability.html"}.
 
-## How It Works — The OTEL Pipeline
+## How It Works: The OTEL Pipeline
 
 You may have noticed two libraries in `requirements.txt` that you haven't used directly:
 
@@ -51,19 +51,19 @@ GenAI Observability Dashboard
     (Sessions → Traces → Spans)
 ```
 
-::alert[**No code changes needed for Runtime tracing.** The two libraries in `requirements.txt` + AgentCore Runtime's auto-instrumentation handle everything. Gateway and Memory resources need explicit log/trace delivery configuration — and that's already part of your stack's baseline (it came live with the first `make deploy` in Step 2).]{type="info"}
+::alert[**No code changes needed for Runtime tracing.** The two libraries in `requirements.txt` + AgentCore Runtime's auto-instrumentation handle everything. Gateway and Memory resources need explicit log/trace delivery configuration: and that's already part of your stack's baseline (it came live with the first `make deploy` in Step 2).]{type="info"}
 
 ## Lab Procedures
 
 ### Step 9.1: Observability is Already Configured
 
-You didn't have to do anything extra for observability — the log/trace delivery resources for the Gateway and Memory are part of the top-up template's **baseline**, so they were created by your very first `make deploy` in Step 2. CloudWatch Transaction Search was enabled by the base CloudFormation stack during provisioning.
+You didn't have to do anything extra for observability: the log/trace delivery resources for the Gateway and Memory are part of the top-up template's **baseline**, so they were created by your very first `make deploy` in Step 2. CloudWatch Transaction Search was enabled by the base CloudFormation stack during provisioning.
 
 What's already configured:
-- **Log delivery** — Gateway and Memory APPLICATION_LOGS flow to CloudWatch Logs
-- **Tracing delivery** — Gateway and Memory spans flow to X-Ray → CloudWatch Transaction Search
+- **Log delivery**: Gateway and Memory APPLICATION_LOGS flow to CloudWatch Logs
+- **Tracing delivery**: Gateway and Memory spans flow to X-Ray → CloudWatch Transaction Search
 
-::alert[**What about Runtime?** Runtime tracing is automatic — AgentCore creates the log group and configures tracing when the Runtime is deployed. The Gateway/Memory delivery resources in the template cover the rest.]{type="info"}
+::alert[**What about Runtime?** Runtime tracing is automatic: AgentCore creates the log group and configures tracing when the Runtime is deployed. The Gateway/Memory delivery resources in the template cover the rest.]{type="info"}
 
 ### Step 9.2: Generate Some Traces
 
@@ -72,19 +72,19 @@ Make a few agent invocations so there's data to observe. In the chat UI, log in 
 | Field | Value |
 |-------|-------|
 | Username | `orion.moonshadow@example-mythicalunicorns.com` |
-| Password | `Unicorn123!` |
+| Password | the password from `make users` (Step 3.4) |
 
 Then ask these questions (clear chat between each to start fresh sessions):
 
 1. "Show me top 5 customers by revenue"
 2. "Is it a good time to invest in gold?"
 
-The second query should be blocked by guardrails — we'll see that in the traces.
+The second query should be blocked by guardrails: we'll see that in the traces.
 
 ### Step 9.3: Open the GenAI Dashboard
 
 1. Open the **AWS Console**, go to **CloudWatch** service, click **GenAI Observability** on left pane, and click **Bedrock AgentCore** menu.
-2. Find your agent (`unicorn_rental_agent`) → click it → select **DEFAULT** endpoint
+2. In the **Agents** table, expand `agentic_analytics_agent` and click the **DEFAULT** endpoint (the UI calls this one; `agentic_analytics_endpoint` shows little or no traffic)
 3. Set the time range to **1 hour** in the upper right
 
 ::alert[If you don't see your agent, ensure you're in the correct region (us-east-1), that you've invoked the agent at least once, and that Transaction Search is enabled (CloudWatch → Settings → X-Ray traces tab → Transaction Search should show "Enabled").]{type="info"}
@@ -101,13 +101,13 @@ AgentCore organizes telemetry in three levels:
 
 1. Select the **Traces** tab → click the newest trace
 2. In the **Spans Timeline**, you can see:
-   - **Model invocations** — how long the LLM took to reason and which model was used
-   - **Tool calls** — which tool was selected, the input arguments, and the response
-   - **Latency breakdown** — where time was spent (model vs tool vs Gateway)
+   - **Model invocations**: how long the LLM took to reason and which model was used
+   - **Tool calls**: which tool was selected, the input arguments, and the response
+   - **Latency breakdown**: where time was spent (model vs tool vs Gateway)
 
 ### Step 9.5: Debug the Guardrail Trace
 
-Find the trace for "Is it a good time to invest in gold?" — this one should be the newest one, the same one from step 9.4:
+Find the trace for "Is it a good time to invest in gold?": this one should be the newest one, the same one from step 9.4:
 
 1. The span will show the guardrail evaluation
 2. You'll see the guardrail **intervened** and blocked the response
@@ -125,9 +125,13 @@ aws logs describe-log-groups \
   --query 'logGroups[*].logGroupName'
 ```
 
-Open the log group in the CloudWatch console. These logs show every policy decision (ALLOW/DENY), which target Lambda was called, and the latency of each tool invocation.
+Open the log group in the CloudWatch console. These logs show every policy decision (ALLOW/DENY), which target Lambda was called, and the latency of each tool invocation. To see only the policy decisions, type `"Policy evaluation completed"` (with the quotes) in **Filter events** and expand a row: `policy.decision` is the verdict and `policy.determiningPolicies` names the Cedar policy that decided it.
 
-::alert[Gateway logs depend on the log-delivery resources in the template baseline — they were created by your first `make deploy` in Step 2.]
+::alert[Gateway logs depend on the log-delivery resources in the template baseline: they were created by your first `make deploy` in Step 2.]
+
+### Step 9.7: Watch the Front Door (after Step 7c)
+
+The front door has its own metrics. Open **AWS WAF** → **Web ACLs** (Region us-east-1) → `agentic-analytics-frontdoor` → **Traffic overview**. You see allowed and blocked requests, and **Top 10 rules** shows which rules matched. The **Rules** tab lists the five rules: `RatePerIp`, `IpReputation`, `KnownBadInputs`, and the body rules `CommonRules` and `SqlInjection`, which only count by default. **Sampled requests** shows a few real requests per rule, which is the quickest way to check why a call was blocked. The same numbers are in CloudWatch under the `AWS/WAFV2` namespace (metric names `rate-per-ip`, `ip-reputation`, `known-bad-inputs`, `common-rules`, `sql-injection`) if you want an alarm.
 
 ## Verification
 
@@ -143,7 +147,7 @@ Open the log group in the CloudWatch console. These logs show every policy decis
 - Ensure you're in the correct region (us-east-1).
 - Send a query through the demo UI chat
 - Set the time range to a wider window (e.g., 3 hours).
-- Verify Transaction Search is enabled: CloudWatch → Settings → X-Ray traces tab. If not enabled, the CloudFormation stack may have had an issue — you can enable it manually via the console.
+- Verify Transaction Search is enabled: CloudWatch → Settings → X-Ray traces tab. If not enabled, the CloudFormation stack may have had an issue: you can enable it manually via the console.
 
 **No Gateway logs found**
 - The Gateway log-delivery resources are in the template baseline; confirm your Step-2 `make deploy` reached `CREATE_COMPLETE`.
@@ -155,7 +159,7 @@ Open the log group in the CloudWatch console. These logs show every policy decis
 
 ## Summary
 
-You explored the observability stack: CloudWatch traces for debugging, spans for understanding agent behavior, and Gateway logs for policy decisions. The key insight: Runtime tracing is automatic (via `strands-agents[otel]` + `aws-opentelemetry-distro`), but Gateway and Memory need explicit log/trace delivery configuration.
+You explored the observability stack: CloudWatch traces for debugging, spans for understanding agent behavior, and Gateway logs for policy decisions. Runtime tracing is automatic (via `strands-agents[otel]` + `aws-opentelemetry-distro`), while Gateway and Memory need explicit log/trace delivery configuration.
 
 You can now trace any tenant interaction end-to-end and debug issues in production.
 

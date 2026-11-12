@@ -2,6 +2,8 @@
 """
 Local Strands Agent — connects directly to Aurora PostgreSQL with @tool functions.
 Use this for local testing before deploying to AgentCore.
+Run it only against the synthetic Timely-Unicorn dataset: it prints the agent's reply,
+which contains query results.
 """
 
 import os
@@ -19,7 +21,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 
 bedrock_model = BedrockModel(
-    model_id="global.anthropic.claude-sonnet-4-6",
+    model_id="global.anthropic.claude-sonnet-5-5",
     streaming=True
 )
 
@@ -53,4 +55,5 @@ agent = Agent(
 if __name__ == "__main__":
     print("Testing local Strands Agent...")
     result = agent("Show me the top 5 customers by revenue")
-    print(result)
+    # str(result) is the reply text only; the result object also holds tool inputs and outputs.
+    print(str(result))

@@ -88,11 +88,11 @@ async def main():
     print(f"has </chart>    : {'</chart>' in full}")
 
     spoken, displayed = split_presenter_output(full)
-    print(f"\nspoken          : {spoken[:200]!r}")
+    print(f"\nspoken          : {len(spoken):,} chars")
 
     from analytics_processor import _extract_chart_tags
     cleaned, charts = _extract_chart_tags(displayed)
-    print(f"displayed (head): {cleaned[:200]!r}")
+    print(f"displayed       : {len(cleaned):,} chars")
     print(f"chart tags      : {charts}")
 
     if not charts:
@@ -104,13 +104,14 @@ async def main():
     params = resolve_credentials(region=region).to_boto_kwargs()
     async with session.create_client("s3", **params) as s3:
         url = await s3.generate_presigned_url(
-            "get_object", Params={"Bucket": "agentic-analytics-artifacts", "Key": key}, ExpiresIn=3600)
+            "get_object", Params={"Bucket": os.environ["ARTIFACTS_BUCKET"], "Key": key}, ExpiresIn=3600)
     import urllib.request
-    with urllib.request.urlopen(url) as r:
+    with urllib.request.urlopen(url) as r:  # nosec B310 - https URL built by the test
         data = r.read()
-    print(f"\ncaption         : {caption!r}")
+    print(f"\ncaption         : {len(caption)} chars")
     print(f"s3key           : {key}")
-    print(f"presigned fetch : status={r.status} bytes={len(data):,} valid_png={data[:8] == b'\x89PNG\r\n\x1a\n'}")
+    valid_png = data[:8] == b'\x89PNG\r\n\x1a\n'
+    print(f"presigned fetch : status={r.status} bytes={len(data):,} valid_png={valid_png}")
 
 
 if __name__ == "__main__":

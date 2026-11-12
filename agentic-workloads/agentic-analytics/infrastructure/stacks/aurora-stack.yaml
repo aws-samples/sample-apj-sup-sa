@@ -241,6 +241,12 @@ Resources:
       GroupName: !Sub ${EnvironmentName}-aurora-sg
       GroupDescription: Security group for Aurora PostgreSQL cluster
       VpcId: !Ref VPC
+      # Aurora and the endpoints only answer connections, so no outbound rule is
+      # needed. This rule replaces the default allow-all egress with loopback only.
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 127.0.0.1/32
+          Description: No outbound traffic
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
@@ -319,6 +325,12 @@ Resources:
       GroupName: !Sub ${EnvironmentName}-vpce-sg
       GroupDescription: Security group for VPC endpoints
       VpcId: !Ref VPC
+      # Aurora and the endpoints only answer connections, so no outbound rule is
+      # needed. This rule replaces the default allow-all egress with loopback only.
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 127.0.0.1/32
+          Description: No outbound traffic
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 443
@@ -391,6 +403,11 @@ Resources:
   #============================================================================
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Encrypted with the AWS managed key for Secrets Manager; a customer managed key adds cost and no control in a single-account sample.
     Properties:
       Name: !Sub ${EnvironmentName}/aurora/credentials
       Description: Aurora PostgreSQL database credentials
@@ -425,6 +442,9 @@ Resources:
       - DatabaseSecret
     Properties:
       DBClusterIdentifier: !Sub ${EnvironmentName}-cluster
+      # IAM database authentication is available; the labs still use the Secrets
+      # Manager logins, because the RLS lesson needs separate owner and app_user users.
+      EnableIAMDatabaseAuthentication: true
       Engine: aurora-postgresql
       # NOTE: pin to a currently-available Aurora PostgreSQL 15.x minor. AWS
       # periodically retires minor versions; when 15.8 was retired, fresh

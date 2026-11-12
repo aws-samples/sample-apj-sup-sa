@@ -12,6 +12,7 @@
 #                     don't redeploy via `make deploy`)
 #    make outputs  - print the stack outputs (Gateway URL, Runtime ARN, ...)
 #    make status   - show the stack's current status
+#    make users    - list the demo users with their role and password
 #    make help     - this message
 #
 #  Everything reads config.env (seeded for you on the Code Editor). Override on
@@ -34,7 +35,12 @@ ARTIFACTS_PREFIX ?= $(call cfg,ARTIFACTS_PREFIX)
 ENV_NAME    ?= agentic-analytics
 STACK       ?= agentic-analytics-agentcore
 TEMPLATE    ?= agentcore-topup-stack.yaml
-POLICY_MODE ?= LOG_ONLY
+# Left EMPTY like FRONT_DOOR: `make deploy POLICY_MODE=ENFORCE` sets it once and a later bare
+# `make deploy` keeps it. (A fixed default here used to flip the gateway back to LOG_ONLY.)
+POLICY_MODE ?=
+# Step 7c: `make deploy FRONT_DOOR=true` puts the front-door gateway + WAF in front of
+# the runtime. Left EMPTY so a later bare `make deploy` keeps whatever the stack has.
+FRONT_DOOR  ?=
 # Container image tag the runtime points at. Left EMPTY on purpose: a bare
 # `make deploy` then omits the AgentImageTag override, so CloudFormation keeps
 # the stack's existing tag (and uses the template default 'latest' on first
@@ -76,7 +82,7 @@ ifeq ($(strip $(REGION)),)
   $(error AWS_REGION not found in config.env — run from app/agentcore_strands/ where config.env lives)
 endif
 
-.PHONY: help deploy build outputs status voice-deploy
+.PHONY: help deploy build outputs status users voice-deploy schema-sync approve reject
 
 help:
 	@sed -n '2,18p' $(firstword $(MAKEFILE_LIST)) | sed 's/^# \{0,1\}//'
@@ -89,7 +95,7 @@ help:
 # once, then point the stack's ArtifactsBucket at it (prefix empty). Charts, code
 # reads, and rebuilds all use this single writable bucket.
 deploy: stage-assets
-	@echo "==> Deploying $(STACK) (PolicyMode=$(POLICY_MODE), region=$(REGION))"
+	@echo "==> Deploying $(STACK) (PolicyMode=$(or $(POLICY_MODE),unchanged), region=$(REGION))"
 	aws cloudformation deploy \
 	  --template-file $(TEMPLATE) \
 	  --stack-name $(STACK) \
@@ -99,8 +105,9 @@ deploy: stage-assets
 	      EnvironmentName=$(ENV_NAME) \
 	      ArtifactsBucket=$(CFN_BUCKET) \
 	      ArtifactsPrefix= \
-	      PolicyMode=$(POLICY_MODE) \
+	      $(if $(strip $(POLICY_MODE)),PolicyMode=$(POLICY_MODE),) \
 	      $(if $(strip $(AGENT_IMAGE_TAG)),AgentImageTag=$(AGENT_IMAGE_TAG),) \
+	      $(if $(strip $(FRONT_DOOR)),EnableFrontDoor=$(FRONT_DOOR),) \
 	  --capabilities CAPABILITY_NAMED_IAM \
 	  --region $(REGION)
 
@@ -110,7 +117,7 @@ stage-assets:
 	  { echo "==> creating deploy bucket $(CFN_BUCKET)"; aws s3 mb s3://$(CFN_BUCKET) --region $(REGION); }
 	@echo "==> staging pre-baked assets into s3://$(CFN_BUCKET)/ (from the event assets bucket)"
 	@for k in lambda/datafoundation_lambda.zip lambdas/gateway_interceptor.zip \
-	          lambdas/api_integration_toolset.zip lambdas/custom_sql_toolset.zip \
+	          lambdas/api_integration_toolset.zip lambdas/custom_sql_toolset.zip lambdas/schema_sync.zip \
 	          layers/psycopg2-py312.zip layers/pyjwt-py312.zip agent/agent_code.zip; do \
 	  aws s3 cp "s3://$(ARTIFACTS_BUCKET)/$(ARTIFACTS_PREFIX)$$k" "s3://$(CFN_BUCKET)/$$k" --region $(REGION) >/dev/null 2>&1 \
 	    && echo "    staged $$k" || echo "    [skip] $$k not in assets (ok if unused)"; \
@@ -125,6 +132,34 @@ outputs:
 status:
 	@aws cloudformation describe-stacks --stack-name $(STACK) --region $(REGION) \
 	  --query 'Stacks[0].StackStatus' --output text
+
+# The demo users share one password, generated when your environment was created.
+users:
+	@aws ssm get-parameter --name /$(ENV_NAME)/demo/users --with-decryption --region $(REGION) \
+	  --query Parameter.Value --output text \
+	  | jq -r '["EMAIL","ROLE","PASSWORD"], (.[] | [.email, .role, .password]) | @tsv' | column -t
+
+# ---- Step 11: schema change pipeline ----------------------------------------
+# `make schema-sync` starts a run by hand (the Glue crawler also starts one when it
+# finishes). `make approve` / `make reject` answer the newest run that is waiting
+# for approval: the Lambda wrote its task token to s3://$(CFN_BUCKET)/schema/pending/.
+SCHEMA_SM = arn:aws:states:$(REGION):$(ACCOUNT_ID):stateMachine:$(ENV_NAME)-schema-sync
+
+schema-sync:
+	aws stepfunctions start-execution --state-machine-arn $(SCHEMA_SM) --region $(REGION) \
+	  --input '{"trigger":"manual"}' --query executionArn --output text
+
+approve reject:
+	@KEY=$$(aws s3api list-objects-v2 --bucket $(CFN_BUCKET) --prefix schema/pending/ --region $(REGION) \
+	  --query 'sort_by(Contents,&LastModified)[-1].Key' --output text); \
+	[ "$$KEY" != "None" ] || { echo "No run is waiting for approval."; exit 1; }; \
+	aws s3api get-object --bucket $(CFN_BUCKET) --key "$$KEY" --region $(REGION) /tmp/schema-pending.json >/dev/null; \
+	TOKEN=$$(python3 -c 'import json; print(json.load(open("/tmp/schema-pending.json"))["task_token"])'); \
+	if [ "$@" = approve ]; then \
+	  aws stepfunctions send-task-success --task-token "$$TOKEN" --task-output '{"approved":true}' --region $(REGION); \
+	else \
+	  aws stepfunctions send-task-failure --task-token "$$TOKEN" --error Rejected --cause "Rejected in the Code Editor" --region $(REGION); \
+	fi && aws s3api delete-object --bucket $(CFN_BUCKET) --key "$$KEY" --region $(REGION) && rm -f /tmp/schema-pending.json && echo "$@: $$KEY"
 
 # ---- build: rebuild the agent image after a code edit -----------------------
 # Run this after editing unicorn_rental_agent.py or the SOP. `make deploy` only
@@ -149,6 +184,10 @@ voice-deploy:
 	STRANDS_ARN=$$(aws cloudformation describe-stacks --stack-name $(STACK) --region $(REGION) \
 	  --query "Stacks[0].Outputs[?OutputKey=='AgentRuntimeArn'].OutputValue" --output text); \
 	[ -n "$$STRANDS_ARN" ] || { echo "AgentRuntimeArn not found — deploy the analytics top-up first (make deploy)" >&2; exit 1; }; \
+	FRONTDOOR_URL=$$(aws cloudformation describe-stacks --stack-name $(STACK) --region $(REGION) \
+	  --query "Stacks[0].Outputs[?OutputKey=='FrontDoorUrl'].OutputValue" --output text); \
+	[ "$$FRONTDOOR_URL" = "None" ] && FRONTDOOR_URL=""; \
+	echo "==> [voice] front door: $${FRONTDOOR_URL:-off (Step 7c not enabled), calling the runtime directly}"; \
 	aws s3api head-bucket --bucket $(CFN_BUCKET) 2>/dev/null || \
 	  { echo "==> [voice] creating staging bucket $(CFN_BUCKET)"; aws s3 mb s3://$(CFN_BUCKET) --region $(REGION); }; \
 	echo "==> [voice] zipping voice bot from $(VOICE_DIR)"; \
@@ -172,6 +211,7 @@ voice-deploy:
 	      CognitoUserPoolId=$(COGNITO_POOL) \
 	      CognitoClientId=$(COGNITO_CLIENT) \
 	      StrandsAgentRuntimeArn=$$STRANDS_ARN \
+	      StrandsAgentFrontDoorUrl=$$FRONTDOOR_URL \
 	      ChartBucket=$(ARTIFACTS_BUCKET) \
 	      DeepgramApiKey=$(DEEPGRAM_API_KEY) \
 	      DeepgramVoiceId=$(DEEPGRAM_VOICE_ID) \

@@ -52,6 +52,13 @@ Resources:
   #============================================================================
   CubeConfigBucket:
     Type: AWS::S3::Bucket
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_18
+            comment: Sample bucket for generated Cube config; access logging is out of scope for a sample.
+          - id: CKV_AWS_21
+            comment: Generated content that the stack rewrites; old versions are not kept.
     DeletionPolicy: Delete
     Properties:
       BucketName: !Sub ${EnvironmentName}-cube-config-${AWS::AccountId}
@@ -75,6 +82,11 @@ Resources:
   #============================================================================
   CubeApiSecret:
     Type: AWS::SecretsManager::Secret
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_149
+            comment: Encrypted with the AWS managed key for Secrets Manager; a customer managed key adds cost and no control in a single-account sample.
     Properties:
       Name: !Sub ${EnvironmentName}/cube/api-secret
       Description: HS256 secret shared by Cube Core and the semantic-layer Lambda

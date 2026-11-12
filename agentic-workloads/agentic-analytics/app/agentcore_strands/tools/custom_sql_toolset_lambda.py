@@ -5,6 +5,7 @@ Includes execute_sql_tool for human-in-the-loop approval workflow.
 """
 
 import json
+import re
 import os
 import boto3
 import psycopg2
@@ -175,7 +176,7 @@ def lambda_handler(event, context):
                 'role': claims.get('custom:role'),
                 'sub': claims.get('sub')
             }
-            print(f"User: {user_info['username']}, Role: {user_info['role']}")
+            print(f"Role: {user_info['role']}")
     
     if not auth_header:
         print("No Authorization header in request")
@@ -207,16 +208,23 @@ def lambda_handler(event, context):
     return {'statusCode': 500, 'body': json.dumps({'error': f'Unknown tool: {tool_name}'})}
 
 
+# Above this size text_to_sql_tool returns a table index instead of the full schema.
+SCHEMA_FULL_MAX_CHARS = int(os.environ.get('SCHEMA_FULL_MAX_CHARS', '32000'))
+
+
 def get_schema_context(args, rls_context):
     """Get table schemas from Glue Data Catalog"""
     tables = args.get('tables', [])
     # Glue Crawler prefixes table names with {database}_{schema}_ (e.g. timely_unicorn_public_)
     # Strip this prefix so the LLM sees actual PostgreSQL table names
-    glue_prefix = f"{GLUE_DATABASE}_public_"
+    # The crawler names tables <postgres db>_<schema>_<table>; the catalog database
+    # itself may have a different (per-environment) name.
+    glue_prefix = f"{AURORA_DATABASE}_public_"
 
     try:
-        response = glue_client.get_tables(DatabaseName=GLUE_DATABASE)
-        all_tables = response.get('TableList', [])
+        all_tables = []
+        for page in glue_client.get_paginator('get_tables').paginate(DatabaseName=GLUE_DATABASE):
+            all_tables.extend(page.get('TableList', []))
 
         result = {}
         for table in all_tables:
@@ -243,13 +251,15 @@ def rag_retrieve(query):
         return [{'content': 'Knowledge Base not configured. Use appropriate JOINs and filter by account_id.', 'score': 0.5}]
 
     try:
+        # No retrievalConfiguration: a managed knowledge base rejects
+        # vectorSearchConfiguration, and the Lambda runtime's boto3 does not know
+        # managedSearchConfiguration yet. The default returns 5 results.
         response = bedrock_agent_runtime.retrieve(
             knowledgeBaseId=KB_ID,
             retrievalQuery={'text': query},
-            retrievalConfiguration={'vectorSearchConfiguration': {'numberOfResults': 5}}
         )
         results = []
-        for r in response.get('retrievalResults', []):
+        for r in response.get('retrievalResults', [])[:5]:
             results.append({
                 'content': r.get('content', {}).get('text', ''),
                 'score': r.get('score', 0.0)
@@ -267,22 +277,35 @@ def text_to_sql_with_rag(args, rls_context):
     if not question:
         return {'statusCode': 400, 'body': json.dumps({'error': 'question is required'})}
     
-    # Step 1: Get full schema from Glue (all tables)
-    schema_result = get_schema_context({'tables': []}, rls_context)
+    # Step 1: schema from Glue. Adaptive (see notes/12): the whole schema when it is small;
+    # above SCHEMA_FULL_MAX_CHARS only an index of table names and descriptions, and the
+    # model calls this tool again with `tables` set to the ones it picked. Benchmarked on a
+    # 181-table catalogue: 0.90 execution accuracy at 11.6k tokens vs 0.85 at 50.9k for the
+    # full schema.
+    requested = args.get('tables') or []
+    schema_result = get_schema_context({'tables': requested}, rls_context)
     schemas = json.loads(schema_result['body'])['schemas']
-    
+
     # Step 2: RAG retrieve business context
     rag_results = rag_retrieve(question)
-    
+
     # Step 3: Assemble context for LLM
     schema_text = []
     for table, info in schemas.items():
         cols = ', '.join([f"{c['name']} ({c['type']})" for c in info['columns']])
         schema_text.append(f"Table {table}: {info['description']}\nColumns: {cols}")
-    
+    schema_mode = 'full' if not requested else 'selected'
+    if not requested and len('\n'.join(schema_text)) > SCHEMA_FULL_MAX_CHARS:
+        schema_mode = 'index'
+        schema_text = [f"- {t}: {info['description'] or 'no description'} ({len(info['columns'])} columns)"
+                       for t, info in schemas.items()]
+        schema_text.insert(0, "The schema is too large to send whole. This is the table index only. "
+                              "Pick the tables and views you need, then call text_to_sql_tool again "
+                              "with the same question and `tables` set to them to get their columns.")
+
     rag_text = '\n'.join([f"- {r['content']}" for r in rag_results])
-    
-    context = f"""DATABASE SCHEMA:
+
+    context = f"""DATABASE SCHEMA ({schema_mode}):
 {chr(10).join(schema_text)}
 
 BUSINESS CONTEXT FROM KNOWLEDGE BASE:
@@ -301,45 +324,176 @@ QUERY GUIDELINES:
             'question': question,
             'context': context,
             'tables_count': len(schemas),
+            'schema_mode': schema_mode,
             'rag_sources': len(rag_results),
         })
     }
 
 
+# ---------------------------------------------------------------------------
+# Read-only SQL guard
+#
+# The database is the real enforcement point: every query runs inside a
+# READ ONLY transaction with a statement timeout, so INSERT/UPDATE/DELETE/DDL
+# (including data-modifying CTEs) fail in PostgreSQL itself. The checks below
+# close the gaps a read-only transaction leaves open:
+#   - exactly one statement, so "SELECT 1; COMMIT; DROP ..." cannot end the
+#     read-only transaction and run something after it;
+#   - it starts with SELECT or WITH;
+#   - no call to functions that change session state or touch the server,
+#     above all set_config(), which could rewrite the RLS session variables
+#     (app.current_account_id) from inside a SELECT and read another tenant.
+# String literals, quoted identifiers and comments are blanked before the
+# keyword checks, so a column like "updated_at" or a literal 'DROP' is fine.
+# ---------------------------------------------------------------------------
+SQL_STATEMENT_TIMEOUT_MS = int(os.environ.get('SQL_STATEMENT_TIMEOUT_MS', '15000'))
+MAX_RESULT_ROWS = 100
+_BLOCKED_FUNCTIONS = (
+    'set_config', 'pg_read_file', 'pg_read_binary_file', 'pg_ls_dir', 'pg_stat_file',
+    'lo_import', 'lo_export', 'lo_get', 'lo_put', 'dblink', 'dblink_exec',
+    'pg_terminate_backend', 'pg_cancel_backend', 'pg_reload_conf', 'pg_sleep',
+    'pg_advisory_lock', 'pg_advisory_xact_lock', 'query_to_xml', 'query_to_json',
+)
+_IDENT_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_$]*')
+
+
+def _ident_char(ch):
+    return ch.isalnum() or ch in '_$'
+
+
+def _mask_sql(sql):
+    """Return (masked_sql, quoted_identifiers): literals and comments become spaces."""
+    out, idents, i, n = [], [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c == '-' and sql.startswith('--', i):
+            j = sql.find('\n', i)
+            j = n if j == -1 else j
+            out.append(' ' * (j - i)); i = j
+        elif c == '/' and sql.startswith('/*', i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if sql.startswith('/*', j):
+                    depth += 1; j += 2
+                elif sql.startswith('*/', j):
+                    depth -= 1; j += 2
+                else:
+                    j += 1
+            if depth:
+                raise ValueError('Unterminated comment')
+            out.append(' ' * (j - i)); i = j
+        elif c in ("'", '"'):
+            # E'...' takes backslash escapes, so a \' would end the literal here but
+            # not in PostgreSQL. Refuse escape strings instead of modelling them.
+            if c == "'" and i and sql[i - 1] in 'eE' and (i < 2 or not _ident_char(sql[i - 2])):
+                raise ValueError("Escape string literals (E'...') are not allowed")
+            j = i + 1
+            while True:
+                k = sql.find(c, j)
+                if k == -1:
+                    raise ValueError('Unterminated quoted string or identifier')
+                if k + 1 < n and sql[k + 1] == c:  # doubled quote = escaped quote
+                    j = k + 2
+                    continue
+                break
+            if c == '"':
+                idents.append(sql[i + 1:k].replace('""', '"'))
+            out.append(' ' * (k + 1 - i)); i = k + 1
+        elif c == '$' and not (i and _ident_char(sql[i - 1])):  # a$b$ is one identifier
+            m = re.match(r'\$([A-Za-z_][A-Za-z0-9_]*)?\$', sql[i:])
+            if m:
+                tag = m.group(0)
+                k = sql.find(tag, i + len(tag))
+                if k == -1:
+                    raise ValueError('Unterminated dollar-quoted string')
+                out.append(' ' * (k + len(tag) - i)); i = k + len(tag)
+            else:
+                out.append(c); i += 1
+        else:
+            out.append(c); i += 1
+    return ''.join(out), idents
+
+
+def validate_readonly_sql(sql):
+    """Return an error message if the SQL is not a single read-only query, else None."""
+    if not sql or not sql.strip():
+        return 'sql is required'
+    try:
+        masked, quoted = _mask_sql(sql)
+    except ValueError as e:
+        return str(e)
+    body = masked.strip()
+    if body.endswith(';'):
+        body = body[:-1].rstrip()
+    if ';' in body:
+        return 'Only one SQL statement is allowed'
+    words = [w.lower() for w in _IDENT_RE.findall(body)]
+    if not words or words[0] not in ('select', 'with'):
+        return 'Only SELECT queries (optionally starting with WITH) are allowed'
+    # Unicode-escaped names (U&"set\005fconfig") would slip past the blocked-name check
+    # below while PostgreSQL still resolves them, so they are refused outright.
+    if re.search(r'(?i)(?<![A-Za-z0-9_$])u&', body) or 'uescape' in words \
+            or any('\\' in q for q in quoted):
+        return 'Unicode-escaped identifiers and strings are not allowed'
+    names = set(words) | {q.lower() for q in quoted}
+    for fn in _BLOCKED_FUNCTIONS:
+        if fn in names:
+            return f'Function not allowed in queries: {fn}'
+    return None
+
+
+def _session_changed(rls_context, after):
+    """True if the RLS variables after the query differ from what get_db_connection set."""
+    ctx = rls_context or {}
+    after = after or {}
+    return ((after.get('a') or '') != (ctx.get('account_id') or '')
+            or (after.get('r') or '') != (ctx.get('role') or ''))
+
+
 def execute_sql(args, rls_context):
-    """Execute approved SQL query against the database"""
+    """Execute an approved read-only SQL query against the database."""
     sql = args.get('sql', '')
-    
-    if not sql:
-        return {'statusCode': 400, 'body': json.dumps({'error': 'sql is required'})}
-    
-    # Security: Only allow SELECT statements
-    sql_upper = sql.strip().upper()
-    if not sql_upper.startswith('SELECT'):
-        return {'statusCode': 400, 'body': json.dumps({'error': 'Only SELECT queries are allowed'})}
-    
-    # Security: Block dangerous patterns
-    dangerous = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'TRUNCATE', 'GRANT', 'REVOKE', ';--']
-    for pattern in dangerous:
-        if pattern in sql_upper:
-            return {'statusCode': 400, 'body': json.dumps({'error': f'Forbidden SQL pattern: {pattern}'})}
-    
+    error = validate_readonly_sql(sql)
+    if error:
+        return {'statusCode': 400, 'body': json.dumps({'success': False, 'error': error})}
+
+    conn = None
     try:
         conn = get_db_connection(rls_context)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Scope both settings to this transaction only.
+            cur.execute("SET TRANSACTION READ ONLY")
+            cur.execute("SET LOCAL statement_timeout = %s", [SQL_STATEMENT_TIMEOUT_MS])
+            # The masker assumes plain '...' strings take no backslash escapes.
+            cur.execute("SET LOCAL standard_conforming_strings = on")
             cur.execute(sql)
-            rows = cur.fetchall()
+            rows = cur.fetchmany(MAX_RESULT_ROWS + 1) if cur.description else []
             columns = [desc[0] for desc in cur.description] if cur.description else []
-        conn.close()
-        
+            # Backstop for the static check: if the query changed the RLS session
+            # variables, its rows may belong to another tenant, so drop them.
+            cur.execute("SELECT current_setting('app.current_account_id', true) AS a, "
+                        "current_setting('app.current_user_role', true) AS r")
+            after = cur.fetchone()
+        conn.rollback()
+        if _session_changed(rls_context, after):
+            print("execute_sql refused: query changed the RLS session variables")
+            return {'statusCode': 400, 'body': json.dumps(
+                {'success': False, 'error': 'Query changed session settings and was refused'})}
+        truncated = len(rows) > MAX_RESULT_ROWS
+        rows = rows[:MAX_RESULT_ROWS]
         return {
             'statusCode': 200,
             'body': json.dumps({
                 'success': True,
                 'columns': columns,
                 'row_count': len(rows),
-                'data': rows[:100]  # Limit to 100 rows
+                'truncated': truncated,
+                'data': rows,
             }, default=json_serializer)
         }
     except Exception as e:
-        return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
+        print(f"execute_sql failed: {type(e).__name__}: {e}")
+        return {'statusCode': 500, 'body': json.dumps({'success': False, 'error': str(e)})}
+    finally:
+        if conn is not None:
+            conn.close()

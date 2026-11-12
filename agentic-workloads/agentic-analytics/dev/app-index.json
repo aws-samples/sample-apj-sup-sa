@@ -26,9 +26,10 @@
     "infrastructure/scripts/": "Deployment and utility scripts",
     "dataset/": "Symlink to unicorn-rental-dataset - synthetic data, schema, docs, and validation",
     "workshop/": "Workshop Studio configuration and assets",
-    "workshop/content/": "Workshop guide pages (Steps 0-10 + semantic layer)",
+    "workshop/content/": "Workshop guide pages (Steps 0-10, 6b web search, semantic layer)",
     "workshop/code/": "Workshop code overlay with TODO blanks (agent, exercises, top-up CFN, Makefile)",
-    "dev/": "Maintainer-only files (unshipped): app-index.json, the Strands Evals harness (dev/evaluation/), the project spec (dev/specs/), and maintainer skills (dev/skills/)"
+    "dev/": "Maintainer-only files (unshipped): app-index.json, the Strands Evals harness (dev/evaluation/), the project spec (dev/specs/), and maintainer skills (dev/skills/)",
+    "app/schema_sync/": "Schema-change (DDL) pipeline Lambda and diff logic"
   },
   "files": [
     {
@@ -49,11 +50,11 @@
     },
     {
       "path": "infrastructure/stacks/bedrock-kb-stack.yaml",
-      "summary": "CloudFormation stack for Bedrock Knowledge Base with Aurora pgvector, custom data source, and hierarchical chunking (parent=1000, child=300, overlap=50)"
+      "summary": "CloudFormation stack for an Amazon Bedrock Managed Knowledge Base (Type MANAGED: Bedrock owns the vector store, embeddings and chunking) over an S3 data source (docs/ prefix), plus an inline custom resource that runs the first ingestion job and waits for it"
     },
     {
       "path": "infrastructure/stacks/agentcore-stack.yaml",
-      "summary": "CloudFormation stack for AgentCore Gateway deployment with custom resource Lambda. Supports workshop mode with CognitoUserPoolId/CognitoClientId params to use existing Cognito"
+      "summary": "Demo-mode AgentCore layer, all native CloudFormation: tools MCP Gateway + targets (prebaked/API/custom SQL/semantic), Cedar policy engine, Memory, Guardrail, Code Interpreter, agent Runtime (IAM-only), and the front door: FrontDoorGateway (HTTP gateway, Cognito JWT) with a runtime target (GATEWAY_IAM_ROLE, forwards custom user-token + session-id headers), AgentRuntimeResourcePolicy (only the front door may invoke), GatewayRateLimit per JWT sub, WAF web ACL + WebACLAssociation. Outputs FrontDoorUrl."
     },
     {
       "path": "infrastructure/stacks/agentcore-topup-stack.yaml",
@@ -94,10 +95,6 @@
     {
       "path": "infrastructure/custom-resource-lambdas/glue_crawler_trigger/handler.py",
       "summary": "Custom Resource Lambda to trigger Glue crawler and wait for completion"
-    },
-    {
-      "path": "infrastructure/custom-resource-lambdas/bedrock_kb_ingestion/handler.py",
-      "summary": "Custom Resource Lambda to create Bedrock KB with Aurora pgvector and ingest business-context.md via IngestKnowledgeBaseDocuments API"
     },
     {
       "path": "infrastructure/custom-resource-lambdas/amplify_hosting/handler.py",
@@ -145,7 +142,7 @@
     },
     {
       "path": "app/ui/src/services/awsAgentCore.js",
-      "summary": "AWS SDK integration for BedrockAgentCoreClient, invokeAgent with streaming, session management, gateway token passing. Tool detection via structured toolUse events only (no regex fallback)."
+      "summary": "Browser agent client: plain HTTPS fetch with the user's Cognito JWT (no SDK/SigV4). Calls <FRONTDOOR_URL>/agent/invocations with the JWT in Authorization and the custom user-token header, or the runtime directly when no front door is configured. Streams SSE, keeps a 33+ char runtime session id per chat, maps 401/403 WAF/403/429 to readable errors."
     },
     {
       "path": "app/ui/src/services/authService.js",
@@ -245,7 +242,7 @@
     },
     {
       "path": "app/agentcore_strands/tools/custom_sql_toolset_lambda.py",
-      "summary": "Lambda for custom SQL with full Glue schema (all tables, prefix stripped) + Bedrock KB RAG + human approval. rls_context passed as parameter."
+      "summary": "Custom SQL Lambda: Glue schema (paginated, prefix stripped) + Bedrock KB business context for text-to-SQL, and execute_sql guarded by validate_readonly_sql (one statement, SELECT/WITH only, literals/comments masked, blocked functions incl. set_config) running in a READ ONLY transaction with statement_timeout; connection always closed. rls_context from the verified JWT."
     },
     {
       "path": "LICENSE",
@@ -262,6 +259,46 @@
     {
       "path": "dev/skills/overlay-management/SKILL.md",
       "summary": "Agent Skill: rules for managing workshop code overlays (TODO files that override app/ in packaged ZIP)"
+    },
+    {
+      "path": "app/voice/analytics_processor.py",
+      "summary": "Pipecat processor that sends each voice turn to the analytics agent with the speaking user's JWT: through AWS_AGENT_FRONTDOOR_URL (/agent/invocations + custom user-token header) when set, else the runtime directly; stable runtime session id for shared Memory; parses SSE, handles <speak> and <chart> tags."
+    },
+    {
+      "path": "app/agentcore_strands/tests/test_custom_sql_guard.py",
+      "summary": "Unit tests (pytest, AWS/DB stubbed) for the custom SQL read-only guard: allowed reads, rejected writes/multi-statement/set_config/pg_* calls, no DB connect on rejection, connection closed on error, READ ONLY + timeout + 100-row cap."
+    },
+    {
+      "path": "app/schema_sync/schema_sync_lambda.py",
+      "summary": "Schema-change pipeline Lambda (actions snapshot/describe/hold/publish): reads pg_catalog (comments, RLS, policies, view SQL), writes schema/current.json + snapshots/pending to S3, drafts descriptions with global Sonnet 5.5, publishes Glue table descriptions and KB cards docs/schema/<name>.md, starts KB ingestion, emits EventBridge agentic-analytics.schema events"
+    },
+    {
+      "path": "app/schema_sync/schema_diff.py",
+      "summary": "Pure diff/classify of two schema snapshots: severity none<additive<breaking<blocked, table/column rename heuristics, rls_gaps (tenant table with account_id but no RLS = blocked)"
+    },
+    {
+      "path": "app/schema_sync/test_schema_diff.py",
+      "summary": "Unit tests for schema_diff (10 cases)"
+    },
+    {
+      "path": "infrastructure/stacks/schema-sync-stack.yaml",
+      "summary": "Nested demo stack for the schema-change pipeline: Lambda + layer, Step Functions (Snapshot, Classify, Describe, WaitForApproval task token, Publish), EventBridge rules on Glue crawler success and a daily cron"
+    },
+    {
+      "path": "app/agentcore_strands/tests/test_schema_context.py",
+      "summary": "Adaptive schema context tests: full schema under SCHEMA_FULL_MAX_CHARS, table index otherwise, tables argument"
+    },
+    {
+      "path": "app/agentcore_strands/tests/test_daily_bookings_summary.py",
+      "summary": "get_daily_bookings_summary tests: group_by=day aggregates, date filters, row cap"
+    },
+    {
+      "path": "app/agentcore_strands/tests/test_kb_retrieve.py",
+      "summary": "Managed KB Retrieve tests: rag_retrieve and semantic_search send no retrievalConfiguration (managed KBs reject vectorSearchConfiguration) and cap results"
+    },
+    {
+      "path": "workshop/content/02-toolsets/06b-web-search/index.en.md",
+      "summary": "Workshop Step 6b: add the AgentCore Web Search connector target, SOP rules, test"
     }
   ]
 }

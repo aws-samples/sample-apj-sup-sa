@@ -86,7 +86,8 @@ def enable_transaction_search(account_id):
 
 
 def lambda_handler(event, context):
-    print(f"Event: {json.dumps(event)}")
+    # The event holds a presigned ResponseURL; log only what identifies the request.
+    print(f"Event: {event.get('RequestType')} {event.get('LogicalResourceId')}")
     request_type = event.get('RequestType', 'Create')
 
     try:

@@ -28,15 +28,21 @@ CLIENT_ID="$(aws cloudformation describe-stacks --stack-name "$COG_STACK" --regi
   --query "Stacks[0].Outputs[?OutputKey=='UserLoginClientId'].OutputValue" --output text)"
 echo "    UserPoolId=${POOL_ID}  ClientId=${CLIENT_ID}"
 
+ARTIFACTS_BUCKET="${ARTIFACTS_BUCKET:?Set ARTIFACTS_BUCKET to your own artifacts bucket, for example agentic-analytics-<account-id>}"
+# Refuse to package into a bucket this account does not own (bucket-squatting guard).
+aws s3api head-bucket --bucket "$ARTIFACTS_BUCKET" \
+  --expected-bucket-owner "$(aws sts get-caller-identity --query Account --output text)" >/dev/null \
+  || { echo "ERROR: $ARTIFACTS_BUCKET does not exist or is not owned by this account" >&2; exit 1; }
+
 echo "==> Bundling Lambda (index.py + python-jose)"
 rm -rf "$HERE/build"; mkdir -p "$HERE/build"
 cp "$HERE/index.py" "$HERE/build/"
-pip3 install --quiet --target "$HERE/build" "python-jose[cryptography]==3.3.0"
+pip3 install --quiet --target "$HERE/build" "python-jose[cryptography]==3.5.0"
 
 echo "==> sam/cfn package + deploy"
 aws cloudformation package \
   --template-file "$HERE/voice-proxy-stack.yaml" \
-  --s3-bucket "${ARTIFACTS_BUCKET:-agentic-analytics-artifacts}" \
+  --s3-bucket "$ARTIFACTS_BUCKET" \
   --s3-prefix voice-proxy \
   --region "$REGION" \
   --output-template-file "$HERE/build/packaged.yaml"

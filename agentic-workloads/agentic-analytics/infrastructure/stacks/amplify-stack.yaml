@@ -50,6 +50,11 @@ Parameters:
     Default: ''
     Description: Cognito Identity Pool ID
 
+  FrontDoorUrl:
+    Type: String
+    Default: ''
+    Description: Front-door gateway URL (AgentCore stack output FrontDoorUrl). The UI calls <url>/agent/invocations.
+
   AgentCoreRuntimeEndpoint:
     Type: String
     Default: ''
@@ -71,6 +76,11 @@ Resources:
   #============================================================================
   AmplifyHostingRole:
     Type: AWS::IAM::Role
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_111
+            comment: Remaining wildcard is for actions that take no resource ARN (see the comments on each statement).
     Properties:
       RoleName: !Sub ${EnvironmentName}-amplify-hosting-role
       AssumeRolePolicyDocument:
@@ -87,18 +97,23 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # Creating and listing apps take no app ARN.
               - Effect: Allow
                 Action:
                   - amplify:CreateApp
+                  - amplify:ListApps
+                Resource: '*'
+              # Everything else acts on an app (or its branches and jobs) in this account and Region.
+              - Effect: Allow
+                Action:
                   - amplify:DeleteApp
                   - amplify:UpdateApp
-                  - amplify:ListApps
                   - amplify:CreateBranch
                   - amplify:GetBranch
                   - amplify:CreateDeployment
                   - amplify:StartDeployment
                   - amplify:GetJob
-                Resource: '*'
+                Resource: !Sub arn:aws:amplify:${AWS::Region}:${AWS::AccountId}:apps/*
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -143,6 +158,9 @@ Resources:
       ArtifactsKey: !Ref UIBuildKey
       CognitoUserPoolId: !Ref CognitoUserPoolId
       CognitoUserClientId: !Ref CognitoUserClientId
+      # Same list as UserLoginClient in cognito-stack.yaml; custom:role and
+      # custom:account_id must stay admin-only.
+      CognitoWriteAttributes: [email, name]
       EnvironmentVariables:
         REACT_APP_AWS_REGION: !Ref AWSRegion
         REACT_APP_COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
@@ -150,6 +168,7 @@ Resources:
         REACT_APP_COGNITO_DOMAIN: !Ref CognitoDomain
         REACT_APP_COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
         REACT_APP_AGENTCORE_RUNTIME_ENDPOINT: !Ref AgentCoreRuntimeEndpoint
+        REACT_APP_FRONTDOOR_URL: !Ref FrontDoorUrl
         REACT_APP_VOICE_SIGNALING_URL: !Ref VoiceSignalingUrl
 
 Outputs:

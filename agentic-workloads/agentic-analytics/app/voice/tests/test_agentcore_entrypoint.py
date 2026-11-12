@@ -182,7 +182,7 @@ def test_offer_no_header_yields_no_token(monkeypatch):
     captured = _install_common_stubs(monkeypatch)
     monkeypatch.setattr(bot, "SmallWebRTCRequestHandler", _FakeHandler)
 
-    payload = {"type": "offer", "data": {"gateway_token": "stray-body-jwt",
+    payload = {"type": "offer", "data": {"gateway_token": "stray-body-jwt",  # nosec B105 - header name / test fixture, not a credential
                                          "runtimeSessionId": "shared-sess-abc"}}
     asyncio.run(_drain(bot.agentcore_entrypoint(payload, None)))
 
@@ -196,7 +196,7 @@ def test_offer_ignores_body_token(monkeypatch):
     monkeypatch.setattr(bot, "SmallWebRTCRequestHandler", _FakeHandler)
 
     ctx = _FakeContext({"authorization": "Bearer header-token"})
-    payload = {"type": "offer", "data": {"gateway_token": "body-ignored",
+    payload = {"type": "offer", "data": {"gateway_token": "body-ignored",  # nosec B105 - header name / test fixture, not a credential
                                          "runtimeSessionId": "s"}}
     asyncio.run(_drain(bot.agentcore_entrypoint(payload, ctx)))
 
@@ -248,8 +248,8 @@ def test_kvs_ice_shaping(monkeypatch):
         def get_ice_server_config(self, ChannelARN, Service):
             return {"IceServerList": [
                 {"Uris": ["turn:1.2.3.4:443?transport=tcp", "stun:1.2.3.4:443"],
-                 "Username": "u", "Password": "p"},
-                {"Uris": ["stun:only.example"], "Username": "x", "Password": "y"},  # dropped
+                 "Username": "u", "Password": "p"},  # nosec B105 - header name / test fixture, not a credential
+                {"Uris": ["stun:only.example"], "Username": "x", "Password": "y"},  # dropped  # nosec B105 - header name / test fixture, not a credential
             ]}
 
     def _fake_client(service, **kwargs):

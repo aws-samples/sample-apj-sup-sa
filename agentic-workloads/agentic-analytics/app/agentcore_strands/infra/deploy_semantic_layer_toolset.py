@@ -71,8 +71,7 @@ def get_cube_private_ip():
 
 def get_cube_api_secret():
     """Resolve the shared Cube API secret. Prefer the per-deploy Secrets Manager
-    secret (CubeApiSecretArn output); fall back to an env override; last resort the
-    legacy workshop default (kept only so old stacks without the secret still work)."""
+    secret (CubeApiSecretArn output) or an env override. There is no built-in default."""
     env_override = os.getenv("CUBE_API_SECRET")
     if env_override:
         return env_override
@@ -83,8 +82,8 @@ def get_cube_api_secret():
             return sm.get_secret_value(SecretId=secret_arn)['SecretString']
         except Exception as e:
             print(f"Warning: could not read Cube API secret from {secret_arn}: {e}")
-    print("Warning: falling back to legacy default Cube API secret.")
-    return "cubejs-workshop-secret-2024"  # nosec B105 - legacy fallback for pre-secret stacks
+    raise SystemExit("Cube API secret not found: deploy the Cube stack (CubeApiSecretArn output) "
+                     "or set CUBE_API_SECRET.")
 
 
 CUBE_API_SECRET = get_cube_api_secret()
@@ -166,10 +165,18 @@ def deploy_lambda(role_arn, zip_path, cube_private_ip):
     with open(zip_path, 'rb') as f:
         zip_content = f.read()
 
+    # Reuse the Step 4 toolset Lambda's PyJWT layer and Cognito settings, so this
+    # Lambda verifies the propagated token the same way before trusting its tenant.
+    base = client.get_function_configuration(
+        FunctionName=f"{os.getenv('ENV_NAME', 'agentic-analytics')}-datafoundation")
+    layers = [layer['Arn'] for layer in base.get('Layers', []) if 'pyjwt' in layer['Arn'].lower()]
+    base_env = base.get('Environment', {}).get('Variables', {})
     env = {
         'Variables': {
             'CUBE_API_URL': f'http://{cube_private_ip}:4000',
             'CUBE_API_SECRET': CUBE_API_SECRET,
+            'COGNITO_USER_POOL_ID': base_env.get('COGNITO_USER_POOL_ID', ''),
+            'COGNITO_USER_LOGIN_CLIENT_ID': base_env.get('COGNITO_USER_LOGIN_CLIENT_ID', ''),
         }
     }
     vpc = {
@@ -188,6 +195,7 @@ def deploy_lambda(role_arn, zip_path, cube_private_ip):
             MemorySize=256,
             VpcConfig=vpc,
             Environment=env,
+            Layers=layers,
         )
         print(f"[OK] Created Lambda: {LAMBDA_NAME}")
         client.get_waiter('function_active').wait(FunctionName=LAMBDA_NAME)
@@ -199,6 +207,7 @@ def deploy_lambda(role_arn, zip_path, cube_private_ip):
             Timeout=60,
             VpcConfig=vpc,
             Environment=env,
+            Layers=layers,
         )
         print(f"[OK] Updated Lambda: {LAMBDA_NAME}")
         client.get_waiter('function_updated').wait(FunctionName=LAMBDA_NAME)

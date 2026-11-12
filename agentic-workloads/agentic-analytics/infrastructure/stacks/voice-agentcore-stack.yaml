@@ -37,6 +37,11 @@ Parameters:
     Type: String
     Description: ARN of the EXISTING Strands analytics AgentCore Runtime the voice pipeline invokes (Bearer HTTPS)
 
+  StrandsAgentFrontDoorUrl:
+    Type: String
+    Default: ''
+    Description: Front-door gateway URL of the analytics agent. When set, the pipeline calls <url>/agent/invocations instead of the runtime directly.
+
   StrandsAgentQualifier:
     Type: String
     Default: agentic_analytics_endpoint
@@ -113,12 +118,19 @@ Resources:
   #============================================================================
   VoiceECRRepo:
     Type: AWS::ECR::Repository
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_136
+            comment: AES-256 at rest (ECR default). A KMS key forces replacement of this named repository on existing stacks.
     Properties:
       RepositoryName: !Sub ${EnvironmentName}-voice-agent
       # Let delete-stack remove the repo even though CodeBuild pushed images into it.
       EmptyOnDelete: true
       ImageScanningConfiguration:
-        ScanOnPush: false
+        ScanOnPush: true
+      # Images are encrypted at rest with AES-256 (ECR default). A KMS key would force a
+      # repository replacement on existing stacks and adds no control in a single-account sample.
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
 
@@ -146,7 +158,8 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: '*'
+                # Only this service's own log groups.
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -207,7 +220,7 @@ Resources:
                   FROM public.ecr.aws/docker/library/python:3.12-slim
                   ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONUNBUFFERED=1 VOICE_RUNTIME_MODE=agentcore
                   RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
-                  COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+                  COPY --from=ghcr.io/astral-sh/uv:0.12.18 /uv /uvx /bin/
                   WORKDIR /app
                   COPY uv.lock pyproject.toml ./
                   RUN uv sync --locked --no-install-project --no-dev
@@ -399,7 +412,8 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: '*'
+                # Only this service's own log groups.
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/*
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -412,12 +426,17 @@ Resources:
                 Resource: !GetAtt VoiceECRRepo.Arn
               # VPC mode: the runtime manages ENIs in our subnets using this role.
               - Effect: Allow
+                Action: ec2:DescribeNetworkInterfaces
+                Resource: '*'
+              - Effect: Allow
                 Action:
                   - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                   - ec2:CreateNetworkInterfacePermission
-                Resource: '*'
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
       # NOTE: NO Memory perms (Memory writes happen in the Strands runtime), and NO
       # bedrock-agentcore:InvokeAgentRuntime — the onward call to the Strands runtime
       # is a JWT-Bearer HTTPS request validated by ITS authorizer, not an IAM call.
@@ -465,6 +484,7 @@ Resources:
         # The pipeline's LLM stage invokes the Strands runtime (Bearer HTTPS).
         AWS_AGENT_ARN: !Ref StrandsAgentRuntimeArn
         AWS_AGENT_QUALIFIER: !Ref StrandsAgentQualifier
+        AWS_AGENT_FRONTDOOR_URL: !Ref StrandsAgentFrontDoorUrl
         DEEPGRAM_API_KEY: !Ref DeepgramApiKey
         DEEPGRAM_VOICE_ID: !Ref DeepgramVoiceId
         CHART_BUCKET: !Ref ChartBucket
@@ -769,6 +789,7 @@ Resources:
       FunctionName: !Ref SignalingProxyFunction
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SignalingHttpApi}/*/*
 
 Outputs:

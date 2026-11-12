@@ -33,9 +33,16 @@
 set -euo pipefail
 
 # ── Config (override via env) ────────────────────────────────────────────────
-BUCKET="${BUCKET:-agentic-analytics-demo}"
 STACK="${STACK:-agentic-analytics-demo}"
 REGION="${REGION:-us-west-2}"
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+# An existing stack keeps its bucket. A new one gets an Account- and Region-specific
+# name, so nobody else can own the bucket name first.
+if [ -z "${BUCKET:-}" ]; then
+  BUCKET="$(aws cloudformation describe-stacks --stack-name "$STACK" --region "$REGION" \
+    --query "Stacks[0].Parameters[?ParameterKey=='ArtifactsBucket'].ParameterValue" --output text 2>/dev/null || true)"
+  [ -n "$BUCKET" ] && [ "$BUCKET" != "None" ] || BUCKET="agentic-analytics-demo-${ACCOUNT_ID}-${REGION}"
+fi
 DEMO_ROLE="${DEMO_ROLE:-rental_admin}"   # rental_admin has full access incl. create_booking
 
 # Voice (optional, additive). Set ENABLE_VOICE=true VOICE_MODE=agentcore plus
@@ -301,6 +308,9 @@ if [ "$SKIP_PACKAGE" = true ]; then
 else
   log "Ensuring artifacts bucket exists"
   aws s3 mb "s3://${BUCKET}" --region "$REGION" 2>/dev/null || true
+  # Refuse to upload templates or code to a bucket another account owns.
+  aws s3api head-bucket --bucket "$BUCKET" --expected-bucket-owner "$ACCOUNT_ID" >/dev/null \
+    || die "Bucket ${BUCKET} is missing or not owned by account ${ACCOUNT_ID}"
 
   log "Packaging & uploading artifacts (this builds the UI + Lambdas — a few minutes)"
   AWS_REGION="$REGION" bash "$PKG_SCRIPT" "$BUCKET" | tee "$PKG_LOG"
@@ -332,10 +342,10 @@ else
   latest() { aws s3 ls "s3://${BUCKET}/$1" --region "$REGION" | sort | tail -1 | awk '{print $4}'; }
   KEY_PAIRS+=("DatabaseInitLambdaKey=lambdas/$(latest lambdas/database_init-)")
   KEY_PAIRS+=("GlueCrawlerLambdaKey=lambdas/$(latest lambdas/glue_crawler_trigger-)")
-  KEY_PAIRS+=("BedrockKBLambdaKey=lambdas/$(latest lambdas/bedrock_kb_ingestion-)")
   KEY_PAIRS+=("ObservabilityLambdaKey=lambdas/$(latest lambdas/observability_setup-)")
   KEY_PAIRS+=("AmplifyLambdaKey=lambdas/$(latest lambdas/amplify_hosting-)")
   KEY_PAIRS+=("InterceptorLambdaKey=lambdas/$(latest lambdas/gateway_interceptor-)")
+  KEY_PAIRS+=("SchemaSyncLambdaKey=lambdas/$(latest lambdas/schema_sync-)")
   KEY_PAIRS+=("DataFoundationLambdaKey=lambdas/$(latest lambdas/datafoundation-)")
   KEY_PAIRS+=("ApiIntegLambdaKey=lambdas/$(latest lambdas/api_integration_toolset-)")
   KEY_PAIRS+=("CustomSqlLambdaKey=lambdas/$(latest lambdas/custom_sql_toolset-)")
@@ -345,7 +355,7 @@ else
   [ "$ENABLE_VOICE" = "true" ] && KEY_PAIRS+=("VoiceAgentCodeS3Key=voice/$(latest voice/voice_agent_code-)")
 fi
 
-REQUIRED_KEYS=(DatabaseInitLambdaKey GlueCrawlerLambdaKey BedrockKBLambdaKey
+REQUIRED_KEYS=(DatabaseInitLambdaKey GlueCrawlerLambdaKey
   ObservabilityLambdaKey AmplifyLambdaKey DataFoundationLambdaKey InterceptorLambdaKey
   ApiIntegLambdaKey CustomSqlLambdaKey SemanticLayerLambdaKey UIBuildKey AgentCodeS3Key)
 for k in "${REQUIRED_KEYS[@]}"; do
@@ -375,9 +385,20 @@ fi
 build_params() {
   echo "ParameterKey=ArtifactsBucket,ParameterValue=${BUCKET}"
   echo "ParameterKey=DeployMode,ParameterValue=demo"
+  # Resource-name/export prefix. Without it every deployment is "agentic-analytics",
+  # which collides with a second deployment (or a workshop base stack) in the same account.
+  echo "ParameterKey=EnvironmentName,ParameterValue=${ENV_NAME}"
+  # Glue catalog database names are account-wide; give non-default environments their own.
+  if [ "$ENV_NAME" != "agentic-analytics" ]; then
+    echo "ParameterKey=GlueCatalogDatabaseName,ParameterValue=$(echo "${ENV_NAME}" | tr '-' '_')_timely_unicorn"
+  fi
   for k in "${REQUIRED_KEYS[@]}"; do
     echo "ParameterKey=${k},ParameterValue=$(key_val "$k")"
   done
+  # Optional: the schema-change pipeline nests only when its Lambda zip exists.
+  if [ -n "$(key_val SchemaSyncLambdaKey)" ]; then
+    echo "ParameterKey=SchemaSyncLambdaKey,ParameterValue=$(key_val SchemaSyncLambdaKey)"
+  fi
   if [ "$ENABLE_VOICE" = "true" ]; then
     echo "ParameterKey=VoiceAgentCodeS3Key,ParameterValue=$(key_val VoiceAgentCodeS3Key)"
     echo "ParameterKey=EnableVoice,ParameterValue=true"
@@ -440,12 +461,21 @@ if [ "$ST" = "DOES_NOT_EXIST" ]; then
     || die "Stack create failed — resources left in place (disable-rollback). Fix the cause, repackage, then re-run: the script will update-stack to fix forward. Inspect: aws cloudformation describe-stack-events --stack-name $STACK --region $REGION"
 else
   log "Updating existing stack ${STACK}"
-  # NOTE: --disable-rollback REJECTS replacement-type updates ("Replacement type
-  # updates not supported on stack with disable-rollback"). Pass --rollback when an
-  # update replaces a resource (e.g. a new TaskDefinition revision).
+  # --disable-rollback REJECTS replacement-type updates ("Replacement type updates not
+  # supported on stack with disable-rollback"), and every tool-code change replaces the
+  # Lambda Version behind the 'live' alias. So a normal update keeps rollback on; only the
+  # fix-forward of a failed first create (CREATE_FAILED) keeps it off.
   # bash 3.2 + set -u: expanding an empty array as "${arr[@]}" errors, so guard it.
   DISABLE_RB=()
-  [ "$NO_ROLLBACK" = true ] && DISABLE_RB=(--disable-rollback)
+  [ "$NO_ROLLBACK" = true ] && [ "$ST" = "CREATE_FAILED" ] && DISABLE_RB=(--disable-rollback)
+  # A failed update left with rollback disabled (UPDATE_FAILED) only accepts another
+  # disable-rollback update. Roll it back to the last good state first, then update normally.
+  if [ "$ST" = "UPDATE_FAILED" ]; then
+    log "Stack is UPDATE_FAILED — rolling back to the last good state before updating."
+    aws cloudformation rollback-stack --region "$REGION" --stack-name "$STACK"
+    aws cloudformation wait stack-rollback-complete --region "$REGION" --stack-name "$STACK" \
+      || die "rollback-stack did not complete; inspect stack events."
+  fi
   if aws cloudformation update-stack --region "$REGION" --stack-name "$STACK" \
        --template-url "$TEMPLATE_URL" \
        --parameters $(build_params) \
@@ -476,9 +506,10 @@ COGNITO_USER_POOL_ID="$(get_out CognitoUserPoolId)"
 AMPLIFY_URL="$(get_out AmplifyAppUrl)"
 [ -n "$RUNTIME_ID" ] || die "AgentRuntimeId output missing"
 AGENT_ARN="arn:aws:bedrock-agentcore:${REGION}:${ACCOUNT_ID}:runtime/${RUNTIME_ID}"
+FRONTDOOR_URL="$(get_out FrontDoorUrl)"
 
 # Demo user creds live in SSM (seeded by the Cognito stack). Pick by role.
-USERS_JSON="$(aws ssm get-parameter --region "$REGION" --name "/agentic-analytics/demo/users" \
+USERS_JSON="$(aws ssm get-parameter --region "$REGION" --name "/${ENV_NAME}/demo/users" \
   --with-decryption --query "Parameter.Value" --output text)"
 DEMO_USERNAME="$(echo "$USERS_JSON" | jq -r --arg r "$DEMO_ROLE" 'map(select(.role==$r)) | .[0].email // empty')"
 DEMO_PASSWORD="$(echo "$USERS_JSON" | jq -r --arg r "$DEMO_ROLE" 'map(select(.role==$r)) | .[0].password // empty')"
@@ -513,6 +544,8 @@ AWS_REGION=${REGION}
 
 # ── AgentCore (deployed Strands agent) ─────────────────────────────────────────
 AWS_AGENT_ARN=${AGENT_ARN}
+# The analytics runtime is IAM-only behind the front door; the bot calls the gateway.
+AWS_AGENT_FRONTDOOR_URL=${FRONTDOOR_URL}
 
 # ── Cognito ──────────────────────────────────────────────────────────────────
 COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
@@ -522,10 +555,13 @@ COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
 # Hosted modes (fargate/pipecat-cloud) forward the SIGNED-IN user's own token and
 # never use these. For laptop dev with no browser sign-in, ALLOW_DEMO_FALLBACK=true
 # lets auth.py mint a token via Cognito ROPC for the demo user (role=${DEMO_ROLE}).
+# This file holds a password: it is git-ignored and written with mode 600.
 ALLOW_DEMO_FALLBACK=true
 DEMO_USERNAME=${DEMO_USERNAME}
 DEMO_PASSWORD=${DEMO_PASSWORD}
 EOF
+
+chmod 600 "$ENV_FILE"
 
 if [ -z "$DAILY_API_KEY" ] || [ -z "$DEEPGRAM_API_KEY" ]; then
   warn "DAILY_API_KEY / DEEPGRAM_API_KEY are blank in ${ENV_FILE} — fill them before running the bot."
@@ -538,6 +574,7 @@ cat <<EOF
   Agent ARN     : ${AGENT_ARN}
   Cognito pool  : ${COGNITO_USER_POOL_ID}  (client ${COGNITO_CLIENT_ID})
   Demo user     : ${DEMO_USERNAME}  (${DEMO_ROLE}, laptop-dev fallback)
+  Passwords     : aws ssm get-parameter --name /${ENV_NAME}/demo/users --with-decryption --region ${REGION} --query Parameter.Value --output text | jq .
   Amplify UI    : ${AMPLIFY_URL}   (text chat + voice)
 
   Run the voice bot (option 1 — Pipecat Playground):

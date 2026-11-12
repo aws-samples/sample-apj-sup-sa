@@ -118,9 +118,6 @@ echo "  database_init: $DB_INIT_KEY"
 GLUE_KEY=$(package_lambda "glue_crawler_trigger" "$INFRA_DIR/custom-resource-lambdas/glue_crawler_trigger")
 echo "  glue_crawler_trigger: $GLUE_KEY"
 
-BEDROCK_KEY=$(package_lambda "bedrock_kb_ingestion" "$INFRA_DIR/custom-resource-lambdas/bedrock_kb_ingestion")
-echo "  bedrock_kb_ingestion: $BEDROCK_KEY"
-
 OBSERVABILITY_KEY=$(package_lambda "observability_setup" "$INFRA_DIR/custom-resource-lambdas/observability_setup")
 echo "  observability_setup: $OBSERVABILITY_KEY"
 
@@ -191,6 +188,21 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
     aws s3 cp "$TEMP_DIR/gateway_interceptor.zip" "s3://$BUCKET/$(s3_path "$INTERCEPTOR_KEY")" --region $REGION > /dev/null
     echo "  gateway_interceptor: $INTERCEPTOR_KEY"
 
+    # Package the schema change pipeline Lambda (app/schema_sync)
+    echo "Packaging schema_sync Lambda..."
+    SCHEMA_PKG="$TEMP_DIR/schema_sync_pkg"
+    mkdir -p "$SCHEMA_PKG"
+    cp "$PROJECT_ROOT/app/schema_sync/schema_sync_lambda.py" "$PROJECT_ROOT/app/schema_sync/schema_diff.py" "$SCHEMA_PKG/"
+    (cd "$SCHEMA_PKG" && zip -r "$TEMP_DIR/schema_sync.zip" . > /dev/null)
+    if command -v sha256sum &> /dev/null; then
+        HASH=$(sha256sum "$TEMP_DIR/schema_sync.zip" | cut -c1-8)
+    else
+        HASH=$(shasum -a 256 "$TEMP_DIR/schema_sync.zip" | cut -c1-8)
+    fi
+    SCHEMA_SYNC_KEY="lambdas/schema_sync-${HASH}.zip"
+    aws s3 cp "$TEMP_DIR/schema_sync.zip" "s3://$BUCKET/$(s3_path "$SCHEMA_SYNC_KEY")" --region $REGION > /dev/null
+    echo "  schema_sync: $SCHEMA_SYNC_KEY"
+
     # Package agent code ZIP for AgentCore Runtime (CodeConfiguration)
     echo "Packaging agent code for AgentCore Runtime..."
     cd "$AGENT_DIR"
@@ -234,7 +246,7 @@ if [ "$DEPLOY_MODE" != "workshop" ]; then
     echo "Packaging psycopg2 Lambda layer..."
     LAYER_DIR="$TEMP_DIR/psycopg2_layer/python"
     mkdir -p "$LAYER_DIR"
-    pip3 download psycopg2-binary \
+    pip3 download "psycopg2-binary==2.9.9" \
         --platform manylinux2014_x86_64 \
         --only-binary=:all: \
         --python-version 312 \
@@ -309,6 +321,7 @@ aws s3 cp cognito-stack.yaml "s3://$BUCKET/$(s3_path "templates/cognito-stack.ya
 aws s3 cp code-editor-stack.yaml "s3://$BUCKET/$(s3_path "templates/code-editor-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp observability-stack.yaml "s3://$BUCKET/$(s3_path "templates/observability-stack.yaml")" --region $REGION > /dev/null
 aws s3 cp cube-stack.yaml "s3://$BUCKET/$(s3_path "templates/cube-stack.yaml")" --region $REGION > /dev/null
+aws s3 cp schema-sync-stack.yaml "s3://$BUCKET/$(s3_path "templates/schema-sync-stack.yaml")" --region $REGION > /dev/null
 
 echo "Uploading schema and data..."
 aws s3 cp "$PROJECT_ROOT/dataset/schema/schema.sql" "s3://$BUCKET/$(s3_path "schema/schema.sql")" --region $REGION > /dev/null
@@ -322,8 +335,11 @@ echo "Uploading JDBC driver..."
 # Download PostgreSQL JDBC driver if not present
 DRIVER_PATH="$TEMP_DIR/postgresql-42.7.3.jar"
 if [ ! -f "$DRIVER_PATH" ]; then
-    curl -sL https://jdbc.postgresql.org/download/postgresql-42.7.3.jar -o "$DRIVER_PATH"
+    curl -sfL https://jdbc.postgresql.org/download/postgresql-42.7.3.jar -o "$DRIVER_PATH"
 fi
+# SHA-256 of postgresql-42.7.3.jar (its SHA-1 matches Maven Central's published .sha1).
+DRIVER_SHA256=a2644cbfba1baa145ff7e8c8ef582a6eed7a7ec4ca792f7f054122bdec756268
+echo "$DRIVER_SHA256  $DRIVER_PATH" | sha256sum -c --quiet - || { echo "JDBC driver checksum mismatch" >&2; rm -f "$DRIVER_PATH"; exit 1; }
 aws s3 cp "$DRIVER_PATH" "s3://$BUCKET/$(s3_path "drivers/postgresql-42.7.3.jar")" --region $REGION > /dev/null
 
 UI_BUILD_KEY="ui/build.zip"
@@ -393,10 +409,10 @@ echo ""
 echo "Lambda S3 Keys:"
 echo "  DatabaseInitLambdaKey=$DB_INIT_KEY"
 echo "  GlueCrawlerLambdaKey=$GLUE_KEY"
-echo "  BedrockKBLambdaKey=$BEDROCK_KEY"
 echo "  AmplifyLambdaKey=$AMPLIFY_KEY"
 echo "  DataFoundationLambdaKey=${DATAFOUNDATION_KEY:-lambda/datafoundation_lambda.zip}"
 echo "  InterceptorLambdaKey=$INTERCEPTOR_KEY"
+echo "  SchemaSyncLambdaKey=$SCHEMA_SYNC_KEY"
 echo "  ApiIntegLambdaKey=$API_INTEG_KEY"
 echo "  CustomSqlLambdaKey=$CUSTOM_SQL_KEY"
 echo "  SemanticLayerLambdaKey=$SEMANTIC_LAYER_KEY"
@@ -425,7 +441,6 @@ echo "      ParameterKey=ArtifactsBucket,ParameterValue=$ARTIFACTS_BUCKET \\"
 echo "      ParameterKey=DeployMode,ParameterValue=$DEPLOY_MODE \\"
 echo "      ParameterKey=DatabaseInitLambdaKey,ParameterValue=$DB_INIT_KEY \\"
 echo "      ParameterKey=GlueCrawlerLambdaKey,ParameterValue=$GLUE_KEY \\"
-echo "      ParameterKey=BedrockKBLambdaKey,ParameterValue=$BEDROCK_KEY \\"
 echo "      ParameterKey=AgentCodeS3Key,ParameterValue=agent/agent_code.zip \\"
 echo "      ParameterKey=AmplifyLambdaKey,ParameterValue=$AMPLIFY_KEY \\"
 echo "      ParameterKey=DataFoundationLambdaKey,ParameterValue=${DATAFOUNDATION_KEY:-lambda/datafoundation_lambda.zip} \\"

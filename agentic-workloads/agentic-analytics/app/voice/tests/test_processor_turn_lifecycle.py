@@ -88,7 +88,7 @@ def _make_processor(monkeypatch, chunks, stall=False, **env):
         agent_arn="arn:aws:bedrock-agentcore:us-west-2:1:runtime/x",
         token_fn=lambda: "demo-token",
         aws_region="us-west-2",
-        user_token="header-token",
+        user_token="header-token",  # nosec B106 - test fixture value
         session_id="voice-test-session-padpadpadpadpadpad",
         qualifier="agentic_analytics_endpoint",
     )

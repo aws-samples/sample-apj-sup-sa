@@ -15,7 +15,14 @@ Parameters:
   GlueDatabaseName:
     Type: String
     Default: timely_unicorn
-    Description: Name of the Glue database
+    Description: Name of the Aurora PostgreSQL database the crawler reads (also the default catalog name)
+
+  CatalogDatabaseName:
+    Type: String
+    Default: ''
+    Description: >-
+      Glue Data Catalog database name. Empty = same as GlueDatabaseName. Set it when a second
+      deployment shares the account, because catalog database names are account-wide.
 
   ConnectionVersion:
     Type: String
@@ -45,6 +52,7 @@ Parameters:
 
 Conditions:
   ShouldTriggerCrawler: !Equals [!Ref TriggerCrawler, 'true']
+  UseDefaultCatalogName: !Equals [!Ref CatalogDatabaseName, '']
 
 Resources:
   #============================================================================
@@ -102,9 +110,9 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
-        Name: !Ref GlueDatabaseName
+        Name: !If [UseDefaultCatalogName, !Ref GlueDatabaseName, !Ref CatalogDatabaseName]
         Description: Timely-Unicorn rental management system data catalog
-        LocationUri: !Sub 's3://${EnvironmentName}-glue-data/'
+        LocationUri: !Sub 's3://${EnvironmentName}-glue-data-${AWS::AccountId}/'
         Parameters:
           classification: postgresql
           source: aurora-postgresql
@@ -140,10 +148,17 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # The crawler's JDBC connection runs in the VPC through ENIs it creates and removes.
               - Effect: Allow
                 Action:
                   - ec2:CreateNetworkInterface
                   - ec2:DeleteNetworkInterface
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+              - Effect: Allow
+                Action:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DescribeSecurityGroups
                   - ec2:DescribeSubnets
@@ -172,7 +187,11 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::${GlueDriverBucket}
                   - !Sub arn:aws:s3:::${GlueDriverBucket}/*
-        - PolicyName: GlueJobAccess
+        # A crawler that uses a custom JDBC driver runs as a Glue job under this
+        # same role, so the role must be able to start that job and pass itself to
+        # Glue. Without this the crawl fails with "Crawler service is not granted
+        # iam permissions required".
+        - PolicyName: GlueCustomDriverJob
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -183,11 +202,13 @@ Resources:
                   - glue:GetJob
                   - glue:GetJobRun
                   - glue:StartJobRun
-                Resource: '*'
+                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/*
               - Effect: Allow
-                Action:
-                  - iam:PassRole
+                Action: iam:PassRole
                 Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/${EnvironmentName}-glue-role
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: glue.amazonaws.com
 
   #============================================================================
   # S3 Bucket for JDBC Driver (Glue needs write access to driver bucket)
@@ -197,6 +218,10 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       BucketName: !Sub ${EnvironmentName}-glue-drivers-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -204,6 +229,14 @@ Resources:
         RestrictPublicBuckets: true
       LoggingConfiguration:
         LogFilePrefix: !Sub ${EnvironmentName}-glue-drivers-logs/
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
 
   GlueDriverBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -221,7 +254,7 @@ Resources:
               - !Sub arn:aws:s3:::${GlueDriverBucket}/*
             Condition:
               Bool:
-                aws:SecureTransport: 'false'
+                aws:SecureTransport: false
 
   EmptyGlueDriverBucketRole:
     Type: AWS::IAM::Role
@@ -373,8 +406,8 @@ Resources:
             - Endpoint:
                 Fn::ImportValue: !Sub ${EnvironmentName}-AuroraClusterEndpoint
               DBName: !Ref GlueDatabaseName
-          USERNAME: '{{resolve:secretsmanager:agentic-analytics/aurora/credentials:SecretString:username}}'
-          PASSWORD: '{{resolve:secretsmanager:agentic-analytics/aurora/credentials:SecretString:password}}'
+          USERNAME: !Sub '{{resolve:secretsmanager:${EnvironmentName}/aurora/credentials:SecretString:username}}'
+          PASSWORD: !Sub '{{resolve:secretsmanager:${EnvironmentName}/aurora/credentials:SecretString:password}}'
           JDBC_DRIVER_CLASS_NAME: org.postgresql.Driver
           JDBC_DRIVER_JAR_URI: !Sub s3://${GlueDriverBucket}/drivers/postgresql-42.7.3.jar
         PhysicalConnectionRequirements:
@@ -398,7 +431,7 @@ Resources:
       Name: !Sub ${EnvironmentName}-aurora-crawler
       Description: Crawler to discover tables in Aurora PostgreSQL database
       Role: !GetAtt GlueServiceRole.Arn
-      DatabaseName: !Ref GlueDatabaseName
+      DatabaseName: !Ref GlueDatabase
       Targets:
         JdbcTargets:
           - ConnectionName: !Sub ${EnvironmentName}-aurora-connection-${ConnectionVersion}
@@ -445,11 +478,16 @@ Resources:
                   - glue:GetCrawler
                 Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${EnvironmentName}-aurora-crawler
               - Effect: Allow
+                Action: ec2:DescribeNetworkInterfaces
+                Resource: '*'
+              # Cleans up the crawler ENIs left behind in this account and Region.
+              - Effect: Allow
                 Action:
-                  - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                   - ec2:DetachNetworkInterface
-                Resource: '*'
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
 
   #============================================================================
   # Crawler Trigger Lambda Function

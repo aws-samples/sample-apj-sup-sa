@@ -28,12 +28,12 @@ By the end of this step, you will:
 Your AWS account comes with a pre-configured VS Code editor running on EC2, accessible via CloudFront.
 
 1. From the Workshop Studio dashboard, find the **CodeEditorUrl** output
-2. Click the URL — it opens VS Code in your browser
+2. Click the URL: it opens VS Code in your browser
 3. The password token is embedded in the URL, so you should be logged in automatically
 
 ::alert[If the URL doesn't work or you see a password prompt, go to the CloudFormation console, find the **`main-stack`** stack, and check the **Outputs** tab for the `CodeEditorUrl`.]{type="info"}
 
-::alert[**Two stacks, two names — worth knowing now.** The event pre-deployed the **base** infrastructure as a stack named **`main-stack`** (Aurora, Cognito, Glue, the Knowledge Base, this Code Editor — its outputs and nested stacks all start with `main-stack-…`). In Step 2 you'll deploy a **second** stack you build yourself, named **`agentic-analytics-agentcore`** (the Gateway, Runtime, toolsets, policies, guardrail). When a command references a stack name, that's which is which.]{type="info"}
+::alert[**Two stacks.** The event pre-deployed the **base** infrastructure as a stack named **`main-stack`** (Aurora, Cognito, Glue, the Knowledge Base, this Code Editor: its outputs and nested stacks all start with `main-stack-…`). In Step 2 you'll deploy a **second** stack you build yourself, named **`agentic-analytics-agentcore`** (the Gateway, Runtime, toolsets, policies, guardrail). When a command references a stack name, that's which is which.]{type="info"}
 
 ## Explore the Environment
 
@@ -78,11 +78,11 @@ export AWS_DEFAULT_REGION=us-east-1
 
 ::alert[Keep this terminal's virtual environment activated for the Step 1 exercise. `make` in Step 2 onward does **not** need the venv (it only uses the AWS CLI), but the local `basic_agent.py` exercise does.]{type="info"}
 
-::alert[`AWS_DEFAULT_REGION` is set so the AWS CLI (used by `make`) targets the right region. You do **not** need the `agentcore` CLI in this workshop — the agent's container image is built and deployed by CloudFormation (you'll see this in Step 2).]{type="info"}
+::alert[`AWS_DEFAULT_REGION` is set so the AWS CLI (used by `make`) targets the right region. You do **not** need the `agentcore` CLI in this workshop: the agent's container image is built and deployed by CloudFormation (you'll see this in Step 2).]{type="info"}
 
 ## Explore the Codebase
 
-The same code is also on GitHub at :link[aws-samples/sample-apj-sup-sa]{href="https://github.com/aws-samples/sample-apj-sup-sa/tree/main/agentic-workloads/agentic-analytics" external=true} (the `agentic-workloads/agentic-analytics` directory) — handy if you want to browse, search, or copy files outside the Code Editor, or clone the project to keep after the event.
+The same code is also on GitHub at :link[aws-samples/sample-apj-sup-sa]{href="https://github.com/aws-samples/sample-apj-sup-sa/tree/main/agentic-workloads/agentic-analytics" external=true} (the `agentic-workloads/agentic-analytics` directory): handy if you want to browse, search, or copy files outside the Code Editor, or clone the project to keep after the event.
 
 Click the files icon on the top left in the Code Editor UI to view the directory. Here are the key files you'll work with throughout the workshop:
 
@@ -100,9 +100,9 @@ app/agentcore_strands/
 └── requirements.txt
 ```
 
-The workflow for the rest of the workshop is always the same: **edit `agentcore-topup-stack.yaml`** (uncomment one marked section, or flip one value) → **`make deploy`**. Open the template now and read its banner comment — it explains exactly how the uncomment fences work.
+The workflow for the rest of the workshop is always the same: **edit `agentcore-topup-stack.yaml`** (uncomment one marked section, or flip one value) → **`make deploy`**. Open the template now and read its banner comment: it explains exactly how the uncomment fences work.
 
-Open `unicorn_rental_agent.py` too. You'll notice several `# TODO` comments — you'll complete those in Step 2, then the agent is built and deployed for you by CloudFormation.
+Open `unicorn_rental_agent.py` too. You'll notice several `# TODO` comments: you'll complete those in Step 2, then the agent is built and deployed for you by CloudFormation.
 
 ## Verification
 
@@ -117,7 +117,7 @@ Open `unicorn_rental_agent.py` too. You'll notice several `# TODO` comments — 
 
 **Code Editor URL returns 403 or blank page**
 - The CloudFront distribution may still be deploying. Wait 2-3 minutes and refresh.
-- Check the CloudFormation stack status — it should be `CREATE_COMPLETE`.
+- Check the CloudFormation stack status: it should be `CREATE_COMPLETE`.
 
 **`config.env` is empty or missing values**
 - The CloudFormation stack may still be running custom resources. Wait for `CREATE_COMPLETE` status.

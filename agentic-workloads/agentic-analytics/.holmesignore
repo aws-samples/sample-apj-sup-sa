@@ -1,0 +1,11 @@
+# Files Holmes must never upload: local secrets and generated output.
+.env
+*.env
+!config.env.sample
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+build/
+workshop/assets/
+workshop/static/main-stack.yaml

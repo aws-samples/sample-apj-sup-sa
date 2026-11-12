@@ -16,12 +16,15 @@ def get_s3_client(region=None):
     return boto3.client('s3', region_name=region)
 
 
-def build_react_app(ui_dir, env_vars=None):
+def build_react_app(ui_dir, env_vars=None, write_env_file=True):
     """Build the React application.
     
     Args:
         ui_dir: Path to UI directory
         env_vars: Optional dict of environment variables for build
+        write_env_file: Merge env_vars into ui_dir/.env (the dev server's config). Pass False
+            for a second app built from the same source: the values are then passed only to
+            the build process, where Vite lets them override .env, and .env is left alone.
     
     Returns:
         Path: Build directory path
@@ -34,7 +37,7 @@ def build_react_app(ui_dir, env_vars=None):
     # a voice redeploy) cannot silently drop config a previous deploy already wrote
     # (REACT_APP_AGENT_RUNTIME_ARN, Cognito vars, ...). New keys win; existing keys not
     # present in env_vars are preserved.
-    if env_vars:
+    if env_vars and write_env_file:
         env_file = ui_dir / ".env"
         merged = {}
         if env_file.exists():
@@ -62,11 +65,13 @@ def build_react_app(ui_dir, env_vars=None):
         raise Exception(f"npm install failed: {result.stderr}")
     
     # Run npm build
+    build_env = None if write_env_file else {**os.environ, **(env_vars or {})}
     result = subprocess.run(
         ["npm", "run", "build"],
         cwd=ui_dir,
         capture_output=True,
-        text=True
+        text=True,
+        env=build_env,
     )
     if result.returncode != 0:
         raise Exception(f"npm build failed: {result.stderr}")

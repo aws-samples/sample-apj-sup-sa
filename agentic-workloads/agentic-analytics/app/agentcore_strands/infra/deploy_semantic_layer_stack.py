@@ -47,21 +47,33 @@ AMPLIFY_APP_NAME = "agentic-analytics-semantic-ui"
 RUNTIME_AGENT_NAME = "unicorn_rental_semantic_agent"
 RUNTIME_ENTRYPOINT = "agent/unicorn_rental_semantic_agent.py"
 
-try:
-    from bedrock_agentcore_starter_toolkit.operations.gateway.client import (
-        GatewayClient, create_gateway_execution_role
-    )
-except ImportError:
-    print("Installing bedrock-agentcore-starter-toolkit...")
-    # Use subprocess with an argument list (no shell) so there is no command
-    # injection surface — the args are fixed literals, not an interpolated string.
-    subprocess.check_call([
-        sys.executable, "-m", "pip", "install",
-        "bedrock-agentcore-starter-toolkit", "-q",
-    ])
-    from bedrock_agentcore_starter_toolkit.operations.gateway.client import (
-        GatewayClient, create_gateway_execution_role
-    )
+GATEWAY_ROLE_NAME = "semantic-layer-gateway-role"
+
+
+def create_gateway_execution_role(session, log):
+    """Execution role for the semantic-layer Gateway: it may invoke only this lab's Lambdas.
+
+    Named semantic-layer-* so the Code Editor role (allowed to create semantic-layer-* roles)
+    can create it; the starter toolkit's helper uses a fixed name outside that scope."""
+    iam = session.client("iam")
+    account = session.client("sts").get_caller_identity()["Account"]
+    trust = {"Version": "2012-10-17", "Statement": [{
+        "Effect": "Allow", "Principal": {"Service": "bedrock-agentcore.amazonaws.com"},
+        "Action": "sts:AssumeRole", "Condition": {"StringEquals": {"aws:SourceAccount": account}}}]}
+    policy = {"Version": "2012-10-17", "Statement": [{
+        "Effect": "Allow", "Action": "lambda:InvokeFunction",
+        "Resource": [f"arn:aws:lambda:{REGION}:{account}:function:{LAMBDA_NAME}",
+                     f"arn:aws:lambda:{REGION}:{account}:function:{INTERCEPTOR_LAMBDA_NAME}"]}]}
+    try:
+        iam.create_role(RoleName=GATEWAY_ROLE_NAME, AssumeRolePolicyDocument=json.dumps(trust),
+                        Description="AgentCore Gateway role for the semantic-layer lab")
+        log.info("Created %s", GATEWAY_ROLE_NAME)
+    except iam.exceptions.EntityAlreadyExistsException:
+        iam.update_assume_role_policy(RoleName=GATEWAY_ROLE_NAME, PolicyDocument=json.dumps(trust))
+    iam.put_role_policy(RoleName=GATEWAY_ROLE_NAME, PolicyName="InvokeLabLambdas",
+                        PolicyDocument=json.dumps(policy))
+    return iam.get_role(RoleName=GATEWAY_ROLE_NAME)["Role"]["Arn"]
+
 
 # Add infrastructure/common to path for Amplify utilities
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -462,7 +474,8 @@ def deploy_runtime(gateway_url):
         "--disable-memory",
         "--non-interactive",
     ]
-    result = subprocess.run(
+    # Fixed argv list (no shell); values come from this script's constants.
+    result = subprocess.run(  # nosec B603 # nosemgrep: dangerous-subprocess-use-audit
         configure_cmd, cwd=str(ROOT_DIR),
         capture_output=True, text=True,
         timeout=60
@@ -503,8 +516,10 @@ def deploy_runtime(gateway_url):
 
     # Deploy
     print("Deploying to AgentCore Runtime (this takes ~2-3 minutes)...")
-    deploy_cmd = ["agentcore", "deploy"]
-    result = subprocess.run(
+    # --auto-update-on-conflict keeps a re-run idempotent: without it a second
+    # run fails with "already exists and auto_update_on_conflict is disabled".
+    deploy_cmd = ["agentcore", "deploy", "--auto-update-on-conflict"]
+    result = subprocess.run(  # nosec B603 # nosemgrep: dangerous-subprocess-use-audit
         deploy_cmd, cwd=str(ROOT_DIR),
         capture_output=True, text=True, timeout=600
     )
@@ -539,9 +554,11 @@ def deploy_runtime(gateway_url):
             if match:
                 candidate = match.group(1)
                 # Guard against box-wrapped truncation: the runtime id must be
-                # the agent name PLUS the AgentCore-assigned "-XXXXXXXXXX" suffix.
+                # the agent name PLUS the full AgentCore-assigned 10-character
+                # suffix. A wrap can cut the suffix short ("-x3sRVF"), and
+                # AgentCore answers an unknown id with AccessDenied.
                 rid = candidate.rsplit('/', 1)[-1]
-                if re.match(rf'^{re.escape(RUNTIME_AGENT_NAME)}-[A-Za-z0-9]+$', rid):
+                if re.fullmatch(rf'{re.escape(RUNTIME_AGENT_NAME)}-[A-Za-z0-9]{{10}}', rid):
                     runtime_arn = candidate
 
     # Fallback (also used when stdout only had a truncated/wrapped ARN): the
@@ -684,6 +701,11 @@ def deploy_ui(gateway_url, runtime_arn):
         'REACT_APP_COGNITO_IDENTITY_POOL_ID': identity_pool_id,
         'REACT_APP_COGNITO_USER_CLIENT_ID': user_login_client_id,
         'REACT_APP_COGNITO_DOMAIN': cognito_domain,
+        # The participant's app/ui/.env points at the main agent (front door, voice); this
+        # UI must call the semantic runtime only, so those are blanked for this build.
+        'REACT_APP_FRONTDOOR_URL': '',
+        'REACT_APP_VOICE_SIGNALING_URL': '',
+        'REACT_APP_VOICE_START_URL': '',
     }
 
     print(f"[OK] React env vars:")
@@ -694,7 +716,7 @@ def deploy_ui(gateway_url, runtime_arn):
     # Build and deploy using shared utilities
     ui_dir = PROJECT_ROOT / 'app' / 'ui'
     print(f"\nBuilding React app from {ui_dir}...")
-    build_dir = build_react_app(ui_dir, env_vars)
+    build_dir = build_react_app(ui_dir, env_vars, write_env_file=False)
     zip_path = create_deployment_zip(build_dir)
 
     try:

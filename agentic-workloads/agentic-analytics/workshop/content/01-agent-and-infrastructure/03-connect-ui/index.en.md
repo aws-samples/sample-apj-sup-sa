@@ -12,7 +12,7 @@ By the end of this step, you will:
 
 ## Why a UI?
 
-The CLI is great for testing, but your tenants' staff aren't going to open a terminal. They need a chat interface — something as simple as messaging a colleague.
+Your tenants' staff need a chat interface, not a terminal.
 
 The React UI provides:
 
@@ -20,7 +20,7 @@ The React UI provides:
 |---------|---------------|
 | **Conversational chat** | Natural interaction for non-technical users |
 | **Streaming responses** | Users see answers appearing word by word |
-| **Cognito login** | User identity for access control (Steps 8-9) |
+| **Cognito login** | User identity for access control (Step 7) |
 | **Query plan approval cards** | Human-in-the-loop workflows (Step 6) |
 
 ## Lab Procedures
@@ -60,9 +60,11 @@ EOF
 cat .env
 ```
 
-Verify the output — `REACT_APP_AGENT_RUNTIME_ARN` should show an ARN like `arn:aws:bedrock-agentcore:us-east-1:...:runtime/agentic_analytics_agent-...`. If it's empty, run `make outputs` from `../agentcore_strands` and copy the `AgentRuntimeArn` value manually.
+Verify the output: `REACT_APP_AGENT_RUNTIME_ARN` should show an ARN like `arn:aws:bedrock-agentcore:us-east-1:...:runtime/agentic_analytics_agent-...`. If it's empty, run `make outputs` from `../agentcore_strands` and copy the `AgentRuntimeArn` value manually.
 
-::alert[The `REACT_APP_COGNITO_USER_CLIENT_ID` and `REACT_APP_COGNITO_DOMAIN` enable the **Login** button. Login is required — the agent needs a JWT token to authenticate with the Gateway.]{type="info"}
+::alert[There is no `REACT_APP_FRONTDOOR_URL` yet, so the UI calls the agent runtime directly. You add that line in Step 7c, when the front-door gateway goes in.]{type="info"}
+
+::alert[The `REACT_APP_COGNITO_USER_CLIENT_ID` and `REACT_APP_COGNITO_DOMAIN` enable the **Login** button. Login is required: the agent needs a JWT token to authenticate with the Gateway.]{type="info"}
 
 ### Step 3.2: Start the Development Server
 
@@ -71,22 +73,19 @@ npm install
 npm start
 ```
 
-Expected output:
+The UI is built with :link[Vite]{href="https://vite.dev/"}. Expected output:
 
 ```
-Compiled successfully!
+  VITE v8.3.5  ready in 300 ms
 
-You can now view the app in the browser.
-  Local:            http://localhost:3001
+  ➜  Local:   http://127.0.0.1:3001/app/
 ```
 
-Wait a moment — the `npm start` above should open a new browser tab with the UI. Check whether your browser is prompting you to allow a pop-up.
-
-Alternatively, open a new browser tab and navigate to your Code Editor URL, replacing the path with `/app`:
+Leave this terminal running. The dev server reloads the page when you edit a file under `src/`.
 
 ### Step 3.3: Access the UI
 
-The UI should be visible in a new tab now. The URL looks like the following.
+Open a new browser tab at your Code Editor URL, with the path replaced by `/app`:
 
 ```
 https://<your-cloudfront-domain>/app
@@ -94,9 +93,9 @@ https://<your-cloudfront-domain>/app
 
 For example it will be https://xxxxxxxxxxxxxx.cloudfront.net/app
 
-::alert[The `/app` path is pre-configured in the Code Editor's Nginx proxy to forward requests to the React dev server on port 3001. No port forwarding setup is needed.]{type="info"}
+::alert[The `/app` path is pre-configured in the Code Editor's Nginx proxy to forward requests to the Vite dev server on port 3001. No port forwarding setup is needed.]{type="info"}
 
-::alert[**Login callback is pre-registered for you.** Your CloudFront `/app` URL was automatically added to the Cognito app client's allowed callback/logout list when the environment was provisioned (along with `http://localhost:3001/app` for local dev), so Login just works. The redirect the app sends is `window.location.origin + /app`. *If* you ever reach the UI by some other host/path and see `redirect_mismatch`, add that exact `…/app` URL under the user pool client's **Allowed callback URLs** (Cognito console → User pool → App client → Hosted UI) — but in the standard workshop flow you won't need to.]{type="info"}
+::alert[**Login callback is pre-registered for you.** Your CloudFront `/app` URL was automatically added to the Cognito app client's allowed callback/logout list when the environment was provisioned (along with `http://localhost:3001/app` for local dev), so Login just works. The redirect the app sends is `window.location.origin + /app`. *If* you ever reach the UI by some other host/path and see `redirect_mismatch`, add that exact `…/app` URL under the user pool client's **Allowed callback URLs** (Cognito console → User pool → App client → Hosted UI). In the standard workshop flow you won't need to.]{type="info"}
 
 You should see the Timely-Unicorn Analytics dashboard with:
 - A chat panel on the left with suggested queries
@@ -105,34 +104,42 @@ You should see the Timely-Unicorn Analytics dashboard with:
 
 ### Step 3.4: Log In
 
+The demo users share one password, generated when your environment was created. Print the users and the password in the Code Editor terminal:
+
+```bash
+(cd /workshop/agentic-analytics/app/agentcore_strands && make users)
+```
+
+Keep this output handy: every later step logs in with these users.
+
 Click the **Login** button. You'll be redirected to the Cognito Hosted UI. Log in as one of the Mythical Unicorns staff:
 
 | Field | Value |
 |-------|-------|
 | Username | `stella.moonbeam@example-mythicalunicorns.com` |
-| Password | `Unicorn123!` |
+| Password | the password from `make users` |
 
 After login, you'll be redirected back to the chat UI. The top-right should now show the logged-in user.
 
-::alert[Login is required — the agent needs a JWT token to authenticate with the Gateway. Without logging in, chat messages will fail.]{type="warning"}
+::alert[Login is required: the agent needs a JWT token to authenticate with the Gateway. Without logging in, chat messages will fail.]{type="warning"}
 
 ### Step 3.5: Test Basic Connectivity
 
-The agent doesn't have analytics tools yet — those come in Step 4. For now, verify the UI connects to the agent:
+The agent doesn't have analytics tools yet: those come in Step 4. For now, verify the UI connects to the agent:
 
 - "Hello, what can you help me with?"
 - "What kind of questions can I ask?"
 
-The agent should respond conversationally, describing its capabilities. It won't be able to answer data questions yet — that's expected. However, it can already answer question like "What time is it?" since it has the datetime tool. It already has memory as well after we set it up in step 2.
+The agent should respond conversationally, describing its capabilities. It won't be able to answer data questions yet: that's expected. However, it can already answer question like "What time is it?" since it has the datetime tool. It already has memory as well after we set it up in step 2.
 
 ::alert[**No tools yet.** The agent is deployed to Runtime with a Gateway, but no toolsets are registered. In the next step, you'll deploy the Prebaked SQL toolset and come back to the UI to test real analytics queries.]{type="info"}
 
 ## Verification
 
-- `npm start` compiles without errors
+- `npm start` prints `VITE ... ready` with no errors
 - The chat UI loads at `https://<cloudfront-domain>/app`
 - You can type a message and receive a streaming response
-- The agent responds conversationally (no data queries yet — tools come in Step 4)
+- The agent responds conversationally (no data queries yet: tools come in Step 4)
 
 ## Troubleshooting
 
@@ -146,7 +153,7 @@ The agent should respond conversationally, describing its capabilities. It won't
 **`/app` shows 502 Bad Gateway**
 - The React dev server may not be running. Run `npm start` in the `app/ui` directory.
 
-::alert[Always use `npm start` to start the UI server — never call `react-scripts start` directly. The `package.json` has `PORT=3001` and `PUBLIC_URL=/app` baked into the start script. Calling `react-scripts` directly skips these, causing assets to load from wrong paths (blank page).]{type="warning"}
+::alert[Start the UI with `npm start` from `app/ui`. It reads `vite.config.js`, which sets port 3001 and the `/app` base path the Nginx proxy expects. Assets load from the wrong path (blank page) if the server runs on another port or base.]{type="warning"}
 
 **Responses are empty or the agent doesn't respond**
 - Check the browser console (F12 → Console) for errors.
@@ -162,7 +169,7 @@ Next, you'll deploy the analytics toolset so the agent can answer real data ques
 
 ::alert[**This step is optional.** The local dev server via `npm start` is sufficient for the rest of the workshop. Only follow this if you want a production-grade UI hosting, that has URL with HTTPS and CDN.]{type="warning"}
 
-Until now, the React UI runs locally on the EC2 Code Editor via `npm start` and port forwarding. For production, your tenants need a real URL. :link[AWS Amplify Hosting]{href="https://docs.aws.amazon.com/amplify/latest/userguide/welcome.html"} provides managed hosting with HTTPS, CDN, and CI/CD — no servers to manage.
+Until now, the React UI runs locally on the EC2 Code Editor via `npm start` and port forwarding. For production, your tenants need a real URL. :link[AWS Amplify Hosting]{href="https://docs.aws.amazon.com/amplify/latest/userguide/welcome.html"} provides managed hosting with HTTPS, CDN, and CI/CD: no servers to manage.
 
 ### Step 3.6: Deploy to Amplify
 
@@ -187,7 +194,7 @@ Uploading to Amplify (job: 1)
 Waiting for deployment 1
 Status: PENDING
 Status: SUCCEED
-  No gateway_config.json — skipping Cognito callback update
+  [OK] Added https://main.xxxxxxxxxxxxxx.amplifyapp.com to Cognito callback URLs
 
 ╔══════════════════════════════════════════════════════════════════╗
 ║                    Deployment Complete!                          ║
@@ -197,11 +204,11 @@ Status: SUCCEED
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-Open the Amplify URL in your browser — you should see the same chat interface, now hosted on a real URL with HTTPS. All features (streaming, login, policy, RLS, guardrails) work the same way through the cloud-hosted UI.
+Open the Amplify URL in your browser: you should see the same chat interface, now hosted on a real URL with HTTPS. All features (streaming, login, policy, RLS, guardrails) work the same way through the cloud-hosted UI.
 
 ## Reference Materials
 
-- [AgentCore Runtime — Invoking Agents](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-invoke.html)
+- [AgentCore Runtime: Invoking Agents](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-invoke.html)
 - [AgentCore SDK Python](https://github.com/aws/bedrock-agentcore-sdk-python)
 - :link[AWS Amplify Hosting]{href="https://docs.aws.amazon.com/amplify/latest/userguide/welcome.html"}
-- :link[Amplify — Manual Deployments]{href="https://docs.aws.amazon.com/amplify/latest/userguide/manual-deploys.html"}
+- :link[Amplify: Manual Deployments]{href="https://docs.aws.amazon.com/amplify/latest/userguide/manual-deploys.html"}

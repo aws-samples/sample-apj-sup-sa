@@ -2,27 +2,30 @@ import React, { useState } from 'react';
 import { Box, Typography, Chip, Stack } from '@mui/material';
 
 /**
- * ArchitecturePanel — shows the voice-analytics agent's system architecture
- * diagram (rendered offline via the AWS diagram tooling, served from
- * /architecture.png in the client's public/ folder). Click to open full size.
+ * ArchitecturePanel: shows the system architecture diagram (source:
+ * workshop/static/images/full-architecture.drawio, copied to public/architecture.png).
+ * Click to open full size.
  */
 const ArchitecturePanel = () => {
   const [zoomed, setZoomed] = useState(false);
 
   const tech = [
-    'Daily (WebRTC)', 'Deepgram STT — Nova-3', 'Deepgram TTS — Aura-2',
-    'Pipecat Cloud', 'Amazon Cognito', 'Bedrock AgentCore Runtime',
-    'Claude Opus 4.8', 'AgentCore Gateway (MCP)', 'Code Interpreter',
-    'AgentCore Memory', 'Aurora PostgreSQL', 'Amazon S3', 'Bedrock Knowledge Base',
+    'Amazon Cognito', 'AgentCore Gateway (front door)', 'AWS WAF',
+    'AgentCore Runtime', 'Claude Sonnet 5.5', 'Bedrock Guardrails', 'AgentCore Memory',
+    'Code Interpreter', 'AgentCore Gateway (MCP)', 'AgentCore Policy (Cedar)',
+    'AgentCore Web Search', 'Bedrock Knowledge Base (managed)', 'AWS Glue',
+    'Aurora PostgreSQL (RLS)', 'AWS Step Functions', 'Pipecat + Deepgram (voice)',
   ];
 
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Cascaded voice pipeline: your speech is streamed over WebRTC to a Pipecat bot,
-        transcribed by Deepgram, reasoned over by a Strands agent on Bedrock AgentCore
-        (Claude Opus 4.8) with analytics tools, then spoken back via Deepgram TTS while
-        the full answer and any charts are shown here.
+        Text and voice both enter through a front-door gateway that checks your Cognito
+        token, applies AWS WAF and a per-user rate limit, then calls a Strands agent on
+        AgentCore Runtime (Claude Sonnet 5.5). The agent reaches its tools through a second
+        gateway, where Cedar policies decide what your role may call and the database
+        filters rows to your tenant. A schema pipeline keeps the agent's view of the
+        database current.
       </Typography>
 
       <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 2 }}>

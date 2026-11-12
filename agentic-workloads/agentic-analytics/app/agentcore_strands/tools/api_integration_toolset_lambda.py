@@ -153,7 +153,6 @@ def error_response(message):
     return {'statusCode': 400, 'body': json.dumps({'success': False, 'error': message})}
 
 def lambda_handler(event, context):
-    print(f"Received event: {json.dumps(event)}")
     
     # Extract RLS context from JWT claims
     rls_context = _extract_rls_context_from_jwt(context)
@@ -172,7 +171,7 @@ def lambda_handler(event, context):
             tool_name = tool_name.split(delimiter)[-1] if delimiter in tool_name else tool_name
         
         arguments = event.get('arguments', {}) if 'arguments' in event else event
-        print(f"Tool: {tool_name}, Args: {arguments}")
+        print(f"Tool: {tool_name}, arg keys: {sorted(arguments)}")
         
         if tool_name == 'create_booking_tool':
             return create_booking(arguments, rls_context)
@@ -204,12 +203,15 @@ def create_booking(args, rls_context):
             
             # Check unicorn exists and get hourly rate (RLS filters by tenant)
             cur.execute("""
-                SELECT unicorn_id, name, hourly_rate, is_available 
+                SELECT unicorn_id, name, hourly_rate, is_available
                 FROM unicorns WHERE unicorn_id = %s
-            """, [unicorn_id])
+                FOR UPDATE
+            """, [unicorn_id])  # row lock: two concurrent bookings for one unicorn serialize here
             unicorn = cur.fetchone()
             if not unicorn:
-                return error_response(f'Unicorn {unicorn_id} not found')
+                # FOR UPDATE also applies the RLS UPDATE policies, so a read-only role
+                # (analyst) sees no row here even when the unicorn exists.
+                return error_response(f'Unicorn {unicorn_id} not found, or your role cannot create bookings')
             if not unicorn['is_available']:
                 return error_response(f'Unicorn {unicorn["name"]} is not available')
             
@@ -233,6 +235,19 @@ def create_booking(args, rls_context):
             if duration_hours <= 0:
                 return error_response('end_datetime must be after start_datetime')
             
+            # Refuse a slot that overlaps an existing, non-cancelled booking of this unicorn.
+            cur.execute("""
+                SELECT booking_reference, start_datetime, end_datetime FROM bookings
+                WHERE unicorn_id = %s AND cancellation_reason IS NULL
+                  AND start_datetime < %s AND end_datetime > %s
+                ORDER BY start_datetime LIMIT 1
+            """, [unicorn_id, end_dt, start_dt])
+            clash = cur.fetchone()
+            if clash:
+                return error_response(
+                    f'{unicorn["name"]} is already booked from {clash["start_datetime"]} to '
+                    f'{clash["end_datetime"]} ({clash["booking_reference"]}). Choose another time or unicorn.')
+
             hourly_rate = float(unicorn['hourly_rate'])
             total_cost = round(hourly_rate * duration_hours, 2)
             

@@ -10,13 +10,13 @@ By the end of this step, you will:
 - Build a minimal agent that connects directly to Aurora PostgreSQL
 - See how the LLM selects the right tool based on the user's question
 
-::alert[**This is a learning exercise.** The agent you build here connects directly to the database — it won't be used in the actual workshop deliverable. Starting from Step 2, you'll build the actual agent that uses AgentCore Gateway instead.]{type="warning"}
+::alert[**This is a learning exercise.** The agent you build here connects directly to the database: it won't be used in the actual workshop deliverable. Starting from Step 2, you'll build the actual agent that uses AgentCore Gateway instead.]{type="warning"}
 
 ## Why Build a Local Agent First?
 
-Your tenants need answers. Lyra Starwhisper at Mythical Unicorns wants to know her top customers by revenue — but she'd have to email the data team and wait half a day. As the Timely-Unicorn SaaS platform team, let's build something better for her and all of the future tenants with the same need.
+Your tenants need answers. Lyra Starwhisper at Mythical Unicorns wants to know her top customers by revenue, but she'd have to email the data team and wait half a day. As the Timely-Unicorn SaaS platform team, let's build something better for her and all of the future tenants with the same need.
 
-Before deploying to the cloud, it's important to understand how an AI agent works at its core. :link[Strands Agents]{href="https://strandsagents.com/docs/" external=true} is an open-source SDK from AWS that takes a :link[model-driven approach]{href="https://aws.amazon.com/blogs/opensource/strands-agents-and-the-model-driven-approach/" external=true} — instead of writing complex routing logic, you define tools and a prompt, and the LLM decides which tools to call and in what order.
+Before deploying to the cloud, see how an agent works on its own. :link[Strands Agents]{href="https://strandsagents.com/docs/" external=true} is an open-source SDK from AWS that takes a :link[model-driven approach]{href="https://aws.amazon.com/blogs/opensource/strands-agents-and-the-model-driven-approach/" external=true}: instead of writing complex routing logic, you define tools and a prompt, and the LLM decides which tools to call and in what order.
 
 An agent has three components:
 
@@ -38,12 +38,12 @@ Open :code[exercises/basic_agent.py]{showCopyAction=true} in the Code Editor. Th
 
 ### Step 1.2: Configure the Bedrock Model (TODO 1.2)
 
-The agent needs a foundation model. Find `TODO 1.2` in `exercises/basic_agent.py` — replace `None` with a :link[BedrockModel]{href="https://strandsagents.com/docs/user-guide/concepts/model-providers/amazon-bedrock/" external=true} using the model ID and region already shown in the hint.
+The agent needs a foundation model. Find `TODO 1.2` in `exercises/basic_agent.py`: replace `None` with a :link[BedrockModel]{href="https://strandsagents.com/docs/user-guide/concepts/model-providers/amazon-bedrock/" external=true} using the model ID and region already shown in the hint.
 
 ::::expand{header="💡 Need help with TODO 1.2? Click to see the solution"}
 :::code{language=python showCopyAction=true}
 bedrock_model = BedrockModel(
-    model_id="global.anthropic.claude-sonnet-4-6",
+    model_id="global.anthropic.claude-sonnet-5-5",
     streaming=True
 )
 :::
@@ -51,7 +51,7 @@ bedrock_model = BedrockModel(
 
 ### Step 1.3: Create a Database Tool (TODO 1.3)
 
-Strands uses the `@tool` decorator to turn any Python function into an agent-callable tool. The agent reads the function's **docstring** to understand when to use it — this is how the LLM knows "if the user asks about top customers, call this function." You need to add the `@tool` decorator to the `get_top_customers` function.
+Strands uses the `@tool` decorator to turn any Python function into an agent-callable tool. The agent reads the function's **docstring** to understand when to use it: this is how the LLM knows "if the user asks about top customers, call this function." You need to add the `@tool` decorator to the `get_top_customers` function.
 
 Find `TODO 1.3` in `exercises/basic_agent.py` and add the decorator above the function definition:
 
@@ -60,12 +60,12 @@ Find `TODO 1.3` in `exercises/basic_agent.py` and add the decorator above the fu
 @tool
 :::
 
-One line. The docstring `"""Get the top customers by revenue..."""` already tells the LLM exactly when this tool is relevant.
+That one line is enough, because the docstring `"""Get the top customers by revenue..."""` already tells the LLM when the tool is relevant.
 ::::
 
 ### Step 1.4: Create the Agent (TODO 1.4)
 
-Wire the three components together. Find `TODO 1.4` — replace `None` with an :link[Agent]{href="https://strandsagents.com/docs/user-guide/concepts/agents/agent-loop/" external=true} using `bedrock_model`, a system prompt string, and `tools=[get_top_customers]`.
+Wire the three components together. Find `TODO 1.4`: replace `None` with an :link[Agent]{href="https://strandsagents.com/docs/user-guide/concepts/agents/agent-loop/" external=true} using `bedrock_model`, a system prompt string, and `tools=[get_top_customers]`.
 
 ::::expand{header="💡 Need help with TODO 1.4? Click to see the solution"}
 :::code{language=python showCopyAction=true}
@@ -79,13 +79,15 @@ agent = Agent(
 
 ### Step 1.5: Run the Agent
 
-Save your changes in basic_agent.py. Back to the terminal, run the below commands. (If you opened a fresh terminal, activate the virtual environment first — it lives at `/workshop/.venv`.)
+Save your changes in basic_agent.py. Back to the terminal, run the below commands. (If you opened a fresh terminal, activate the virtual environment first: it lives at `/workshop/.venv`.)
 
 ```bash
 source /workshop/.venv/bin/activate
 cd /workshop/agentic-analytics
 python3 exercises/basic_agent.py
 ```
+
+::alert[**Why `global.`?** The ID is a global cross-Region inference profile for Claude Sonnet 5.5. Bedrock routes each request to a Region with capacity, and Workshop Studio sandbox accounts allow the `global.*` profiles. A Region-pinned ID such as `us.anthropic...` can be refused in these accounts.]{type="info"}
 
 Expected output:
 
@@ -111,13 +113,13 @@ User: "Show me top customers by revenue"
             → Claude formats a human-readable response
 ```
 
-You didn't write any if/else routing. The LLM chose the right tool based on the question and the docstring. This is the **model-driven** approach — the model is the orchestrator.
+The LLM chose the tool from the question and the docstring, with no if/else routing in your code. Strands calls this the **model-driven** approach.
 
 ## Verification
 
 - The agent runs without errors
 - The response contains a formatted list with customer names and revenue figures
-- The data comes from Aurora PostgreSQL — you can verify by checking the database directly
+- The data comes from Aurora PostgreSQL: you can verify by checking the database directly
 
 ## Troubleshooting
 
@@ -135,23 +137,23 @@ You didn't write any if/else routing. The LLM chose the right tool based on the 
 - The EC2 security group must have ingress to the Aurora security group on port 5432 (this is configured by CloudFormation).
 
 **Agent responds but with no data / empty table**
-- Verify the database has data: check the CloudFormation stack events for the `DatabaseInitStack` — it should show `CREATE_COMPLETE`.
+- Verify the database has data: check the CloudFormation stack events for the `DatabaseInitStack`: it should show `CREATE_COMPLETE`.
 
 ## The Limitation
 
 This agent runs locally in this development machine with no built-in session isolation and high-availability. In the actual agent deployment in this workshop, you'd deploy the agent into AgentCore Runtime, support 20+ tools, need authentication, and want centralized management.
 
-That's what **AgentCore** solves — next step.
+Step 2 moves the agent to **AgentCore**, which provides these.
 
 ## Summary
 
-You built a minimal Strands agent with three components: a Bedrock model, a `@tool` function, and a system prompt. The LLM autonomously decided which tool to call based on the user's question. This model-driven approach is the foundation for everything that follows.
+You built a minimal Strands agent with three components: a Bedrock model, a `@tool` function, and a system prompt. The LLM autonomously decided which tool to call based on the user's question. Every later step uses the same model-driven approach.
 
 Next, you'll move from a single machine deployment to a highly available deployment → [Step 2: Deploy Agent Infrastructure](../02-deploy-agent-infra/)
 
 ## Reference Materials
 
 - [Strands Agents SDK Documentation](https://strandsagents.com/docs/)
-- [Strands Agents — Tools](https://strandsagents.com/docs/user-guide/concepts/tools/)
+- [Strands Agents: Tools](https://strandsagents.com/docs/user-guide/concepts/tools/)
 - [Amazon Bedrock Model Access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)
 - [BedrockModel Configuration](https://strandsagents.com/docs/user-guide/concepts/model-providers/amazon-bedrock/)

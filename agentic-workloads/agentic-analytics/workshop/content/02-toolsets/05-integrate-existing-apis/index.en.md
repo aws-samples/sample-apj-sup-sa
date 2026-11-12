@@ -12,19 +12,19 @@ By the end of this step, you will:
 
 ## The Pattern: Connecting Agents to Existing APIs
 
-Most SaaS platforms already have APIs — for booking, billing, notifications, inventory. Rather than rebuilding these, you connect the agent to them. The LLM's job is to:
+Most SaaS platforms already have APIs for booking, billing, notifications and inventory. Rather than rebuilding these, you connect the agent to them. The LLM's job is to:
 1. **Pick which API to call** (each API maps to a tool)
 2. **Extract inputs** from the conversation (customer name, date, unicorn)
 3. **Ask for missing information** if the user didn't provide everything
 4. **Call the API** and return the result
 
-::alert[**Two simplifications in this workshop:** (1) Instead of connecting to an existing API, we deploy the API Lambda in this step as opposed of having it predeployed — but the spirit is to connect to existing deployed API. (2) Instead of calling API Gateway or ALB, the Gateway calls the Lambda directly for simplicity. AgentCore Gateway supports integration with multiple targets, including API Gateway, OpenAPI, Smithy models, MCP servers, and Lambda functions. See the full list :link[here]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-supported-targets.html"}]{type="info"}
+::alert[**Two simplifications in this workshop:** (1) Instead of connecting to an existing API, we deploy the API Lambda in this step instead of having it predeployed, but in a real system you would connect to an API that already exists. (2) Instead of calling API Gateway or ALB, the Gateway calls the Lambda directly for simplicity. AgentCore Gateway supports integration with multiple targets, including API Gateway, OpenAPI, Smithy models, MCP servers, and Lambda functions. See the full list :link[here]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-supported-targets.html"}]{type="info"}
 
 ## How AgentCore Gateway Connects to APIs
 
-For this workshop, we use a **Lambda target** for the booking tool because it supports JWT propagation through the Gateway Interceptor in simple way — essential for Row-Level Security in Step 7.
+For this workshop, we use a **Lambda target** for the booking tool because it supports JWT propagation through the Gateway Interceptor in simple way: essential for Row-Level Security in Step 7.
 
-The booking tool is a **separate Lambda and target** (`APIInteg`) from the analytics tools (`PrebakedSQL`). This separation is intentional — it enables fine-grained access control in the next step, where Cedar policies reference targets by name.
+The booking tool is a **separate Lambda and target** (`APIInteg`) from the analytics tools (`PrebakedSQL`). This separation is intentional: it enables fine-grained access control in the next step, where Cedar policies reference targets by name.
 
 ## Lab Procedures
 
@@ -40,7 +40,7 @@ Open :code[/workshop/agentic-analytics/app/agentcore_strands/agentcore-topup-sta
 
 Uncomment everything between the markers (this brings up `ApiIntegLambda`, its role + permission, and the `ApiIntegTarget`).
 
-::alert[**Tip — uncomment the whole block at once.** Don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the fence, then **Shift+click** the last line inside it to select the whole block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Select only the lines **between** the two `UNCOMMENT` markers — not the marker lines themselves.]{type="info"}
+::alert[**Tip: uncomment the whole block at once.** Don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the fence, then **Shift+click** the last line inside it to select the whole block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Select only the lines **between** the two `UNCOMMENT` markers: not the marker lines themselves.]{type="info"}
 
 Then deploy:
 
@@ -53,11 +53,11 @@ This adds:
 - **Lambda function** with booking validation, cost calculation, and reference generation
 - **Gateway target** (`APIInteg`) registered on your existing Gateway
 
-::alert[**Pattern for your SaaS:** The `APIInteg` target is your integration point for existing business APIs. Here we start with booking creation, but the same Lambda can host any write operation — cancellations, billing, notifications, inventory updates. Each function you add becomes a new agent-callable tool. This is how you connect your agent to your existing microservices.]{type="info"}
+::alert[**Pattern for your SaaS:** The `APIInteg` target is your integration point for existing business APIs. Here we start with booking creation, but the same Lambda can host any write operation: cancellations, billing, notifications, inventory updates. Each function you add becomes a new agent-callable tool. This is how you connect your agent to your existing microservices.]{type="info"}
 
-### Step 5.2: Examine what you uncommented — Tool Schema
+### Step 5.2: Examine what you uncommented: Tool Schema
 
-Still in :code[agentcore-topup-stack.yaml]{showCopyAction=true}, look at the `ApiIntegTarget` you just uncommented — its `ToolSchema.InlinePayload`:
+Still in :code[agentcore-topup-stack.yaml]{showCopyAction=true}, look at the `ApiIntegTarget` you just uncommented: its `ToolSchema.InlinePayload`:
 
 ```yaml
 - Name: create_booking_tool
@@ -73,7 +73,7 @@ Still in :code[agentcore-topup-stack.yaml]{showCopyAction=true}, look at the `Ap
     Required: [customer_id, unicorn_id, start_datetime, end_datetime]
 ```
 
-Compare this to the PrebakedSQL tools from Step 4 — notice the `Required` field. The LLM knows it must extract these 4 values before calling the tool. If the user says "book a unicorn for tomorrow", the agent will ask for the missing customer and unicorn instead of guessing.
+Compare this to the PrebakedSQL tools from Step 4: notice the `Required` field. The LLM knows it must extract these 4 values before calling the tool. If the user says "book a unicorn for tomorrow", the agent will ask for the missing customer and unicorn instead of guessing.
 
 The target is registered under a separate name, `APIInteg`:
 
@@ -88,18 +88,18 @@ ApiIntegTarget:
 
 This means the agent sees the tool as `APIInteg___create_booking_tool`. The target name prefix is what Cedar policies reference in Step 7 to control who can call write tools.
 
-### Step 5.3: Understand the SOP — Booking Creation Workflow
+### Step 5.3: Understand the SOP: Booking Creation Workflow
 
 Open :code[unicorn_rental_analytics.sop.md]{showCopyAction=true} and review:
 
-**Lines 61-80 — Booking Creation Workflow:** This is the goal-oriented workflow the agent follows when a user asks to create a booking. It defines the 4 required parameters (customer_id, unicorn_id, start_datetime, end_datetime) and how to resolve each one. Key constraints:
-- *"You MUST resolve relative dates to absolute dates before creating the booking"*
-- *"You MUST NOT guess customer or unicorn IDs — resolve them via search tools, from the conversation history, or ask the user"*
-- *"You MUST NOT ask for confirmation before creating the booking — execute directly"*
+**Section 3, Booking Creation Workflow:** This is the goal-oriented workflow the agent follows when a user asks to create a booking. It defines the 4 required parameters (customer_id, unicorn_id, start_datetime, end_datetime) and how to resolve each one. Key constraints:
+- *"You MUST resolve relative dates (e.g., "tomorrow") to absolute dates before creating the booking"*
+- *"You MUST NOT guess customer or unicorn IDs: resolve them via search tools, from the conversation history, or ask the user"*
+- *"You MUST NOT ask for confirmation before creating the booking: execute directly"*
 
-**Lines 145-155 — Example 2:** A complete booking example showing the tool chain: `current_datetime` → `search_customers_tool` → `search_unicorns_tool` → `create_booking_tool`.
+**Example 2, under Examples:** A complete booking example showing the tool chain: `current_datetime` → `search_customers_tool` → `search_unicorns_tool` → `create_booking_tool`.
 
-::alert[**SOP + Policy = Defense in Depth.** The Policy Engine hides the tool at the Gateway level (the agent can't call it). The SOP's graceful failure handling means the agent will inform the user if a tool isn't available. Together, they provide both infrastructure-level and application-level access control.]{type="info"}
+::alert[**The SOP and the policy work at different layers.** The Policy Engine (Step 7) hides the tool at the Gateway level, so the agent can't call it. The SOP's graceful failure handling makes the agent inform the user when a tool isn't available.]{type="info"}
 
 ### Step 5.4: Test It
 
@@ -108,7 +108,7 @@ Booking creation requires a staff or admin role. In the chat UI, log in as:
 | Field | Value |
 |-------|-------|
 | Username | `stella.moonbeam@example-mythicalunicorns.com` |
-| Password | `Unicorn123!` |
+| Password | the password from `make users` (Step 3.4) |
 
 ::alert[**Use the right user:** In case you intend to run the below queries after deploying the AgentCore Policy and RLS in step 7, you MUST use users with "staff" or "rental_admin" or "saas_admin" type to be able to use the create booking tool. The user above (Stella Moonbeam) is a staff member. If you run this step before deploying the components in step 7, the user does not matter.]{type="info"}
 
@@ -124,18 +124,19 @@ Note that we purposefully omit the timing information. When the agent asks, you 
 
 Watch the agent chain multiple tools autonomously:
 
-1. **`current_datetime`** — resolves "tomorrow" to an actual date (local tool, instant)
-2. **`get_top_revenue_customers_tool`** — finds the top customer (Gateway → Lambda → Aurora)
-3. **`search_unicorns_tool`** — finds Vega Sapphire's unicorn ID
-4. **`create_booking_tool`** — validates availability, calculates cost, creates booking (Gateway → separate Lambda → Aurora)
+1. **`current_datetime`**: resolves "tomorrow" to an actual date (local tool, instant)
+2. **`get_top_revenue_customers_tool`**: finds the top customer (Gateway → Lambda → Aurora)
+3. **`search_unicorns_tool`**: finds Vega Sapphire's unicorn ID
+4. **`get_unicorn_availability_tool`**: checks that the unicorn is free in that slot (the SOP asks for this before any booking)
+5. **`create_booking_tool`**: re-checks availability, calculates cost, creates the booking (Gateway → separate Lambda → Aurora)
 
-The agent orchestrated 4 tool calls across 2 different Lambda functions, resolved relative dates, and created a booking — all from a single natural language request.
+The agent orchestrated five tool calls across two Lambda functions, resolved a relative date, and created a booking from one natural-language request. The exact order can vary from run to run, but the availability check must come before the booking, and in Step 7b you'll make that a Cedar rule.
 
 ## The Concern
 
-Now think about this: **any user** with access to the agent can create bookings. An analyst who should only have read access could say "create a booking" and it would work. That's a security gap.
+Now think about this: **any user** with access to the agent can create bookings. An analyst who should only have read access could say "create a booking" and it would work.
 
-We'll fix this in the next step with AgentCore Policy.
+Step 7 closes this gap with AgentCore Policy.
 
 ## Verification
 
@@ -154,11 +155,11 @@ We'll fix this in the next step with AgentCore Policy.
 
 ## Summary
 
-You deployed a write operation as a separate Gateway target, and the agent autonomously chained 4 tools to create a booking from a single natural language request. The separation of read (`PrebakedSQL`) and write (`APIInteg`) targets is a deliberate design choice that enables fine-grained access control.
+You deployed a write operation as a separate Gateway target, and the agent autonomously chained five tools to create a booking from a single natural language request. The separation of read (`PrebakedSQL`) and write (`APIInteg`) targets is a deliberate design choice that enables fine-grained access control.
 
 But right now, any user can create bookings. We'll fix this with AgentCore Policy in Step 7. First, let's add the final toolset → [Step 6: Custom SQL for Ad-Hoc Queries](../06-custom-sql/)
 
 ## Reference Materials
 
-- [AgentCore Gateway — Creating Targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-targets.html)
-- [Strands Agents — Tool Chaining](https://strandsagents.com/docs/user-guide/concepts/tools/)
+- [AgentCore Gateway: Creating Targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-targets.html)
+- [Strands Agents: Tool Chaining](https://strandsagents.com/docs/user-guide/concepts/tools/)

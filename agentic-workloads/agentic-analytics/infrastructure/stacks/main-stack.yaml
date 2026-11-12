@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Agentic Analytics - One-Click Deployment (Root Stack)'
 
 Parameters:
+  GlueCatalogDatabaseName:
+    Type: String
+    Default: ''
+    Description: Glue Data Catalog database name. Empty = timely_unicorn. deploy_backend.sh sets it for non-default environments.
+
   EnvironmentName:
     Type: String
     Default: agentic-analytics
@@ -35,11 +40,6 @@ Parameters:
     Default: lambdas/glue_crawler_trigger.zip
     Description: S3 key for Glue crawler Lambda (use hash-versioned key)
 
-  BedrockKBLambdaKey:
-    Type: String
-    Default: lambdas/bedrock_kb_ingestion.zip
-    Description: S3 key for Bedrock KB Lambda (use hash-versioned key)
-
   AgentCodeS3Key:
     Type: String
     Default: agent/agent_code.zip
@@ -54,6 +54,11 @@ Parameters:
     Type: String
     Default: lambda/datafoundation_lambda.zip
     Description: S3 key for DataFoundation toolset Lambda (use hash-versioned key)
+
+  SchemaSyncLambdaKey:
+    Type: String
+    Default: ''
+    Description: S3 key for the schema change pipeline Lambda (empty = no pipeline)
 
   InterceptorLambdaKey:
     Type: String
@@ -77,7 +82,8 @@ Parameters:
 
   PolicyMode:
     Type: String
-    Default: LOG_ONLY
+    # ENFORCE so the demo actually blocks what the Cedar policies forbid; LOG_ONLY is for policy debugging.
+    Default: ENFORCE
     AllowedValues:
       - LOG_ONLY
       - ENFORCE
@@ -126,6 +132,7 @@ Parameters:
 
 Conditions:
   IsDemo: !Equals [!Ref DeployMode, 'demo']
+  HasSchemaSync: !And [!Condition IsDemo, !Not [!Equals [!Ref SchemaSyncLambdaKey, '']]]
   IsWorkshop: !Equals [!Ref DeployMode, 'workshop']
   # Voice is demo-only and additive. VoiceAgentCore is the CFN-wired mode (the voice
   # pipeline runs as its own AgentCore Runtime, WebRTC + KVS TURN, no vendor SFU);
@@ -207,6 +214,7 @@ Resources:
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         AuroraStackName: !Sub ${EnvironmentName}-aurora
+        CatalogDatabaseName: !Ref GlueCatalogDatabaseName
         ArtifactsBucket: !Ref ArtifactsBucket
         ArtifactsPrefix: !Ref ArtifactsPrefix
         TriggerCrawler: 'true'
@@ -225,12 +233,8 @@ Resources:
       TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/bedrock-kb-stack.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
-        AuroraClusterArn: !GetAtt AuroraStack.Outputs.AuroraResourceArn
-        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
-        DatabaseName: !GetAtt AuroraStack.Outputs.DatabaseName
         ArtifactsBucket: !Ref ArtifactsBucket
         ArtifactsPrefix: !Ref ArtifactsPrefix
-        LambdaS3Key: !Sub ${ArtifactsPrefix}${BedrockKBLambdaKey}
         BusinessContextKey: !Sub ${ArtifactsPrefix}docs/business-context.md
         KnowledgeBaseName: !Sub ${EnvironmentName}-kb
       Tags:
@@ -366,6 +370,7 @@ Resources:
         CognitoUserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
         CognitoClientId: !GetAtt CognitoStack.Outputs.UserLoginClientId
         StrandsAgentRuntimeArn: !GetAtt AgentCoreStack.Outputs.AgentRuntimeArn
+        StrandsAgentFrontDoorUrl: !GetAtt AgentCoreStack.Outputs.FrontDoorUrl
         ChartBucket: !Ref ArtifactsBucket
         DeepgramApiKey: !Ref DeepgramApiKey
         DeepgramVoiceId: !Ref DeepgramVoiceId
@@ -400,6 +405,7 @@ Resources:
         CognitoDomain: !GetAtt CognitoStack.Outputs.CognitoDomain
         CognitoIdentityPoolId: !GetAtt CognitoStack.Outputs.IdentityPoolId
         AgentCoreRuntimeEndpoint: !GetAtt AgentCoreStack.Outputs.AgentRuntimeEndpointArn
+        FrontDoorUrl: !GetAtt AgentCoreStack.Outputs.FrontDoorUrl
         # Empty unless voice (agentcore) is enabled → UI hides the Voice button when blank.
         # The WebRTC signaling proxy base URL; the SPA POSTs SDP offers / PATCHes ICE
         # to {this}/api/offer (the proxy forwards to the runtime + unwraps the SSE answer).
@@ -409,6 +415,31 @@ Resources:
       Tags:
         - Key: Project
           Value: !Ref EnvironmentName
+
+
+  #============================================================================
+  # Schema change pipeline (Step Functions): keeps Glue descriptions and the
+  # business-context KB in step with DDL changes. See schema-sync-stack.yaml.
+  #============================================================================
+  SchemaSyncStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: HasSchemaSync
+    Properties:
+      TemplateURL: !Sub https://${ArtifactsBucket}.s3.${AWS::Region}.amazonaws.com/${ArtifactsPrefix}templates/schema-sync-stack.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ArtifactsBucket: !Ref ArtifactsBucket
+        ArtifactsPrefix: !Ref ArtifactsPrefix
+        SchemaSyncLambdaKey: !Ref SchemaSyncLambdaKey
+        AuroraEndpoint: !GetAtt AuroraStack.Outputs.AuroraClusterEndpoint
+        DatabaseSecretArn: !GetAtt AuroraStack.Outputs.DatabaseSecretArn
+        SubnetIds: !Join [',', [!GetAtt AuroraStack.Outputs.PrivateSubnet1Id, !GetAtt AuroraStack.Outputs.PrivateSubnet2Id]]
+        SecurityGroupId: !GetAtt AuroraStack.Outputs.LambdaSecurityGroupId
+        GlueDatabaseName: !GetAtt GlueStack.Outputs.GlueDatabaseName
+        GlueCrawlerName: !GetAtt GlueStack.Outputs.GlueCrawlerName
+        KnowledgeBaseId: !GetAtt BedrockKBStack.Outputs.KnowledgeBaseId
+        KnowledgeBaseDataSourceId: !GetAtt BedrockKBStack.Outputs.DataSourceId
+        KBDocsBucketName: !GetAtt BedrockKBStack.Outputs.KBDocsBucketName
 
 Outputs:
   VpcId:
@@ -482,6 +513,11 @@ Outputs:
     Description: AgentCore Runtime ID
     Value: !GetAtt AgentCoreStack.Outputs.AgentRuntimeId
 
+  FrontDoorUrl:
+    Condition: IsDemo
+    Description: Front-door gateway URL for the agent (POST <url>/agent/invocations)
+    Value: !GetAtt AgentCoreStack.Outputs.FrontDoorUrl
+
   AgentRuntimeEndpointArn:
     Condition: IsDemo
     Description: AgentCore Runtime Endpoint ARN
@@ -522,5 +558,7 @@ Outputs:
     Description: S3 bucket for Cube configuration files
     Value: !GetAtt CubeStack.Outputs.CubeConfigBucketName
 
-
-
+  SchemaSyncStateMachineArn:
+    Condition: HasSchemaSync
+    Description: Step Functions state machine for schema changes
+    Value: !GetAtt SchemaSyncStack.Outputs.SchemaSyncStateMachineArn

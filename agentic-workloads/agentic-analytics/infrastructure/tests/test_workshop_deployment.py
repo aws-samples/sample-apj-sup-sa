@@ -61,7 +61,8 @@ class TestDatabase:
                 resourceArn=stack_outputs['AuroraResourceArn'],
                 secretArn=stack_outputs['DatabaseSecretArn'],
                 database=stack_outputs['DatabaseName'],
-                sql=f"SELECT COUNT(*) FROM {table}"
+                # table comes from the fixed EXPECTED_MIN_COUNTS keys, not from input
+                sql=f"SELECT COUNT(*) FROM {table}"  # nosec B608
             )
             count = response['records'][0][0]['longValue']
             assert count >= min_count, f"Table {table} has {count} rows, expected >= {min_count}"

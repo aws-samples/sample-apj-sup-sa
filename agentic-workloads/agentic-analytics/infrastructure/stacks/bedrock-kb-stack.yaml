@@ -1,22 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Bedrock Knowledge Base Stack - Custom Resource for KB creation and ingestion'
+Description: 'Amazon Bedrock Managed Knowledge Base for business context (managed vector store, embeddings and reranking)'
 
 Parameters:
   EnvironmentName:
     Type: String
     Default: agentic-analytics
 
-  AuroraClusterArn:
-    Type: String
-    Description: Aurora cluster ARN
 
-  DatabaseSecretArn:
-    Type: String
-    Description: Secrets Manager ARN for database credentials
 
-  DatabaseName:
-    Type: String
-    Default: timely_unicorn
 
   ArtifactsBucket:
     Type: String
@@ -35,10 +26,6 @@ Parameters:
     Type: String
     Default: agentic-analytics-kb
 
-  LambdaS3Key:
-    Type: String
-    Default: lambdas/bedrock_kb_ingestion.zip
-    Description: S3 key for Lambda code (use hash-versioned key for updates)
 
 Resources:
   #============================================================================
@@ -53,6 +40,10 @@ Resources:
       # demo in us-west-2). Bedrock ingestion uses the global endpoint and won't follow
       # the 301, so a region-distinct name is required for reliable multi-region reuse.
       BucketName: !Sub ${EnvironmentName}-kb-docs-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -60,6 +51,14 @@ Resources:
         RestrictPublicBuckets: true
       LoggingConfiguration:
         LogFilePrefix: !Sub ${EnvironmentName}-kb-docs-logs/
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
 
   KBDocsBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -77,7 +76,7 @@ Resources:
               - !Sub arn:aws:s3:::${KBDocsBucket}/*
             Condition:
               Bool:
-                aws:SecureTransport: 'false'
+                aws:SecureTransport: false
 
   EmptyKBDocsBucketRole:
     Type: AWS::IAM::Role
@@ -209,12 +208,82 @@ Resources:
       DstKey: docs/business-context.md
 
   #============================================================================
-  # IAM Role for Bedrock KB Lambda
+  # Amazon Bedrock Managed Knowledge Base (native CloudFormation)
+  # Bedrock owns the vector store, the embedding model and the reranker, so there
+  # is no Aurora/pgvector setup, no embedding model ARN and no custom Lambda.
   #============================================================================
-  BedrockKBRole:
+  KnowledgeBaseRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${EnvironmentName}-bedrock-kb-role
+      RoleName: !Sub ${EnvironmentName}-managed-kb-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*
+      Policies:
+        - PolicyName: ReadKBDocs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt KBDocsBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub ${KBDocsBucket.Arn}/*
+
+  KnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: !Ref KnowledgeBaseName
+      Description: Business context for Timely-Unicorn analytics (metric definitions, rules, example SQL)
+      RoleArn: !GetAtt KnowledgeBaseRole.Arn
+      KnowledgeBaseConfiguration:
+        Type: MANAGED
+        ManagedKnowledgeBaseConfiguration:
+          EmbeddingModelType: MANAGED
+
+  KnowledgeBaseDataSource:
+    Type: AWS::Bedrock::DataSource
+    DependsOn: CopyDocsTrigger
+    Properties:
+      KnowledgeBaseId: !Ref KnowledgeBase
+      Name: business-context-source
+      Description: Markdown business context in the KB docs bucket (docs/ prefix)
+      # Managed knowledge bases connect to S3 through the managed connector
+      # (Type S3 + S3Configuration is only for self-managed knowledge bases).
+      DataSourceConfiguration:
+        Type: MANAGED_KNOWLEDGE_BASE_CONNECTOR
+        ManagedKnowledgeBaseConnectorConfiguration:
+          ConnectorParameters:
+            type: S3
+            version: '1'
+            connectionConfiguration:
+              bucketName: !Ref KBDocsBucket
+              bucketOwnerAccountId: !Ref AWS::AccountId
+            filterConfiguration:
+              inclusionPrefixes:
+                - docs/
+
+  #============================================================================
+  # First sync: CloudFormation creates the data source but does not ingest it.
+  # This small custom resource starts one ingestion job and waits for it, so the
+  # agent can retrieve on its first turn. Later syncs: console "Sync" button or
+  # StartIngestionJob (the workshop shows both).
+  #============================================================================
+  IngestionRole:
+    Type: AWS::IAM::Role
+    Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -225,108 +294,95 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: BedrockKBPolicy
+        - PolicyName: StartIngestion
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - bedrock:CreateKnowledgeBase
-                  - bedrock:DeleteKnowledgeBase
-                  - bedrock:GetKnowledgeBase
-                  - bedrock:ListKnowledgeBases
-                  - bedrock:CreateDataSource
-                  - bedrock:DeleteDataSource
-                  - bedrock:GetDataSource
-                  - bedrock:ListDataSources
-                  - bedrock:IngestKnowledgeBaseDocuments
                   - bedrock:StartIngestionJob
+                  - bedrock:GetDataSource
                   - bedrock:GetIngestionJob
-                  - bedrock:ListIngestionJobs
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:GetRole
-                  - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:PassRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseName}-role
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
-                  # Required so the S3 client can resolve the bucket region; without it,
-                  # us-east-1 ingestion gets 301 PermanentRedirect on the global endpoint.
-                  - s3:GetBucketLocation
-                Resource:
-                  - !Sub arn:aws:s3:::${ArtifactsBucket}/*
-                  - !Sub arn:aws:s3:::${KBDocsBucket}
-                  - !Sub arn:aws:s3:::${KBDocsBucket}/*
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Ref DatabaseSecretArn
-              - Effect: Allow
-                Action:
-                  - rds-data:ExecuteStatement
-                Resource: !Ref AuroraClusterArn
+                Resource: !GetAtt KnowledgeBase.KnowledgeBaseArn
 
-  #============================================================================
-  # Bedrock KB Lambda Function
-  #============================================================================
-  BedrockKBFunction:
+  IngestionFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub ${EnvironmentName}-bedrock-kb
-      Description: Create Bedrock Knowledge Base and ingest business context
+      Description: Start and wait for the first managed knowledge base sync
       Runtime: python3.12
-      Handler: handler.lambda_handler
-      Role: !GetAtt BedrockKBRole.Arn
+      Handler: index.handler
+      Role: !GetAtt IngestionRole.Arn
       Timeout: 900
-      MemorySize: 256
       Code:
-        S3Bucket: !Ref ArtifactsBucket
-        S3Key: !Ref LambdaS3Key
-      Environment:
-        Variables:
-          AWS_REGION_NAME: !Ref AWS::Region
+        ZipFile: |
+          import boto3, json, time, urllib.request
+          def send(event, context, status, reason='OK'):
+              body = json.dumps({'Status': status, 'Reason': reason[:300], 'PhysicalResourceId': 'kb-ingestion',
+                                 'StackId': event['StackId'], 'RequestId': event['RequestId'],
+                                 'LogicalResourceId': event['LogicalResourceId'], 'Data': {}})
+              urllib.request.urlopen(urllib.request.Request(event['ResponseURL'], data=body.encode(),
+                                     headers={'Content-Type': ''}, method='PUT'))
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  send(event, context, 'SUCCESS'); return
+              try:
+                  p = event['ResourceProperties']
+                  ba = boto3.client('bedrock-agent')
+                  # A managed-KB data source is created asynchronously (CREATING -> AVAILABLE,
+                  # usually 2-5 min); ingestion can only start once it is AVAILABLE.
+                  while context.get_remaining_time_in_millis() > 60000:
+                      ds = ba.get_data_source(knowledgeBaseId=p['KnowledgeBaseId'], dataSourceId=p['DataSourceId'])['dataSource']
+                      if ds['status'] == 'AVAILABLE':
+                          break
+                      if ds['status'] in ('DELETE_UNSUCCESSFUL', 'FAILED'):
+                          raise RuntimeError('data source ' + ds['status'] + ': ' + '; '.join(ds.get('failureReasons') or []))
+                      time.sleep(15)
+                  job = ba.start_ingestion_job(knowledgeBaseId=p['KnowledgeBaseId'], dataSourceId=p['DataSourceId'])['ingestionJob']
+                  while context.get_remaining_time_in_millis() > 30000:
+                      job = ba.get_ingestion_job(knowledgeBaseId=p['KnowledgeBaseId'], dataSourceId=p['DataSourceId'],
+                                                 ingestionJobId=job['ingestionJobId'])['ingestionJob']
+                      if job['status'] == 'COMPLETE':
+                          send(event, context, 'SUCCESS', json.dumps(job.get('statistics', {}), default=str)); return
+                      if job['status'] in ('FAILED', 'STOPPED'):
+                          send(event, context, 'FAILED', '; '.join(job.get('failureReasons') or [job['status']])); return
+                      time.sleep(15)
+                  send(event, context, 'FAILED', 'ingestion did not finish in time')
+              except Exception as e:
+                  send(event, context, 'FAILED', str(e))
 
-  #============================================================================
-  # Custom Resource to Create KB and Ingest
-  #============================================================================
-  BedrockKBTrigger:
-    Type: Custom::BedrockKB
-    DependsOn:
-      - BedrockKBFunction
-      - CopyDocsTrigger
+  IngestionTrigger:
+    Type: Custom::KBIngestion
     Properties:
-      ServiceToken: !GetAtt BedrockKBFunction.Arn
-      KnowledgeBaseName: !Ref KnowledgeBaseName
-      AuroraClusterArn: !Ref AuroraClusterArn
-      DatabaseSecretArn: !Ref DatabaseSecretArn
-      DatabaseName: !Ref DatabaseName
-      KBDocsBucket: !Ref KBDocsBucket
-      BusinessContextKey: docs/business-context.md
+      ServiceToken: !GetAtt IngestionFunction.Arn
+      KnowledgeBaseId: !Ref KnowledgeBase
+      DataSourceId: !GetAtt KnowledgeBaseDataSource.DataSourceId
+      # Re-sync whenever the source document key changes.
+      SourceKey: !Ref BusinessContextKey
 
 Outputs:
-  BedrockKBFunctionArn:
-    Description: Bedrock KB Lambda Function ARN
-    Value: !GetAtt BedrockKBFunction.Arn
-
   KnowledgeBaseId:
-    Description: Bedrock Knowledge Base ID
-    Value: !GetAtt BedrockKBTrigger.KnowledgeBaseId
+    Description: Bedrock Managed Knowledge Base ID
+    Value: !Ref KnowledgeBase
     # NOTE: do not rename — imported by agentcore-topup-stack.yaml (workshop) as
     # ${EnvironmentName}-KnowledgeBaseId. Renaming/removing breaks the import.
     Export:
       Name: !Sub ${EnvironmentName}-KnowledgeBaseId
 
+  KnowledgeBaseArn:
+    Description: Bedrock Managed Knowledge Base ARN (for the Gateway connector target)
+    Value: !GetAtt KnowledgeBase.KnowledgeBaseArn
+    Export:
+      Name: !Sub ${EnvironmentName}-KnowledgeBaseArn
+
   DataSourceId:
     Description: Bedrock Data Source ID
-    Value: !GetAtt BedrockKBTrigger.DataSourceId
+    Value: !GetAtt KnowledgeBaseDataSource.DataSourceId
+    # Imported by the workshop Step 11 schema-change pipeline.
+    Export:
+      Name: !Sub ${EnvironmentName}-KnowledgeBaseDataSourceId
 
   KBDocsBucketName:
     Description: S3 bucket for KB documents
     Value: !Ref KBDocsBucket
+    Export:
+      Name: !Sub ${EnvironmentName}-KBDocsBucketName

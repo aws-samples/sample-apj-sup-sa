@@ -2,6 +2,8 @@
 """
 Local Strands Agent — Step 1: Build Your First Agent
 Connects directly to Aurora PostgreSQL with a simple @tool function.
+Run it only against the synthetic Timely-Unicorn dataset: it prints the agent's reply,
+which contains query results.
 """
 
 import os
@@ -21,7 +23,7 @@ from strands.models import BedrockModel
 # ============================================================================
 # TODO 1.2: Configure the Bedrock Model
 # This connects your agent to Claude on Amazon Bedrock.
-# Hint: BedrockModel(model_id="global.anthropic.claude-sonnet-4-6", streaming=True)
+# Hint: BedrockModel(model_id="global.anthropic.claude-sonnet-5-5", streaming=True)
 # ============================================================================
 bedrock_model = None  # TODO 1.2: Replace with BedrockModel(...)
 
@@ -77,4 +79,5 @@ if __name__ == "__main__":
         print("=" * 50)
         result = agent("Show me the top 5 customers by revenue")
         print("\nAgent response:")
-        print(result)
+        # str(result) is the reply text only; the result object also holds tool inputs and outputs.
+        print(str(result))

@@ -106,7 +106,7 @@ const SplitScreenLayout = () => {
         >
           <Toolbar>
             <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 40, height: 40, mr: 2, fontSize: '1rem', fontWeight: 600 }}>
-              Unicorn
+              TU
             </Avatar>
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="h6" sx={{ color: 'white', mb: 0.5 }}>

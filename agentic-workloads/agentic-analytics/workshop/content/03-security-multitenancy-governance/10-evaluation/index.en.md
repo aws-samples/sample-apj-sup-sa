@@ -15,14 +15,14 @@ By the end of this step, you will:
 
 Observability (Step 9) tells you *what happened*. Evaluation tells you *how well it went*.
 
-:link[AgentCore Evaluations]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations.html"} uses **LLM-as-a-Judge** — a separate LLM scores your agent's responses for quality, correctness, and tool usage. This gives you quantitative metrics you can track over time.
+:link[AgentCore Evaluations]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations.html"} uses **LLM-as-a-Judge**: a separate LLM scores your agent's responses for quality, correctness, and tool usage. This gives you quantitative metrics you can track over time.
 
 | Evaluation Type | When It Runs | Use Case |
 |----------------|-------------|----------|
 | **On-demand** | You trigger it manually | Test after changes, investigate specific sessions |
 | **Online** | Continuously on live traffic | Production monitoring, quality alerts |
 
-::alert[**A deliberate exception to the "no CLI" rule.** Everywhere else in this workshop you build the agent layer by editing CloudFormation and running `make deploy`. Evaluation is different: it's an analysis harness that scores existing traces, and there is **no CloudFormation resource** for it — so this step uses the `agentcore eval` CLI directly. This is the one place the CLI is the right tool, the same way the optional Cube lab keeps its own scripts.]{type="info"}
+::alert[**One CLI command, one template block.** The on-demand run in Step 10.1 is an analysis you start by hand, so it uses the `agentcore eval` CLI. Continuous scoring in Step 10.3 is infrastructure, so it is a CloudFormation resource you uncomment like every other step.]{type="info"}
 
 ## Lab Procedures
 
@@ -30,7 +30,7 @@ Observability (Step 9) tells you *what happened*. Evaluation tells you *how well
 
 On-demand evaluation scores traces that already exist in CloudWatch (from your invocations in Step 9). You pass it two things: the **agent runtime id** (the `AgentRuntimeId` from `make outputs`, e.g. `agentic_analytics_agent-xxxxxxxxxx`) and a **session id** you exercised in Step 9:
 
-::alert[**Use a session you actually exercised, and give traces a few minutes to index.** Evaluation reads spans from CloudWatch Transaction Search, which indexes a short time *after* an invocation. Use a session id from the chat UI (the GenAI dashboard's **Sessions** tab lists them) and pass it with `-s`. The agent runtime is built with OpenTelemetry auto-instrumentation (`opentelemetry-instrument` + the ADOT env on the Runtime) and the runtime role has X-Ray permissions, so agent/model/tool spans flow to `aws/spans` — that's what eval scores. If you see `No spans found`, wait ~3–5 minutes and retry, and confirm the agent emitted runtime spans (Step 9, **All spans** tab — look for `AgentCore.Runtime.*` / model spans, not just `AgentCore.Gateway.*`).]{type="warning"}
+::alert[**Use a session you actually exercised, and give traces a few minutes to index.** Evaluation reads spans from CloudWatch Transaction Search, which indexes a short time *after* an invocation. Use a session id from the chat UI (the endpoint's **OTEL sessions** tab lists them) and pass it with `-s`. The agent runtime is built with OpenTelemetry auto-instrumentation (`opentelemetry-instrument` + the ADOT env on the Runtime) and the runtime role has X-Ray permissions, so agent/model/tool spans flow to `aws/spans`: that's what eval scores. If you see `No spans found`, wait ~3–5 minutes and retry, and confirm the agent emitted runtime spans (Step 9, **All spans** tab: look for `AgentCore.Runtime.*` / model spans, not just `AgentCore.Gateway.*`).]{type="warning"}
 
 ```bash
 agentcore eval run \
@@ -59,21 +59,19 @@ Each built-in evaluator scores a different dimension:
 
 ### Step 10.3: Set Up Online (Continuous) Evaluation
 
-For production, you want every invocation scored automatically:
+For production you want conversations scored without anyone running a command. That is one more resource in your template. Find the **Step 10** fence in :code[agentcore-topup-stack.yaml]{showCopyAction=true}, uncomment it and deploy:
 
 ```bash
-agentcore eval online create \
-  --name unicorn_eval \
-  --sampling-rate 100 \
-  --evaluator "Builtin.Helpfulness" \
-  --evaluator "Builtin.Correctness" \
-  --agent-id "<AgentRuntimeId-from-make-outputs>"
+cd /workshop/agentic-analytics/app/agentcore_strands
+make deploy
 ```
 
-This creates a continuous evaluation that:
-- Samples 100% of invocations (reduce for cost in production — e.g., 10%)
-- Scores each one with Helpfulness and Correctness
-- Reports metrics to CloudWatch — you can set alarms when quality drops
+The fence adds an IAM role that can read the runtime's spans and an `AWS::BedrockAgentCore::OnlineEvaluationConfig` named `unicorn_rental_online_eval`. It:
+- samples 10% of finished conversations (raise it while you test, lower it for cost in production)
+- scores each with Correctness, Faithfulness, Helpfulness, ToolSelectionAccuracy and GoalSuccessRate
+- writes scores to a results log group and as CloudWatch metrics in the `Bedrock-AgentCore/Evaluations` namespace, so you can alarm on quality like you alarm on errors
+
+Have a few conversations in the UI, then give the evaluator a few minutes: it scores a conversation after it has finished.
 
 ### Step 10.4: View Results in CloudWatch
 
@@ -103,13 +101,13 @@ In practice:
 3. **Low Helpfulness** → adjust response formatting constraints in the SOP → redeploy
 4. Re-evaluate to confirm improvement
 
-::alert[**For your SaaS:** Set up online evaluation from day one. Track scores weekly. When you onboard a new tenant with different data patterns, evaluation will catch quality regressions before your tenants do.]{type="success"}
+::alert[**For your SaaS:** Set up online evaluation from day one. Track scores weekly. When you onboard a new tenant with different data patterns, evaluation can flag quality regressions before tenants report them.]{type="success"}
 
 ## Summary
 
-You set up both on-demand and continuous evaluation for your agent. Combined with observability from Step 9, you now have the complete production feedback loop: observe what happens, measure how well it went, and know exactly what to improve.
+You set up both on-demand and continuous evaluation for your agent. With observability from Step 9, you can trace a conversation, score it, and use low scores to find the SOP rule, tool, or view to fix.
 
-Next → [Summary & Next Steps](../../summary/)
+Next → [Step 11: Schema changes](../11-schema-changes/)
 
 ## Reference Materials
 
@@ -118,4 +116,4 @@ Next → [Summary & Next Steps](../../summary/)
 - :link[On-Demand Evaluation Guide]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/getting-started-on-demand.html"}
 - :link[Online Evaluation Guide]{href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/create-online-evaluations.html"}
 - :link[Strands Agents Evals SDK]{href="https://strandsagents.com/docs/user-guide/evals-sdk/quickstart/" external=true} (for test-dataset evaluation)
-- :link[Strands Evals — Output Evaluator]{href="https://strandsagents.com/docs/user-guide/evals-sdk/evaluators/output_evaluator/" external=true}
+- :link[Strands Evals: Output Evaluator]{href="https://strandsagents.com/docs/user-guide/evals-sdk/evaluators/output_evaluator/" external=true}

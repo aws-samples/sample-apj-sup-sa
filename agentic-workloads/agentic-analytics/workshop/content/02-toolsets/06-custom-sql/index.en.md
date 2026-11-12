@@ -17,12 +17,18 @@ Your agent has 29 prebaked tools, but tenants always ask questions that don't ma
 
 ## The Solution: Custom SQL with RAG
 
-The Custom SQL toolset lets the agent **generate SQL dynamically** — but with multiple hallucination mitigation layers:
+The Custom SQL toolset lets the agent **generate SQL dynamically**, but with multiple hallucination mitigation layers:
 
-1. **Full schema from :link[AWS Glue Data Catalog]{href="https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html"}** — every table, column, and type
-2. **Business context from :link[Bedrock Knowledge Base]{href="https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html"} (RAG)** — descriptions, rules, and sample SQL
-3. **Human approval** — the user reviews a query plan before execution
-4. **SELECT only** — dangerous patterns blocked at the Lambda level
+1. **Schema from :link[AWS Glue Data Catalog]{href="https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html"}**: tables, columns and types, sized to fit (see below)
+2. **Business context from :link[Bedrock Knowledge Base]{href="https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html"} (RAG)**: descriptions, rules, and sample SQL
+3. **Human approval**: the user reviews a query plan before execution
+4. **SELECT only**: dangerous patterns blocked at the Lambda level
+
+### How much schema goes into the prompt
+
+This database is small, so the tool sends the whole schema: 9 tables and 22 views, well under the 32,000-character limit set by `SCHEMA_FULL_MAX_CHARS`. Real warehouses are not. When the schema is bigger than the limit, the tool sends a short index instead (one line per table: name, description and column count), the model picks the tables it needs, and the tool is called again with a `tables` list to get only those.
+
+In our test (60 questions, Claude Sonnet 5.5, the schema padded with 150 unrelated tables to 181 tables and views; method and raw results in `dev/evaluation/schema-context/` in the sample repository), sending the full schema scored 85% correct results and cost about 51,000 input tokens per question. The index-then-pick approach scored 90% at about 11,600 tokens, and it also beat embedding-based schema retrieval. Your numbers will differ by schema and model. Good one-line table descriptions matter more than the retrieval method, which is why Step 11 keeps them current.
 
 ## Lab Procedures
 
@@ -31,11 +37,11 @@ The Custom SQL toolset lets the agent **generate SQL dynamically** — but with 
 Before deploying, understand what powers the RAG. Open :code[dataset/docs/business-context.md]{showCopyAction=true} in the Code Editor.
 
 This document contains:
-- **Schema descriptions** — not just column names, but what they mean (e.g., "a full-day booking = 8 hours")
-- **Business rules** — "revenue = SUM(total_cost)", "active unicorns = status != 'retired'"
-- **Sample SQL** — correct JOIN patterns for complex multi-table queries
+- **Schema descriptions**: not just column names, but what they mean (e.g., "a full-day booking = 8 hours")
+- **Business rules**: "revenue = SUM(total_cost)", "active unicorns = status != 'retired'"
+- **Sample SQL**: correct JOIN patterns for complex multi-table queries
 
-::alert[**Why this matters:** Schema alone tells the LLM that `bookings.start_datetime` exists, but not that "booking duration" means `end_datetime - start_datetime` in hours. The business context fills this gap. The sample SQL is especially important — it gives the LLM correct join patterns to follow, significantly reducing hallucination on complex queries.]{type="info"}
+::alert[**Schema alone is not enough.** Schema tells the LLM that `bookings.start_datetime` exists, but not that "booking duration" means `end_datetime - start_datetime` in hours. The business context supplies that, and the sample SQL gives the LLM correct join patterns for complex queries.]{type="info"}
 
 ### Step 6.2: Explore the Knowledge Base in the Console
 
@@ -44,44 +50,47 @@ If you do not have the AWS UI console open, you can open it from the AWS worksho
 1. Open **AWS Console** → **Amazon Bedrock** → **Knowledge bases** or navigate straight to the :link[Bedrock Knowledge Bases UI console]{href="https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/knowledge-bases" external=true}
 2. Find the knowledge base (named `agentic-analytics-kb`)
 3. Click on it
-4. Look at the **Data source** section and click `business-context-source` data source
+4. Note the **Knowledge base type**: it is a **managed** knowledge base
+5. In the **Data source** section, click the `business-context-source` data source
 
 You'll see:
 - **Data source type**: Amazon S3
-- **S3 bucket**: Contains `business-context.md`
-- **Chunking strategy**: Hierarchical (parent: 1000 tokens, child: 300 tokens)
+- **S3 URI**: the `docs/` folder of the KB bucket, which holds `business-context.md`
+- **Sync history**: one completed sync, run by CloudFormation when the stack was created
 
-::alert[**Hierarchical chunking** splits the document into large parent chunks (1000 tokens) and smaller child chunks (300 tokens). When the agent searches, it matches on child chunks (precise) but retrieves the parent chunk (more context). This gives the LLM both precision and surrounding context — critical for understanding SQL patterns that span multiple paragraphs.]{type="info"}
+::alert[**Why a managed knowledge base?** You picked only the data source. Bedrock chose and runs the vector store, the embedding model and the chunking for you, so there is no OpenSearch collection, Aurora pgvector table or embedding model to size, patch or pay for while idle. Choose a self-managed vector store only when you need control over chunking, the embedding model or where vectors live.]{type="info"}
 
 ### Step 6.3: Test Semantic Search in the Console
 
-1. In the Knowledge Base console, click `agentic-analytics-kb` breadcrumbs menu on top to navigate up
-2. Click **Test knowledge base** (right panel)
-3. Select any available **Claude** model under the `Anthropic` category (a Sonnet or Opus model is ideal), and click `Apply`
-4. Try these queries:
-   - "How to calculate booking duration?" — should return the section about `end_datetime - start_datetime`
-   - "What is the relationship between bookings and unicorns?" — should return JOIN patterns
-   - "How is revenue calculated?" — should return the revenue formula
+1. In the Knowledge Base console, click `agentic-analytics-kb` in the breadcrumbs at the top to go back to the knowledge base page
+2. Click **Test** (next to **Delete** at the top of the page). The **Test Knowledge Base** page opens with **Configurations** on the left and **Test** on the right
+3. Under **Retrieval and response generation**, select **Standard retrieval only**. This is the same `Retrieve` call the agent makes: it returns the matching chunks without asking a model to write an answer, so you can see exactly what the agent will read. (The **Agentic retrieval** options also work if you want a synthesized answer.)
+4. Type each query in the prompt box on the right and press **Enter**:
+   - "How to calculate booking duration?": the top results hold the duration rule and SQL that uses `end_datetime - start_datetime`
+   - "What is the relationship between bookings and unicorns?": the bookings table description, including its **Relationships** list (each booking points to one unicorn and one customer)
+   - "How is revenue calculated?": the revenue rule, `SUM(transactions.amount)` over `booking_fee`, `subscription` and `storage_overage`
+
+   The preview shortens each result; turn on **Details** and pick a result to read the whole chunk.
 
 This is the same RAG retrieval the agent uses when generating SQL.
 
-::alert[**Updating the Knowledge Base:** To add new business context, upload files to the S3 data source bucket and click **Sync** in the data source section (or call the :link[StartIngestionJob API]{href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent_StartIngestionJob.html"}). The new content will be chunked, vectorized, and stored in Aurora PostgreSQL's pgvector extension.]{type="info"}
+::alert[**Updating the Knowledge Base:** To add new business context, upload files to the S3 data source bucket and click **Sync** in the data source section (or call the :link[StartIngestionJob API]{href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent_StartIngestionJob.html"}). Bedrock chunks, embeds and indexes the new content in the managed vector store.]{type="info"}
 
-### Step 6.4: Understand the SOP — Text-to-SQL Workflow
+### Step 6.4: Understand the SOP: Text-to-SQL Workflow
 
 Open :code[unicorn_rental_analytics.sop.md]{showCopyAction=true} and review:
 
-**Lines 83-122 — Text-to-SQL Workflow (Human-in-the-Loop):** This is the most complex workflow in the SOP. Key constraints:
-- *"You MUST call text_to_sql_tool to get schema context first"* — the agent retrieves Glue schema + RAG context before generating SQL
-- *"You MUST present a business-level query plan for approval"* — the user sees a tree-format plan in business language, not raw SQL
-- *"You MUST STOP and wait after presenting the query plan"* — human approval required before execution
-- *"You MUST NOT execute SQL that modifies data"* — SELECT only
+**Section 4, Text-to-SQL Workflow (Human-in-the-Loop):** This is the most complex workflow in the SOP. Key constraints:
+- *"You MUST call text_to_sql_tool to get schema context first"*: the agent retrieves Glue schema + RAG context before generating SQL
+- *"You MUST present a business-level query plan for approval"*: the user sees a tree-format plan in business language, not raw SQL
+- *"You MUST STOP and wait after presenting the query plan"*: human approval required before execution
+- *"You MUST NOT execute SQL that modifies data"*: SELECT only
 
-**Lines 96-112 — Approval Card Format:** The SOP defines the exact JSON format for the approval card, including the tree-format query plan with `└─` connectors. The UI parses this format to render the approval buttons.
+**Approval card format, inside Section 4:** The SOP defines the exact JSON format for the approval card, including the tree-format query plan with `└─` connectors. The UI parses this format to render the approval buttons.
 
-**Line 44 — Tool Priority:** *"You MUST NOT use text-to-sql when a specific tool exists."* This prevents the agent from generating SQL for questions that already have prebaked tools — reducing cost, latency, and hallucination risk.
+**Tool priority, Section 2:** *"You MUST NOT use text-to-sql when a specific tool exists"* This prevents the agent from generating SQL for questions that already have prebaked tools: reducing cost, latency, and hallucination risk.
 
-::alert[**The SOP creates a layered defense against SQL hallucination:** (1) Prebaked tools handle known queries — minimum hallucination risk. (2) For unknown queries, Glue schema + RAG context ground the SQL generation. (3) Human approval catches any remaining errors. (4) Lambda-level validation blocks dangerous patterns. Each layer reduces risk independently.]{type="info"}
+::alert[**The SOP creates a layered defense against SQL hallucination:** (1) Prebaked tools handle known queries: minimum hallucination risk. (2) For unknown queries, Glue schema + RAG context ground the SQL generation. (3) Human approval catches any remaining errors. (4) Lambda-level validation blocks dangerous patterns. Each layer reduces risk independently.]{type="info"}
 
 ### Step 6.5: Uncomment the Custom SQL toolset and deploy
 
@@ -93,9 +102,9 @@ Open :code[/workshop/agentic-analytics/app/agentcore_strands/agentcore-topup-sta
 # ===== UNCOMMENT TO HERE (Step 6) =====
 ```
 
-Uncomment everything between the markers (this brings up `CustomSqlLambda`, its role + permission, and the `CustomSqlTarget` with its three tools: `text_to_sql_tool`, `get_schema_context_tool`, `execute_sql_tool`). The Lambda already imports the Glue database name and the Bedrock Knowledge Base id from the base stack's exports — no values to wire by hand.
+Uncomment everything between the markers (this brings up `CustomSqlLambda`, its role + permission, and the `CustomSqlTarget` with its three tools: `text_to_sql_tool`, `get_schema_context_tool`, `execute_sql_tool`). The Lambda already imports the Glue database name and the Bedrock Knowledge Base id from the base stack's exports: no values to wire by hand.
 
-::alert[**Tip — uncomment the whole block at once.** Don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the fence, then **Shift+click** the last line inside it to select the whole block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Select only the lines **between** the two `UNCOMMENT` markers — not the marker lines themselves.]{type="info"}
+::alert[**Tip: uncomment the whole block at once.** Don't delete each `#` by hand. The Code Editor is VS Code: click the first line *inside* the fence, then **Shift+click** the last line inside it to select the whole block, and press **Cmd + /** (macOS) or **Ctrl + /** (Windows/Linux) to toggle the comments off for every selected line in one go. Select only the lines **between** the two `UNCOMMENT` markers: not the marker lines themselves.]{type="info"}
 
 Then deploy:
 
@@ -113,13 +122,13 @@ If you're not logged in to the chat UI, log in as:
 | Field | Value |
 |-------|-------|
 | Username | `orion.moonshadow@example-mythicalunicorns.com` |
-| Password | `Unicorn123!` |
+| Password | the password from `make users` (Step 3.4) |
 
 ::alert[**Use the right user:** In case you intend to run the below queries after deploying the AgentCore Policy and RLS in step 7, you MUST use users with "analyst" or "rental_admin" or "saas_admin" type to be able to use the custom SQL. The user above (Orion Moonshadow) is an analyst role. If you run this step before deploying the components in step 7, the user does not matter.]{type="info"}
 
 ::alert[**Start fresh:** It is best to clear the chatbot conversation from the previous step by clicking the small bin icon next to the chat input field or by refreshing the application demo browser tab.]{type="info"}
 
-Try these ad-hoc analytics questions — none are covered by the 29 prebaked tools, so the agent will use `CustomSQL___text_to_sql_tool` and show an **approval card** for each:
+Try these ad-hoc analytics questions: none are covered by the 29 prebaked tools, so the agent will use `CustomSQL___text_to_sql_tool` and show an **approval card** for each:
 
 **Query 1: Booking duration by breed**
 - Ask: "What's the average booking duration by unicorn breed?"
@@ -141,7 +150,7 @@ Try these ad-hoc analytics questions — none are covered by the 29 prebaked too
 
 As you have experienced in the tests, for each query, an approval card appears:
 
-1. **Review the query plan** — it describes what the query will do in business terms (not raw SQL)
+1. **Review the query plan**: it describes what the query will do in business terms (not raw SQL)
 2. Click **"Approve & Run"** to execute
 3. The agent calls `CustomSQL___execute_sql_tool` and returns formatted results with insights
 
@@ -167,7 +176,7 @@ The `execute_sql_tool` enforces:
 ## Troubleshooting
 
 **Agent uses Custom SQL for questions that have prebaked tools**
-- The SOP already handles this — it constrains the agent to use specific tools before falling back to Custom SQL (see SOP line 44).
+- The SOP already handles this: it constrains the agent to use specific tools before falling back to Custom SQL (see SOP Section 2).
 
 **Approval card doesn't appear**
 - Ensure the UI is running and connected to the agent.
@@ -178,13 +187,13 @@ The `execute_sql_tool` enforces:
 
 ## Summary
 
-You deployed the Custom SQL toolset — the third integration pattern. The agent combines full schema from Glue with business context from RAG to generate SQL, then asks for human approval before executing. The business-context.md document is the key to reducing hallucination — it provides the "why" behind the schema that the LLM needs to generate correct queries.
+You deployed the Custom SQL toolset, the third integration pattern. The agent combines schema from Glue (whole, or an index when it is large) with business context from RAG to generate SQL, then asks for human approval before executing. The `business-context.md` document reduces hallucination by telling the LLM what columns mean and how tables join.
 
-Next, you'll add role-based access control → [Step 7: Agent Access Policy](../../03-security-multitenancy-governance/07-agent-access-policy/)
+Next, you'll give the agent public web context → [Step 6b: Web Search](../06b-web-search/)
 
 ## Reference Materials
 
 - :link[Amazon Bedrock Knowledge Bases]{href="https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html"}
-- :link[Bedrock KB — Chunking Strategies]{href="https://docs.aws.amazon.com/bedrock/latest/userguide/kb-chunking-parsing.html"}
-- :link[Bedrock KB — StartIngestionJob API]{href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent_StartIngestionJob.html"}
+- :link[Bedrock KB: Chunking Strategies]{href="https://docs.aws.amazon.com/bedrock/latest/userguide/kb-chunking-parsing.html"}
+- :link[Bedrock KB: StartIngestionJob API]{href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent_StartIngestionJob.html"}
 - :link[AWS Glue Data Catalog]{href="https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html"}

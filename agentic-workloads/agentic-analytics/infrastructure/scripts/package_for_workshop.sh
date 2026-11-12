@@ -22,6 +22,9 @@ trap "rm -rf $TEMP_DIR" EXIT
 
 echo "Packaging for Workshop Studio..."
 
+# Every lab fence must still be valid YAML, at the right indent, once a participant uncomments it.
+python3 "$PROJECT_ROOT/dev/check_fences.py" "$WORKSHOP_DIR/code/app/agentcore_strands/agentcore-topup-stack.yaml"
+
 # Clean previous assets (preserve static images and contentspec)
 rm -rf "$ASSETS_DIR"
 mkdir -p "$ASSETS_DIR/templates" "$ASSETS_DIR/lambdas" "$ASSETS_DIR/schema" "$ASSETS_DIR/data" "$ASSETS_DIR/docs" "$ASSETS_DIR/drivers" "$ASSETS_DIR/repo" "$ASSETS_DIR/lambda" "$ASSETS_DIR/sops"
@@ -53,7 +56,6 @@ package_lambda() {
 
 package_lambda "database_init" "$INFRA_DIR/custom-resource-lambdas/database_init"
 package_lambda "glue_crawler_trigger" "$INFRA_DIR/custom-resource-lambdas/glue_crawler_trigger"
-package_lambda "bedrock_kb_ingestion" "$INFRA_DIR/custom-resource-lambdas/bedrock_kb_ingestion"
 package_lambda "observability_setup" "$INFRA_DIR/custom-resource-lambdas/observability_setup"
 
 # NOTE: the old agentcore_gateway Lambda (which bundled the imperative
@@ -80,6 +82,8 @@ echo "  topup: custom_sql_toolset (CustomSqlLambdaKey)"
 zip -j "$ASSETS_DIR/lambdas/custom_sql_toolset.zip" custom_sql_toolset_lambda.py > /dev/null
 echo "  topup: gateway_interceptor (InterceptorLambdaKey)"
 zip -j "$ASSETS_DIR/lambdas/gateway_interceptor.zip" "$PROJECT_ROOT/app/agentcore_strands/infra/interceptor_lambda.py" > /dev/null
+echo "  topup: schema_sync (Step 11 schema change pipeline)"
+zip -j "$ASSETS_DIR/lambdas/schema_sync.zip" "$PROJECT_ROOT/app/schema_sync/schema_sync_lambda.py" "$PROJECT_ROOT/app/schema_sync/schema_diff.py" > /dev/null
 
 # psycopg2 layer for the SQL Lambdas (NeedsPsycopg2Layer self-create path expects
 # layers/psycopg2-py312.zip). Build a python3.12 manylinux wheel layer.

@@ -1,6 +1,8 @@
 # Pipecat Cloud agent image for the Voice Analytics bot.
 # Built on Daily's Pipecat base image (provides the PCC runtime + /start handling).
-FROM dailyco/pipecat-base:latest
+# Pipecat Cloud pulls and runs this image on Daily's side, so it comes from Docker Hub
+# (pinned tag) rather than ECR. The AgentCore voice mode uses Dockerfile.agentcore.
+FROM dailyco/pipecat-base:0.2.10-py3.12
 
 # Faster, smaller installs.
 ENV UV_COMPILE_BYTECODE=1

@@ -1,0 +1,97 @@
+{
+ "A|base": {
+  "ex": 0.883,
+  "errors": 0,
+  "avg_input_tokens": 4848,
+  "avg_sec": 2.4,
+  "wrong": [
+   "q14",
+   "q16",
+   "q25",
+   "q29",
+   "q44",
+   "q51",
+   "q60"
+  ]
+ },
+ "C|base": {
+  "ex": 0.85,
+  "errors": 0,
+  "avg_input_tokens": 2201,
+  "avg_sec": 2.6,
+  "wrong": [
+   "q12",
+   "q14",
+   "q16",
+   "q18",
+   "q25",
+   "q29",
+   "q30",
+   "q44",
+   "q60"
+  ]
+ },
+ "G|base": {
+  "ex": 0.917,
+  "errors": 0,
+  "avg_input_tokens": 3502,
+  "avg_sec": 5.0,
+  "wrong": [
+   "q14",
+   "q25",
+   "q39",
+   "q54",
+   "q60"
+  ]
+ },
+ "A|enlarged": {
+  "ex": 0.85,
+  "errors": 0,
+  "avg_input_tokens": 50927,
+  "avg_sec": 3.9,
+  "wrong": [
+   "q14",
+   "q16",
+   "q25",
+   "q29",
+   "q30",
+   "q39",
+   "q44",
+   "q51",
+   "q60"
+  ]
+ },
+ "C|enlarged": {
+  "ex": 0.817,
+  "errors": 0,
+  "avg_input_tokens": 2384,
+  "avg_sec": 2.4,
+  "wrong": [
+   "q12",
+   "q14",
+   "q16",
+   "q25",
+   "q29",
+   "q30",
+   "q33",
+   "q39",
+   "q44",
+   "q51",
+   "q60"
+  ]
+ },
+ "G|enlarged": {
+  "ex": 0.9,
+  "errors": 0,
+  "avg_input_tokens": 11591,
+  "avg_sec": 5.4,
+  "wrong": [
+   "q14",
+   "q25",
+   "q32",
+   "q39",
+   "q44",
+   "q60"
+  ]
+ }
+}
