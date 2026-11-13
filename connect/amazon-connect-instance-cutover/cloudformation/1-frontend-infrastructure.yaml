@@ -1,0 +1,447 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS Connect Migration Tool - Frontend Infrastructure (S3 + CloudFront)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    Description: Environment name (dev, staging, prod)
+  CognitoDomainPrefix:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'
+    Description: >-
+      Prefix for the Cognito sign in domain (<prefix>.auth.<region>.amazoncognito.com).
+      Must be unique in the Region. Leave empty to use connect-migration-<account>-<env>.
+  LogRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days to keep S3 server access logs and CloudFront access logs in the access log bucket
+  NoncurrentVersionRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Days to keep noncurrent object versions in the website and artifacts buckets
+  CustomDomainName:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'
+    Description: >-
+      Optional domain for the web UI (for example migration.example.com). Requires
+      AcmCertificateArn. You create the DNS record pointing to the distribution.
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:aws[a-z-]*:acm:[a-z0-9-]+:\d{12}:certificate/[0-9a-f-]+$'
+    Description: >-
+      Optional ACM certificate for CustomDomainName. CloudFront only accepts
+      certificates issued in the US East (N. Virginia) Region.
+  ApiId:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^[a-z0-9]{10}$'
+    Description: >-
+      ID of the tool's REST API (output ApiId of the backend stack, same Region).
+      Allows the web UI to call it in the Content-Security-Policy. scripts/deploy.sh
+      sets it after the backend stack is deployed; leave empty on the first deploy.
+
+Rules:
+  CustomDomainNeedsCertificate:
+    Assertions:
+      - Assert: !Or
+          - !And
+            - !Equals [!Ref CustomDomainName, '']
+            - !Equals [!Ref AcmCertificateArn, '']
+          - !And
+            - !Not [!Equals [!Ref CustomDomainName, '']]
+            - !Not [!Equals [!Ref AcmCertificateArn, '']]
+        AssertDescription: Set both CustomDomainName and AcmCertificateArn, or neither.
+
+Conditions:
+  DefaultDomainPrefix: !Equals [!Ref CognitoDomainPrefix, '']
+  UseCustomDomain: !Not [!Equals [!Ref CustomDomainName, '']]
+  HasApiId: !Not [!Equals [!Ref ApiId, '']]
+
+Resources:
+  # Access logs for the website and artifacts buckets (S3 server access logging)
+  # and the CloudFront distribution (standard logging). Private and encrypted
+  # with SSE-S3 (CloudFront standard logs do not support SSE-KMS). CloudFront
+  # standard logging writes with an ACL, so object ownership is
+  # BucketOwnerPreferred rather than BucketOwnerEnforced; public ACLs and
+  # policies are still blocked. Not logged into itself.
+  AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireAccessLogs
+            Status: Enabled
+            ExpirationInDays: !Ref LogRetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  AccessLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AccessLogsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowS3ServerAccessLogs
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub '${AccessLogsBucket.Arn}/s3-access/*'
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt AccessLogsBucket.Arn
+              - !Sub '${AccessLogsBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # S3 Bucket for Website (no explicit name - CloudFormation generates unique name)
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: AccessLogsBucketPolicy
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: !Ref NoncurrentVersionRetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: s3-access/website/
+
+  # Private bucket for Lambda packages and the packaged state machine
+  # definition. Not an origin of the CloudFront distribution, so code is not
+  # downloadable from the website (it used to live in WebsiteBucket/lambda/).
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: AccessLogsBucketPolicy
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: !Ref NoncurrentVersionRetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: s3-access/artifacts/
+
+  ArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt ArtifactsBucket.Arn
+              - !Sub '${ArtifactsBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # CloudFront Origin Access Identity
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'OAI for Connect Migration Tool ${Environment}'
+
+  # S3 Bucket Policy for CloudFront
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOAI.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt WebsiteBucket.Arn
+              - !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # Security headers on every response of the web UI. The CSP allows the page
+  # itself, the tool's API (connect-src, once ApiId is set) and the Cognito
+  # sign in domain (connect-src for the token call; sign in and sign out are
+  # top level navigations). index.html keeps its script, styles and event
+  # handlers inline, so script-src and style-src need 'unsafe-inline'; every
+  # value the page renders from the API or the user is escaped (see
+  # tests/test_frontend_escaping.py), and nothing else may load or connect.
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub 'connect-migration-headers-${Environment}-${AWS::Region}'
+        Comment: Security headers for the Connect migration tool web UI
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: false
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: no-referrer
+            Override: true
+          ContentSecurityPolicy:
+            Override: true
+            ContentSecurityPolicy: !Sub
+              - >-
+                default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
+                img-src 'self' data:; connect-src https://${CognitoHost}${ApiSource};
+                base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none';
+                upgrade-insecure-requests
+              - CognitoHost: !Sub '${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+                ApiSource: !If
+                  - HasApiId
+                  - !Sub ' https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+                  - ''
+
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOAI}'
+        Enabled: true
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          MinTTL: 0
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+        PriceClass: PriceClass_100
+        Logging:
+          Bucket: !GetAtt AccessLogsBucket.DomainName
+          Prefix: cloudfront/
+          IncludeCookies: false
+        Aliases: !If
+          - UseCustomDomain
+          - [!Ref CustomDomainName]
+          - !Ref AWS::NoValue
+        # The default *.cloudfront.net certificate cannot enforce a minimum TLS
+        # version; a custom domain with an ACM certificate gets TLSv1.2_2021.
+        ViewerCertificate: !If
+          - UseCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+  # Sign in for the web UI and the API Gateway authorizer. Users are created by
+  # an administrator only (no self sign up).
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'connect-migration-users-${Environment}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      MfaConfiguration: 'OPTIONAL'
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 14
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 3
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !If
+        - DefaultDomainPrefix
+        - !Sub 'connect-migration-${AWS::AccountId}-${Environment}'
+        - !Ref CognitoDomainPrefix
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'connect-migration-web-${Environment}'
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !If
+          - UseCustomDomain
+          - !Sub 'https://${CustomDomainName}/'
+          - !Sub 'https://${CloudFrontDistribution.DomainName}/'
+      LogoutURLs:
+        - !If
+          - UseCustomDomain
+          - !Sub 'https://${CustomDomainName}/'
+          - !Sub 'https://${CloudFrontDistribution.DomainName}/'
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      IdTokenValidity: 60
+      AccessTokenValidity: 60
+      RefreshTokenValidity: 12
+      TokenValidityUnits:
+        IdToken: minutes
+        AccessToken: minutes
+        RefreshToken: hours
+
+Outputs:
+  WebsiteBucket:
+    Description: 'S3 bucket for website hosting'
+    Value: !Ref WebsiteBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-WebsiteBucket'
+
+  ArtifactsBucket:
+    Description: 'Private S3 bucket for Lambda packages and the packaged state machine'
+    Value: !Ref ArtifactsBucket
+
+  AccessLogsBucket:
+    Description: 'Private S3 bucket for S3 server access logs and CloudFront access logs'
+    Value: !Ref AccessLogsBucket
+
+  CloudFrontURL:
+    Description: 'CloudFront distribution URL'
+    Value: !If
+      - UseCustomDomain
+      - !Sub 'https://${CustomDomainName}'
+      - !Sub 'https://${CloudFrontDistribution.DomainName}'
+
+  CloudFrontDomainName:
+    Description: 'Distribution domain name (point the custom domain DNS record here)'
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontURL'
+
+  CloudFrontDistributionId:
+    Description: 'CloudFront distribution ID'
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  UserPoolId:
+    Description: 'Cognito user pool for the web UI (create users with admin-create-user)'
+    Value: !Ref UserPool
+
+  UserPoolArn:
+    Description: 'Cognito user pool ARN used by the API Gateway authorizer'
+    Value: !GetAtt UserPool.Arn
+
+  UserPoolClientId:
+    Description: 'Cognito app client used by the web UI'
+    Value: !Ref UserPoolClient
+
+  CognitoDomain:
+    Description: 'Cognito sign in domain'
+    Value: !Sub '${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
