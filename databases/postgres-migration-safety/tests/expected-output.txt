@@ -1,0 +1,69 @@
+add_column_nullable                | t=AccessExclusive                                | no      | - | 
+add_column_const_default_nn        | t=AccessExclusive                                | no      | - | 
+add_column_default_now             | t=AccessExclusive                                | no      | - | 
+add_column_default_uuid            | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+add_column_default_clock_ts        | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+add_column_serial                  | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+add_column_identity                | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+add_column_stored_generated        | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+add_column_inline_fk               | p=ShareRowExclusive t=AccessExclusive            | no      | - | 
+add_column_inline_fk_default       | -                                                | -       | - | insert or update on table "t_bad" violates foreign key constraint "t_bad_c_fkey"
+set_not_null                       | t=AccessExclusive                                | no      | verifying table "t" | 
+set_not_null_violating             | -                                                | -       | verifying table "t_bad" | column "w" of relation "t_bad" contains null values
+set_not_null_after_check           | t=AccessExclusive                                | no      | existing constraints on column "t.w" are sufficient to prove that it does not contain nulls | 
+drop_not_null                      | t=AccessExclusive                                | no      | - | 
+set_default                        | t=AccessExclusive                                | no      | - | 
+add_nullable_then_volatile_default | t=AccessExclusive                                | no      | - | 
+add_check                          | t=AccessExclusive                                | no      | verifying table "t" | 
+add_check_violating                | -                                                | -       | verifying table "t_bad" | check constraint "v_pos" of relation "t_bad" is violated by some row
+add_check_not_valid_violating      | t_bad=AccessExclusive                            | no      | - | 
+validate_check                     | t=ShareUpdateExclusive                           | no      | verifying table "t" | 
+add_fk                             | p=ShareRowExclusive t=ShareRowExclusive          | no      | - | 
+add_fk_violating                   | -                                                | -       | - | insert or update on table "t_bad" violates foreign key constraint "t_p_fk"
+add_fk_not_valid_violating         | p=ShareRowExclusive t_bad=ShareRowExclusive      | no      | - | 
+validate_fk                        | p=RowShare t=ShareUpdateExclusive                | no      | - | 
+create_index                       | t=Share                                          | no      | building index "t_w_idx" on table "t" | 
+create_unique_index                | t=Share                                          | no      | building index "t_email_uidx" on table "t" | 
+add_unique_constraint              | t=AccessExclusive                                | no      | building index "t_email_key" on table "t" | 
+add_unique_using_index             | t=AccessExclusive                                | no      | - | 
+add_pk_using_index_nullable        | q=AccessExclusive                                | no      | verifying table "q" | 
+drop_index                         | t=AccessExclusive                                | no      | - | 
+reindex_index                      | t=Share                                          | no      | building index "t_v_idx" on table "t" | 
+drop_constraint                    | t=AccessExclusive                                | no      | - | 
+cic_in_transaction                 | -                                                | -       | - | CREATE INDEX CONCURRENTLY cannot run inside a transaction block
+type_int_to_bigint                 | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+type_varchar_widen                 | t=AccessExclusive                                | no      | - | 
+type_varchar_to_text               | t=AccessExclusive                                | no      | - | 
+type_varchar_narrow                | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+type_text_to_varchar               | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+type_numeric_more_precision        | t=AccessExclusive                                | no      | - | 
+type_numeric_more_scale            | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+type_ts_to_tstz_utc                | t=AccessExclusive                                | no      | - | 
+type_ts_to_tstz_non_utc            | t=AccessExclusive                                | yes     | rewriting table "t";building index "t_pkey" on table "t";building index "t_v_idx" on table "t" | 
+rename_column                      | t=AccessExclusive                                | no      | - | 
+rename_table                       | t_renamed=AccessExclusive                        | no      | - | 
+drop_column                        | t=AccessExclusive                                | no      | - | 
+truncate                           | t_bad=AccessExclusive                            | no      | - | 
+create_trigger                     | t=ShareRowExclusive                              | no      | - | 
+set_autovacuum_reloption           | t=ShareUpdateExclusive                           | no      | - | 
+set_statistics                     | t=ShareUpdateExclusive                           | no      | - | 
+refresh_mv                         | mv=AccessExclusive t=AccessShare                 | no      | building index "mv_p_id" on table "mv" | 
+enum_add_value                     | -                                                | no      | - | 
+enum_add_value_then_use            | -                                                | -       | - | unsafe use of new value "happy" of enum type mood
+attach_partition                   | parted=ShareUpdateExclusive parted_2027=AccessExclusive | no      | verifying table "parted_2027" | 
+detach_partition                   | parted=AccessExclusive parted_2026=AccessExclusive | no      | - | 
+attach_partition_with_check        | parted=ShareUpdateExclusive parted_2027=AccessExclusive | no      | partition constraint for table "parted_2027" is implied by existing constraints | 
+create_index_concurrently          | waits for: t=ShareUpdateExclusive                | -       | result: CREATE INDEX | 
+drop_index_concurrently            | waits for: t=ShareUpdateExclusive                | -       | result: DROP INDEX | 
+reindex_concurrently               | waits for: t=ShareUpdateExclusive                | -       | result: REINDEX | 
+refresh_mv_concurrently            | waits for: mv=Exclusive                          | -       | result: REFRESH MATERIALIZED VIEW | 
+detach_partition_concurrently      | waits for: parted=ShareUpdateExclusive           | -       | result: ALTER TABLE | 
+cic_in_multi_statement_string      | CREATE INDEX CONCURRENTLY cannot run inside a transaction block
+cic_on_partitioned_parent          | cannot create index on partitioned table "parted" concurrently
+partitioned_index_on_only          | parent index valid after attach: true
+cic_unique_on_duplicates           | could not create unique index "dup_x_key"
+cic_retry_if_not_exists            | relation "dup_x_key" already exists, skipping; index valid after IF NOT EXISTS retry: false
+lock_queue                         | plain SELECT is BLOCKED behind the queued ALTER
+lock_timeout                       | canceling statement due to lock timeout
+safe_patterns_smoke                | SAFE-PATTERNS SMOKE TEST PASSED
+preflight_queries                  | 13/13 blocks ran read-only without error
