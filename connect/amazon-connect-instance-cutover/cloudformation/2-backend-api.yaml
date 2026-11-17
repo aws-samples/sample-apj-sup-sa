@@ -1,0 +1,695 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AWS Connect Migration Tool - Backend API (API Gateway + Lambda). Every POST
+  method requires a Cognito user pool ID token; CORS allows only the
+  CloudFront origin; the stage is throttled.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    Description: Environment name (dev, staging, prod)
+  CodeVersion:
+    Type: String
+    Description: Content hash of the Lambda code (set by scripts/deploy.sh) so code changes redeploy
+    AllowedPattern: '^[a-f0-9]{8,64}$'
+  S3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment packages (lambda/*.zip)
+  UserPoolArn:
+    Type: String
+    Description: Cognito user pool ARN (UserPoolArn output of the frontend stack)
+    AllowedPattern: '^arn:aws[a-z-]*:cognito-idp:[a-z0-9-]+:\d{12}:userpool/[\w-]+$'
+  AllowedOrigin:
+    Type: String
+    Description: The only origin allowed by CORS (CloudFrontURL output of the frontend stack)
+    AllowedPattern: '^https://[A-Za-z0-9.-]+$'
+  SourceInstanceArn:
+    Type: String
+    Description: ARN of the source Amazon Connect instance (scopes the read only API functions)
+    AllowedPattern: '^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance/[0-9a-f-]{36}$'
+  ThrottlingRateLimit:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    Description: Steady state requests per second for the whole stage
+  ThrottlingBurstLimit:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    Description: Burst requests for the whole stage
+  EnableApiAccessLogging:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Write API Gateway access logs to CloudWatch Logs. API Gateway needs the account
+      level CloudWatch Logs role (one per account and Region, shared by every REST API).
+      Off by default so this stack never changes that shared setting on its own.
+  ApiGatewayCloudWatchRoleArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:aws[a-z-]*:iam::\d{12}:role/[\w+=,.@/-]+$'
+    Description: >-
+      Optional. Existing IAM role that API Gateway uses to write CloudWatch Logs. When set
+      together with EnableApiAccessLogging=true, this stack sets it as the account level
+      API Gateway CloudWatch role (affects every REST API in the account and Region).
+      Leave empty if the account is already configured.
+  ApiAccessLogRetentionDays:
+    Type: Number
+    Default: 90
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653]
+    Description: Retention of the API access log group (only with EnableApiAccessLogging=true)
+
+Conditions:
+  ApiAccessLogging: !Equals [!Ref EnableApiAccessLogging, 'true']
+  SetApiGatewayAccountRole: !And
+    - !Condition ApiAccessLogging
+    - !Not [!Equals [!Ref ApiGatewayCloudWatchRoleArn, '']]
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Functions owned by this stack (code from S3, see lambda/api_*.py)
+  # ---------------------------------------------------------------------------
+  TriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-trigger-${Environment}'
+      Runtime: python3.11
+      Handler: api_start_migration.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/api_start_migration.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          STATE_MACHINE_ARN: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:connect-user-migration-${Environment}'
+          EXTERNAL_ID_SECRET_PREFIX: !Sub 'connect-migration/${Environment}/'
+
+  ListPhoneNumbersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-phone-numbers-api-${Environment}'
+      Runtime: python3.11
+      Handler: api_list_phone_numbers.lambda_handler
+      Role: !GetAtt PhoneNumbersLambdaRole.Arn
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/api_list_phone_numbers.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+  ListQuickConnectsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-quick-connects-api-${Environment}'
+      Runtime: python3.11
+      Handler: api_list_quick_connect_prefixes.lambda_handler
+      Role: !GetAtt PhoneNumbersLambdaRole.Arn
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/api_list_quick_connect_prefixes.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+  CheckMigrationStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-check-status-${Environment}'
+      Runtime: python3.11
+      Handler: api_migration_status.lambda_handler
+      Role: !GetAtt CheckMigrationStatusLambdaRole.Arn
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/api_migration_status.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          EXECUTION_ARN_PREFIX: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:connect-user-migration-${Environment}:'
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: StepFunctionAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:connect-user-migration-${Environment}'
+        # Per execution ExternalId secret: create it before StartExecution, delete it
+        # again if the start fails. Default aws/secretsmanager key, no tags.
+        - PolicyName: ExternalIdSecretWrite
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:DeleteSecret
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:connect-migration/${Environment}/*'
+
+  PhoneNumbersLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ReadSourceNumbersAndQuickConnects
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - connect:ListQuickConnects
+                  - connect:DescribeQuickConnect
+                Resource:
+                  - !Ref SourceInstanceArn
+                  - !Sub '${SourceInstanceArn}/*'
+              - Effect: Allow
+                Action: connect:ListPhoneNumbersV2
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:connect:${Region}:${Account}:phone-number/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                    Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+
+  CheckMigrationStatusLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: StepFunctionsReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:DescribeExecution
+                  - states:GetExecutionHistory
+                Resource: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:connect-user-migration-${Environment}:*'
+
+  # ---------------------------------------------------------------------------
+  # API
+  # ---------------------------------------------------------------------------
+  Api:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub 'connect-migration-api-${Environment}'
+      Description: 'API for AWS Connect Migration Tool'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: cognito-user-pool
+      RestApiId: !Ref Api
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !Ref UserPoolArn
+
+  # 401/403/429/5xx produced by API Gateway itself also carry the CORS header,
+  # so the browser can read the error instead of reporting a CORS failure.
+  GatewayResponse4xx:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref Api
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  GatewayResponse5xx:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref Api
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  # One block per endpoint: resource, authenticated POST, unauthenticated
+  # OPTIONS preflight (MOCK, no backend), and an invoke permission scoped to
+  # the POST method of that path.
+
+  StartResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: start
+  StartMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref StartResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TriggerFunction.Arn}/invocations'
+  StartOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref StartResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  StartPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/start'
+
+  PhoneNumbersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: list-phone-numbers
+  PhoneNumbersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref PhoneNumbersResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListPhoneNumbersFunction.Arn}/invocations'
+  PhoneNumbersOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref PhoneNumbersResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  PhoneNumbersPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ListPhoneNumbersFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/list-phone-numbers'
+
+  ListQuickConnectsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: list-quick-connects
+  ListQuickConnectsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref ListQuickConnectsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListQuickConnectsFunction.Arn}/invocations'
+  ListQuickConnectsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref ListQuickConnectsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  ListQuickConnectsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ListQuickConnectsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/list-quick-connects'
+
+  CheckQuotasResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: check-quotas
+  CheckQuotasMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref CheckQuotasResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:connect-migration-check-service-quotas-${Environment}/invocations'
+  CheckQuotasOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref CheckQuotasResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  CheckQuotasPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub 'connect-migration-check-service-quotas-${Environment}'
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/check-quotas'
+
+  CheckFlowDependenciesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: check-flow-dependencies
+  CheckFlowDependenciesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref CheckFlowDependenciesResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:connect-migration-check-flow-dependencies-${Environment}/invocations'
+  CheckFlowDependenciesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref CheckFlowDependenciesResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  CheckFlowDependenciesPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub 'connect-migration-check-flow-dependencies-${Environment}'
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/check-flow-dependencies'
+
+  CheckMigrationStatusResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: check-migration-status
+  CheckMigrationStatusMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref CheckMigrationStatusResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CheckMigrationStatusFunction.Arn}/invocations'
+  CheckMigrationStatusOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref CheckMigrationStatusResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  CheckMigrationStatusPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CheckMigrationStatusFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/check-migration-status'
+
+  VerifyMigrationResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: verify-migration
+  VerifyMigrationMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref VerifyMigrationResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:connect-migration-verify-migration-${Environment}/invocations'
+  VerifyMigrationOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref VerifyMigrationResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  VerifyMigrationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Sub 'connect-migration-verify-migration-${Environment}'
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/POST/verify-migration'
+
+  # ---------------------------------------------------------------------------
+  # Deployment and throttled stage. scripts/deploy.sh also runs
+  # 'aws apigateway create-deployment' after every stack update, because
+  # CloudFormation does not redeploy an unchanged AWS::ApiGateway::Deployment.
+  # ---------------------------------------------------------------------------
+  Deployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - StartMethod
+      - StartOptionsMethod
+      - PhoneNumbersMethod
+      - PhoneNumbersOptionsMethod
+      - ListQuickConnectsMethod
+      - ListQuickConnectsOptionsMethod
+      - CheckQuotasMethod
+      - CheckQuotasOptionsMethod
+      - CheckFlowDependenciesMethod
+      - CheckFlowDependenciesOptionsMethod
+      - CheckMigrationStatusMethod
+      - CheckMigrationStatusOptionsMethod
+      - VerifyMigrationMethod
+      - VerifyMigrationOptionsMethod
+      - GatewayResponse4xx
+      - GatewayResponse5xx
+    Properties:
+      RestApiId: !Ref Api
+      Description: Connect migration tool API
+
+  # Optional: account level CloudWatch Logs role for API Gateway. A singleton per
+  # account and Region; deleting this stack does not unset it.
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Condition: SetApiGatewayAccountRole
+    Properties:
+      CloudWatchRoleArn: !Ref ApiGatewayCloudWatchRoleArn
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: ApiAccessLogging
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/connect-migration-api-${Environment}/access'
+      RetentionInDays: !Ref ApiAccessLogRetentionDays
+
+  Stage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref Api
+      DeploymentId: !Ref Deployment
+      StageName: !Ref Environment
+      # Referencing ApiGatewayAccount orders the stage after the account role when it is set.
+      Description: !If
+        - SetApiGatewayAccountRole
+        - !Sub 'Connect migration tool (API Gateway account settings ${ApiGatewayAccount})'
+        - Connect migration tool
+      TracingEnabled: true
+      # Metadata only: no request or response bodies, no Authorization header, no claims.
+      AccessLogSetting: !If
+        - ApiAccessLogging
+        - DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+          Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","responseLength":"$context.responseLength","requestTime":"$context.requestTime"}'
+        - !Ref AWS::NoValue
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingRateLimit: !Ref ThrottlingRateLimit
+          ThrottlingBurstLimit: !Ref ThrottlingBurstLimit
+
+Outputs:
+  ApiBaseUrl:
+    Description: 'Base URL of the API stage (the frontend config uses this)'
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Stage}'
+  ApiId:
+    Description: 'REST API ID'
+    Value: !Ref Api
+  ApiUrl:
+    Description: 'API Gateway URL for migration trigger'
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Stage}/start'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+  TriggerFunctionName:
+    Description: 'Lambda trigger function name'
+    Value: !Ref TriggerFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-TriggerFunction'

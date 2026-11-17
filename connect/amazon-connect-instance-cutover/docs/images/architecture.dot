@@ -1,0 +1,64 @@
+// Connect Migration Tool architecture. Editable source; render with:
+//   dot -Tsvg docs/images/architecture.dot -o docs/images/architecture.svg
+//   rsvg-convert -w 1600 docs/images/architecture.svg -o docs/images/architecture.png
+// Generic labels only: no account IDs, ARNs, instance IDs, names or metrics.
+digraph architecture {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=13, pad=0.4, nodesep=0.5, ranksep=0.55,
+         label="Amazon Connect Customer Migration Tool: architecture", labelloc=t, fontsize=18];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#ffffff", color="#545b64"];
+  edge  [fontname="Helvetica", fontsize=9, color="#545b64"];
+
+  operator [label="Operator\nweb browser", shape=box, fillcolor="#e8f0fe"];
+
+  subgraph cluster_source {
+    label="Source account (tool deployed here), Region A";
+    style="rounded,dashed"; color="#7d8998"; fontcolor="#232f3e";
+
+    subgraph cluster_web {
+      label="Web front end"; style="rounded"; color="#8c4fff";
+      cloudfront [label="CloudFront", fillcolor="#efe6ff"];
+      website    [label="S3 website bucket\n(private, SSE-S3, TLS only)", fillcolor="#e6f4e6"];
+    }
+
+    cognito [label="Cognito user pool\n(sign in, PKCE)", fillcolor="#fde8e8"];
+    api     [label="API Gateway\n(Cognito authorizer,\nCORS, throttling)", fillcolor="#fde6f1"];
+    start   [label="Start Lambda\n(validates request,\nExternalId never logged)", fillcolor="#fff1e0"];
+    status  [label="Status Lambda", fillcolor="#fff1e0"];
+
+    subgraph cluster_orchestration {
+      label="Orchestration"; style="rounded"; color="#ff9900";
+      sfn     [label="Step Functions\nstate machine", fillcolor="#fff1e0"];
+      workers [label="Worker Lambdas\nlist_*, create_*, associate_*", fillcolor="#fff1e0"];
+    }
+
+    reader [label="Role\nConnectMigrationSourceReader\n(read only)", shape=note, fillcolor="#fafafa"];
+    source [label="Amazon Connect Customer\nsource instance", fillcolor="#e1effa"];
+    report [label="Migration report\n(failed steps,\nmanual follow up)", shape=note, fillcolor="#fffbe6"];
+  }
+
+  subgraph cluster_target {
+    label="Target account, Region B";
+    style="rounded,dashed"; color="#7d8998"; fontcolor="#232f3e";
+    writer  [label="Role\nConnectMigrationTargetWriter\n(trusts only the source reader,\nExternalId required)", shape=note, fillcolor="#fafafa"];
+    target  [label="Amazon Connect Customer\ntarget instance", fillcolor="#e1effa"];
+    prompts [label="Temporary prompt bucket\n(SSE-S3, TLS only,\nobjects expire after 1 day)", fillcolor="#e6f4e6"];
+  }
+
+  operator -> cloudfront [label="HTTPS"];
+  cloudfront -> website [label="static files"];
+  operator -> cognito [label="sign in"];
+  operator -> api [label="ID token"];
+  api -> start [label="POST /start"];
+  start -> sfn [label="StartExecution"];
+  sfn -> workers [label="invoke in\ndependency order"];
+  workers -> reader [label="runs as", style=dashed];
+  reader -> source [label="List / Describe"];
+  workers -> writer [label="sts:AssumeRole\n+ ExternalId", color="#d13212", fontcolor="#d13212"];
+  writer -> target [label="Create / Associate"];
+  writer -> prompts [label="upload prompt audio"];
+  prompts -> target [label="CreatePrompt", style=dashed];
+  api -> status [label="POST /check-migration-status"];
+  status -> sfn [label="execution history", style=dashed];
+  status -> report;
+  report -> operator [label="shown in the UI", style=dashed];
+}

@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AWS Connect Migration Tool - Step Functions state machine. The definition
+  lives in step-functions/migration-state-machine.json (valid JSON);
+  scripts/deploy.sh writes the TimeoutSeconds value into a build copy of it
+  (scripts/render-state-machine.sh) and runs 'aws cloudformation package' to
+  upload that copy. DefinitionSubstitutions fill in the partition, Region,
+  account and environment at deploy time.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    Description: Environment name
+  TimeoutSeconds:
+    Type: Number
+    Default: 3600
+    MinValue: 60
+    MaxValue: 31536000
+    Description: >-
+      Maximum run time of one migration execution, in seconds. A run that takes
+      longer ends TIMED_OUT, and the EventBridge backstop deletes its ExternalId
+      secret. scripts/deploy.sh writes this value into the packaged definition
+      (a CloudFormation substitution can only produce a string, and Step
+      Functions needs a number); the definition file holds the default.
+
+Resources:
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:connect-migration-*-${Environment}'
+
+  MigrationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Metadata:
+      cfn-lint:
+        config:
+          # The local path is uploaded by 'aws cloudformation package' in scripts/deploy.sh.
+          ignore_checks: [W3002]
+    Properties:
+      StateMachineName: !Sub 'connect-user-migration-${Environment}'
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionS3Location: ../step-functions/migration-state-machine.json
+      DefinitionSubstitutions:
+        Partition: !Ref AWS::Partition
+        Region: !Ref AWS::Region
+        AccountId: !Ref AWS::AccountId
+        Environment: !Ref Environment
+
+  # Backstop for runs that never reach the CleanupExternalIdSecret state
+  # (aborted, timed out, States.Runtime, DataLimitExceeded): delete the run's
+  # ExternalId secret. Runs that did reach it are matched too (status FAILED);
+  # the delete is idempotent.
+  ExternalIdSecretBackstopRule:
+    Type: AWS::Events::Rule
+    Properties:
+      # Fixed name: the cleanup failure queue policy (Lambda stack) allows only this rule.
+      Name: !Sub 'connect-migration-secret-backstop-${Environment}'
+      Description: Delete the ExternalId secret of migration runs that end ABORTED, TIMED_OUT or FAILED
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.states
+        detail-type:
+          - Step Functions Execution Status Change
+        detail:
+          stateMachineArn:
+            - !Ref MigrationStateMachine
+          status:
+            - ABORTED
+            - TIMED_OUT
+            - FAILED
+      Targets:
+        - Id: CleanupExternalIdSecret
+          Arn: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:connect-migration-cleanup-external-id-${Environment}'
+          RetryPolicy:
+            MaximumRetryAttempts: 10
+            MaximumEventAgeInSeconds: 3600
+          # Events EventBridge could not deliver to the function (after the retry
+          # policy) go to the cleanup failure queue in the Lambda stack, the same
+          # queue the function's own failed invocations go to.
+          DeadLetterConfig:
+            Arn: !Sub 'arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:connect-migration-cleanup-external-id-failures-${Environment}'
+
+  # Only this rule may invoke the cleanup function through EventBridge.
+  ExternalIdSecretBackstopPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub 'connect-migration-cleanup-external-id-${Environment}'
+      Principal: events.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !GetAtt ExternalIdSecretBackstopRule.Arn
+
+Outputs:
+  StateMachineArn:
+    Description: 'ARN of the Step Functions state machine'
+    Value: !Ref MigrationStateMachine
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachine'
+
+  StateMachineName:
+    Description: 'Name of the Step Functions state machine'
+    Value: !GetAtt MigrationStateMachine.Name
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineName'
+
+  TimeoutSeconds:
+    Description: 'Maximum run time of one execution, in seconds'
+    Value: !Ref TimeoutSeconds

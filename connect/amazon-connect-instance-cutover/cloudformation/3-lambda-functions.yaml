@@ -1,0 +1,1218 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  AWS Connect Migration Tool - Lambda functions and the least privilege
+  ConnectMigrationSourceReader execution role. Deploy in the source account.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    Description: Environment name
+  CodeVersion:
+    Type: String
+    Description: Content hash of the Lambda code (set by scripts/deploy.sh) so code changes redeploy
+    AllowedPattern: '^[a-f0-9]{8,64}$'
+  S3Bucket:
+    Type: String
+    Description: S3 bucket containing Lambda deployment packages
+  SourceInstanceArn:
+    Type: String
+    Description: ARN of the source Amazon Connect instance (must be in this account)
+    AllowedPattern: '^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance/[0-9a-f-]{36}$'
+  TargetRoleArn:
+    Type: String
+    Description: >-
+      ARN of the ConnectMigrationTargetWriter role in the target account
+      (created by cloudformation/target-role.yaml). The only role this stack may assume.
+    AllowedPattern: '^arn:aws[a-z-]*:iam::\d{12}:role/[\w+=,.@/-]+$'
+  SourceReaderRoleName:
+    Type: String
+    Default: ConnectMigrationSourceReader
+    Description: >-
+      Name of the execution role. The target role trusts this exact role ARN,
+      so keep it stable.
+    AllowedPattern: '^[\w+=,.@-]{1,64}$'
+  AllowedOrigin:
+    Type: String
+    Description: The only origin allowed by CORS for the API facing functions (the CloudFront URL)
+    AllowedPattern: '^https://[A-Za-z0-9.-]+$'
+  EnablePhoneNumberMove:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Opt in to UpdatePhoneNumber. The tool only moves numbers within one account and
+      Region; across accounts or Regions AWS Support moves them or they are ported (the
+      migration report names the path). Moving a number takes it away from the source
+      instance.
+  CleanupFailureRetentionSeconds:
+    Type: Number
+    Default: 1209600
+    MinValue: 60
+    MaxValue: 1209600
+    Description: >-
+      How long the cleanup failure queue keeps a failed ExternalId secret delete,
+      in seconds (default and maximum 14 days).
+  CleanupFailureAlarmTopicArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^arn:aws[a-z-]*:sns:[a-z0-9-]+:\d{12}:[A-Za-z0-9_-]{1,256}$'
+    Description: >-
+      Optional SNS topic notified when the cleanup failure queue holds a message.
+      Empty (the default) creates the alarm without an action.
+
+Conditions:
+  HasCleanupFailureAlarmTopic: !Not [!Equals [!Ref CleanupFailureAlarmTopicArn, '']]
+
+Resources:
+  # Execution role for every function that reads the source instance and/or
+  # writes to the target through the target role. Read only on the source side.
+  # Matches the SourceReader and AssumeTargetWriter policies in the README.
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cfn-lint:
+        config:
+          # cfn-lint's bundled action list predates the Connect Data Tables API
+          # (DescribeDataTable, ListDataTables, ...). The actions exist in the
+          # Service Authorization Reference.
+          ignore_checks: [W3037]
+    Properties:
+      RoleName: !Ref SourceReaderRoleName
+      Description: Connect migration tool - read source instance, assume target writer role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: LambdaExecutionRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: SourceReader
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ConnectReadSourceInstance
+                Effect: Allow
+                Action:
+                  - connect:BatchDescribeDataTableValue
+                  - connect:DescribeContactFlow
+                  - connect:DescribeContactFlowModule
+                  - connect:DescribeDataTable
+                  - connect:DescribeEvaluationForm
+                  - connect:DescribeHoursOfOperation
+                  - connect:DescribePredefinedAttribute
+                  - connect:DescribePrompt
+                  - connect:DescribeQueue
+                  - connect:DescribeQuickConnect
+                  - connect:DescribeRoutingProfile
+                  - connect:DescribeRule
+                  - connect:DescribeSecurityProfile
+                  - connect:DescribeUser
+                  - connect:DescribeUserHierarchyGroup
+                  - connect:DescribeUserHierarchyStructure
+                  - connect:DescribeView
+                  - connect:GetPromptFile
+                  - connect:ListAgentStatuses
+                  - connect:ListBots
+                  - connect:ListContactFlowModules
+                  - connect:ListContactFlows
+                  - connect:ListDataTableAttributes
+                  - connect:ListDataTablePrimaryValues
+                  - connect:ListDataTableValues
+                  - connect:ListDataTables
+                  - connect:ListEvaluationForms
+                  - connect:ListHoursOfOperations
+                  - connect:ListLambdaFunctions
+                  - connect:ListPredefinedAttributes
+                  - connect:ListPrompts
+                  - connect:ListQueues
+                  - connect:ListQuickConnects
+                  - connect:ListRoutingProfiles
+                  - connect:ListRules
+                  - connect:ListSecurityProfilePermissions
+                  - connect:ListSecurityProfiles
+                  - connect:ListUserHierarchyGroups
+                  - connect:ListUserProficiencies
+                  - connect:ListUsers
+                  - connect:ListViews
+                  # VerifyTarget compares vocabulary names (the list step has its own role).
+                  - connect:SearchVocabularies
+                Resource:
+                  - !Ref SourceInstanceArn
+                  - !Sub '${SourceInstanceArn}/*'
+              - Sid: ConnectDescribeAwsManagedViews
+                Effect: Allow
+                Action: connect:DescribeView
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:connect:${Region}:aws:view/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: ConnectListSourcePhoneNumbers
+                Effect: Allow
+                Action: connect:ListPhoneNumbersV2
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:connect:${Region}:${Account}:phone-number/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                    Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: LexDescribeSourceBots
+                Effect: Allow
+                Action:
+                  - lex:DescribeBot
+                  - lex:DescribeBotAlias
+                Resource:
+                  - !Sub
+                    - 'arn:${AWS::Partition}:lex:${Region}:${Account}:bot/*'
+                    - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                      Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+                  - !Sub
+                    - 'arn:${AWS::Partition}:lex:${Region}:${Account}:bot-alias/*'
+                    - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                      Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: QConnectListNoResourceLevel
+                Effect: Allow
+                Action:
+                  - wisdom:ListAIAgents
+                  - wisdom:ListAIGuardrails
+                  - wisdom:ListAIPrompts
+                  - wisdom:ListAssistants
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: ServiceQuotasReadConnect
+                Effect: Allow
+                Action: servicequotas:GetServiceQuota
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:servicequotas:${Region}:${Account}:connect/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                    Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: ServiceQuotasDefaultNoResourceLevel
+                Effect: Allow
+                Action: servicequotas:GetAWSDefaultServiceQuota
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+        - PolicyName: AssumeTargetWriter
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AssumeTargetWriter
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Ref TargetRoleArn
+        # Read the per execution ExternalId secret written by the start API.
+        - PolicyName: ReadExternalIdSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadExternalIdSecret
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:connect-migration/${Environment}/*'
+
+  # Dedicated roles for the list functions the state machine calls but no
+  # template used to create. Each gets only the reads it makes; none can
+  # assume the target role.
+  ListAiAgentsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ReadSourceAiAgents
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: QConnectListNoResourceLevel
+                Effect: Allow
+                Action:
+                  - wisdom:ListAssistants
+                  - wisdom:ListAIAgents
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: QConnectGetAiAgent
+                Effect: Allow
+                Action: wisdom:GetAIAgent
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:wisdom:${Region}:${Account}:ai-agent/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                    Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+
+  ListAiPromptsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ReadSourceAiPrompts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: QConnectListNoResourceLevel
+                Effect: Allow
+                Action:
+                  - wisdom:ListAssistants
+                  - wisdom:ListAIPrompts
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: QConnectGetAiPrompt
+                Effect: Allow
+                Action: wisdom:GetAIPrompt
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:wisdom:${Region}:${Account}:ai-prompt/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                    Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+
+  ListAiGuardrailsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ReadSourceAiGuardrails
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: QConnectListNoResourceLevel
+                Effect: Allow
+                Action:
+                  - wisdom:ListAssistants
+                  - wisdom:ListAIGuardrails
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+              - Sid: QConnectGetAiGuardrail
+                Effect: Allow
+                Action:
+                  - wisdom:GetAIGuardrail
+                  - wisdom:ListAIGuardrailVersions
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:wisdom:${Region}:${Account}:ai-guardrail/*'
+                  - Region: !Select [3, !Split [':', !Ref SourceInstanceArn]]
+                    Account: !Select [4, !Split [':', !Ref SourceInstanceArn]]
+
+  ListVocabulariesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ReadSourceVocabularies
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ConnectReadSourceVocabularies
+                Effect: Allow
+                Action:
+                  - connect:SearchVocabularies
+                  - connect:DescribeVocabulary
+                Resource:
+                  - !Ref SourceInstanceArn
+                  - !Sub '${SourceInstanceArn}/*'
+
+  # List Functions
+  ListAgentStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-agent-status-${Environment}'
+      Runtime: python3.11
+      Handler: list_agent_status.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_agent_status.zip'
+
+  ListContactFlowModulesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-contact-flow-modules-${Environment}'
+      Runtime: python3.11
+      Handler: list_contact_flow_modules.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_contact_flow_modules.zip'
+
+  ListContactFlowsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-contact-flows-${Environment}'
+      Runtime: python3.11
+      Handler: list_contact_flows.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_contact_flows.zip'
+
+  ListEvaluationFormsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-evaluation-forms-${Environment}'
+      Runtime: python3.11
+      Handler: list_evaluation_forms.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_evaluation_forms.zip'
+
+  ListHierarchyGroupsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-hierarchy-groups-${Environment}'
+      Runtime: python3.11
+      Handler: list_hierarchy_groups.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_hierarchy_groups.zip'
+
+  ListHoursOfOperationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-hours-of-operations-${Environment}'
+      Runtime: python3.11
+      Handler: list_hours_of_operations.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_hours_of_operations.zip'
+
+  ListLambdaFunctionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-lambda-functions-${Environment}'
+      Runtime: python3.11
+      Handler: list_lambda_functions.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_lambda_functions.zip'
+
+  ListLexBotsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-lex-bots-${Environment}'
+      Runtime: python3.11
+      Handler: list_lex_bots.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_lex_bots.zip'
+
+  ListPhoneNumbersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-phone-numbers-${Environment}'
+      Runtime: python3.11
+      Handler: list_phone_numbers.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_phone_numbers.zip'
+
+  ListPredefinedAttributesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-predefined-attributes-${Environment}'
+      Runtime: python3.11
+      Handler: list_predefined_attributes.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_predefined_attributes.zip'
+
+  ListPromptsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-prompts-${Environment}'
+      Runtime: python3.11
+      Handler: list_prompts.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_prompts.zip'
+
+  ListQueuesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-queues-${Environment}'
+      Runtime: python3.11
+      Handler: list_queues.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_queues.zip'
+
+  ListQuickConnectsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-quick-connects-${Environment}'
+      Runtime: python3.11
+      Handler: list_quick_connects.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_quick_connects.zip'
+
+  ListRoutingProfilesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-routing-profiles-${Environment}'
+      Runtime: python3.11
+      Handler: list_routing_profiles.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_routing_profiles.zip'
+
+  ListRulesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-rules-${Environment}'
+      Runtime: python3.11
+      Handler: list_rules.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_rules.zip'
+
+  ListSecurityProfilesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-security-profiles-${Environment}'
+      Runtime: python3.11
+      Handler: list_security_profiles.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_security_profiles.zip'
+
+  ListUsersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-users-${Environment}'
+      Runtime: python3.11
+      Handler: list_users.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_users.zip'
+
+  ListViewsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-views-${Environment}'
+      Runtime: python3.11
+      Handler: list_views.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_views.zip'
+
+  ListDataTablesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-data-tables-${Environment}'
+      Runtime: python3.11
+      Handler: list_data_tables.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_data_tables.zip'
+
+  # Create Functions
+  CreateAgentStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-agent-status-${Environment}'
+      Runtime: python3.11
+      Handler: create_agent_status.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_agent_status.zip'
+
+  CreateContactFlowModulesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-contact-flow-modules-${Environment}'
+      Runtime: python3.11
+      Handler: create_contact_flow_modules.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_contact_flow_modules.zip'
+
+  CreateContactFlowsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-contact-flows-${Environment}'
+      Runtime: python3.11
+      Handler: create_contact_flows.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_contact_flows.zip'
+
+  CreateEvaluationFormsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-evaluation-forms-${Environment}'
+      Runtime: python3.11
+      Handler: create_evaluation_forms.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_evaluation_forms.zip'
+
+  CreateHierarchyGroupsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-hierarchy-groups-${Environment}'
+      Runtime: python3.11
+      Handler: create_hierarchy_groups.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_hierarchy_groups.zip'
+
+  CreateHoursOfOperationsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-hours-of-operations-${Environment}'
+      Runtime: python3.11
+      Handler: create_hours_of_operations.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_hours_of_operations.zip'
+
+  CreatePhoneNumbersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-phone-numbers-${Environment}'
+      Runtime: python3.11
+      Handler: create_phone_numbers.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          ENABLE_PHONE_NUMBER_MOVE: !Ref EnablePhoneNumberMove
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_phone_numbers.zip'
+
+  CreatePredefinedAttributesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-predefined-attributes-${Environment}'
+      Runtime: python3.11
+      Handler: create_predefined_attributes.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_predefined_attributes.zip'
+
+  CreatePromptsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-prompts-${Environment}'
+      Runtime: python3.11
+      Handler: create_prompts.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_prompts.zip'
+
+  CreateQueuesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-queues-${Environment}'
+      Runtime: python3.11
+      Handler: create_queues.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_queues.zip'
+
+  CreateQuickConnectsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-quick-connects-${Environment}'
+      Runtime: python3.11
+      Handler: create_quick_connects.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_quick_connects.zip'
+
+  CreateRoutingProfilesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-routing-profiles-${Environment}'
+      Runtime: python3.11
+      Handler: create_routing_profiles.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_routing_profiles.zip'
+
+  CreateRulesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-rules-${Environment}'
+      Runtime: python3.11
+      Handler: create_rules.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_rules.zip'
+
+  CreateSecurityProfilesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-security-profiles-${Environment}'
+      Runtime: python3.11
+      Handler: create_security_profiles.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_security_profiles.zip'
+
+  CreateUsersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-users-${Environment}'
+      Runtime: python3.11
+      Handler: create_users.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_users.zip'
+
+  CreateViewsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-views-${Environment}'
+      Runtime: python3.11
+      Handler: create_views.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_views.zip'
+
+  CreateDataTablesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-data-tables-${Environment}'
+      Runtime: python3.11
+      Handler: create_data_tables.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_data_tables.zip'
+
+  # Association Functions
+  AssociateLambdaFunctionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-associate-lambda-functions-${Environment}'
+      Runtime: python3.11
+      Handler: associate_lambda_functions.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/associate_lambda_functions.zip'
+
+  AssociateLexBotsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-associate-lex-bots-${Environment}'
+      Runtime: python3.11
+      Handler: associate_lex_bots.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/associate_lex_bots.zip'
+
+  # Check Functions
+  CheckFlowDependenciesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-check-flow-dependencies-${Environment}'
+      Runtime: python3.11
+      Handler: check_flow_dependencies.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/check_flow_dependencies.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+  VerifyMigrationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-verify-migration-${Environment}'
+      Runtime: python3.11
+      Handler: verify_migration.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/verify_migration.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+  # VerifyTarget state: read only checks of the target after the migration phases
+  # (lambda/verify_target.py; scripts/deploy.sh bundles the shared modules). Runs as
+  # the source reader because the target role trusts only that role; it reads the
+  # ExternalId secret, so the state machine runs it before CleanupExternalIdSecret.
+  VerifyTargetFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-verify-target-${Environment}'
+      Runtime: python3.11
+      Handler: verify_target.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      # Describes every migrated flow, module, queue, user and quick connect; stops
+      # 60 seconds before the timeout and reports VerificationIncomplete.
+      Timeout: 900
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/verify_target.zip'
+
+  # Deployed from lambda/check_service_quotas.py (replaces the inline copy in stack 2).
+  # Reads source quotas with this role and target quotas through the target role.
+  CheckServiceQuotasFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-check-service-quotas-${Environment}'
+      Runtime: python3.11
+      Handler: check_service_quotas.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/check_service_quotas.zip'
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+  # AI agents and vocabulary functions called by the state machine.
+  # The list functions run with their own read only roles above. The create
+  # functions write through the target role, which trusts only
+  # LambdaExecutionRole, so they run as that role.
+  ListAiAgentsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-ai-agents-${Environment}'
+      Runtime: python3.11
+      Handler: list_ai_agents.lambda_handler
+      Role: !GetAtt ListAiAgentsRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_ai_agents.zip'
+
+  ListAiPromptsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-ai-prompts-${Environment}'
+      Runtime: python3.11
+      Handler: list_ai_prompts.lambda_handler
+      Role: !GetAtt ListAiPromptsRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_ai_prompts.zip'
+
+  ListAiGuardrailsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-ai-guardrails-${Environment}'
+      Runtime: python3.11
+      Handler: list_ai_guardrails.lambda_handler
+      Role: !GetAtt ListAiGuardrailsRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_ai_guardrails.zip'
+
+  ListVocabulariesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-list-vocabularies-${Environment}'
+      Runtime: python3.11
+      Handler: list_vocabularies.lambda_handler
+      Role: !GetAtt ListVocabulariesRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/list_vocabularies.zip'
+
+  CreateAiAgentsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-ai-agents-${Environment}'
+      Runtime: python3.11
+      Handler: create_ai_agents.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_ai_agents.zip'
+
+  CreateAiPromptsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-ai-prompts-${Environment}'
+      Runtime: python3.11
+      Handler: create_ai_prompts.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_ai_prompts.zip'
+
+  CreateAiGuardrailsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-ai-guardrails-${Environment}'
+      Runtime: python3.11
+      Handler: create_ai_guardrails.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_ai_guardrails.zip'
+
+  CreateVocabulariesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-create-vocabularies-${Environment}'
+      Runtime: python3.11
+      Handler: create_vocabularies.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      # Waits for each vocabulary to become ACTIVE.
+      Timeout: 900
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/create_vocabularies.zip'
+
+  # BuildMigrationReport state: reads this state machine's execution history.
+  BuildMigrationReportRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: ReadOwnExecutionHistory
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadOwnExecutionHistory
+                Effect: Allow
+                Action: states:GetExecutionHistory
+                Resource: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:connect-user-migration-${Environment}:*'
+
+  BuildMigrationReportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-build-migration-report-${Environment}'
+      Runtime: python3.11
+      Handler: build_migration_report.lambda_handler
+      Role: !GetAtt BuildMigrationReportRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/build_migration_report.zip'
+      Environment:
+        Variables:
+          EXECUTION_ARN_PREFIX: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:connect-user-migration-${Environment}:'
+
+  # Deletes the per execution ExternalId secret: final state machine step, and the
+  # EventBridge backstop in the Step Functions stack (aborted, timed out, failed runs).
+  CleanupExternalIdRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: DeleteExternalIdSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: DeleteExternalIdSecret
+                Effect: Allow
+                Action: secretsmanager:DeleteSecret
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:connect-migration/${Environment}/*'
+              # Dead letter queue of the function: Lambda sends a failed asynchronous
+              # (EventBridge backstop) invocation there with this role.
+              - Sid: SendToCleanupFailureQueue
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt CleanupExternalIdFailureQueue.Arn
+
+  CleanupExternalIdFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'connect-migration-cleanup-external-id-${Environment}'
+      Runtime: python3.11
+      Handler: cleanup_external_id.lambda_handler
+      Role: !GetAtt CleanupExternalIdRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      # The EventBridge backstop invokes this function asynchronously. A delete that
+      # still fails after the retries (CleanupExternalIdEventInvokeConfig) lands here
+      # instead of being dropped.
+      DeadLetterConfig:
+        TargetArn: !GetAtt CleanupExternalIdFailureQueue.Arn
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Sub 'lambda/${CodeVersion}/cleanup_external_id.zip'
+      Environment:
+        Variables:
+          EXTERNAL_ID_SECRET_PREFIX: !Sub 'connect-migration/${Environment}/'
+          # The backstop acts only on status change events of this state machine.
+          STATE_MACHINE_ARN: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:connect-user-migration-${Environment}'
+
+  # Asynchronous invocations only (the backstop). The state machine step invokes
+  # the function synchronously, so its failures go to the state machine instead.
+  CleanupExternalIdEventInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref CleanupExternalIdFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 2
+
+  # Failed ExternalId secret deletes of the backstop: events the cleanup function
+  # still failed on after its retries (function dead letter queue), and events
+  # EventBridge could not deliver to it (rule target dead letter queue, Step
+  # Functions stack). Each message is the Step Functions status change event;
+  # the secret to delete is connect-migration/<env>/<detail.name>. See README.
+  CleanupExternalIdFailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'connect-migration-cleanup-external-id-failures-${Environment}'
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: !Ref CleanupFailureRetentionSeconds
+
+  CleanupExternalIdFailureQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref CleanupExternalIdFailureQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # The message actions are listed (no sqs:*); the other queue actions
+          # can only be called by principals of this account.
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action:
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:ChangeMessageVisibility
+              - sqs:GetQueueAttributes
+              - sqs:GetQueueUrl
+              - sqs:PurgeQueue
+            Resource: !GetAtt CleanupExternalIdFailureQueue.Arn
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          # Only the backstop rule may send its undeliverable events here.
+          - Sid: BackstopRuleDeadLetters
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt CleanupExternalIdFailureQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/connect-migration-secret-backstop-${Environment}'
+
+  CleanupExternalIdFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'connect-migration-cleanup-external-id-failures-${Environment}'
+      AlarmDescription: >-
+        An ExternalId secret delete failed after all retries. Each queue message is
+        the status change event of one execution; delete its secret by hand (README).
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CleanupExternalIdFailureQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasCleanupFailureAlarmTopic
+        - [!Ref CleanupFailureAlarmTopicArn]
+        - !Ref AWS::NoValue
+
+Outputs:
+  LambdaRoleArn:
+    Description: 'ConnectMigrationSourceReader role ARN. Trust this in cloudformation/target-role.yaml.'
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaRoleArn'
+  TargetRoleArn:
+    Description: 'Target writer role this stack is allowed to assume'
+    Value: !Ref TargetRoleArn
+  PhoneNumberMoveEnabled:
+    Description: 'Whether the UpdatePhoneNumber step is enabled'
+    Value: !Ref EnablePhoneNumberMove
+  CleanupFailureQueueUrl:
+    Description: 'Queue of ExternalId secret deletes that failed after all retries (should stay empty)'
+    Value: !Ref CleanupExternalIdFailureQueue
+  CleanupFailureQueueArn:
+    Description: 'ARN of the cleanup failure queue'
+    Value: !GetAtt CleanupExternalIdFailureQueue.Arn
