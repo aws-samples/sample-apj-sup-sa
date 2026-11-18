@@ -1,0 +1,9 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+# Add your model's dependencies here. Pin versions.
+# Examples:
+#   torch==2.4.0
+#   transformers==4.44.2
+#   accelerate==0.34.2
+#   safetensors==0.4.5
+#   onnxruntime-gpu==1.19.2
