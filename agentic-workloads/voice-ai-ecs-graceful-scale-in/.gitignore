@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.jsonl
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
