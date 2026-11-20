@@ -1,0 +1,6 @@
+# Test dependencies (pinned). The tests use no AWS account: Amazon ECS is faked in tests/fake_ecs.py and
+# Valkey with fakeredis. Install with: python -m pip install -r requirements-dev.txt
+-r app/requirements.txt
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
+fakeredis==2.40.0
