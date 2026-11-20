@@ -5,7 +5,7 @@ langchain==1.2.9
 langchain-openai==1.1.14
 langchain-mcp-adapters==0.2.1
 pymilvus==2.6.8
-opentelemetry-api==1.39.1
+opentelemetry-api==1.45.2
 opentelemetry-sdk==1.39.1
 opentelemetry-instrumentation-fastapi==0.60b1
 opentelemetry-instrumentation-requests==0.60b1
