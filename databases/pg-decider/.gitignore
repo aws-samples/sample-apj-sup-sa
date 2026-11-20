@@ -1,0 +1,14 @@
+test/results/
+test/regression.*
+*.zip
+.omni/
+.claude/
+.github/
+.cursor/
+.kiro/
+.agents/
+.env.omni
+.omni/collector.json
+.venv-decider/
+.ash/
+.protoshield/
