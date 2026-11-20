@@ -20,5 +20,5 @@ boto3==1.43.59
 botocore==1.43.59
 
 # Notebook runtime. jupyterlab pulls in the nbformat/nbclient stack.
-jupyterlab==4.6.2
+jupyterlab==4.6.4
 ipykernel==7.3.0
