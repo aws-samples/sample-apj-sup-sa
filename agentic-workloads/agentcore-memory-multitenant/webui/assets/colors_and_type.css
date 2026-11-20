@@ -1,0 +1,530 @@
+/* =============================================================
+   AWS Design System — Colors & Type
+   Based on the AWS brand palette and type scale.
+   =============================================================
+   AWS does NOT have a primary brand color. The broad-spectrum
+   palette is designed to work together; accessibility (WCAG 2.1 AA)
+   is the only cardinal rule.
+
+   Anchor colors: Gray 850 (#161D26) for light surfaces,
+                  White (#FFFFFF) for dark surfaces.
+   ============================================================= */
+
+/* ---------- FONT FACES ---------- */
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_Lt.ttf") format("truetype");
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_LtIt.ttf") format("truetype");
+  font-weight: 300; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_Rg.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_RgIt.ttf") format("truetype");
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_Md.ttf") format("truetype");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_MdIt.ttf") format("truetype");
+  font-weight: 500; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_Bd.ttf") format("truetype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_BdIt.ttf") format("truetype");
+  font-weight: 700; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_He.ttf") format("truetype");
+  font-weight: 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Display";
+  src: url("./fonts/AmazonEmberDisplay_HeIt.ttf") format("truetype");
+  font-weight: 800; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Mono";
+  src: url("./fonts/AmazonEmberMono_Rg.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Amazon Ember Mono";
+  src: url("./fonts/AmazonEmberMono_Bd.ttf") format("truetype");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+/* ---------- TOKENS ---------- */
+:root {
+  /* ===== Anchor colors ===== */
+  --aws-gray-850: #161D26;   /* primary text on light, anchor */
+  --aws-white:    #FFFFFF;   /* primary text on dark, anchor */
+
+  /* ===== Grayscale ===== */
+  --aws-gray-50:   #FCFCFD;
+  --aws-gray-100:  #F9F9FB;
+  --aws-gray-150:  #F6F6F9;
+  --aws-gray-200:  #F3F3F7;
+  --aws-gray-250:  #EBEBF0;
+  --aws-gray-300:  #DEDEE3;
+  --aws-gray-350:  #CCCCD1;
+  --aws-gray-400:  #B4B4BB;
+  --aws-gray-450:  #A4A4AD;
+  --aws-gray-500:  #8C8C94;
+  --aws-gray-550:  #72747E;
+  --aws-gray-600:  #656871;
+  --aws-gray-650:  #424650;
+  --aws-gray-700:  #333843;
+  --aws-gray-750:  #232B37;
+  --aws-gray-800:  #1B232D;
+  --aws-gray-900:  #131920;
+  --aws-gray-950:  #0F141A;
+  --aws-gray-1000: #06080A;
+
+  /* ===== Cool/blue family — Lime ramp ===== */
+  --aws-lime-50:   #F7FFEB;
+  --aws-lime-100:  #EBFFCC;
+  --aws-lime-200:  #D1FF8A;
+  --aws-lime-300:  #ACFF2E;
+  --aws-lime-400:  #7AE500;
+  --aws-lime-500:  #31B800;
+  --aws-lime-600:  #008A00;
+  --aws-lime-700:  #007000;
+  --aws-lime-800:  #005700;
+  --aws-lime-900:  #003D00;
+  --aws-lime-950:  #002E00;
+  --aws-lime-1000: #001400;
+
+  /* ===== Green ===== */
+  --aws-green-50:   #EFFFF1;
+  --aws-green-100:  #D9FFD6;
+  --aws-green-200:  #AEFFA8;
+  --aws-green-300:  #62FF57;
+  --aws-green-400:  #00E500;
+  --aws-green-500:  #2BB534;
+  --aws-green-600:  #00802F;
+  --aws-green-700:  #007029;
+  --aws-green-800:  #005C26;
+  --aws-green-900:  #00471E;
+  --aws-green-950:  #003311;
+  --aws-green-1000: #001401;
+
+  /* ===== Mint ===== */
+  --aws-mint-50:   #EBFFF6;
+  --aws-mint-100:  #CCFFE9;
+  --aws-mint-200:  #8FFFCE;
+  --aws-mint-300:  #3DFF9E;
+  --aws-mint-400:  #00E582;
+  --aws-mint-500:  #00BD6B;
+  --aws-mint-600:  #008559;
+  --aws-mint-700:  #006B48;
+  --aws-mint-800:  #005237;
+  --aws-mint-900:  #00422C;
+  --aws-mint-950:  #003322;
+  --aws-mint-1000: #00140E;
+
+  /* ===== Teal ===== */
+  --aws-teal-50:   #EBFFFE;
+  --aws-teal-100:  #CCFFFC;
+  --aws-teal-200:  #8FFFF8;
+  --aws-teal-300:  #00F5E4;
+  --aws-teal-400:  #00D6C8;
+  --aws-teal-500:  #00ADA2;
+  --aws-teal-600:  #008077;
+  --aws-teal-700:  #00665F;
+  --aws-teal-800:  #00524C;
+  --aws-teal-900:  #003D39;
+  --aws-teal-950:  #003330;
+  --aws-teal-1000: #001413;
+
+  /* ===== Cyan ===== */
+  --aws-cyan-50:   #F0FEFF;
+  --aws-cyan-100:  #D1FBFF;
+  --aws-cyan-200:  #99F7FF;
+  --aws-cyan-300:  #3DEFFF;
+  --aws-cyan-400:  #00D2E5;
+  --aws-cyan-500:  #00A4BD;
+  --aws-cyan-600:  #007E94;
+  --aws-cyan-700:  #00627A;
+  --aws-cyan-800:  #004761;
+  --aws-cyan-900:  #003652;
+  --aws-cyan-950:  #00293D;
+  --aws-cyan-1000: #00111A;
+
+  /* ===== Blue ===== */
+  --aws-blue-50:   #F0FBFF;
+  --aws-blue-100:  #D1F1FF;
+  --aws-blue-200:  #B8E7FF;
+  --aws-blue-300:  #75CFFF;
+  --aws-blue-400:  #42B4FF;
+  --aws-blue-500:  #0099FF;   /* hyperlink, dark mode */
+  --aws-blue-600:  #006CE0;   /* hyperlink, light mode */
+  --aws-blue-700:  #004A9E;
+  --aws-blue-800:  #003B8F;
+  --aws-blue-900:  #002A66;
+  --aws-blue-950:  #00204D;
+  --aws-blue-1000: #001129;
+
+  /* ===== Indigo ===== */
+  --aws-indigo-50:   #F5F7FF;
+  --aws-indigo-100:  #DBE4FF;
+  --aws-indigo-200:  #C2D1FF;
+  --aws-indigo-300:  #94AFFF;
+  --aws-indigo-400:  #7598FF;
+  --aws-indigo-500:  #5C7FFF;
+  --aws-indigo-600:  #295EFF;
+  --aws-indigo-700:  #003EFA;
+  --aws-indigo-800:  #0033CC;
+  --aws-indigo-900:  #001A99;
+  --aws-indigo-950:  #001475;
+  --aws-indigo-1000: #000833;
+
+  /* ===== Violet ===== */
+  --aws-violet-50:   #F6F5FF;
+  --aws-violet-100:  #E8E5FF;
+  --aws-violet-200:  #D2CCFF;
+  --aws-violet-300:  #B2A8FF;
+  --aws-violet-400:  #978AFF;
+  --aws-violet-500:  #8575FF;
+  --aws-violet-600:  #6842FF;
+  --aws-violet-700:  #5724FF;
+  --aws-violet-800:  #4200DB;
+  --aws-violet-900:  #35009E;
+  --aws-violet-950:  #250070;
+  --aws-violet-1000: #110033;
+
+  /* ===== Warm/red family ===== */
+  /* Purple */
+  --aws-purple-50:   #FAF5FF;
+  --aws-purple-100:  #F2E5FF;
+  --aws-purple-200:  #E8D1FF;
+  --aws-purple-300:  #D4A8FF;
+  --aws-purple-400:  #BF80FF;
+  --aws-purple-500:  #AD5CFF;
+  --aws-purple-600:  #962EFF;
+  --aws-purple-700:  #7300E5;
+  --aws-purple-800:  #5900B2;
+  --aws-purple-900:  #45008A;
+  --aws-purple-950:  #300061;
+  --aws-purple-1000: #1A0033;
+
+  /* Fuchsia */
+  --aws-fuchsia-50:   #FFF5FE;
+  --aws-fuchsia-100:  #FCE5FF;
+  --aws-fuchsia-200:  #F8C7FF;
+  --aws-fuchsia-300:  #F299FF;
+  --aws-fuchsia-400:  #EC70FF;
+  --aws-fuchsia-500:  #E433FF;
+  --aws-fuchsia-600:  #C300E0;
+  --aws-fuchsia-700:  #A000B8;
+  --aws-fuchsia-800:  #78008A;
+  --aws-fuchsia-900:  #590066;
+  --aws-fuchsia-950:  #43004D;
+  --aws-fuchsia-1000: #1F0024;
+
+  /* Magenta */
+  --aws-magenta-50:   #FFF5FE;
+  --aws-magenta-100:  #FFE0FB;
+  --aws-magenta-200:  #FFCCF8;
+  --aws-magenta-300:  #FF94F1;
+  --aws-magenta-400:  #FF57E9;
+  --aws-magenta-500:  #FF1AE0;
+  --aws-magenta-600:  #D600BA;
+  --aws-magenta-700:  #B2008F;
+  --aws-magenta-800:  #8F0072;
+  --aws-magenta-900:  #660052;
+  --aws-magenta-950:  #470039;
+  --aws-magenta-1000: #24001D;
+
+  /* Pink */
+  --aws-pink-50:   #FFF5FA;
+  --aws-pink-100:  #FFE0F0;
+  --aws-pink-200:  #FFC7E3;
+  --aws-pink-300:  #FF99CC;
+  --aws-pink-400:  #FF66B2;
+  --aws-pink-500:  #FF3399;
+  --aws-pink-600:  #E5006F;
+  --aws-pink-700:  #BB005D;
+  --aws-pink-800:  #8F0047;
+  --aws-pink-900:  #660033;
+  --aws-pink-950:  #4D0020;
+  --aws-pink-1000: #24000F;
+
+  /* Rose */
+  --aws-rose-50:   #FFF5F8;
+  --aws-rose-100:  #FFE0E8;
+  --aws-rose-200:  #FFC2D1;
+  --aws-rose-300:  #FF8FAB;
+  --aws-rose-400:  #FF5C85;
+  --aws-rose-500:  #FF386A;
+  --aws-rose-600:  #EB003B;
+  --aws-rose-700:  #C20030;
+  --aws-rose-800:  #940025;
+  --aws-rose-900:  #6B001B;
+  --aws-rose-950:  #4D0013;
+  --aws-rose-1000: #1F0008;
+
+  /* Red */
+  --aws-red-50:   #FFF5F5;
+  --aws-red-100:  #FFE0E0;
+  --aws-red-200:  #FFC2C2;
+  --aws-red-300:  #FF9E9E;
+  --aws-red-400:  #FF7A7A;
+  --aws-red-500:  #FF3D3D;
+  --aws-red-600:  #DB0000;
+  --aws-red-700:  #C20000;
+  --aws-red-800:  #990000;
+  --aws-red-900:  #700000;
+  --aws-red-950:  #520000;
+  --aws-red-1000: #1F0000;
+
+  /* Orange */
+  --aws-orange-50:   #FFF7F5;
+  --aws-orange-100:  #FFE0D6;
+  --aws-orange-200:  #FFC0AD;
+  --aws-orange-300:  #FF997A;
+  --aws-orange-400:  #FF6A3D;
+  --aws-orange-500:  #FF4B14;
+  --aws-orange-600:  #DB3300;
+  --aws-orange-700:  #A82700;
+  --aws-orange-800:  #8A2000;
+  --aws-orange-900:  #661800;
+  --aws-orange-950:  #471100;
+  --aws-orange-1000: #1F0700;
+
+  /* Amber */
+  --aws-amber-50:   #FFF7E6;
+  --aws-amber-100:  #FFE8BD;
+  --aws-amber-200:  #FFD78A;
+  --aws-amber-300:  #FFBB45;
+  --aws-amber-400:  #FF9900;
+  --aws-amber-500:  #FA6F00;
+  --aws-amber-600:  #D14600;
+  --aws-amber-700:  #9E3700;
+  --aws-amber-800:  #7A2B00;
+  --aws-amber-900:  #5C1B00;
+  --aws-amber-950:  #471500;
+  --aws-amber-1000: #1A0800;
+
+  /* Yellow */
+  --aws-yellow-50:   #FFFEF0;
+  --aws-yellow-100:  #FFFBBD;
+  --aws-yellow-200:  #FEF571;
+  --aws-yellow-300:  #FFED4D;
+  --aws-yellow-400:  #FFE347;
+  --aws-yellow-500:  #FBD332;
+  --aws-yellow-600:  #F2B100;
+  --aws-yellow-700:  #DB9200;
+  --aws-yellow-800:  #9E6900;
+  --aws-yellow-900:  #855900;
+  --aws-yellow-950:  #573A00;
+  --aws-yellow-1000: #191100;
+
+  /* ===== Semantic — light theme (default) ===== */
+  --aws-bg:           var(--aws-white);
+  --aws-bg-subtle:    var(--aws-gray-50);
+  --aws-bg-muted:     var(--aws-gray-150);
+  --aws-surface:      var(--aws-white);
+  --aws-border:       var(--aws-gray-300);
+  --aws-border-strong:var(--aws-gray-450);
+  --aws-fg:           var(--aws-gray-850);
+  --aws-fg-muted:     var(--aws-gray-600);
+  --aws-fg-subtle:    var(--aws-gray-500);
+  --aws-link:         var(--aws-blue-600);
+  --aws-link-hover:   var(--aws-blue-700);
+
+  /* ===== Type ramp =====
+     Eyebrow:  Ember Mono Regular, UPPER
+     Headline: Ember Display Regular, Sentence
+     Subhead:  Ember Display Regular/Bold, Sentence
+     Body:     Ember Display Regular
+     CTA:      Ember Display Medium, Sentence
+     Caption:  Ember Mono UPPER
+     Tag:      Ember Display Medium UPPER
+  */
+  --aws-font-display: "Amazon Ember Display", "Amazon Ember", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --aws-font-mono:    "Amazon Ember Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* sizes — flexible; adjust per layout per docs */
+  --aws-fs-eyebrow:  13px;
+  --aws-fs-caption:  12px;
+  --aws-fs-tag:      12px;
+  --aws-fs-body-sm:  14px;
+  --aws-fs-body:     16px;
+  --aws-fs-body-lg:  20px;
+  --aws-fs-subhead:  28px;
+  --aws-fs-h3:       36px;
+  --aws-fs-h2:       55px;
+  --aws-fs-h1:       96px;
+  --aws-fs-display:  144px;  /* cover-scale */
+
+  /* leading — headlines 110–120%, body 120–140% (130% just right) */
+  --aws-lh-headline: 1.10;
+  --aws-lh-headline-loose: 1.20;
+  --aws-lh-body: 1.30;
+
+  /* tracking — eyebrow & captions get +50–100, all-caps tag +100 */
+  --aws-ls-eyebrow: 0.06em;
+  --aws-ls-caption: 0.08em;
+  --aws-ls-tag:     0.05em;
+
+  /* Spacing — multiples of 4. */
+  --aws-space-1: 4px;
+  --aws-space-2: 8px;
+  --aws-space-3: 12px;
+  --aws-space-4: 16px;
+  --aws-space-5: 24px;
+  --aws-space-6: 32px;
+  --aws-space-7: 48px;
+  --aws-space-8: 64px;
+  --aws-space-9: 96px;
+  --aws-space-10: 128px;
+
+  /* Corner radius —
+     rounded for imagery w/ internal margins, mockups, digital UI;
+     square (0) for full-bleed imagery cropped to canvas edge / print */
+  --aws-radius-0: 0px;
+  --aws-radius-sm: 4px;
+  --aws-radius-md: 8px;
+  --aws-radius-lg: 16px;
+  --aws-radius-xl: 24px;
+  --aws-radius-pill: 999px;
+}
+
+/* ---------- Dark theme ---------- */
+[data-theme="dark"], .aws-dark {
+  --aws-bg:           var(--aws-gray-850);
+  --aws-bg-subtle:    var(--aws-gray-900);
+  --aws-bg-muted:     var(--aws-gray-800);
+  --aws-surface:      var(--aws-gray-800);
+  --aws-border:       var(--aws-gray-700);
+  --aws-border-strong:var(--aws-gray-600);
+  --aws-fg:           var(--aws-white);
+  --aws-fg-muted:     var(--aws-gray-400);
+  --aws-fg-subtle:    var(--aws-gray-500);
+  --aws-link:         var(--aws-blue-500);
+  --aws-link-hover:   var(--aws-blue-300);
+}
+
+/* ---------- Element defaults ---------- */
+.aws-eyebrow {
+  font-family: var(--aws-font-mono);
+  font-weight: 400;
+  font-size: var(--aws-fs-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: var(--aws-ls-eyebrow);
+  color: var(--aws-fg);
+  font-feature-settings: "kern" 1;
+}
+.aws-h1 {
+  font-family: var(--aws-font-display);
+  font-weight: 400;        /* "moving away from bold in headlines" */
+  font-size: var(--aws-fs-h1);
+  line-height: var(--aws-lh-headline);
+  letter-spacing: -0.01em;
+  color: var(--aws-fg);
+  text-wrap: pretty;
+}
+.aws-h2 {
+  font-family: var(--aws-font-display);
+  font-weight: 400;
+  font-size: var(--aws-fs-h2);
+  line-height: var(--aws-lh-headline);
+  color: var(--aws-fg);
+  text-wrap: pretty;
+}
+.aws-h3 {
+  font-family: var(--aws-font-display);
+  font-weight: 400;
+  font-size: var(--aws-fs-h3);
+  line-height: var(--aws-lh-headline-loose);
+  color: var(--aws-fg);
+  text-wrap: pretty;
+}
+.aws-subhead {
+  font-family: var(--aws-font-display);
+  font-weight: 400;
+  font-size: var(--aws-fs-subhead);
+  line-height: var(--aws-lh-headline-loose);
+  color: var(--aws-fg);
+}
+.aws-body {
+  font-family: var(--aws-font-display);
+  font-weight: 400;
+  font-size: var(--aws-fs-body);
+  line-height: var(--aws-lh-body);
+  color: var(--aws-fg);
+}
+.aws-body-lg {
+  font-family: var(--aws-font-display);
+  font-weight: 400;
+  font-size: var(--aws-fs-body-lg);
+  line-height: var(--aws-lh-body);
+  color: var(--aws-fg);
+}
+.aws-body-sm {
+  font-family: var(--aws-font-display);
+  font-size: var(--aws-fs-body-sm);
+  line-height: var(--aws-lh-body);
+  color: var(--aws-fg);
+}
+.aws-caption {
+  font-family: var(--aws-font-mono);
+  font-weight: 400;
+  font-size: var(--aws-fs-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--aws-ls-caption);
+  color: var(--aws-fg);
+}
+.aws-tag {
+  font-family: var(--aws-font-display);
+  font-weight: 500;
+  font-size: var(--aws-fs-tag);
+  text-transform: uppercase;
+  letter-spacing: var(--aws-ls-tag);
+  color: var(--aws-fg);
+}
+.aws-cta {
+  font-family: var(--aws-font-display);
+  font-weight: 500;
+  font-size: var(--aws-fs-body);
+  color: var(--aws-fg);
+  text-decoration: none;       /* never underline */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.aws-cta:hover { color: var(--aws-blue-600); }
+.aws-link {
+  font-family: var(--aws-font-display);
+  font-weight: 400;
+  color: var(--aws-link);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+.aws-link:hover { color: var(--aws-link-hover); }
+.aws-mono {
+  font-family: var(--aws-font-mono);
+  font-size: var(--aws-fs-body-sm);
+}
+
+/* All apps should set optical kerning by default */
+html { font-kerning: normal; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
