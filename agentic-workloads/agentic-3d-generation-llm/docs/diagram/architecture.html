@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>3D Generation with LLMs reference architecture</title>
+<style>
+  :root { --ink: #16191f; --muted: #545b64; --panel: #f2f3f3; --teal: #01a88d; --region: #00a4a6; --orange: #ec7211; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); }
+  #page { position: relative; width: 1920px; height: 1080px; background: #fff; overflow: hidden; }
+
+  h1 { position: absolute; left: 18px; top: 16px; width: 1310px; margin: 0; font-size: 37px; line-height: 44px; font-weight: 700; }
+  .intro { position: absolute; left: 18px; top: 72px; width: 1300px; margin: 0; font-size: 19.5px; line-height: 27px; }
+  .rule { position: absolute; left: 14px; top: 166px; width: 1316px; border-top: 3px solid #545b64; }
+
+  .box { position: absolute; border: 1.5px solid #232f3e; }
+  .box.region { border: 1.5px dashed var(--region); }
+  .box.agentcore { border: 2px dashed var(--teal); border-radius: 6px; background: rgba(1, 168, 141, 0.035); }
+  .grp { position: absolute; display: flex; align-items: center; gap: 12px; font-size: 20px; }
+  .grp img { width: 50px; height: 50px; }
+  .tag { position: absolute; font-size: 15px; font-weight: 700; padding: 0 6px; background: #fff; }
+
+  .node { position: absolute; width: 180px; margin-left: -90px; text-align: center; font-size: 16px; line-height: 19px; }
+  .node img { width: 64px; height: 64px; display: block; margin: 0 auto 6px; }
+  .node small { display: block; color: var(--muted); font-size: 13px; line-height: 16px; margin-top: 1px; }
+
+  .badge { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: #16191f; color: #fff; font-weight: 700;
+    font-size: 17px; display: flex; align-items: center; justify-content: center; z-index: 3; }
+  svg#wires { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+  #panel { position: absolute; left: 1350px; top: 0; width: 570px; height: 1080px; background: var(--panel);
+    padding: 24px 26px 24px 22px; display: flex; flex-direction: column; justify-content: space-between; }
+  .step { display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: start; font-size: 18px; line-height: 23.5px; }
+  .step .badge { position: static; width: 40px; height: 40px; font-size: 19px; }
+
+  #footer { position: absolute; left: 18px; top: 1040px; width: 1312px; display: flex; align-items: center; gap: 20px; }
+  #footer img { height: 34px; }
+  #footer .meta { font-size: 15px; color: var(--muted); font-style: italic; }
+  #footer .ref { margin-left: auto; font-size: 26px; font-weight: 700; color: var(--orange); }
+</style>
+</head>
+<body>
+<div id="page">
+  <h1>Text-to-3D Generation with Four LLMs on Amazon Bedrock AgentCore</h1>
+  <p class="intro">This architecture shows how one text prompt becomes four 3D models. Four LLMs on Amazon Bedrock each write a Blender Python
+    script in parallel, Amazon Bedrock AgentCore Runtime runs the script in headless Blender to export a GLB, and the web page compares the
+    four models side by side with their tokens, time taken and token cost.</p>
+  <div class="rule"></div>
+
+  <!-- AWS Cloud / Region -->
+  <div class="box" style="left:198px; top:184px; width:1132px; height:846px"></div>
+  <div class="grp" style="left:198px; top:184px; width:58px; height:58px; background:#232f3e; justify-content:center">
+    <img src="icons/AWSCloudlogo.svg" alt="" style="width:58px;height:58px" /></div>
+  <div class="grp" style="left:268px; top:196px">AWS Cloud</div>
+  <div class="box region" style="left:216px; top:256px; width:1096px; height:764px"></div>
+  <div class="grp" style="left:216px; top:256px"><img src="icons/Region.svg" alt="" /> Region</div>
+
+  <div class="box agentcore" style="left:1062px; top:664px; width:196px; height:178px"></div>
+  <div class="tag" style="left:1074px; top:654px; color:var(--teal)">Amazon Bedrock AgentCore</div>
+
+  <!-- Client (positions are icon centres: left = x, top = y - 32) -->
+  <div class="node" id="client" style="left:96px; top:520px"><img src="icons/Users.svg" alt="" />Users<small>browser</small></div>
+
+  <!-- Row 1 -->
+  <div class="node" id="site" style="left:330px; top:320px"><img src="icons/AmazonSimpleStorageService.svg" alt="" />Amazon S3<small>private site bucket</small></div>
+  <div class="node" id="cw" style="left:790px; top:320px"><img src="icons/AmazonCloudWatch.svg" alt="" />Amazon CloudWatch<small>logs, traces</small></div>
+
+  <!-- Row 2: entry and API -->
+  <div class="node" id="cf" style="left:330px; top:520px"><img src="icons/AmazonCloudFront.svg" alt="" />Amazon CloudFront<small>+ AWS WAF</small></div>
+  <div class="node" id="apigw" style="left:560px; top:520px"><img src="icons/AmazonAPIGateway.svg" alt="" />Amazon API Gateway<small>+ AWS WAF: CloudFront only</small></div>
+  <div class="node" id="api" style="left:790px; top:520px"><img src="icons/AWSLambda.svg" alt="" />AWS Lambda<small>generations API</small></div>
+  <div class="node" id="ddb" style="left:1030px; top:520px"><img src="icons/AmazonDynamoDB.svg" alt="" />Amazon DynamoDB<small>jobs, metrics, daily cap</small></div>
+
+  <!-- Row 3: generation -->
+  <div class="node" id="art" style="left:330px; top:700px"><img src="icons/AmazonSimpleStorageService.svg" alt="" />Amazon S3<small>GLB files + scripts</small></div>
+  <div class="node" id="worker" style="left:790px; top:700px"><img src="icons/AWSLambda.svg" alt="" />AWS Lambda<small>worker × 4 (one per model)</small></div>
+  <div class="node" id="runtime" style="left:1160px; top:700px"><img src="icons/AmazonBedrockAgentCore.svg" alt="" />AgentCore Runtime<small>agent + headless Blender</small></div>
+
+  <!-- Row 4: models -->
+  <div class="node" id="bedrock" style="left:1160px; top:880px"><img src="icons/AmazonBedrock.svg" alt="" />Amazon Bedrock<small>GPT-6 Astra, GPT-6.1 Sol, Claude Opus 5.5, GPT-6 Luna</small></div>
+
+  <svg id="wires"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#16191f" /></marker></defs></svg>
+
+  <!-- Right panel -->
+  <div id="panel">
+    <div class="step"><div class="badge">1</div><div>Users open the public site. <b>Amazon CloudFront</b> is the only way in, with <b>AWS WAF</b> rate limits: 10 prompts and 2,000 requests per IP per 5 minutes.</div></div>
+    <div class="step"><div class="badge">2</div><div>CloudFront serves the React app from a private <b>Amazon S3</b> bucket through Origin Access Control.</div></div>
+    <div class="step"><div class="badge">3</div><div>CloudFront forwards <code>/api/*</code> to <b>Amazon API Gateway</b> with a secret header. A regional <b>AWS WAF</b> blocks every request without it, so calls straight to the API fail.</div></div>
+    <div class="step"><div class="badge">4</div><div>API Gateway passes the prompt to the API <b>AWS Lambda</b> function.</div></div>
+    <div class="step"><div class="badge">5</div><div>The function counts today's jobs against a daily cap in <b>Amazon DynamoDB</b>, then saves the job with one pending result per model.</div></div>
+    <div class="step"><div class="badge">6</div><div>It invokes the worker function four times asynchronously, one per model, so all four models generate in parallel.</div></div>
+    <div class="step"><div class="badge">7</div><div>Each worker calls <b>AgentCore Runtime</b> with its own session, so every model runs in an isolated microVM with headless Blender.</div></div>
+    <div class="step"><div class="badge">8</div><div>The agent asks its model on <b>Amazon Bedrock</b> to write a Blender Python script, runs it as a sandboxed user and sends errors back for a fix (up to 3 tries).</div></div>
+    <div class="step"><div class="badge">9</div><div>The agent returns the GLB, the script and token usage. The worker saves the GLB and script to a private <b>Amazon S3</b> bucket.</div></div>
+    <div class="step"><div class="badge">10</div><div>The worker records total tokens, time taken and token cost (from per-model prices) in <b>Amazon DynamoDB</b>.</div></div>
+    <div class="step"><div class="badge">11</div><div>The page polls the API for metrics, then loads each GLB through CloudFront's <code>/generations/*</code> path, which reads the bucket through Origin Access Control.</div></div>
+  </div>
+
+  <div id="footer">
+    <img src="icons/aws-logo.svg" alt="AWS" />
+    <div class="meta">3D Generation with LLMs · Architecture v2 · November 2026</div>
+    <div class="ref">Reference Architecture</div>
+  </div>
+</div>
+
+<script>
+  const page = document.getElementById('page').getBoundingClientRect();
+  const svg = document.getElementById('wires');
+  svg.setAttribute('width', 1920); svg.setAttribute('height', 1080);
+  const rel = (r) => ({ l: r.left - page.left, r: r.right - page.left, t: r.top - page.top, b: r.bottom - page.top, cx: (r.left + r.right) / 2 - page.left, cy: (r.top + r.bottom) / 2 - page.top });
+  const I = (id) => rel(document.querySelector(`#${id} img`).getBoundingClientRect());
+  const N = (id) => rel(document.getElementById(id).getBoundingClientRect());
+  const el = (tag, attrs) => { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e; };
+  const html = (cls, text, x, y) => { const d = document.createElement('div'); d.className = cls; d.textContent = text; d.style.left = `${x}px`; d.style.top = `${y}px`; document.getElementById('page').appendChild(d); };
+  const wire = (pts, arrow = true) => el('polyline', { points: pts.map((p) => p.join(',')).join(' '), fill: 'none', stroke: '#16191f', 'stroke-width': 2, 'stroke-linejoin': 'round', ...(arrow ? { 'marker-end': 'url(#arrow)' } : {}) });
+  const badge = (n, x, y) => html('badge', n, x - 17, y - 17);
+  const G = 10;
+  const h = (a, b) => wire([[I(a).r + G, I(a).cy], [I(b).l - G, I(b).cy]]);
+  const midBadge = (a, b, n, dy = -22) => badge(n, (I(a).r + I(b).l) / 2, I(a).cy + dy);
+  const down = (a, b, n, dx = -30) => { const t = I(a), nt = N(a), u = I(b);
+    wire([[t.cx, nt.b + 4], [t.cx, u.t - G]]); if (n) badge(n, t.cx + dx, (nt.b + u.t) / 2 + 2); };
+
+  // 1: Users -> CloudFront (the only entry point)
+  h('client', 'cf'); badge('1', 258, I('cf').cy - 24);
+  // 2: CloudFront -> private site bucket (up)
+  { const c = I('cf'), s3 = N('site'); wire([[c.cx, c.t - G], [c.cx, s3.b + 4]]); badge('2', c.cx - 30, (c.t + s3.b) / 2); }
+  // 3: CloudFront -> API Gateway with the origin header
+  h('cf', 'apigw'); midBadge('cf', 'apigw', '3');
+  // 4: API Gateway -> API Lambda
+  h('apigw', 'api'); midBadge('apigw', 'api', '4');
+  // 5: API Lambda -> DynamoDB (daily cap + job)
+  h('api', 'ddb'); midBadge('api', 'ddb', '5');
+  // 6: API Lambda -> 4 async workers
+  down('api', 'worker', '6');
+  // 7: worker <-> AgentCore Runtime
+  h('worker', 'runtime').setAttribute('marker-start', 'url(#arrow)'); midBadge('worker', 'runtime', '7', 22);
+  // 8: runtime <-> Bedrock models
+  { const t = I('runtime'), nt = N('runtime'), u = I('bedrock');
+    wire([[t.cx, nt.b + 4], [t.cx, u.t - G]]).setAttribute('marker-start', 'url(#arrow)');
+    badge('8', t.cx - 30, (nt.b + u.t) / 2 + 2); }
+  // 9: worker -> artifacts bucket (left)
+  { const w = I('worker'), a = I('art'); wire([[w.l - G, w.cy], [a.r + G, a.cy]]); badge('9', (w.l + a.r) / 2, w.cy - 22); }
+  // 10: worker -> DynamoDB metrics (elbow up to the table's caption)
+  { const a = I('worker'), d = I('ddb'), nd = N('ddb'), y = a.cy - 18, x = d.cx;
+    wire([[a.r + G, y], [x, y], [x, nd.b + 4]]); badge('10', x - 34, (y + nd.b) / 2); }
+  // 11: CloudFront /generations/* -> artifacts bucket (down)
+  { const c = I('cf'), nc = N('cf'), a = I('art'); wire([[c.cx, nc.b + 4], [c.cx, a.t - G]]); badge('11', c.cx - 30, (nc.b + a.t) / 2 + 2); }
+</script>
+</body>
+</html>
