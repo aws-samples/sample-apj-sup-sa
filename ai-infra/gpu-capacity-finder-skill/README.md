@@ -40,6 +40,8 @@ Try any of these with your agent:
 
 > "Find GPU capacity across all regions and show me the earliest available slot"
 
+> "I'm flexible on H100, H200 or B200 — whichever 8-GPU node starts soonest for 5 days"
+
 ### Specific use cases
 > "I'm training a LLaMA model and need 8 H100 GPUs for 10 days — what are my options?"
 
@@ -68,7 +70,9 @@ teaches the agent:
 
 1. **Verify AWS CLI auth** (`aws sts get-caller-identity`)
 2. **Translate** NVIDIA GPU names / VRAM / architectures → AWS instance types
-3. **Call APIs directly** via AWS CLI commands
+3. **Call APIs directly** via AWS CLI commands, searching up to 10 Capacity Block
+   instance types in a single call per region
+   ([multi-instance-type search](https://aws.amazon.com/about-aws/whats-new/2026/11/ec2-capacity-blocks-ml-flex-search/))
 4. **Loop through regions** dynamically, adapting based on results
 5. **Present** a comparison table with recommendations
 
@@ -97,7 +101,8 @@ Or simply copy `SKILL.md` and `REFERENCE.md` into your agent's skills directory.
 
 ## Prerequisites
 
-- AWS CLI configured and authenticated
+- AWS CLI v2.41.0 or later (for multi-instance-type Capacity Block search),
+  configured and authenticated
 - IAM permissions: `ec2:DescribeCapacityBlockOfferings`, `sagemaker:SearchTrainingPlanOfferings`
 
 ## Files

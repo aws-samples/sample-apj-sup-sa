@@ -17,8 +17,8 @@ rather than AWS instance type. Use this table to translate.
 | `p6-b200.48xlarge` | 8 | B200 | 192 GB HBM3e | 1,536 GB | Blackwell | Largest models, next-gen |
 | `p6-b300.48xlarge` | 8 | B300 | 288 GB HBM3e | 2,304 GB | Blackwell | Highest perf, frontier models |
 | `p5.48xlarge` | 8 | H100 SXM | 80 GB HBM3 | 640 GB | Hopper | Large-scale training |
-| `p5e.48xlarge` | 8 | H100 SXM | 80 GB HBM3 | 640 GB | Hopper | Memory-intensive training |
-| `p5en.48xlarge` | 8 | H100 SXM | 80 GB HBM3 | 640 GB | Hopper | Multi-node distributed (3200 Gbps EFA) |
+| `p5e.48xlarge` | 8 | H200 | 141 GB HBM3e | 1,128 GB | Hopper | Memory-intensive training |
+| `p5en.48xlarge` | 8 | H200 | 141 GB HBM3e | 1,128 GB | Hopper | Multi-node distributed (3200 Gbps EFA) |
 | `p4d.24xlarge` | 8 | A100 | 40 GB HBM2e | 320 GB | Ampere | General ML training |
 | `p4de.24xlarge` | 8 | A100 | 80 GB HBM2e | 640 GB | Ampere | Large model training |
 
@@ -43,7 +43,9 @@ rather than AWS instance type. Use this table to translate.
 
 | User says... | Suggest |
 |---|---|
-| "H100", "Hopper", "80GB HBM3" | `p5.48xlarge` / `p5en.48xlarge` |
+| "H100", "80GB HBM3" | `p5.48xlarge` |
+| "H200", "141GB" | `p5en.48xlarge` / `p5e.48xlarge` |
+| "Hopper" (either) | search `p5.48xlarge` + `p5e.48xlarge` + `p5en.48xlarge` together |
 | "A100 80GB" | `p4de.24xlarge` |
 | "A100 40GB", "A100" | `p4d.24xlarge` |
 | "B200", "Blackwell" | `p6-b200.48xlarge` |
@@ -53,7 +55,7 @@ rather than AWS instance type. Use this table to translate.
 | "RTX Pro 6000", "RTX 6000", "96GB GDDR7", "G7e" | `g7e.*` (not available as capacity blocks) |
 | "A10G", "rendering" | `g5.*` (not available as capacity blocks) |
 | "Trainium", "custom silicon", "cheapest" | `trn1.32xlarge` / `trn2.48xlarge` |
-| "640GB VRAM", "need 640GB" | `p5.48xlarge` or `p4de.24xlarge` |
+| "640GB VRAM", "need 640GB" | `p5.48xlarge` or `p4de.24xlarge` (also `p5en`/`p5e`/`p6-*` if "at least 640GB") |
 | "1.5TB VRAM", "need 1.5TB" | `p6-b200.48xlarge` or `trn2.48xlarge` |
 | "multi-node", "distributed", "EFA" | `p5en.48xlarge` |
 
@@ -97,14 +99,42 @@ the requested instance type, the API returns an error — skip and continue.
 **Docs:** https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeCapacityBlockOfferings.html
 
 **Parameters:**
-- `--instance-type` — GPU instance type (e.g., `p5.48xlarge`)
-- `--instance-count` — Number of instances (1–256)
+- `--instance-type-preferences InstanceType=<a> InstanceType=<b> ...` — up to 10
+  instance types in one search (AWS CLI v2.41.0+). Offerings are ranked by
+  earliest start date across all listed types.
+- `--instance-type` — single GPU instance type (e.g., `p5.48xlarge`). Use this
+  **or** `--instance-type-preferences`, not both.
+- `--instance-count` — Number of instances (up to 64 per Capacity Block, 256
+  across Capacity Blocks)
 - `--capacity-duration-hours` — Duration in hours (days × 24)
 - `--start-date-range` — Earliest start (ISO 8601, e.g., `2026-07-20T00:00:00Z`)
 - `--end-date-range` — (optional) Latest end date
-- `--max-results` — Up to 100
+- `--all-availability-zones` — (optional) include zones you haven't opted into
 
-**Response key fields:** `CapacityBlockOfferings[].{AvailabilityZone, StartDate, EndDate, UpfrontFee, InstanceCount, CapacityBlockDurationHours}`
+The API returns up to 6 offerings per call and searches one Region per call. The
+EC2 console can add more Regions to a single search; the CLI/SDK needs one call
+per Regional endpoint. Multi-type search isn't available for UltraServer
+Capacity Blocks.
+
+**Response key fields:**
+- Multi-type search (`--instance-type-preferences`):
+  `CapacityBlockOfferings[].{CapacityBlockOfferingId, UpfrontFee, CurrencyCode,
+  CapacityBlockOfferingSegments[].{InstanceType, AvailabilityZone, AvailabilityZoneId,
+  InstanceCount, StartDate, EndDate, CapacityBlockDurationHours, UpfrontFee}}`.
+  The offering-level `InstanceType`/`AvailabilityZone`/`StartDate` are empty.
+- Single-type search (`--instance-type`):
+  `CapacityBlockOfferings[].{CapacityBlockOfferingId, AvailabilityZone, StartDate,
+  EndDate, UpfrontFee, InstanceCount, CapacityBlockDurationHours}`
+
+**Errors in multi-type search:** any one invalid type fails the whole call
+(`InvalidParameterValue`), e.g. a type not offered in that Region or a start date
+outside that type's booking window. The error names the type: remove it and
+retry. More than 10 types, or `--instance-type` together with
+`--instance-type-preferences`, are also rejected.
+
+**Purchase:** `aws ec2 purchase-capacity-block --capacity-block-offering-id <id>
+--instance-platform Linux/UNIX --region <region>`. Capacity Blocks can't be
+cancelled after purchase.
 
 ### SageMaker Training Plans
 
@@ -114,7 +144,8 @@ the requested instance type, the API returns an error — skip and continue.
 
 **Parameters:**
 - `--target-resources '["training-job"]'` — Always this value
-- `--instance-type` — With `ml.` prefix (e.g., `ml.p5.48xlarge`)
+- `--instance-type` — With `ml.` prefix (e.g., `ml.p5.48xlarge`). One type per
+  call; loop over candidate types.
 - `--instance-count` — Number of instances
 - `--duration-hours` — Duration in hours
 - `--start-time-after` — Earliest start (ISO 8601)
