@@ -413,3 +413,76 @@ def test_finalize_stream_emits_zero_usage_message_delta_when_metadata_is_missing
         "cache_creation_input_tokens": 0,
         "cache_read_input_tokens": 0,
     }
+
+
+# --- #1: tool name reverse mapping (restore original client-facing name) ---
+
+def _tool_use_response(name: str) -> dict:
+    tool_use = {"toolUse": {"toolUseId": "t1", "name": name, "input": {"q": 1}}}
+    return {
+        "output": {"message": {"content": [tool_use]}},
+        "stopReason": "tool_use",
+        "usage": {"inputTokens": 1, "outputTokens": 1},
+    }
+
+
+def test_convert_response_restores_original_tool_name() -> None:
+    converter = BedrockToAnthropicConverter()
+    msg = converter.convert_response(
+        _tool_use_response("mcp__srv__short"),
+        "model",
+        tool_name_map={"mcp__srv__short": "mcp__aws-sentral-mcp__really_long_original_name"},
+    )
+    tool_use = msg.content[0]
+    assert tool_use["type"] == "tool_use"
+    assert tool_use["name"] == "mcp__aws-sentral-mcp__really_long_original_name"
+
+
+def test_convert_response_without_map_keeps_name() -> None:
+    converter = BedrockToAnthropicConverter()
+    msg = converter.convert_response(_tool_use_response("read_file"), "model")
+    assert msg.content[0]["name"] == "read_file"
+
+
+def test_convert_response_name_not_in_map_is_unchanged() -> None:
+    converter = BedrockToAnthropicConverter()
+    msg = converter.convert_response(
+        _tool_use_response("read_file"), "model", tool_name_map={"other": "x"}
+    )
+    assert msg.content[0]["name"] == "read_file"
+
+
+def test_stream_content_block_start_restores_original_tool_name() -> None:
+    converter = BedrockToAnthropicConverter()
+    state = StreamState(tool_name_map={"san_name": "orig.tool.name"})
+    converter.convert_stream_event({"messageStart": {"role": "assistant"}}, state)
+    events = converter.convert_stream_event(
+        {
+            "contentBlockStart": {
+                "contentBlockIndex": 0,
+                "start": {"toolUse": {"toolUseId": "t", "name": "san_name"}},
+            }
+        },
+        state,
+    )
+    starts = [e for e in events if e.event == "content_block_start"]
+    assert starts, events
+    assert starts[0].data["content_block"]["name"] == "orig.tool.name"
+
+
+def test_stream_tool_name_restored_from_delta_start() -> None:
+    converter = BedrockToAnthropicConverter()
+    state = StreamState(tool_name_map={"san_name": "orig.tool.name"})
+    converter.convert_stream_event({"messageStart": {"role": "assistant"}}, state)
+    events = converter.convert_stream_event(
+        {
+            "contentBlockDelta": {
+                "contentBlockIndex": 0,
+                "delta": {"toolUse": {"toolUseId": "t", "name": "san_name"}},
+            }
+        },
+        state,
+    )
+    starts = [e for e in events if e.event == "content_block_start"]
+    assert starts, events
+    assert starts[0].data["content_block"]["name"] == "orig.tool.name"

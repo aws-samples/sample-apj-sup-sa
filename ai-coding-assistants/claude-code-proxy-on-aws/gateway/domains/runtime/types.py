@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -112,6 +112,7 @@ class StreamState:
     started_blocks: set[int] = field(default_factory=set)
     text_chunks: list[str] = field(default_factory=list)
     unhandled_event_types: dict[str, int] = field(default_factory=dict)
+    tool_name_map: dict[str, str] = field(default_factory=dict)
 
 
 END_OF_STREAM = object()
