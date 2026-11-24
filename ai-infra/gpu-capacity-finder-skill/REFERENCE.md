@@ -111,16 +111,19 @@ the requested instance type, the API returns an error — skip and continue.
 - `--end-date-range` — (optional) Latest end date
 - `--all-availability-zones` — (optional) include zones you haven't opted into
 
-The API returns up to 6 offerings per call and searches one Region per call. The
-EC2 console can add more Regions to a single search; the CLI/SDK needs one call
-per Regional endpoint. Multi-type search isn't available for UltraServer
+All Capacity Blocks end at 11:30 UTC, so offerings can be slightly shorter or
+longer than requested; check `CapacityBlockDurationHours` **and**
+`CapacityBlockDurationMinutes`. The API returns up to 6 offerings per call and
+searches one Region per call. The EC2 console can add more Regions to a single
+search; the CLI/SDK needs one call per Regional endpoint. Multi-type search isn't available for UltraServer
 Capacity Blocks.
 
 **Response key fields:**
 - Multi-type search (`--instance-type-preferences`):
   `CapacityBlockOfferings[].{CapacityBlockOfferingId, UpfrontFee, CurrencyCode,
   CapacityBlockOfferingSegments[].{InstanceType, AvailabilityZone, AvailabilityZoneId,
-  InstanceCount, StartDate, EndDate, CapacityBlockDurationHours, UpfrontFee}}`.
+  InstanceCount, StartDate, EndDate, CapacityBlockDurationHours,
+  CapacityBlockDurationMinutes, UpfrontFee}}`.
   The offering-level `InstanceType`/`AvailabilityZone`/`StartDate` are empty.
 - Single-type search (`--instance-type`):
   `CapacityBlockOfferings[].{CapacityBlockOfferingId, AvailabilityZone, StartDate,

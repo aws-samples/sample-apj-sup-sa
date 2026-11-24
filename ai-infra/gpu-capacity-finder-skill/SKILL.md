@@ -123,8 +123,14 @@ aws ec2 describe-capacity-block-offerings \
   --start-date-range <YYYY-MM-DDTHH:MM:SSZ> \
   --end-date-range <YYYY-MM-DDTHH:MM:SSZ> \
   --output json \
-  --query 'CapacityBlockOfferings[].{Id:CapacityBlockOfferingId,Fee:UpfrontFee,Currency:CurrencyCode,Segments:CapacityBlockOfferingSegments[].{Type:InstanceType,AZ:AvailabilityZone,Count:InstanceCount,Start:StartDate,End:EndDate,Hours:CapacityBlockDurationHours}}'
+  --query 'CapacityBlockOfferings[].{Id:CapacityBlockOfferingId,Fee:UpfrontFee,Currency:CurrencyCode,Segments:CapacityBlockOfferingSegments[].{Type:InstanceType,AZ:AvailabilityZone,Count:InstanceCount,Start:StartDate,End:EndDate,Hours:CapacityBlockDurationHours,Minutes:CapacityBlockDurationMinutes}}'
 ```
+
+**Expect near-match durations.** All Capacity Blocks end at 11:30 UTC, so the
+API returns up to 6 offerings and some are slightly shorter or longer than the
+requested duration (e.g. 29h15m or 53h15m when you asked for 48h). Always show
+hours **and** minutes, and separate exact matches from near matches so the user
+doesn't compare prices for different lengths.
 
 **Read the segments.** With `--instance-type-preferences`, the top-level
 `InstanceType`, `AvailabilityZone`, `StartDate` and `EndDate` of each offering
@@ -201,7 +207,8 @@ aws sagemaker search-training-plan-offerings \
 After gathering results:
 
 1. Present as a comparison table (source, region, instance type, AZ, instances,
-   duration, start date, upfront fee)
+   duration in hours and minutes, start date, upfront fee). List exact-duration
+   matches first and near-match durations separately.
 2. Highlight the **cheapest option** and **earliest availability**
 3. Note which regions have capacity vs. which don't
 4. If no results, suggest fallback strategies (see step 4 above)
