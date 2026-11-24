@@ -27,7 +27,7 @@ Parameters:
     Default: 900
     MinValue: 0
     MaxValue: 3600
-    Description: Must be longer than CallCapSeconds, so a draining task's calls finish before it stops
+    Description: Must be longer than CallCapSeconds, so a draining task's calls finish before it stops. CloudFormation can't compare two parameters, so the calling task checks this at startup and exits if it doesn't hold
   CallCapSeconds: { Type: Number, Default: 600, MinValue: 1 }
   StopTimeoutSeconds: { Type: Number, Default: 120, MinValue: 2, MaxValue: 120 }
   ProtectMinutes: { Type: Number, Default: 15, MinValue: 1, MaxValue: 2880 }
@@ -234,6 +234,7 @@ Resources:
           Environment:
             - { Name: VALKEY_HOST, Value: !GetAtt Cache.Endpoint.Address }
             - { Name: CALL_CAP_SECONDS, Value: !Ref CallCapSeconds }
+            - { Name: DEREGISTRATION_DELAY_SECONDS, Value: !Ref DeregistrationDelaySeconds }
             - { Name: PROTECT_MINUTES, Value: !Ref ProtectMinutes }
             - { Name: RENEW_SECONDS, Value: !Ref RenewSeconds }
             - { Name: RING_SECONDS, Value: !Ref RingSeconds }

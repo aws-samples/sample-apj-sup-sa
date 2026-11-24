@@ -61,6 +61,8 @@ The service starts with one task. The template leaves `DesiredCount` out on purp
 
 The defaults follow the post: a 600-second call cap, a 900-second deregistration delay, `stopTimeout` 120 s, protection for 15 minutes renewed every 5 minutes, and a 120-second health check grace period. To reproduce the post's test runs quickly, override `CallCapSeconds=90 DeregistrationDelaySeconds=180 RenewSeconds=60`.
 
+`CallCapSeconds` must be shorter than `DeregistrationDelaySeconds`, or a call that connects just before deregistration can be cut off when Amazon ECS stops the task. CloudFormation can't compare two parameters, so the calling task checks this at startup: if the rule doesn't hold, it logs `config_invalid` and exits before it protects itself or takes a call, and the service doesn't reach a steady state.
+
 ## Run
 
 `test/calls.py` needs the packages from `requirements-dev.txt` (see [Run the tests](#run-the-tests)). If the listener uses a private or self-signed certificate, set `CA_FILE` to its PEM file.
@@ -102,6 +104,8 @@ To run the same tests against another checkout, set `APP_REPO` to its path, for 
 ## Limitations
 
 - **A placed call's media stream must reach the task that placed it.** The sample assumes the carrier's stream for a call arrives at the task that dialed it. A load balancer listener rule can't route to a single task, and the tasks run in private subnets, so a real deployment typically needs a small proxy that looks up the call ID and forwards the stream to the placing task; the sample doesn't build that routing. The simulated carrier passes the call ID as a query string (`/ws?call=<id>`). Twilio stream URLs don't accept a query string, so with Twilio carry the ID in the URL path: a `<Parameter>` value arrives only in the stream's `start` message, after the connection opens.
+- **A task that can't confirm its protection reports healthy but takes no calls.** The task retries its first protection call for 60 seconds (`INITIAL_PROTECT_WINDOW_SECONDS`), then keeps retrying in the background. Until protection is confirmed, it stays `STARTING`: `/health` returns 200, so Amazon ECS doesn't replace it, but it refuses every `/ws` connection with HTTP 503, and the controller treats it as starting and doesn't scale in. The load balancer still routes some new calls to it, and those calls fail. To take such a task out of rotation instead, return 503 from `/health` until protection is confirmed; Amazon ECS then replaces it once the health check grace period (120 seconds) ends.
+- **Valkey is a single coordination dependency, and a lost write isn't repaired.** Valkey calls time out after `VALKEY_TIMEOUT_SECONDS` (5 seconds), and a task keeps its last known state when a read fails. The controller fails closed: a Valkey error ends the run, and the next run resumes from the persisted state. A task, however, records itself as `ACCEPTING` only once, when it answers its first load balancer health check. If that write fails, nothing retries it: the task serves calls, but the controller never counts it as accepting and refuses to scale in until the task restarts. For production, retry that write without overwriting a state the controller has set, and alarm on Valkey errors.
 - Valkey has no authentication in this sample; access is limited by security groups only.
 - An image or task definition update rolls slowly: every task is protected, so old tasks can't be stopped until they are drained or their protection lapses.
 

@@ -27,6 +27,9 @@ VALKEY_HOST = os.environ["VALKEY_HOST"]
 PROTECT_MINUTES = int(os.environ.get("PROTECT_MINUTES", "15"))
 RENEW_SECONDS = int(os.environ.get("RENEW_SECONDS", "300"))
 CALL_CAP_SECONDS = int(os.environ.get("CALL_CAP_SECONDS", "600"))
+# The target group's deregistration delay, passed in by the template. A call that connects just before
+# deregistration must end (at the call cap) before Amazon ECS stops the task, so the cap must be shorter.
+DEREGISTRATION_DELAY_SECONDS = int(os.environ.get("DEREGISTRATION_DELAY_SECONDS", "900"))
 RING_SECONDS = int(os.environ.get("RING_SECONDS", "20"))
 # A placed call counts as pending for its ring time plus this grace, so the controller's drain step waits
 # for a media stream that connects a little late.
@@ -410,7 +413,22 @@ async def initial_protect():
         delay = min(delay * 2, 8)
 
 
+def config_error():
+    """Return why the configuration is unsafe, or None. CloudFormation can't compare two parameters, so
+    the call cap vs deregistration delay rule is enforced here, before the task can take a call."""
+    if CALL_CAP_SECONDS >= DEREGISTRATION_DELAY_SECONDS:
+        return (f"CALL_CAP_SECONDS ({CALL_CAP_SECONDS}) must be shorter than DEREGISTRATION_DELAY_SECONDS "
+                f"({DEREGISTRATION_DELAY_SECONDS}), or a call that connects just before deregistration can be "
+                "cut off when Amazon ECS stops the task")
+    return None
+
+
 async def main():
+    error = config_error()
+    if error:
+        # Exit before protecting or serving, so a misconfigured service never takes a call.
+        log("config_invalid", error=error)
+        raise SystemExit(2)
     arn, listen_ip = await asyncio.to_thread(task_metadata)
     task = CallingTask(arn, listen_ip)
     # Protect before the task can be reached, so it is never eligible for scale-in while starting.
