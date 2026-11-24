@@ -1,0 +1,315 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Voice-ECS sample - calling service on AWS Fargate behind an HTTPS ALB, with a Valkey state store and a controller task
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: Container image URI in Amazon ECR, built from the Dockerfile in this repository
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Two or more public subnets in different Availability Zones, for the load balancer only
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Two or more private subnets in different Availability Zones, for the tasks, controller and cache. They need outbound access to AWS APIs (NAT gateway or VPC endpoints).
+  CertificateArn:
+    Type: String
+    AllowedPattern: "^arn:aws[a-z-]*:acm:[a-z0-9-]+:[0-9]{12}:certificate/[0-9a-f-]+$"
+    Description: AWS Certificate Manager certificate for the HTTPS listener (carriers connect over wss://)
+  AllowedCidr:
+    Type: String
+    AllowedPattern: "^([0-9]{1,3}\\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$"
+    ConstraintDescription: Must be an IPv4 CIDR, for example your telephony carrier's media IP range
+    Description: The only client CIDR allowed to reach the load balancer, for example your telephony carrier's media IP range
+  DeregistrationDelaySeconds:
+    Type: Number
+    Default: 900
+    MinValue: 0
+    MaxValue: 3600
+    Description: Must be longer than CallCapSeconds, so a draining task's calls finish before it stops. CloudFormation can't compare two parameters, so the calling task checks this at startup and exits if it doesn't hold
+  CallCapSeconds: { Type: Number, Default: 600, MinValue: 1 }
+  StopTimeoutSeconds: { Type: Number, Default: 120, MinValue: 2, MaxValue: 120 }
+  ProtectMinutes: { Type: Number, Default: 15, MinValue: 1, MaxValue: 2880 }
+  RenewSeconds: { Type: Number, Default: 300, MinValue: 30 }
+  RingSeconds: { Type: Number, Default: 20, MinValue: 1 }
+  PlacedCallGraceSeconds:
+    Type: Number
+    Default: 10
+    MinValue: 0
+    Description: How long after its ring time a placed call still counts as pending, so the controller waits for its media stream before releasing protection
+  EnableTestHooks: { Type: String, Default: "0", AllowedValues: ["0", "1"] }
+
+Rules:
+  NoOpenIngress:
+    Assertions:
+      - Assert: !Not [!Equals [!Ref AllowedCidr, "0.0.0.0/0"]]
+        AssertDescription: AllowedCidr must not be 0.0.0.0/0. Restrict it to your telephony carrier's IP ranges.
+
+Resources:
+  AlbSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load balancer - HTTPS from the allowed CIDR only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: !Ref AllowedCidr, Description: HTTPS from the allowed CIDR }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  TaskSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Calling tasks - port 8080 from the load balancer only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8080, ToPort: 8080, SourceSecurityGroupId: !Ref AlbSg, Description: Calls and health checks from the ALB }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  ControllerSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Controller task - no inbound
+      VpcId: !Ref VpcId
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  CacheSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Valkey - 6379 from tasks and controller only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 6379, ToPort: 6379, SourceSecurityGroupId: !Ref TaskSg, Description: Calling tasks }
+        - { IpProtocol: tcp, FromPort: 6379, ToPort: 6379, SourceSecurityGroupId: !Ref ControllerSg, Description: Controller }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+
+  LogsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Encrypts the sample's CloudWatch Logs log group
+      EnableKeyRotation: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdministration
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Principal: { Service: !Sub "logs.${AWS::Region}.amazonaws.com" }
+            Action: [kms:Encrypt, kms:Decrypt, kms:ReEncrypt*, kms:GenerateDataKey*, kms:Describe*]
+            Resource: "*"
+            Condition:
+              ArnLike:
+                "kms:EncryptionContext:aws:logs:arn": !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+
+  Cache:
+    Type: AWS::ElastiCache::ServerlessCache
+    Properties:
+      ServerlessCacheName: !Sub "voice-ecs-${AWS::StackName}"
+      Engine: valkey
+      MajorEngineVersion: "8"
+      SubnetIds: !Ref PrivateSubnetIds
+      SecurityGroupIds: [!Ref CacheSg]
+      CacheUsageLimits:
+        DataStorage: { Maximum: 1, Unit: GB }
+        ECPUPerSecond: { Maximum: 1000 }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups: [!Ref AlbSg]
+      LoadBalancerAttributes:
+        - { Key: routing.http.drop_invalid_header_fields.enabled, Value: "true" }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - { Key: deregistration_delay.timeout_seconds, Value: !Ref DeregistrationDelaySeconds }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates: [{ CertificateArn: !Ref CertificateArn }]
+      DefaultActions: [{ Type: forward, TargetGroupArn: !Ref TargetGroup }]
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterSettings: [{ Name: containerInsights, Value: enabled }]
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
+      KmsKeyId: !GetAtt LogsKey.Arn
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - { Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }
+      ManagedPolicyArns: [!Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"]
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  CallingTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - { Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  CallingTaskPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Lets a calling task read and set its own scale-in protection
+      Roles: [!Ref CallingTaskRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [ecs:GetTaskProtection, ecs:UpdateTaskProtection]
+            Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task/${Cluster}/*"
+  ControllerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - { Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  ControllerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Lets the controller manage task protection and the calling service's desired count
+      Roles: [!Ref ControllerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [ecs:GetTaskProtection, ecs:UpdateTaskProtection, ecs:DescribeTasks]
+            Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task/${Cluster}/*"
+          - Effect: Allow
+            Action: [ecs:UpdateService, ecs:DescribeServices]
+            Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${Cluster}/voice-calling"
+          - Effect: Allow
+            Action: ecs:ListTasks
+            Resource: "*"
+            Condition: { ArnEquals: { "ecs:cluster": !GetAtt Cluster.Arn } }
+
+  CallingTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      RuntimePlatform: { CpuArchitecture: ARM64, OperatingSystemFamily: LINUX }
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt CallingTaskRole.Arn
+      ContainerDefinitions:
+        - Name: calling
+          Image: !Ref ImageUri
+          Essential: true
+          ReadonlyRootFilesystem: true
+          StopTimeout: !Ref StopTimeoutSeconds
+          PortMappings: [{ ContainerPort: 8080, Protocol: tcp }]
+          Environment:
+            - { Name: VALKEY_HOST, Value: !GetAtt Cache.Endpoint.Address }
+            - { Name: CALL_CAP_SECONDS, Value: !Ref CallCapSeconds }
+            - { Name: DEREGISTRATION_DELAY_SECONDS, Value: !Ref DeregistrationDelaySeconds }
+            - { Name: PROTECT_MINUTES, Value: !Ref ProtectMinutes }
+            - { Name: RENEW_SECONDS, Value: !Ref RenewSeconds }
+            - { Name: RING_SECONDS, Value: !Ref RingSeconds }
+            - { Name: PLACED_CALL_GRACE_SECONDS, Value: !Ref PlacedCallGraceSeconds }
+            - { Name: STOP_TIMEOUT_SECONDS, Value: !Ref StopTimeoutSeconds }
+            - { Name: ENABLE_TEST_HOOKS, Value: !Ref EnableTestHooks }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: calling
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+  ControllerTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      RuntimePlatform: { CpuArchitecture: ARM64, OperatingSystemFamily: LINUX }
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt ControllerRole.Arn
+      ContainerDefinitions:
+        - Name: controller
+          Image: !Ref ImageUri
+          Essential: true
+          ReadonlyRootFilesystem: true
+          Command: [python, controller.py, status]
+          # Run an init process as PID 1 so SIGTERM from Amazon ECS reaches Python, whose handler
+          # releases the controller lease before exiting.
+          LinuxParameters:
+            InitProcessEnabled: true
+          Environment:
+            - { Name: VALKEY_HOST, Value: !GetAtt Cache.Endpoint.Address }
+            - { Name: CLUSTER, Value: !Ref Cluster }
+            - { Name: SERVICE, Value: voice-calling }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: controller
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+
+  CallingService:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      ServiceName: voice-calling
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref CallingTaskDef
+      # DesiredCount is deliberately omitted. The controller owns the count, and a value here would
+      # reset it on every stack update that touches the service. A new service starts with one task.
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration: { MaximumPercent: 200, MinimumHealthyPercent: 100 }
+      # A rebalance starts an extra task that protects itself, which can leave more protected tasks than the desired count.
+      AvailabilityZoneRebalancing: DISABLED
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!Ref TaskSg]
+      LoadBalancers:
+        - { ContainerName: calling, ContainerPort: 8080, TargetGroupArn: !Ref TargetGroup }
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+      Tags: [{ Key: Article, Value: Voice-ECS }]
+
+Outputs:
+  AlbDns: { Value: !GetAtt Alb.DNSName }
+  ClusterName: { Value: !Ref Cluster }
+  TargetGroupArn: { Value: !Ref TargetGroup }
+  ControllerTaskDef: { Value: !Ref ControllerTaskDef }
+  ControllerSg: { Value: !Ref ControllerSg }
+  PrivateSubnetIds: { Value: !Join [",", !Ref PrivateSubnetIds] }
+  LogGroup: { Value: !Ref LogGroup }
