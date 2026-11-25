@@ -150,8 +150,11 @@ if service == "s3api":
         if not s.get("no_stage_version"): assert arg("--version-id") == "template-v1"
         s["stage_removed"]=True;output()
     if op == "get-bucket-tagging":
+        if s.get("missing_bucket_tags") or (s.get("tags_removed_after_delete") and s.get("stack_deleted")):
+            error("NoSuchTagSet")
         output({"TagSet":[{"Key":"aws:cloudformation:stack-id",
                            "Value":"foreign" if s.get("foreign_bucket") else s["stack_id"]}]})
+    if op == "head-bucket": output({})
     if op == "list-multipart-uploads": output({"Uploads":objects["uploads"]})
     if op == "abort-multipart-upload":
         assert payload["Key"] == "upload\n"
@@ -293,6 +296,17 @@ class DestroyTests(unittest.TestCase):
 
     def test_foreign_bucket_is_not_modified(self):
         result, calls, _ = self.run_script("2", lambda s: s.update(foreign_bucket=True))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.writes(calls), [])
+
+    def test_bucket_tags_removed_by_stack_deletion(self):
+        result, _, state = self.run_script("2", lambda s: s.update(tags_removed_after_delete=True))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("meter-results", state["exists"])
+        self.assertIn("meter-archive", state["exists"])
+
+    def test_missing_bucket_tags_before_deletion_stops_cleanup(self):
+        result, calls, _ = self.run_script("2", lambda s: s.update(missing_bucket_tags=True))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.writes(calls), [])
 

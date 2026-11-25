@@ -139,7 +139,7 @@ esac
 
 # Stable identities protect against a same-name resource being replaced while deletion runs.
 identity() {
-  local row="$1" type name
+  local row="$1" type name stack_tag
   type="$(jq -r '.ResourceType' <<<"$row")"
   name="$(jq -r '.PhysicalResourceId' <<<"$row")"
   case "$type" in
@@ -152,11 +152,26 @@ identity() {
         { show_aws_error; return 1; }
       jq -er '.Role.RoleId' "$WORK/identity.json" ;;
     AWS::S3::Bucket)
-      aws_read s3api get-bucket-tagging --bucket "$name" --expected-bucket-owner "$ACCOUNT" >"$WORK/identity.json" ||
-        { show_aws_error; return 1; }
-      jq -er --arg stack "$STACK_ID" '
-        .TagSet[] | select(.Key == "aws:cloudformation:stack-id" and .Value == $stack) | .Value
-      ' "$WORK/identity.json" ;;
+      if aws_read s3api get-bucket-tagging --bucket "$name" --expected-bucket-owner "$ACCOUNT" >"$WORK/identity.json"; then
+        stack_tag="$(jq -r '[.TagSet[] | select(.Key == "aws:cloudformation:stack-id") | .Value][0] // empty' "$WORK/identity.json")"
+      elif grep -q '(NoSuchTagSet)' "$WORK/aws-error"; then
+        stack_tag=""
+      else
+        show_aws_error; return 1
+      fi
+      if [ "$stack_tag" = "$STACK_ID" ]; then
+        printf '%s\n' "$STACK_ID"
+      elif [ -z "$stack_tag" ] && [ "$STACK_DELETED" = true ] &&
+           [ "$(jq -r '.identity // empty' <<<"$row")" = "$STACK_ID" ]; then
+        # Stack deletion can remove tags from retained buckets. Only accept a
+        # bucket verified before deletion, with its account ownership rechecked.
+        aws_read s3api head-bucket --bucket "$name" --expected-bucket-owner "$ACCOUNT" >/dev/null ||
+          { show_aws_error; return 1; }
+        printf '%s\n' "$STACK_ID"
+      else
+        echo "error: Cannot verify stack ownership of bucket: $name" >&2
+        return 1
+      fi ;;
     AWS::Cognito::UserPool)
       aws_read cognito-idp describe-user-pool --user-pool-id "$name" >"$WORK/identity.json" ||
         { show_aws_error; return 1; }
