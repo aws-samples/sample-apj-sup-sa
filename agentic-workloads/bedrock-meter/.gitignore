@@ -1,0 +1,44 @@
+# Dependencies and build output
+node_modules/
+cdk.out/
+coverage/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.venv/
+venv/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env*.example
+/cdk-outputs.json
+
+# Local tools and OS files
+.claude/
+.codex/
+.DS_Store
+.playwright-mcp/
+/AGENTS.md
+/CLAUDE.md
+
+# Console build output
+client/app/.next/
+client/app/out/
+client/app/bff-lambda/dist/
+
+# Temporary screenshots captured at the repository root
+/audit-*.png
+/console-*.png
+/limit-*.png
+/overview-*.png
+/stats-*.png
+/user-*.png
+/users-*.png

@@ -1,0 +1,212 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.button_sm {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.button_md {
+  height: 38px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.button_primary {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.button_primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.button_secondary {
+  color: #1d2733;
+  background: #ffffff;
+  border-color: var(--border);
+}
+
+.button_secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: var(--border-strong);
+}
+
+.button_ghost {
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.button_ghost:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.button_danger {
+  color: #ffffff;
+  background: var(--danger);
+}
+
+.button_danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cardDescription {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cardContent {
+  padding: 18px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge_neutral {
+  color: #3f4854;
+  background: #f3f5f8;
+  border-color: #e0e6ef;
+}
+
+.badge_blue {
+  color: #1d4ed8;
+  background: #eaf1ff;
+  border-color: #c8dcff;
+}
+
+.badge_amber {
+  color: #a15c07;
+  background: #fff7e6;
+  border-color: #f6d58b;
+}
+
+.badge_red {
+  color: #b91c1c;
+  background: #fff1f1;
+  border-color: #fecaca;
+}
+
+.badge_green {
+  color: #0f766e;
+  background: #e8faf7;
+  border-color: #b7efe7;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  background: #edf1f6;
+  border-radius: 999px;
+}
+
+.progressValue {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.progress_blue {
+  background: var(--primary);
+}
+
+.progress_amber {
+  background: var(--warning);
+}
+
+.progress_red {
+  background: var(--danger);
+}
+
+.progress_green {
+  background: var(--success);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  color: var(--foreground);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.input {
+  height: 38px;
+  padding: 0 10px;
+}
+
+.textarea {
+  min-height: 84px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: rgba(37, 99, 235, 0.75);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
