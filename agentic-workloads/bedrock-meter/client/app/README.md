@@ -93,7 +93,7 @@ how we call `/config` in the first place, so it isn't read back from the respons
 
 ## Deploy
 
-Run from the project root with Node.js 24, AWS CLI v2, and `jq`:
+Run from the project root with Node.js 22.12 or later (24 recommended), AWS CLI v2, and `jq`:
 
 ```bash
 ./scripts/deploy-all.sh --bootstrap  # first account/region bootstrap and deployment

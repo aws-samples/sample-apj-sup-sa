@@ -23,7 +23,7 @@ with open(os.environ["CALLS"], "a") as f:
                        "profile": os.environ.get("AWS_PROFILE")}) + "\n")
 root = pathlib.Path(os.environ["TEST_ROOT"])
 if name == "node":
-    if "=== 24" in args[-1]:
+    if "process.versions.node" in args[-1]:
         sys.exit(1 if scenario.get("old_node") else 0)
     sys.exit(0)
 if name == "aws":

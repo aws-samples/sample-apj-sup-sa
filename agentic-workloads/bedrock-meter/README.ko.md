@@ -82,6 +82,132 @@ credits =
 Claude Code처럼 prompt caching 비중이 높은 workload에서 저렴한 cache read가 사용량을 과도하게
 부풀리지 않도록 하기 위한 상대 비용 단위입니다. 실제 AWS 청구 금액과 동일한 통화 단위는 아닙니다.
 
+## 설치
+
+### 1. 터미널 준비
+
+macOS 또는 Linux의 Bash(Windows는 WSL), AWS CLI v2, npm을 포함한 **Node.js 22.12 이상**(24 권장), `jq`가
+필요합니다. Python 3.12 이상은 Python 테스트, Core API 도구, 수동 보존 기간 도구에서만
+필요하며 `deploy-all.sh`에는 필요하지 않습니다. nvm을 사용한다면 `nvm install`, `nvm use`로
+`.nvmrc`의 버전을 적용합니다. 모든 명령은 이 프로젝트 디렉터리(상위 저장소의
+`agentic-workloads/bedrock-meter`)에서 실행합니다.
+
+AWS 자격증명/profile과 애플리케이션이 Bedrock을 호출하는 리전을 선택합니다.
+Named profile을 사용하는 예시는 다음과 같습니다.
+
+```bash
+export AWS_PROFILE=my-profile
+# 선택한 profile에 올바른 리전이 이미 있으면 생략 가능:
+export AWS_REGION=ap-northeast-2
+aws sts get-caller-identity
+node --version
+npm --version
+jq --version
+```
+
+먼저 평소 사용하는 AWS 로그인 절차를 완료합니다(SSO profile은 예를 들어
+`aws sso login --profile my-profile`). 계정은 STS에서 확인하며, 리전은 `AWS_REGION` →
+`AWS_DEFAULT_REGION` → 선택한 profile 순으로 결정합니다. 리전이 없거나 자격증명을 확인할
+수 없으면 중단합니다. 스크립트는 변경 전에 대상을 표시합니다. Bootstrap, 배포, 사용자 생성,
+이후 재배포 모두 같은 AWS 대상을 사용해야 합니다.
+
+배포 주체에는 CDK/CloudFormation 배포 권한이 필요하며 bootstrap은 지원 리소스도 생성합니다.
+[배포 권한](docs/DeveloperGuide.ko.md#배포-principal)을 확인하세요. 테스트 주체에는 별도로
+같은 리전에서 Bedrock 모델을 호출할 권한이 필요합니다.
+
+### 2. 프로젝트 옵션 설정
+
+```bash
+cp .env.deploy.example .env.deploy.local
+```
+
+파일을 운영자에 맞게 수정합니다.
+
+```dotenv
+BEDROCK_METER_ADMIN_USERNAMES=alice
+BEDROCK_METER_ADMIN_EMAILS=ops@example.com
+# 선택 사항: 생략하면 최초 배포 시 호스트 timezone을 감지하고 저장합니다.
+# BEDROCK_METER_QUOTA_TIME_ZONE=Asia/Seoul
+```
+
+`ADMIN_USERNAMES`는 Core API 관리자 경로를 직접 호출할 IAM username 목록이며,
+`ADMIN_EMAILS`는 SNS 알림 수신 이메일을 쉼표로 구분한 목록입니다. `QUOTA_TIME_ZONE`은
+최초 quota calendar 기준입니다. 이 파일은 Git에서 제외되며 배포·사용자 스크립트가 읽습니다.
+
+### 3. Bootstrap과 배포
+
+계정·리전의 최초 배포:
+
+```bash
+./scripts/deploy-all.sh --bootstrap
+```
+
+스크립트가 lockfile 의존성을 설치하고 정적 콘솔과 BFF를 빌드한 뒤 bootstrap, stack 배포를
+실행하고 `cdk-outputs.json`을 저장합니다. 이 CDK 앱은 synth에서도 콘솔 산출물이 필요하므로
+빌드를 bootstrap보다 먼저 실행합니다. 별도 `npx cdk bootstrap`은 필요하지 않습니다.
+
+이미 bootstrap된 대상에 재배포할 때:
+
+```bash
+./scripts/deploy-all.sh
+```
+
+새 ConfigTable에는 감지·지정한 timezone을 적용합니다. 기존 runtime 설정은 유지하며,
+**Limits → Global Quota Calendar**에서 변경합니다. 재배포는 과거 데이터의 보존 기간을
+backfill하지 않습니다. [수동 보존 기간 연장](docs/OperationalGuide.ko.md#수동-보존-기간-연장)을 참조하세요.
+
+실패하면 스크립트가 실패 단계를 표시합니다.
+[설치 실패와 수동 복구](docs/OperationalGuide.ko.md#설치-실패와-수동-복구)를 따르세요.
+Bedrock 로깅은 계정·리전 단위 singleton이므로 기존 설정과 충돌하면 소유자를 먼저 확인합니다.
+스크립트는 리소스를 자동 삭제하거나 로깅 overwrite를 자동 활성화하지 않습니다.
+
+### 4. 이메일 확인과 첫 관리자 생성
+
+각 알림 수신자에게 도착한 **AWS Notification - Subscription Confirmation** 이메일을
+승인합니다. 승인 전에는 SNS 이메일 알림을 받을 수 없습니다.
+
+같은 터미널의 AWS 대상을 사용하여 실행합니다.
+
+```bash
+scripts/add-console-admin.sh alice alice@example.com
+```
+
+실제 사용자 풀을 확인한 뒤 비밀번호를 숨김 입력으로 받습니다. Cognito username과 IAM
+username은 별개입니다. 선택적 자동 관리자 설정을 명시하지 않았다면 최초 콘솔에는 사용자가
+없습니다. 같은 사용자 명령을 다시 실행하면 비밀번호를 재설정하고 해당 권한 그룹을 지정합니다.
+
+읽기 전용 viewer:
+
+```bash
+scripts/add-console-viewer.sh bob bob@example.com
+```
+
+### 5. 콘솔 접속과 확인
+
+```bash
+jq -r '.BedrockMeterCoreStack.ConsoleUrl' cdk-outputs.json
+```
+
+URL을 열어 로그인합니다. 같은 리전의 테스트 주체로 Bedrock을 한 번 호출하고 사용량을
+확인합니다. 배포 완료만으로 로그인이나 Bedrock 로그 전달까지 검증된 것은 아닙니다.
+
+## 설치 후 확인
+
+1. 선택한 리전에서 테스트 IAM User로 Bedrock 모델을 호출합니다.
+2. 로그 전달 후 Users에 사용자와 사용량이 나타나는지 확인합니다(보통 5~30초, 지연 가능).
+3. S3 전달 이후 Statistics/history가 나타나기까지 약 10분을 허용합니다.
+4. SNS 구독이 `Confirmed`인지, viewer가 한도를 변경할 수 없는지 확인합니다.
+5. 운영자의 IAM User에는 충분한 한도 또는 검토한 `exempt` 정책을 설정합니다.
+
+같은 AWS 자격증명·리전으로 stack과 로깅 상태를 확인합니다.
+
+```bash
+aws bedrock get-model-invocation-logging-configuration
+aws cloudformation describe-stacks \
+  --stack-name BedrockMeterCoreStack \
+  --query 'Stacks[0].StackStatus' --output text
+```
+
 ## 동작 구조
 
 ```mermaid
@@ -163,53 +289,14 @@ CDN, CORS 구성이 필요 없고 `./scripts/deploy-all.sh` 한 번으로 함께
 Cognito token을 받은 BFF가 Core API에 SigV4로 접근하는 보안 경계는 유지해야 합니다. 상세 전환
 기준과 구성은 [DeveloperGuide.ko.md](docs/DeveloperGuide.ko.md)를 참고하세요.
 
-### DynamoDB와 Athena 사용 구분
-
-| 데이터 소스 | 사용하는 기능 |
-|---|---|
-| DynamoDB | 실시간 일별 token/credit 누적, 일·주·월 한도 판정, warning·차단 상태, 자동 해제 판단, 기본/사용자별 한도, 중복 집계 방지, audit log |
-| Athena | S3에 보관된 invocation log를 이용한 사용자별 이력, 사용자 순위, 모델별 합계와 시간·일 추세 |
-
-DynamoDB를 사용하는 Core API:
-
-- 현재 사용량: `GET /usage/me`, `GET /usage/{username}`, `GET /users/{username}`
-- 전체 사용자와 추세: `GET /users`, `GET /usage/aggregate`, `GET /usage/history/all`
-- 한도: `GET /limits/me`, `GET /limits/{username}`, `PUT /limits/{username}`,
-  `DELETE /limits/{username}`
-- 운영: `GET /admin/blocked`, `POST /admin/unblock/{username}`, `GET /admin/audit`
-
-Athena를 사용하는 Core API:
-
-- 사용자 이력: `GET /usage/me/history`, `GET /usage/{username}/history`,
-  `GET /users/{username}/history`
-- 분석: `GET /usage/top`, `GET /usage/by-model`, `GET /usage/by-model/trend`
-
-따라서 Athena 또는 S3 전달이 지연되어도 사용량 집계와 차단은 계속 동작합니다. DynamoDB 조회는
-최근 상태에 적합하고, Athena 조회는 invocation 원본을 모델·시간별로 분석하는 데 적합합니다.
-
 ### 현재 구성이 적합한 이유와 확장 시점
 
 현재의 DynamoDB + raw JSON S3 + Athena 구성은 초기·중간 규모에 적합합니다. 한도 판정은 빠르고
-예측 가능한 DynamoDB에 두면서, 모델·시간처럼 조회 축이 달라질 수 있는 분석은 Athena가 원본 로그를
-읽게 하므로 별도의 분석 서버나 모델별 DynamoDB index를 미리 운영할 필요가 없습니다.
-
-다음 현상이 반복되기 전에는 분석 저장소를 더 추가하지 않는 것을 권장합니다.
-
-- Statistics/history 조회가 자주 5~10초 이상 걸린다.
-- `Athena ProcessedBytes > 2GB/hour` alarm이 일시적이 아니라 반복해서 발생한다.
-- 일반적인 30일 조회 하나가 수백 MB~1GB 이상을 계속 스캔한다.
-- Bedrock archive가 하루 수 GB 이상이거나 작은 JSON object가 하루 수천 개 이상 생성된다.
-- 여러 운영자가 dashboard를 자주 조회하거나 6~12개월 이상의 추세를 반복 조회한다.
-- Athena 비용이 전체 운영비에서 검토가 필요한 비중으로 증가한다.
-
-이때는 원본 JSON을 삭제하거나 enforcement를 바꾸는 대신, `날짜 × principal × model`별 token과
-invocation을 Snappy 압축 Parquet으로 일별 집계하는 분석 계층을 추가할 수 있습니다. 콘솔 통계는
-작은 Parquet 집계를 읽고, 원본 S3 로그는 감사와 상세 조사에 그대로 보존합니다. 당일 데이터까지
-짧은 지연으로 보여야 한다면 일별 대신 시간별 집계 또는 완료된 과거 Parquet과 당일 raw log를
-함께 조회하는 방식을 사용합니다.
-
-자세한 판단 기준과 구현 원칙은 [DeveloperGuide.ko.md](docs/DeveloperGuide.ko.md)와
-[OperationalGuide.ko.md](docs/OperationalGuide.ko.md)를 참고하세요.
+예측 가능한 DynamoDB에 두고, 분석은 별도 분석 서버 없이 Athena가 원본 로그를 읽습니다.
+Statistics/history 조회 지연이나 Athena 스캔 alarm·비용이 반복되면 분석 경로에만 일별 Parquet
+집계 계층을 추가하고, 한도 판정은 DynamoDB에 그대로 둡니다. 판단 기준은
+[DesignDoc.ko.md §12.3](docs/DesignDoc.ko.md#123-athena-확장-경계), 구현 방법은
+[DeveloperGuide.ko.md §2.7](docs/DeveloperGuide.ko.md#27-athena-확장-판단과-parquet-집계)을 참고하세요.
 
 ## 사용하는 AWS 서비스
 
@@ -252,137 +339,6 @@ invocation을 Snappy 압축 Parquet으로 일별 집계하는 분석 계층을 �
 경고선을 한 번에 건너뛰어 100% 이상이 되면 `WARNING` 없이 바로 `BLOCKED`가 발송될 수 있습니다.
 `exempt: true`인 principal은 사용량은 기록하지만 경고와 차단은 수행하지 않습니다.
 
-## 설치
-
-### 1. 터미널 준비
-
-macOS 또는 Linux의 Bash(Windows는 WSL), AWS CLI v2, npm을 포함한 **Node.js 24**, `jq`가
-필요합니다. Python 3.12 이상은 Python 테스트, Core API 도구, 수동 보존 기간 도구에서만
-필요하며 `deploy-all.sh`에는 필요하지 않습니다. nvm을 사용한다면 `nvm install`, `nvm use`로
-`.nvmrc`의 버전을 적용합니다. 모든 명령은 이 프로젝트 디렉터리(상위 저장소의
-`agentic-workloads/bedrock-meter`)에서 실행합니다.
-
-AWS 자격증명/profile과 애플리케이션이 Bedrock을 호출하는 리전을 선택합니다.
-Named profile을 사용하는 예시는 다음과 같습니다.
-
-```bash
-export AWS_PROFILE=my-profile
-# 선택한 profile에 올바른 리전이 이미 있으면 생략 가능:
-export AWS_REGION=ap-northeast-2
-aws sts get-caller-identity
-node --version
-npm --version
-jq --version
-```
-
-먼저 평소 사용하는 AWS 로그인 절차를 완료합니다(SSO profile은 예를 들어
-`aws sso login --profile my-profile`). 계정은 STS에서 확인하며, 리전은 `AWS_REGION` →
-`AWS_DEFAULT_REGION` → 선택한 profile 순으로 결정합니다. 리전이 없거나 자격증명을 확인할
-수 없으면 중단합니다. 스크립트는 변경 전에 대상을 표시합니다. Bootstrap, 배포, 사용자 생성,
-이후 재배포 모두 같은 AWS 대상을 사용해야 합니다.
-
-배포 주체에는 CDK/CloudFormation 배포 권한이 필요하며 bootstrap은 지원 리소스도 생성합니다.
-[배포 권한](docs/DeveloperGuide.ko.md#배포-principal)을 확인하세요. 테스트 주체에는 별도로
-같은 리전에서 Bedrock 모델을 호출할 권한이 필요합니다.
-
-### 2. 프로젝트 옵션 설정
-
-```bash
-cp .env.deploy.example .env.deploy.local
-```
-
-파일을 운영자에 맞게 수정합니다.
-
-```dotenv
-BEDROCK_METER_ADMIN_USERNAMES=alice
-BEDROCK_METER_ADMIN_EMAILS=ops@example.com
-# 선택 사항: 생략하면 최초 배포 시 호스트 timezone을 감지하고 저장합니다.
-# BEDROCK_METER_QUOTA_TIME_ZONE=Asia/Seoul
-```
-
-`ADMIN_USERNAMES`는 Core API 관리자 경로를 직접 호출할 IAM username 목록이며,
-`ADMIN_EMAILS`는 SNS 알림 수신 이메일을 쉼표로 구분한 목록입니다. `QUOTA_TIME_ZONE`은
-최초 quota calendar 기준입니다. 이 파일은 Git에서 제외되며 배포·사용자 스크립트가 읽습니다.
-
-**AWS 자격증명·profile·리전은 이 파일에 넣지 않습니다.** 터미널 또는 AWS profile에 설정합니다.
-기존 안내에서 전환한다면 `CDK_DEFAULT_ACCOUNT`, `CDK_DEFAULT_REGION`을 제거하세요.
-이 값과 기존 `REGION`은 이제 대상을 선택하지 않습니다. `AWS_*` 환경 설정을 변경하는 파일은
-AWS 호출 전에 거부합니다.
-
-### 3. Bootstrap과 배포
-
-계정·리전의 최초 배포:
-
-```bash
-./scripts/deploy-all.sh --bootstrap
-```
-
-스크립트가 lockfile 의존성을 설치하고 정적 콘솔과 BFF를 빌드한 뒤 bootstrap, stack 배포를
-실행하고 `cdk-outputs.json`을 저장합니다. 이 CDK 앱은 synth에서도 콘솔 산출물이 필요하므로
-빌드를 bootstrap보다 먼저 실행합니다. 별도 `npx cdk bootstrap`은 필요하지 않습니다.
-
-이미 bootstrap된 대상에 재배포할 때:
-
-```bash
-./scripts/deploy-all.sh
-```
-
-새 ConfigTable에는 감지·지정한 timezone을 적용합니다. 기존 runtime 설정은 유지하며,
-**Limits → Global Quota Calendar**에서 변경합니다. 재배포는 과거 데이터의 보존 기간을
-backfill하지 않습니다. [수동 보존 기간 연장](docs/OperationalGuide.ko.md#수동-보존-기간-연장)을 참조하세요.
-
-실패하면 스크립트가 실패 단계를 표시합니다.
-[설치 실패와 수동 복구](docs/OperationalGuide.ko.md#설치-실패와-수동-복구)를 따르세요.
-Bedrock 로깅은 계정·리전 단위 singleton이므로 기존 설정과 충돌하면 소유자를 먼저 확인합니다.
-스크립트는 리소스를 자동 삭제하거나 로깅 overwrite를 자동 활성화하지 않습니다.
-
-### 4. 이메일 확인과 첫 관리자 생성
-
-각 알림 수신자에게 도착한 **AWS Notification - Subscription Confirmation** 이메일을
-승인합니다. 승인 전에는 SNS 이메일 알림을 받을 수 없습니다.
-
-같은 터미널의 AWS 대상을 사용하여 실행합니다.
-
-```bash
-scripts/add-console-admin.sh alice alice@example.com
-```
-
-실제 사용자 풀을 확인한 뒤 비밀번호를 숨김 입력으로 받습니다. Cognito username과 IAM
-username은 별개입니다. 선택적 자동 관리자 설정을 명시하지 않았다면 최초 콘솔에는 사용자가
-없습니다. 같은 사용자 명령을 다시 실행하면 비밀번호를 재설정하고 해당 권한 그룹을 지정합니다.
-
-읽기 전용 viewer:
-
-```bash
-scripts/add-console-viewer.sh bob bob@example.com
-```
-
-### 5. 콘솔 접속과 확인
-
-```bash
-jq -r '.BedrockMeterCoreStack.ConsoleUrl' cdk-outputs.json
-```
-
-URL을 열어 로그인합니다. 같은 리전의 테스트 주체로 Bedrock을 한 번 호출하고 사용량을
-확인합니다. 배포 완료만으로 로그인이나 Bedrock 로그 전달까지 검증된 것은 아닙니다.
-
-## 설치 후 확인
-
-1. 선택한 리전에서 테스트 IAM User로 Bedrock 모델을 호출합니다.
-2. 로그 전달 후 Users에 사용자와 사용량이 나타나는지 확인합니다(보통 5~30초, 지연 가능).
-3. S3 전달 이후 Statistics/history가 나타나기까지 약 10분을 허용합니다.
-4. SNS 구독이 `Confirmed`인지, viewer가 한도를 변경할 수 없는지 확인합니다.
-5. 운영자의 IAM User에는 충분한 한도 또는 검토한 `exempt` 정책을 설정합니다.
-
-같은 AWS 자격증명·리전으로 stack과 로깅 상태를 확인합니다.
-
-```bash
-aws bedrock get-model-invocation-logging-configuration
-aws cloudformation describe-stacks \
-  --stack-name BedrockMeterCoreStack \
-  --query 'Stacks[0].StackStatus' --output text
-```
-
 ## Core API 빠른 사용
 
 Core API는 IAM authorizer를 사용하므로 SigV4 서명이 필요합니다.
@@ -403,7 +359,29 @@ scripts/api-call.py PUT '/limits/alice' '{"dailyTokenLimit":2000000}'
 scripts/api-call.py POST '/admin/unblock/alice'
 ```
 
-전체 endpoint와 schema는 [docs/API.ko.md](docs/API.ko.md)를 참고하세요.
+전체 endpoint와 schema는 [API.ko.md](docs/API.ko.md)를 참고하세요.
+
+## 삭제
+
+프로젝트 디렉터리에서 배포에 사용한 같은 터미널/profile과 리전으로 실행합니다.
+
+```bash
+bash scripts/destroy-all.sh
+```
+
+터미널에 배포할 때의 AWS 설정이 남아 있다면 다시 export할 필요가 없습니다.
+스크립트가 계정·리전을 자동으로 읽어 표시하며, 사용자에게 다시 입력받지 않습니다.
+
+영문 질문에서 한 번만 선택합니다. **1**은 서비스를 삭제하고 데이터를 보존하며, **2**는
+목록에 표시된 데이터 리소스까지 삭제합니다. Enter는 취소입니다. 계정·리전을 다시 입력하거나
+CDK를 빌드할 필요가 없습니다. Node.js/Python 없이 AWS CLI v2와 `jq`를 사용합니다.
+
+**두 모드 모두 Bedrock 호출 로그와 로깅 설정을 보존합니다.** 호출 로그용 CloudWatch Log Group,
+S3 저장소, 전달 역할·권한도 삭제하지 않습니다. 삭제 대상은 선택한 stack이 관리하는 Meter 리소스와
+Meter가 기록된 주체에 붙인 quota deny 정책뿐입니다. Stack 밖의 IAM 사용자·역할, 공유 CDK
+bootstrap 리소스, 별도 백업·export 사본은 제외합니다. 2번은 Meter의 사용량·설정·감사 테이블,
+콘솔 사용자 풀, 조회 결과 저장소 등 목록에 표시된 Meter 데이터까지 삭제합니다.
+[상세 삭제 안내](docs/OperationalGuide.ko.md#삭제)를 참고하세요.
 
 ## 주요 제약
 
@@ -435,12 +413,10 @@ docs/OperationalGuide.ko.md     운영자 절차와 장애 대응
 
 ## 다음 문서
 
-- [InstallationReadinessPlan.ko.md](docs/InstallationReadinessPlan.ko.md): 첫 설치 개선의 구현 범위와 검증 상태
 - [DeveloperGuide.ko.md](docs/DeveloperGuide.ko.md): AWS 리소스, 코드 구조, 정책 불변조건, 테스트와 배포
 - [OperationalGuide.ko.md](docs/OperationalGuide.ko.md): 한도, 예외, 차단 해제, 계정, 알림, 운영 runbook
-- [docs/API.ko.md](docs/API.ko.md): Core API endpoint와 request/response
+- [API.ko.md](docs/API.ko.md): Core API endpoint와 request/response
 - [DesignDoc.ko.md](docs/DesignDoc.ko.md): 현재 아키텍처, 설계 결정, 정합성 모델과 불변조건
-- [docs/architecture.drawio](docs/architecture.drawio): 편집 가능한 아키텍처 다이어그램
 - [콘솔 README](client/app/README.ko.md): 콘솔 구조, 인증과 로컬 개발
 - [CDK README](cdk/README.ko.md): 인프라 명령어와 배포 환경
 

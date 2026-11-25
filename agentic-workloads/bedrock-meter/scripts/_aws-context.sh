@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared by deployment and console-user scripts. Source this file; do not execute it.
+# Shared by deployment, console-user, and uninstall scripts. Source this file; do not execute it.
 
 require_tool() {
   command -v "$1" >/dev/null 2>&1 || {

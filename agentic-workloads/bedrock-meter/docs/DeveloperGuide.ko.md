@@ -658,7 +658,7 @@ quota timezone, 한도, warning threshold, exempt, credit weight는 ConfigTable�
 
 ### 9.1 의존성
 
-Node.js 24를 사용합니다(`.nvmrc`). 아래 Python 명령은 virtualenv를 사용합니다.
+Node.js 22.12 이상을 사용합니다(`.nvmrc`는 24 권장). 아래 Python 명령은 virtualenv를 사용합니다.
 
 ```bash
 cd cdk && npm ci && cd ..
@@ -788,7 +788,7 @@ git diff
 ```
 
 최초 계정·리전 준비가 필요하면 `./scripts/deploy-all.sh --bootstrap`을 사용합니다.
-스크립트는 Node.js 24와 필수 도구를 확인하고 현재 AWS 자격증명으로 계정을 조회합니다.
+스크립트는 Node.js 22.12 이상과 필수 도구를 확인하고 현재 AWS 자격증명으로 계정을 조회합니다.
 리전은 `AWS_REGION` → `AWS_DEFAULT_REGION` → 선택한 profile 순서이며, 없으면 중단합니다.
 계정·리전은 `.env.deploy.local`에서 설정하지 않습니다.
 

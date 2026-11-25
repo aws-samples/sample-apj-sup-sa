@@ -709,8 +709,66 @@ BEDROCK_METER_QUOTA_TIME_ZONE=Asia/Seoul ./scripts/deploy-all.sh
 - Lambda/HTTP API와 운영 log groups: stack 관리
 - Bedrock logging configuration: stack 삭제 시 기본적으로 유지
 
-stack 삭제만으로 모든 데이터가 삭제되지 않습니다. 완전한 폐기에는 retained resource와 account-level
-Bedrock logging을 별도 승인 절차로 정리해야 합니다.
+일반 stack 삭제는 보존 데이터를 남깁니다. 아래 삭제 스크립트에서 보존 또는 전체 삭제를 한 번 선택할 수 있습니다.
+
+### 삭제
+
+배포에 사용한 같은 AWS 터미널/profile과 리전으로 프로젝트 디렉터리에서 실행합니다.
+
+```bash
+bash scripts/destroy-all.sh
+```
+
+계정·리전은 스크립트가 자동으로 읽어 표시하므로 다시 입력하지 않습니다.
+실제 `BedrockMeterCoreStack`을 조회하여 보존 리소스 이름을 표시하며,
+`cdk-outputs.json`, 빌드 산출물, 새 설정 파일에 의존하지 않습니다. 질문은 아래 영문 선택 한 번입니다.
+
+```text
+How would you like to uninstall Bedrock Meter?
+
+1. Remove the service, keep stored data
+   Preserve Meter usage, settings, audit records, and console users.
+
+2. Remove the service and Meter data
+   Permanently delete the listed data resources.
+
+Select [1/2, Enter to cancel]:
+```
+
+선택 자체가 해당 삭제의 최종 확인이며 추가로 묻지 않습니다. 데이터 보존 모드는 배포된
+템플릿의 보존 정책을 따릅니다. 이후 새 배포가 이 리소스를 자동으로 재사용하지는 않습니다.
+전체 삭제 모드는 stack 삭제 후 목록에 표시된 Meter 데이터도 정리하며, Meter 조회 결과 bucket의
+객체 버전·delete marker·미완료 multipart upload를 포함합니다. Object Lock, 리소스 삭제 보호,
+예상하지 못한 IAM 역할 연결은 강제로 해제하지 않습니다.
+
+**Bedrock 호출 로그는 두 모드 모두 제외합니다.** Bedrock 로깅 설정을 변경하거나 중단하지 않고,
+템플릿에서 호출 로그용으로 선언한 저장소·역할 및 현재 로깅 대상과 관련 전달 권한을 보존합니다.
+템플릿에 명시하지 않은 `videoDataDeliveryEnabled` 같은 옵션 때문에 삭제가 중단되지 않습니다.
+로깅을 유지하는 데 필요한 역할 권한과 bucket policy도 보존하므로, 로그 저장소만 남기고 로그
+전달 권한을 삭제하는 동작을 방지합니다.
+
+이 보존 정책이 없는 기존 stack은 삭제 전에 해당 리소스의 보존 정책만 갱신합니다. 애플리케이션
+코드를 빌드하거나 변경하지 않습니다. 큰 템플릿은 검증된 Meter 조회 결과 bucket에 잠시 저장하고
+갱신 후 해당 객체 버전을 제거합니다. Bedrock 호출 로그용 bucket은 staging에도 사용하지 않습니다.
+보존 정책 갱신·확인에 실패하면 stack 삭제를 시작하지 않습니다.
+
+Stack 삭제 후 진행 중이던 metering 요청이 끝나도록 기다린 뒤, 사용량 테이블에 기록된 IAM
+주체에서 Meter의 정확한 quota deny 정책만 제거합니다. 외부 IAM 사용자·역할 자체는 삭제하지
+않습니다. 현재 stack이 관리하지 않는 리소스를 이름만으로 찾아 삭제하지 않습니다.
+
+Stack 조회·갱신·삭제 권한과 선택한 Meter 데이터 삭제 권한이 필요합니다. 기존 stack의 큰
+템플릿 갱신에는 Meter 조회 결과 bucket의 객체 업로드·삭제 권한도 필요합니다. Quota 정리에는
+사용량 테이블 Scan, IAM inline policy 조회·삭제 권한이 필요합니다. AWS CLI v2와 `jq`만 사용합니다.
+
+실패 시 nonzero로 종료하고 stack ARN과 삭제가 확인되지 않은 리소스를 표시합니다. 이미
+stack이 삭제됐다면 이 목록으로 수동 정리합니다. 스크립트 재실행이 이름만 보고 과거 리소스를
+찾아 삭제하지는 않습니다. Stack이 없으면 아무것도 변경하지 않습니다. 삭제 중에는 해당
+설치의 리소스를 다른 작업에서 변경하지 마세요.
+
+“전체 삭제”의 범위는 목록에 표시된 stack 소유 리소스입니다. PITR이 활성화된 DynamoDB
+테이블 삭제 후 AWS가 system recovery backup을 보존할 수 있습니다. 이런 AWS 복구 사본,
+독립적인 AWS Backup 복구 지점, CloudTrail 기록, export 사본은 삭제 범위 밖이며,
+공유 CDK bootstrap 리소스도 유지합니다.
 
 ### 수동 보존 기간 연장
 
@@ -753,7 +811,7 @@ aws cloudformation describe-stack-events --stack-name BedrockMeterCoreStack \
   --output table
 ```
 
-- **도구/빌드:** Node.js 24, AWS CLI v2, `jq`를 사용합니다. 원래 npm/빌드 오류를 해결하고
+- **도구/빌드:** Node.js 22.12 이상(24 권장), AWS CLI v2, `jq`를 사용합니다. 원래 npm/빌드 오류를 해결하고
   재실행합니다. 빌드 실패 시 stack 변경은 시도하지 않습니다. 프로젝트 설정 파일에서 `AWS_*`를
   변경하지 말고 기존 `CDK_DEFAULT_*` 계정·리전 항목을 제거합니다.
 - **자격증명/리전:** 선택한 AWS 로그인을 갱신하고 `AWS_REGION` 또는 profile 리전을 설정합니다.
@@ -776,7 +834,7 @@ aws cloudformation describe-stack-events --stack-name BedrockMeterCoreStack \
   조회 또는 Cognito 오류를 해결한 뒤 사용자 명령을 재실행합니다. 오래된 로컬 출력 파일로 자동
   전환하지 않습니다. 명령 재실행은 해당 사용자의 비밀번호와 권한 등급을 다시 설정합니다.
 
-수동 복구 후 배포 명령을 재실행합니다. 스크립트는 보존 리소스를 자동 삭제하거나 bucket을
+수동 복구 후 배포 명령을 재실행합니다. 배포 스크립트는 보존 리소스를 자동 삭제하거나 bucket을
 비우거나 로깅 overwrite를 활성화하지 않습니다. 비어 있지 않은 bucket은 내용을 보존할지
 운영자가 먼저 결정해야 합니다. Uninstall은 stack 삭제 전에 리소스를 확인하고, 남은 데이터·
 계측 대상 IAM 주체의 차단 정책·계정 단위 Bedrock 로깅을 별도로 검토합니다. 새 설치를 위해

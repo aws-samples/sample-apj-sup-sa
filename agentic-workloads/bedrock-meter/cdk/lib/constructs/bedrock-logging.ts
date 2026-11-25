@@ -27,7 +27,7 @@ export class BedrockLogging extends Construct {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    this.archiveBucket = new s3.Bucket(this, 'LogArchiveBucket', {
+    const archiveBucket = new s3.Bucket(this, 'LogArchiveBucket', {
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       lifecycleRules: [{
@@ -43,6 +43,7 @@ export class BedrockLogging extends Construct {
       }],
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+    this.archiveBucket = archiveBucket;
 
     const accountId = cdk.Stack.of(this).account;
 
@@ -60,6 +61,9 @@ export class BedrockLogging extends Construct {
         },
       },
     }));
+    // Bedrock invocation logging outlives the Meter service. Preserve delivery
+    // permissions along with the bucket, log group, and role on stack deletion.
+    archiveBucket.policy?.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     const bedrockLoggingRole = new iam.Role(this, 'BedrockLoggingRole', {
       assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com', {
@@ -77,6 +81,8 @@ export class BedrockLogging extends Construct {
 
     this.logGroup.grantWrite(bedrockLoggingRole);
     this.archiveBucket.grantPut(bedrockLoggingRole);
+    (bedrockLoggingRole.node.findChild('DefaultPolicy') as iam.Policy)
+      .applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     // putModelInvocationLoggingConfiguration parameters를 한 번만 정의하고 onCreate/onUpdate 양쪽에서 재사용.
     // onUpdate가 없으면 textDataDeliveryEnabled 같은 setting 변경이 기존 stack에 반영되지 않는다.
@@ -129,6 +135,8 @@ export class BedrockLogging extends Construct {
         DeleteOnRemoval: config.deleteBedrockLoggingOnStackRemoval,
       },
     });
+    // Never send a Delete event that could change the account/region logging setting.
+    resource.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
     resource.node.addDependency(bedrockLoggingRole);
 
     // Migration shim for stacks deployed before the ownership-aware provider existed.

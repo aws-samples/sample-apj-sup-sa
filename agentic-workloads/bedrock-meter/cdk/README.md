@@ -17,7 +17,7 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 ## Deployment environment
 
-Use Node.js 24. From the project root, run `./scripts/deploy-all.sh --bootstrap` for first installation
+Use Node.js 22.12 or later (24 recommended). From the project root, run `./scripts/deploy-all.sh --bootstrap` for first installation
 and `./scripts/deploy-all.sh` for redeployment. The script builds the console before bootstrap/synth
 can evaluate its artifact guard.
 

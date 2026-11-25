@@ -711,8 +711,67 @@ Redeployment alone does not change an existing installation's timezone. Change i
 - Lambda/HTTP API and operational Log Groups: Managed by the stack
 - Bedrock logging configuration: Retained by default on stack deletion
 
-Deleting the stack does not delete all data. Complete disposal requires a separately approved
-cleanup of retained resources and account-level Bedrock logging.
+Ordinary stack deletion retains stored data. The uninstall script below offers one choice to keep or remove it.
+
+### Uninstall
+
+Use the same AWS terminal/profile and region as deployment. From the project directory, run:
+
+```bash
+bash scripts/destroy-all.sh
+```
+
+The script resolves and displays the account and region without asking you to enter them.
+It reads the live `BedrockMeterCoreStack` and displays its retained
+resource names; it does not rely on `cdk-outputs.json`, build artifacts, or a new configuration file.
+The only question is:
+
+```text
+How would you like to uninstall Bedrock Meter?
+
+1. Remove the service, keep stored data
+   Preserve Meter usage, settings, audit records, and console users.
+
+2. Remove the service and Meter data
+   Permanently delete the listed data resources.
+
+Select [1/2, Enter to cancel]:
+```
+
+The choice authorizes the selected deletion; there is no second confirmation. Keep-data mode follows
+the deployed template's retention policies. A fresh deployment does not automatically reattach those
+retained resources. Full removal deletes the listed Meter data after stack deletion, including versions,
+delete markers, and unfinished uploads in Meter query-results buckets. It does not force deletion past
+object locks, deletion protection, or unexpected IAM role attachments.
+
+**Bedrock invocation logs are excluded in both modes.** The script never changes or disables Bedrock
+logging configuration. It preserves destinations/roles declared for invocation logging in the template,
+currently configured logging destinations, and their delivery permissions. An option omitted from the
+template, such as `videoDataDeliveryEnabled`, no longer blocks uninstall. Logging IAM permissions and
+bucket policies are retained along with the storage, so removing Meter does not remove log-delivery access.
+
+For older stacks lacking these retention policies, the script first updates only the relevant retention
+policies. It does not build or change application code. Large templates are temporarily staged in a verified
+Meter query-results bucket and that exact object version is removed after the update; invocation-log buckets
+are never used for staging. If updating or verifying retention fails, stack deletion does not start.
+
+After deleting the stack and waiting for in-flight metering requests, it removes Meter's exact quota-deny
+policy from principals recorded in the usage table. Those external IAM users/roles are not deleted.
+Resources not managed by this stack are never discovered and deleted solely by name.
+
+Permissions are required to inspect/update/delete the stack and remove selected Meter data. Older large
+templates additionally require object upload/delete access to the Meter query-results bucket. Quota cleanup
+requires usage-table Scan and IAM inline-policy read/delete permissions. Only AWS CLI v2 and `jq` are needed.
+
+If an operation fails, it exits nonzero and prints the stack ARN and resources not confirmed removed.
+If the stack has already been deleted, use that list for manual cleanup; rerunning the script does not
+guess ownership of old resources by name. If no stack exists, it makes no changes. Do not change this
+installation's resources concurrently with uninstall.
+
+“Full removal” refers to the listed stack-owned resources, not backups or copies held elsewhere.
+DynamoDB can retain a system recovery backup after deleting a PITR-enabled table; those AWS-managed
+recovery copies, independent AWS Backup recovery points, CloudTrail records, and exported copies are
+outside this script's scope. Shared CDK bootstrap resources are also preserved.
 
 ### Manual retention extension
 
@@ -757,7 +816,7 @@ aws cloudformation describe-stack-events --stack-name BedrockMeterCoreStack \
   --output table
 ```
 
-- **Tools/build:** Use Node.js 24, AWS CLI v2 and `jq`. Resolve the original npm/build error and rerun;
+- **Tools/build:** Use Node.js 22.12 or later (24 recommended), AWS CLI v2 and `jq`. Resolve the original npm/build error and rerun;
   no stack mutation is attempted when the build fails. Project configuration files must not change
   `AWS_*` settings. Remove legacy `CDK_DEFAULT_*` account/region entries.
 - **Credentials/region:** Refresh the selected AWS login. Set `AWS_REGION` or a profile region.
@@ -781,7 +840,7 @@ aws cloudformation describe-stack-events --stack-name BedrockMeterCoreStack \
   Retry the user command after correcting the lookup or Cognito error. It never silently uses an old
   local output file. Re-running the command resets that user's password and requested tier.
 
-After manual recovery, rerun the deployment command. Scripts never automatically delete retained
+After manual recovery, rerun the deployment command. Deployment scripts never automatically delete retained
 resources, empty buckets, or enable logging overwrite. A non-empty bucket needs an explicit operator
 decision about its contents before manual removal. For uninstall, inspect resources before deleting
 the stack and separately review retained data, IAM blocking policies on metered principals, and

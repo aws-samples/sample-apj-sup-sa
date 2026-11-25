@@ -84,6 +84,132 @@ credits =
 This relative cost unit prevents inexpensive cache reads from inflating measured usage in
 prompt-cache-heavy workloads such as Claude Code. It is not a currency unit equivalent to an AWS bill.
 
+## Installation
+
+### 1. Prepare the terminal
+
+Use Bash on macOS or Linux (Windows users: WSL), AWS CLI v2, **Node.js 22.12 or later** with npm (24 recommended), and `jq`.
+Python 3.12 or later is only needed for the Python tests, Core API helper, and manual retention tool;
+it is not required by `deploy-all.sh`. If you use nvm, run `nvm install` and `nvm use` to read `.nvmrc`.
+Run all commands from this project's directory (`agentic-workloads/bedrock-meter` in the parent repository).
+
+Select your AWS credentials/profile and the region where your applications invoke Bedrock. For example,
+if you use a named profile:
+
+```bash
+export AWS_PROFILE=my-profile
+# Optional if the selected profile already contains the correct region:
+export AWS_REGION=ap-northeast-2
+aws sts get-caller-identity
+node --version
+npm --version
+jq --version
+```
+
+Use your normal AWS sign-in flow first (for example `aws sso login --profile my-profile` for an SSO profile).
+The scripts derive the account from STS and choose the region from `AWS_REGION`, then
+`AWS_DEFAULT_REGION`, then the selected profile. They stop if no region is configured or credentials
+cannot be verified. They display the target before making changes. Keep the same AWS target for
+bootstrap, deployment, user creation, and later redeployment.
+
+The deployment principal needs CDK/CloudFormation deployment permissions; bootstrap also creates
+its supporting resources. See [deployment permissions](docs/DeveloperGuide.md#deployment-principal).
+A test principal must separately have permission to invoke a Bedrock model in this region.
+
+### 2. Set project options
+
+```bash
+cp .env.deploy.example .env.deploy.local
+```
+
+Edit the file for your operators:
+
+```dotenv
+BEDROCK_METER_ADMIN_USERNAMES=alice
+BEDROCK_METER_ADMIN_EMAILS=ops@example.com
+# Optional: otherwise the first deployment detects and saves the host timezone.
+# BEDROCK_METER_QUOTA_TIME_ZONE=Asia/Seoul
+```
+
+`ADMIN_USERNAMES` lists IAM usernames allowed to use Core API admin routes directly. `ADMIN_EMAILS`
+is a comma-separated list of SNS notification recipients. `QUOTA_TIME_ZONE` defines the initial
+quota calendar. The file is Git-ignored and loaded by the deployment/user scripts.
+
+### 3. Bootstrap and deploy
+
+For the first deployment to an account/region:
+
+```bash
+./scripts/deploy-all.sh --bootstrap
+```
+
+The script installs locked dependencies, builds the static console and BFF, runs bootstrap, then
+deploys `BedrockMeterCoreStack` and writes `cdk-outputs.json`. Build precedes bootstrap because this
+CDK app requires the console artifact even during synthesis. You do not need a separate `npx cdk bootstrap`.
+
+For subsequent deployments to an already bootstrapped target:
+
+```bash
+./scripts/deploy-all.sh
+```
+
+New ConfigTables start with the detected/explicit timezone. Existing runtime settings are retained;
+change them through **Limits → Global Quota Calendar**. Redeployment does not backfill old data's
+retention. See [manual retention extension](docs/OperationalGuide.md#manual-retention-extension).
+
+If installation fails, the script prints the failed stage. Follow
+[installation failures and manual recovery](docs/OperationalGuide.md#installation-failures-and-manual-recovery).
+Existing Bedrock logging is an account/region singleton; inspect any conflicting owner before changing
+it. The script does not automatically delete resources or enable logging overwrite.
+
+### 4. Confirm email and create the first console administrator
+
+Confirm the **AWS Notification - Subscription Confirmation** email for each notification recipient.
+SNS email alerts are not delivered until confirmation.
+
+Using the same terminal AWS target, run:
+
+```bash
+scripts/add-console-admin.sh alice alice@example.com
+```
+
+The script verifies the live user pool, then prompts for a password without echoing it. Cognito
+usernames are separate from IAM usernames. The initial console has no users unless you explicitly
+supplied the optional automated administrator settings. Running the user command again resets that
+user's password and assigns the requested group.
+
+For a read-only viewer:
+
+```bash
+scripts/add-console-viewer.sh bob bob@example.com
+```
+
+### 5. Open and verify the console
+
+```bash
+jq -r '.BedrockMeterCoreStack.ConsoleUrl' cdk-outputs.json
+```
+
+Open the URL and sign in. Invoke Bedrock once using a test principal in the same region and verify
+that usage appears. Deployment completion alone does not verify login or Bedrock log delivery.
+
+## Post-installation checks
+
+1. Invoke a Bedrock model as a test IAM User in the selected region.
+2. Confirm the principal and usage on Users after log delivery (typically 5–30 seconds; allow for delays).
+3. Allow about 10 minutes for archived Statistics/history after S3 delivery.
+4. Confirm the SNS subscription is `Confirmed` and a viewer cannot change limits.
+5. Give the operator's IAM User sufficient limits or a reviewed `exempt` policy.
+
+Use the same AWS credentials/region to inspect the stack and logging:
+
+```bash
+aws bedrock get-model-invocation-logging-configuration
+aws cloudformation describe-stacks \
+  --stack-name BedrockMeterCoreStack \
+  --query 'Stacks[0].StackStatus' --output text
+```
+
 ## How it works
 
 ```mermaid
@@ -165,53 +291,15 @@ the security boundary: do not expose AWS credentials or the Core API endpoint to
 BFF receives Cognito tokens and calls Core with SigV4. See [DeveloperGuide.md](docs/DeveloperGuide.md)
 for migration criteria and configuration.
 
-### DynamoDB versus Athena
-
-| Data source | Features |
-|---|---|
-| DynamoDB | Real-time daily token/credit counters, daily/weekly/monthly limit evaluation, warning/block state, automatic unblocking, default/per-user limits, deduplication, audit logs |
-| Athena | User history, user rankings, model totals, and hourly/daily trends from archived S3 invocation logs |
-
-Core APIs using DynamoDB:
-
-- Current usage: `GET /usage/me`, `GET /usage/{username}`, `GET /users/{username}`
-- All users and trends: `GET /users`, `GET /usage/aggregate`, `GET /usage/history/all`
-- Limits: `GET /limits/me`, `GET /limits/{username}`, `PUT /limits/{username}`,
-  `DELETE /limits/{username}`
-- Operations: `GET /admin/blocked`, `POST /admin/unblock/{username}`, `GET /admin/audit`
-
-Core APIs using Athena:
-
-- User history: `GET /usage/me/history`, `GET /usage/{username}/history`,
-  `GET /users/{username}/history`
-- Analytics: `GET /usage/top`, `GET /usage/by-model`, `GET /usage/by-model/trend`
-
-Usage aggregation and blocking continue even if Athena or S3 delivery is delayed. DynamoDB is
-suited to current state; Athena is suited to analyzing original invocations by model and time.
-
 ### Why this architecture fits, and when to scale
 
 DynamoDB + raw JSON in S3 + Athena suits early and medium-scale deployments. Limits stay in fast,
-predictable DynamoDB, while Athena reads original logs for analytics whose dimensions may change.
-There is no need to operate a separate analytics server or per-model DynamoDB indexes in advance.
-
-Avoid adding another analytics store until these symptoms recur:
-
-- Statistics/history queries frequently take more than 5–10 seconds.
-- The `Athena ProcessedBytes > 2GB/hour` alarm recurs rather than firing occasionally.
-- A typical 30-day query repeatedly scans hundreds of MB to 1 GB or more.
-- Bedrock archives grow by several GB per day, or thousands of small JSON objects are created daily.
-- Multiple operators query dashboards frequently or repeatedly inspect 6–12 months or more of trends.
-- Athena becomes a material share of operating costs.
-
-At that point, add an analytics layer that aggregates tokens and invocations by
-`date × principal × model` into daily Snappy-compressed Parquet. Keep the original S3 JSON for
-auditing and detailed investigation, and let console statistics read the smaller aggregates.
-If same-day freshness matters, use hourly aggregates or combine completed historical Parquet
-with today's raw logs.
-
-See [DeveloperGuide.md](docs/DeveloperGuide.md) and [OperationalGuide.md](docs/OperationalGuide.md)
-for detailed criteria and implementation principles.
+predictable DynamoDB, while Athena reads the original logs for analytics without a separate
+analytics server. If Statistics/history queries stay slow or Athena scan alarms and costs keep
+recurring, add a daily Parquet aggregate layer for analytics only; quota enforcement stays in
+DynamoDB. See [DesignDoc.md §12.3](docs/DesignDoc.md#123-athena-scaling-boundary) for the criteria
+and [DeveloperGuide.md §2.7](docs/DeveloperGuide.md#27-scaling-athena-with-parquet-aggregates)
+for the implementation.
 
 ## AWS services
 
@@ -254,137 +342,6 @@ for detailed criteria and implementation principles.
 If usage jumps past the warning threshold to 100% or more, `BLOCKED` may be sent without `WARNING`.
 Principals with `exempt: true` are metered but do not receive warnings or blocks.
 
-## Installation
-
-### 1. Prepare the terminal
-
-Use Bash on macOS or Linux (Windows users: WSL), AWS CLI v2, **Node.js 24** with npm, and `jq`.
-Python 3.12 or later is only needed for the Python tests, Core API helper, and manual retention tool;
-it is not required by `deploy-all.sh`. If you use nvm, run `nvm install` and `nvm use` to read `.nvmrc`.
-Run all commands from this project's directory (`agentic-workloads/bedrock-meter` in the parent repository).
-
-Select your AWS credentials/profile and the region where your applications invoke Bedrock. For example,
-if you use a named profile:
-
-```bash
-export AWS_PROFILE=my-profile
-# Optional if the selected profile already contains the correct region:
-export AWS_REGION=ap-northeast-2
-aws sts get-caller-identity
-node --version
-npm --version
-jq --version
-```
-
-Use your normal AWS sign-in flow first (for example `aws sso login --profile my-profile` for an SSO profile).
-The scripts derive the account from STS and choose the region from `AWS_REGION`, then
-`AWS_DEFAULT_REGION`, then the selected profile. They stop if no region is configured or credentials
-cannot be verified. They display the target before making changes. Keep the same AWS target for
-bootstrap, deployment, user creation, and later redeployment.
-
-The deployment principal needs CDK/CloudFormation deployment permissions; bootstrap also creates
-its supporting resources. See [deployment permissions](docs/DeveloperGuide.md#deployment-principal).
-A test principal must separately have permission to invoke a Bedrock model in this region.
-
-### 2. Set project options
-
-```bash
-cp .env.deploy.example .env.deploy.local
-```
-
-Edit the file for your operators:
-
-```dotenv
-BEDROCK_METER_ADMIN_USERNAMES=alice
-BEDROCK_METER_ADMIN_EMAILS=ops@example.com
-# Optional: otherwise the first deployment detects and saves the host timezone.
-# BEDROCK_METER_QUOTA_TIME_ZONE=Asia/Seoul
-```
-
-`ADMIN_USERNAMES` lists IAM usernames allowed to use Core API admin routes directly. `ADMIN_EMAILS`
-is a comma-separated list of SNS notification recipients. `QUOTA_TIME_ZONE` defines the initial
-quota calendar. The file is Git-ignored and loaded by the deployment/user scripts.
-
-**Do not put AWS credentials, profile, or region settings in this file.** Set them in the terminal
-or AWS profile. If upgrading from the earlier instructions, remove `CDK_DEFAULT_ACCOUNT` and
-`CDK_DEFAULT_REGION`; those inputs (and legacy `REGION`) no longer select the target. Files that
-change `AWS_*` environment settings are rejected before AWS calls.
-
-### 3. Bootstrap and deploy
-
-For the first deployment to an account/region:
-
-```bash
-./scripts/deploy-all.sh --bootstrap
-```
-
-The script installs locked dependencies, builds the static console and BFF, runs bootstrap, then
-deploys `BedrockMeterCoreStack` and writes `cdk-outputs.json`. Build precedes bootstrap because this
-CDK app requires the console artifact even during synthesis. You do not need a separate `npx cdk bootstrap`.
-
-For subsequent deployments to an already bootstrapped target:
-
-```bash
-./scripts/deploy-all.sh
-```
-
-New ConfigTables start with the detected/explicit timezone. Existing runtime settings are retained;
-change them through **Limits → Global Quota Calendar**. Redeployment does not backfill old data's
-retention. See [manual retention extension](docs/OperationalGuide.md#manual-retention-extension).
-
-If installation fails, the script prints the failed stage. Follow
-[installation failures and manual recovery](docs/OperationalGuide.md#installation-failures-and-manual-recovery).
-Existing Bedrock logging is an account/region singleton; inspect any conflicting owner before changing
-it. The script does not automatically delete resources or enable logging overwrite.
-
-### 4. Confirm email and create the first console administrator
-
-Confirm the **AWS Notification - Subscription Confirmation** email for each notification recipient.
-SNS email alerts are not delivered until confirmation.
-
-Using the same terminal AWS target, run:
-
-```bash
-scripts/add-console-admin.sh alice alice@example.com
-```
-
-The script verifies the live user pool, then prompts for a password without echoing it. Cognito
-usernames are separate from IAM usernames. The initial console has no users unless you explicitly
-supplied the optional automated administrator settings. Running the user command again resets that
-user's password and assigns the requested group.
-
-For a read-only viewer:
-
-```bash
-scripts/add-console-viewer.sh bob bob@example.com
-```
-
-### 5. Open and verify the console
-
-```bash
-jq -r '.BedrockMeterCoreStack.ConsoleUrl' cdk-outputs.json
-```
-
-Open the URL and sign in. Invoke Bedrock once using a test principal in the same region and verify
-that usage appears. Deployment completion alone does not verify login or Bedrock log delivery.
-
-## Post-installation checks
-
-1. Invoke a Bedrock model as a test IAM User in the selected region.
-2. Confirm the principal and usage on Users after log delivery (typically 5–30 seconds; allow for delays).
-3. Allow about 10 minutes for archived Statistics/history after S3 delivery.
-4. Confirm the SNS subscription is `Confirmed` and a viewer cannot change limits.
-5. Give the operator's IAM User sufficient limits or a reviewed `exempt` policy.
-
-Use the same AWS credentials/region to inspect the stack and logging:
-
-```bash
-aws bedrock get-model-invocation-logging-configuration
-aws cloudformation describe-stacks \
-  --stack-name BedrockMeterCoreStack \
-  --query 'Stacks[0].StackStatus' --output text
-```
-
 ## Core API quick start
 
 The Core API uses an IAM authorizer and requires SigV4 signing.
@@ -405,7 +362,29 @@ scripts/api-call.py PUT '/limits/alice' '{"dailyTokenLimit":2000000}'
 scripts/api-call.py POST '/admin/unblock/alice'
 ```
 
-See [docs/API.md](docs/API.md) for all endpoints and schemas.
+See [API.md](docs/API.md) for all endpoints and schemas.
+
+## Uninstall
+
+From the project directory, use the same terminal/profile and region as deployment:
+
+```bash
+bash scripts/destroy-all.sh
+```
+
+If your terminal still has the AWS settings used for deployment, you do not need to export them
+again. The script displays the account and region automatically; it does not ask you to enter them.
+
+Choose once in the English prompt: **1** removes the service and keeps stored data; **2** also deletes
+the listed data resources. Enter cancels. No separate account/region input, CDK build, Node.js, or
+Python is required; the script uses AWS CLI v2 and `jq`.
+
+**Both options preserve Bedrock invocation logs and logging configuration**, including their
+CloudWatch log group, S3 storage, delivery role, and permissions. Removal is limited to Meter resources
+managed by the selected stack and Meter's quota-deny policies on recorded principals. IAM users/roles
+outside the stack, shared CDK bootstrap resources, and independent backups/exports are excluded.
+Option 2 also deletes the listed Meter data: usage/settings/audit tables, console users, query results,
+and other Meter-owned retained data. See [uninstall details](docs/OperationalGuide.md#uninstall).
 
 ## Limitations
 
@@ -437,12 +416,10 @@ docs/OperationalGuide.md     Operator procedures and troubleshooting
 
 ## Further documentation
 
-- [InstallationReadinessPlan.md](docs/InstallationReadinessPlan.md): Implementation scope and verification status for first-installation readiness
 - [DeveloperGuide.md](docs/DeveloperGuide.md): AWS resources, code structure, policy invariants, testing, deployment
 - [OperationalGuide.md](docs/OperationalGuide.md): Limits, exemptions, unblocking, accounts, alerts, runbooks
-- [docs/API.md](docs/API.md): Core API endpoints and requests/responses
+- [API.md](docs/API.md): Core API endpoints and requests/responses
 - [DesignDoc.md](docs/DesignDoc.md): Architecture, design decisions, consistency model, invariants
-- [docs/architecture.drawio](docs/architecture.drawio): Editable architecture diagram
 - [Console README](client/app/README.md): Console architecture, authentication, local development
 - [CDK README](cdk/README.md): Infrastructure commands and deployment environment
 

@@ -26,8 +26,8 @@ export AWS_PAGER="" AWS_CLI_AUTO_PROMPT=off
 require_tool node
 require_tool npm
 require_tool jq
-if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) === 24 ? 0 : 1)'; then
-  echo "error: use Node.js 24 (see .nvmrc) to build and deploy." >&2
+if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'; then
+  echo "error: Node.js 22.12 or later is required. Node.js 24 is recommended (see .nvmrc)." >&2
   exit 1
 fi
 load_project_settings "$ROOT"

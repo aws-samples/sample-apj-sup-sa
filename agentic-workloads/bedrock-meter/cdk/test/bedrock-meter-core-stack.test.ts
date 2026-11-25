@@ -303,6 +303,25 @@ test('retains the account-level Bedrock logging configuration and scopes its tru
     AllowOverwrite: false,
     DeleteOnRemoval: false,
   });
+  template.hasResource('AWS::CloudFormation::CustomResource', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: Match.objectLike({ LoggingConfig: Match.anyValue() }),
+  });
+  template.hasResource('AWS::IAM::Policy', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: Match.objectLike({
+      PolicyName: Match.stringLikeRegexp('BedrockLoggingBedrockLoggingRoleDefaultPolicy'),
+    }),
+  });
+  template.hasResource('AWS::S3::BucketPolicy', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: Match.objectLike({
+      Bucket: { Ref: Match.stringLikeRegexp('BedrockLoggingLogArchiveBucket') },
+    }),
+  });
   template.hasResource('Custom::AWS', {
     DeletionPolicy: 'Retain',
     UpdateReplacePolicy: 'Retain',

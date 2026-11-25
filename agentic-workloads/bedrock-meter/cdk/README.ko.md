@@ -18,7 +18,7 @@ SigV4로 보호된 Core API를 포함하는 Bedrock Meter core stack을 배포�
 
 ## 배포 환경
 
-Node.js 24를 사용합니다. 최초 설치는 프로젝트 루트에서 `./scripts/deploy-all.sh --bootstrap`,
+Node.js 22.12 이상을 사용합니다(24 권장). 최초 설치는 프로젝트 루트에서 `./scripts/deploy-all.sh --bootstrap`,
 이후 재배포는 `./scripts/deploy-all.sh`로 실행합니다. 스크립트는 콘솔을 먼저 빌드하므로
 bootstrap/synth의 산출물 누락 오류를 방지합니다.
 

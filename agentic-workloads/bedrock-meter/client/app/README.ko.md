@@ -93,7 +93,7 @@ IAM User는 기본 enforcement 대상입니다. STS session은 stable IAM Role�
 
 ## 배포
 
-프로젝트 루트에서 실행합니다. Node.js 24와 AWS CLI v2, `jq`가 필요합니다.
+프로젝트 루트에서 실행합니다. Node.js 22.12 이상(24 권장)과 AWS CLI v2, `jq`가 필요합니다.
 
 ```bash
 ./scripts/deploy-all.sh --bootstrap  # 최초 계정/리전 준비를 포함한 배포

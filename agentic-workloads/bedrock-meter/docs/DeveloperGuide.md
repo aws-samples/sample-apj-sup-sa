@@ -652,7 +652,7 @@ Operational policy changes should not require CDK redeployment.
 
 ### 9.1 Dependencies
 
-Use Node.js 24 (`.nvmrc`). The Python commands below use a virtual environment.
+Use Node.js 22.12 or later; `.nvmrc` recommends 24. The Python commands below use a virtual environment.
 
 ```bash
 cd cdk && npm ci && cd ..
@@ -780,7 +780,7 @@ git diff
 ```
 
 For the first account/region setup, use `./scripts/deploy-all.sh --bootstrap`.
-The script checks Node.js 24 and required tools and obtains the account using current AWS credentials.
+The script checks Node.js 22.12 or later and required tools and obtains the account using current AWS credentials.
 It resolves region from `AWS_REGION`, then `AWS_DEFAULT_REGION`, then the selected profile, stopping
 if none is set. Account and region are not configured in `.env.deploy.local`.
 
