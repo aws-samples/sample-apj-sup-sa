@@ -1,0 +1,23 @@
+[project]
+name = "hello-mnist"
+version = "1.0.0"
+description = "SageMaker managed PyTorch training job example (MNIST)"
+requires-python = ">=3.10,<3.13"
+
+# Dependencies needed only on your local PC.
+# Training frameworks such as torch / torchvision are intentionally NOT listed here.
+# → Training actually runs inside an AWS Deep Learning Container (DLC), which already ships torch.
+dependencies = [
+    "sagemaker>=3.0",
+    "boto3>=1.34",
+]
+
+[dependency-groups]
+# Optional developer tools, used via  uv run --group dev ...
+dev = [
+    "ruff>=0.6",
+]
+
+[tool.uv]
+# Reproducibility: install exactly the versions pinned in the lock file (uv.lock)
+package = false

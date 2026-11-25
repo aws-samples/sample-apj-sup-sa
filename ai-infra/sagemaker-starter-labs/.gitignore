@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# uv
+# Commit uv.lock, pyproject.toml, and .python-version (for reproducibility).
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Local run artifacts
+.last_job.json
