@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+"""SageMaker BYOC training program.
+
+Important: this file must be named exactly 'train' (no extension).
+   When training starts, SageMaker runs the container like this:  docker run <image> train
+   That is, it simply executes the 'train' executable on the PATH. Unlike hello-mnist
+   (script mode), there is no wrapper injected by the SageMaker SDK; we handle the /opt/ml
+   contract ourselves.
+
+Filesystem contract of a BYOC training container (set up by SageMaker):
+  /opt/ml/input/config/hyperparameters.json   hyperparameters (all strings! cast them yourself)
+  /opt/ml/input/data/training/                 'training' input channel (injected from S3 by launch.py)
+  /opt/ml/model/                               save here and SageMaker uploads it to S3 as model.tar.gz
+  /opt/ml/output/failure                       on failure, write the reason here (shown as FailureReason)
+"""
+
+import json
+import os
+import sys
+import traceback
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+# --- SageMaker BYOC contract paths ---
+PREFIX = "/opt/ml"
+HP_PATH = os.path.join(PREFIX, "input/config/hyperparameters.json")
+DATA_DIR = os.path.join(PREFIX, "input/data/training")  # where the 'training' channel is mounted
+MODEL_DIR = os.path.join(PREFIX, "model")
+FAILURE_PATH = os.path.join(PREFIX, "output/failure")
+
+
+class Net(nn.Module):
+    """A simple CNN."""
+
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2)
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
+
+def read_hyperparameters():
+    """Read /opt/ml/input/config/hyperparameters.json.
+
+    All values arrive as *strings* (e.g. {"epochs": "3"}), so you must cast them yourself.
+    The file may be missing (no hyperparameters given), so defaults are provided.
+    """
+    hp = {}
+    if os.path.exists(HP_PATH):
+        with open(HP_PATH) as f:
+            hp = json.load(f)
+    return {"epochs": int(hp.get("epochs", 3))}
+
+
+def train():
+    hp = read_hyperparameters()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"device={device} hyperparameters={hp}", flush=True)  # print → CloudWatch Logs
+
+    # Read MNIST from the 'training' channel (download=False).
+    #   SageMaker mounts the S3 data specified in launch.py at /opt/ml/input/data/training/.
+    #   torchvision looks for raw files in <root>/MNIST/raw/, so launch.py uploads the same layout.
+    tfm = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+    train_loader = DataLoader(
+        datasets.MNIST(DATA_DIR, train=True, download=False, transform=tfm),
+        batch_size=128, shuffle=True,
+    )
+    test_loader = DataLoader(
+        datasets.MNIST(DATA_DIR, train=False, download=False, transform=tfm),
+        batch_size=1000,
+    )
+
+    model = Net().to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    for epoch in range(1, hp["epochs"] + 1):
+        model.train()
+        for data, target in train_loader:
+            data, target = data.to(device), target.to(device)
+            optimizer.zero_grad()
+            F.cross_entropy(model(data), target).backward()
+            optimizer.step()
+
+        model.eval()
+        correct = 0
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                correct += model(data).argmax(1).eq(target).sum().item()
+        acc = correct / len(test_loader.dataset)
+        print(f"epoch {epoch}: test_accuracy={acc:.4f}", flush=True)
+
+    # Save to /opt/ml/model → SageMaker packs it as model.tar.gz and uploads it to S3
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    torch.save(model.state_dict(), os.path.join(MODEL_DIR, "model.pth"))
+    print("saved model to /opt/ml/model", flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        train()
+        sys.exit(0)  # exit code 0 = success (Completed)
+    except Exception as e:
+        # A reason written to /opt/ml/output/failure appears as DescribeTrainingJob FailureReason
+        os.makedirs(os.path.dirname(FAILURE_PATH), exist_ok=True)
+        with open(FAILURE_PATH, "w") as f:
+            f.write(f"Exception during training: {e}\n{traceback.format_exc()}")
+        print(f"training failed: {e}", file=sys.stderr, flush=True)
+        sys.exit(1)  # non-zero exit code = failure (Failed)

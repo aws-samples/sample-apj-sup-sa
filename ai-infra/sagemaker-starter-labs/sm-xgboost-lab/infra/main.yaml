@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Minimal infrastructure for SageMaker XGBoost training and managed MLflow.
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Globally unique bucket for Training and MLflow artifacts.
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+  CreateArtifactBucket:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set to false when reusing a bucket from an earlier version.
+  ArtifactPrefix:
+    Type: String
+    Default: sagemaker-xgboost-lab
+  PermissionsBoundaryArn:
+    Type: String
+    Default: ""
+    Description: Optional IAM permissions boundary required by your organization.
+
+Conditions:
+  ShouldCreateArtifactBucket: !Equals [!Ref CreateArtifactBucket, "true"]
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Condition: ShouldCreateArtifactBucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Ref BucketName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BucketName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${BucketName}"
+              - !Sub "arn:${AWS::Partition}:s3:::${BucketName}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": false
+
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sagemaker-xgboost-lab-training
+      PermissionsBoundary: !If
+        - HasPermissionsBoundary
+        - !Ref PermissionsBoundaryArn
+        - !Ref AWS::NoValue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TrainingArtifactAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListProjectArtifacts
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub "${ArtifactPrefix}/*"
+              - Sid: ReadProjectArtifacts
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}/${ArtifactPrefix}/*"
+              - Sid: WriteTrainingModels
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                Resource: !Sub
+                  "arn:${AWS::Partition}:s3:::${BucketName}/${ArtifactPrefix}/credit-card-default/runs/*/models/*"
+              - Sid: WriteMlflowArtifactsFromTraining
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                Resource: !Sub
+                  "arn:${AWS::Partition}:s3:::${BucketName}/${ArtifactPrefix}/mlflow/*"
+              - Sid: WriteBatchPredictions
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                Resource: !Sub
+                  "arn:${AWS::Partition}:s3:::${BucketName}/${ArtifactPrefix}/credit-card-default/batch/*"
+        - PolicyName: TrainingRuntimeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: LogTrainingRunsToMlflow
+                Effect: Allow
+                Action:
+                  - sagemaker:CallMlflowAppApi
+                Resource: "*"
+              - Sid: ReadTrainingImage
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: ReadTrainingImageLayers
+                Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                Resource: !Sub "arn:${AWS::Partition}:ecr:*:*:repository/*"
+              - Sid: WriteTrainingLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !Sub
+                  "arn:${AWS::Partition}:logs:*:*:log-group:/aws/sagemaker/TrainingJobs*"
+              - Sid: WriteTrainingMetrics
+                Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+              - Sid: ManageTrainingNetworkInterfaces
+                Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:CreateNetworkInterfacePermission
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DeleteNetworkInterfacePermission
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                Resource: "*"
+
+  MlflowAppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sagemaker-xgboost-lab-mlflow
+      PermissionsBoundary: !If
+        - HasPermissionsBoundary
+        - !Ref PermissionsBoundaryArn
+        - !Ref AWS::NoValue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: MlflowArtifactAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListMlflowArtifacts
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub "${ArtifactPrefix}/mlflow/*"
+              - Sid: ReadWriteMlflowArtifacts
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}/${ArtifactPrefix}/mlflow/*"
+              - Sid: ReadSelectedTrainingModels
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub
+                  "arn:${AWS::Partition}:s3:::${BucketName}/${ArtifactPrefix}/credit-card-default/runs/*/models/*"
+              - Sid: SyncMlflowModelRegistry
+                Effect: Allow
+                Action:
+                  - sagemaker:CreateModelPackageGroup
+                  - sagemaker:DescribeModelPackageGroup
+                  - sagemaker:CreateModelPackage
+                  - sagemaker:UpdateModelPackage
+                  - sagemaker:AddTags
+                  - sagemaker:CreateAction
+                  - sagemaker:AddAssociation
+                Resource: "*"
+
+Outputs:
+  ArtifactBucketName:
+    Value: !Ref BucketName
+  SageMakerExecutionRoleArn:
+    Value: !GetAtt SageMakerExecutionRole.Arn
+  MlflowAppRoleArn:
+    Value: !GetAtt MlflowAppRole.Arn
