@@ -1,6 +1,3 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 export type Status = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
 
 export interface Model {
@@ -61,11 +58,26 @@ export interface MeshMetrics {
   partial?: boolean;
 }
 
+/** Image to 3D: GuardDuty scans the upload, then Bedrock removes its background before the models start. */
+export type InputStatus = 'SCANNING' | 'REMOVING_BACKGROUND' | 'READY' | 'REJECTED' | 'FAILED';
+
+export interface InputImage {
+  status: InputStatus;
+  /** The background-removed PNG, once ready. */
+  imageUrl?: string;
+  error?: string;
+  backgroundSeconds?: number;
+}
+
 export interface Generation {
   jobId: string;
+  /** The text prompt; for image jobs, the optional description or "Image to 3D". */
   prompt: string;
   createdAt: string;
   results: ModelResult[];
+  kind?: 'text' | 'image';
+  description?: string;
+  input?: InputImage;
 }
 
 export const isDone = (r: ModelResult) => r.status === 'SUCCEEDED' || r.status === 'FAILED';
@@ -77,8 +89,11 @@ export interface GalleryItem {
   succeeded: number;
   finished: number;
   total: number;
-  /** GPT-6 Astra's model, or the first model that succeeded. */
+  /** GPT-6.2 Astra's model (GPT-6 Astra for older generations), or the first model that succeeded. */
   preview: { modelKey: string; modelName: string; glbUrl: string } | null;
+  kind?: 'text' | 'image';
+  /** Image to 3D: the background-removed upload. */
+  inputImageUrl?: string;
 }
 
 export interface GalleryPage {

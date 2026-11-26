@@ -1,7 +1,4 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { fmtBytes, fmtCost, fmtSeconds, fmtTokens, secondsSince } from './format';
 import { Link } from './router';
 import type { MeshMetrics, Model, ModelResult } from './types';
@@ -118,12 +115,14 @@ export interface SlotPicker {
   disabled: boolean;
 }
 
-export function ModelCard({ result, fastest, cheapest, mode, picker }: {
+export function ModelCard({ result, fastest, cheapest, mode, picker, idleHint }: {
   result: ModelResult;
   fastest: boolean;
   cheapest: boolean;
   mode: CardMode;
   picker?: SlotPicker;
+  /** What the card says before anything has been generated. */
+  idleHint?: ReactNode;
 }) {
   const { model, status } = result;
   const running = mode === 'job' && (status === 'RUNNING' || status === 'PENDING');
@@ -159,7 +158,7 @@ export function ModelCard({ result, fastest, cheapest, mode, picker }: {
         {mode === 'idle' ? (
           <div className="viewer__msg">
             <span>
-              Enter a prompt above to generate a 3D object, or browse past generations in the <Link href="/gallery">Gallery</Link>.
+              {idleHint ?? 'Enter a prompt above to generate a 3D object'}, or browse past generations in the <Link href="/gallery">Gallery</Link>.
             </span>
           </div>
         ) : mode === 'loading' ? (
@@ -191,7 +190,7 @@ export function ModelCard({ result, fastest, cheapest, mode, picker }: {
         ) : (
           <div className="viewer__msg">
             <span className="spinner" aria-hidden />
-            <span>{status === 'PENDING' ? 'Waiting to start…' : `Writing and running the Blender script… ${fmtSeconds(elapsed)}`}</span>
+            <span>{status === 'PENDING' ? (idleHint ? 'Waiting for the image…' : 'Waiting to start…') : `Writing and running the Blender script… ${fmtSeconds(elapsed)}`}</span>
           </div>
         )}
       </div>

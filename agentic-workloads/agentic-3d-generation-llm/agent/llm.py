@@ -1,12 +1,12 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 """Chat clients for the two Bedrock endpoints the models use.
 
-- converse: bedrock-runtime Converse API (GPT-6 Astra, GPT-6.1 Sol, Claude Opus 5.5)
-- mantle:   bedrock-mantle OpenAI-compatible Chat Completions, signed with SigV4 (GLM 5)
+- converse: bedrock-runtime Converse API (GPT-6.2 Astra, GPT-6.1 Sol, Claude Opus 5.5, GPT-6 Luna)
+- mantle:   bedrock-mantle OpenAI-compatible Chat Completions, signed with SigV4 (no model uses it right now)
+
+Both take an optional reference image on a user message (Image to 3D).
 """
 
+import base64
 import json
 import os
 import time
@@ -61,7 +61,10 @@ class Usage:
 
 @dataclass
 class Conversation:
-    """Provider-neutral message history: [{"role": "user"|"assistant", "text": str}]."""
+    """Provider-neutral message history: [{"role": "user"|"assistant", "text": str, "image"?: Image}].
+
+    A user message may carry one image: {"format": "png" | "jpeg", "bytes": bytes}.
+    """
     system: str
     messages: list = field(default_factory=list)
 
@@ -88,6 +91,33 @@ def chat(api: str, model_id: str, convo: Conversation, request_fields: dict | No
     raise LlmError(f"Unknown api '{api}'")
 
 
+def converse_messages(convo: Conversation) -> list:
+    """Converse messages: an image block (if any) comes before the text of the same message."""
+    out = []
+    for m in convo.messages:
+        content = []
+        if m.get("image"):
+            content.append({"image": {"format": m["image"]["format"], "source": {"bytes": m["image"]["bytes"]}}})
+        content.append({"text": m["text"]})
+        out.append({"role": m["role"], "content": content})
+    return out
+
+
+def mantle_messages(convo: Conversation) -> list:
+    """Chat Completions messages: an image goes in as a data URL content part."""
+    out = [{"role": "system", "content": convo.system}]
+    for m in convo.messages:
+        if m.get("image"):
+            data = base64.b64encode(m["image"]["bytes"]).decode()
+            out.append({"role": m["role"], "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/{m['image']['format']};base64,{data}"}},
+                {"type": "text", "text": m["text"]},
+            ]})
+        else:
+            out.append({"role": m["role"], "content": m["text"]})
+    return out
+
+
 def _converse(model_id: str, convo: Conversation, request_fields: dict | None, max_tokens: int) -> tuple[str, Usage]:
     started = time.monotonic()
     kwargs = {}
@@ -98,7 +128,7 @@ def _converse(model_id: str, convo: Conversation, request_fields: dict | None, m
         resp = _runtime.converse(
             modelId=model_id,
             system=[{"text": convo.system}],
-            messages=[{"role": m["role"], "content": [{"text": m["text"]}]} for m in convo.messages],
+            messages=converse_messages(convo),
             inferenceConfig={"maxTokens": max_tokens},
             **kwargs,
         )
@@ -123,8 +153,7 @@ def _mantle(model_id: str, convo: Conversation, max_tokens: int, path: str = "/v
     url = f"https://bedrock-mantle.{REGION}.api.aws{path}/chat/completions"
     body = json.dumps({
         "model": model_id,
-        "messages": [{"role": "system", "content": convo.system}]
-        + [{"role": m["role"], "content": m["text"]} for m in convo.messages],
+        "messages": mantle_messages(convo),
         "max_tokens": max_tokens,
     })
     last_error = None

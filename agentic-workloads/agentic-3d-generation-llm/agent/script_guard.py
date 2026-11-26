@@ -1,6 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 """Static checks on model-generated Blender scripts before they run.
 
 Defence in depth only: the script also runs as an unprivileged user with an empty

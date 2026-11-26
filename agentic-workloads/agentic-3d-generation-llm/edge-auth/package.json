@@ -1,0 +1,21 @@
+{
+  "name": "3d-generation-llm-edge-auth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lambda@Edge Cognito gate for the site and API",
+  "scripts": {
+    "build": "tsc --noEmit && esbuild src/viewer.ts --bundle --platform=node --target=node22 --format=cjs --minify --external:@aws-sdk/* --outfile=dist/viewer/index.js && esbuild src/api.ts --bundle --platform=node --target=node22 --format=cjs --minify --external:@aws-sdk/* --outfile=dist/api/index.js",
+    "test": "node --test test/*.test.cjs"
+  },
+  "dependencies": {
+    "aws-jwt-verify": "^5.2.1",
+    "cognito-at-edge": "^1.5.5"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1166.0",
+    "@types/aws-lambda": "^8.10.164",
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}

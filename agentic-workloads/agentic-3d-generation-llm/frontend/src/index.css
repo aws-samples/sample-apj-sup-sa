@@ -36,12 +36,15 @@ a { color: var(--accent); }
 }
 .prompt textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .prompt__row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
-.examples { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Sample prompts: two-line cards in a grid, with the Generate button on its own row below. */
+.examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: 1 1 100%; }
+@media (max-width: 760px) { .examples { grid-template-columns: 1fr; } }
 .chip {
-  background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); border-radius: 999px;
-  padding: 4px 10px; font-size: 0.8rem; cursor: pointer;
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; font: inherit; font-size: 0.8rem; line-height: 1.4; text-align: left; cursor: pointer;
 }
-.chip:hover { color: var(--text); }
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.prompt__row > .primary { margin-left: auto; }
 .primary {
   background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px; padding: 10px 18px;
   font-weight: 700; cursor: pointer;
@@ -131,6 +134,7 @@ a { color: var(--accent); }
 .nav a { color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 7px; font-size: 0.9rem; white-space: nowrap; }
 .nav a:hover { color: var(--text); }
 .nav a.active { background: var(--panel-2); color: var(--text); font-weight: 600; }
+.nav a.signout { border-left: 1px solid var(--border); border-radius: 0 7px 7px 0; margin-left: 4px; }
 @media (max-width: 700px) { .topbar { flex-direction: column; align-items: flex-start; } }
 
 .page-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -158,3 +162,38 @@ a { color: var(--accent); }
 .danger { background: transparent; color: var(--err); border: 1px solid var(--err); border-radius: 8px; padding: 8px 18px; font-weight: 700; cursor: pointer; }
 .danger:hover:not(:disabled) { background: var(--err); color: var(--accent-text); }
 .danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- Image to 3D ---------- */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px;
+  border: 2px dashed var(--border); border-radius: 10px; background: var(--panel-2); text-align: center;
+}
+.dropzone--over { border-color: var(--accent); }
+.dropzone__hint { padding: 24px 8px 4px; }
+.dropzone__preview { max-height: 280px; max-width: 100%; border-radius: 8px; background: #fff; }
+.dropzone__actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+.secondary {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px;
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.secondary:hover { border-color: var(--accent); }
+.secondary:disabled, .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.prompt .prompt__sub { margin-top: 14px; font-weight: 500; }
+.text-input {
+  width: 100%; padding: 10px 12px; border-radius: 8px; font: inherit;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+}
+.text-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.prompt__note { flex: 1 1 320px; margin: 0; font-size: 0.8rem; }
+.input-panel { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+.input-panel figure { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.input-panel img { height: 220px; max-width: 100%; object-fit: contain; border-radius: 8px; }
+/* A checkerboard behind the cut-out shows which parts are transparent. */
+.input-panel__cutout img, .tile__thumb {
+  background: repeating-conic-gradient(#2a303b 0% 25%, #1e232d 0% 50%) 50% / 16px 16px;
+}
+.input-panel__msg { height: 220px; width: 260px; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; text-align: center; color: var(--muted); }
+.input-panel figcaption { font-size: 0.8rem; }
+.tile__thumb { position: absolute; left: 8px; bottom: 8px; width: 56px; height: 56px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); }
+.tag--image { background: #2b2414; color: var(--accent); margin: 0 6px 0 0; vertical-align: 1px; }

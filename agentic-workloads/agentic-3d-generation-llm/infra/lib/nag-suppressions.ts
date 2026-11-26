@@ -1,6 +1,3 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 import { Stack, Validations } from 'aws-cdk-lib';
 import { ModelConfig, usesInferenceProfile } from './models';
 
@@ -37,11 +34,12 @@ export function addNagSuppressions(stack: Stack, models: ModelConfig[]): void {
     },
     {
       id: 'AwsSolutions-IAM5',
-      reason: 'Grants created by CDK grant* helpers, scoped to this stack\'s resources: generations/* objects, the table\'s indexes, the worker\'s versions, the runtime\'s endpoints, and the site bucket for the deployment.',
+      reason: 'Grants created by CDK grant* helpers, scoped to this stack\'s resources: generations/* objects, the table\'s indexes, the worker\'s versions, the worker failure destination\'s versions, the runtime\'s endpoints, and the site bucket for the deployment.',
       appliesTo: [
         'Resource::<ArtifactsBucket2AAC5544.Arn>/generations/*',
         'Resource::<Generations7CAB23BD.Arn>/index/*',
         'Resource::<WorkerFunctionACE6A4B0.Arn>:*',
+        'Resource::<WorkerFailureFunction5CF06FF8.Arn>:*',
         'Resource::<GeneratorAgent90710AE4.AgentRuntimeArn>/*',
         'Resource::<SiteBucket397A1860.Arn>/*',
         'Action::s3:List*',
@@ -62,16 +60,34 @@ export function addNagSuppressions(stack: Stack, models: ModelConfig[]): void {
         `Resource::arn:aws:bedrock-agentcore:us-east-1:${account}:workload-identity-directory/default/workload-identity/*`,
       ],
     },
+    {
+      id: 'AwsSolutions-IAM5',
+      reason: 'Image to 3D: per-object grants on random job IDs. The API writes and deletes uploads/*, the prepare function reads and deletes them, and the worker reads only each job\'s generations/<jobId>/input.png.',
+      appliesTo: [
+        'Resource::<UploadsBucket5E5E9B64.Arn>/uploads/*',
+        'Resource::<ArtifactsBucket2AAC5544.Arn>/generations/*/input.png',
+      ],
+    },
+    {
+      id: 'AwsSolutions-IAM5',
+      reason: 'GuardDuty Malware Protection role, from the GuardDuty user guide template: it scans and tags any new object in the uploads bucket, and manages its own EventBridge rule, whose name GuardDuty generates under the DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3 prefix.',
+      appliesTo: [
+        'Resource::<UploadsBucket5E5E9B64.Arn>/*',
+        `Resource::arn:aws:events:us-east-1:${account}:rule/DO-NOT-DELETE-AmazonGuardDutyMalwareProtectionS3*`,
+      ],
+    },
+    {
+      id: 'AwsSolutions-IAM5',
+      reason: 'The background-removal model is called through its us.* inference profile, which routes to any US Region; the foundation model is granted in every Region only via that profile (condition on bedrock:InferenceProfileArn).',
+      appliesTo: ['Resource::arn:aws:bedrock:*::foundation-model/stability.stable-image-remove-background-v1:0'],
+    },
     { id: 'AwsSolutions-L1', reason: 'CDK-managed custom resource Lambdas (BucketDeployment, auto-delete) pick their own runtime.' },
     { id: 'AwsSolutions-S1', reason: 'The access log bucket itself does not log to another bucket.' },
-    { id: 'AwsSolutions-SMG4', reason: 'The origin-verify header value is only a CloudFront-to-API routing check, set by CloudFormation; no rotation Lambda.' },
+    { id: 'AwsSolutions-SMG4', reason: 'The origin-verify header value, the Cognito client secret and the OAuth nonce key are managed by CloudFormation; no rotation Lambda.' },
     { id: 'AwsSolutions-APIG2', reason: 'The single Lambda validates every request body (prompt length, JSON content type).' },
-    {
-      id: 'AwsSolutions-APIG4',
-      reason: 'Public by owner decision (sign-in removed 2026-11-18). Only CloudFront can reach the API (regional WAF on the origin header); WAF rate limits and a daily generation cap bound cost.',
-    },
-    { id: 'AwsSolutions-COG4', reason: 'Public by owner decision: no Cognito authorizer; the API is reachable only through CloudFront.' },
-    { id: 'AwsSolutions-CFR1', reason: 'No geo restriction on the public demo; optional WAF IP allowlist via the allowedCidrs context.' },
+    { id: 'AwsSolutions-COG2', reason: 'Users are admin-created; TOTP MFA is optional for this demo.' },
+    { id: 'AwsSolutions-COG8', reason: 'Essentials plan is enough for an admin-created user list; Plus (threat protection) is not needed for this demo.' },
+    { id: 'AwsSolutions-CFR1', reason: 'No geo restriction: Cognito sign-in gates every request; optional WAF IP allowlist via the allowedCidrs context.' },
     { id: 'AwsSolutions-CFR4', reason: 'Uses the default *.cloudfront.net certificate, whose viewer TLS policy cannot be changed without a custom domain.' },
     { id: 'AwsSolutions-CFR7', reason: 'S3 origin uses Origin Access Control (OAC), which supersedes OAI.' },
   ];

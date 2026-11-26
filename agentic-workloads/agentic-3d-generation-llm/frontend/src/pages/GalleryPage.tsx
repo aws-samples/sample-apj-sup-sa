@@ -1,11 +1,11 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 import { useCallback, useEffect, useState } from 'react';
 import { listGallery } from '../api';
 import { fmtWhen } from '../format';
 import { Link } from '../router';
 import type { GalleryItem } from '../types';
+
+// The usual preview models (matches GALLERY_MODEL_KEYS on the API): no "preview: <model>" note for these.
+const ASTRA_KEYS = ['gpt-6-2-astra', 'gpt-6-astra'];
 
 function Tile({ item }: { item: GalleryItem }) {
   const inProgress = item.finished < item.total;
@@ -35,12 +35,18 @@ function Tile({ item }: { item: GalleryItem }) {
               )}
             </div>
           )}
+          {item.inputImageUrl && (
+            <img className="tile__thumb" src={item.inputImageUrl} alt="" loading="lazy" title="The uploaded image" />
+          )}
         </div>
         <div className="tile__body">
-          <span className="tile__prompt">{item.prompt}</span>
+          <span className="tile__prompt">
+            {item.kind === 'image' && <span className="tag tag--image">Image</span>}
+            {item.prompt}
+          </span>
           <span className="muted tile__meta">
             {fmtWhen(item.createdAt)} · {item.succeeded}/{item.total} models
-            {item.preview && item.preview.modelKey !== 'gpt-6-astra' ? ` · preview: ${item.preview.modelName}` : ''}
+            {item.preview && !ASTRA_KEYS.includes(item.preview.modelKey) ? ` · preview: ${item.preview.modelName}` : ''}
           </span>
         </div>
       </Link>
@@ -76,7 +82,7 @@ export function GalleryPage() {
     <section className="gallery">
       <div className="page-head">
         <h2>Gallery</h2>
-        <p className="muted">Past generations, previewed with GPT-6 Astra's model. Open one to compare all four models.</p>
+        <p className="muted">Past generations, previewed with GPT-6.2 Astra's model (GPT-6 Astra for older ones). Open one to compare all four models.</p>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       {!loading && !error && items.length === 0 && (

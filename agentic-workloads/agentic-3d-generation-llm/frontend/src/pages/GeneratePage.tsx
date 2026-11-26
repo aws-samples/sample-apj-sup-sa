@@ -1,6 +1,3 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createGeneration, getGeneration } from '../api';
 import { GenerationView, isRunning, mergeResults, POLL_MS } from '../GenerationView';
@@ -9,10 +6,10 @@ import type { Generation, Model, ModelChoices } from '../types';
 
 // Obstacles a commercial cleaning robot meets in supermarkets, malls and offices, for simulation scenes.
 const EXAMPLES = [
-  'a supermarket shopping cart',
-  'a yellow wet floor sign',
-  'a shopping mall bench',
-  'an office chair on wheels',
+  'A supermarket shopping cart with a chrome wire basket, a red plastic handle and a fold-down child seat, on four swivel caster wheels.',
+  'A yellow wet floor caution sign: a folded A-frame about 60 cm tall with a slipping-person icon on both sides and a carry handle on top.',
+  'A shopping mall bench about 1.8 m long, with a curved wooden slat seat and backrest, brushed steel legs and armrests at each end.',
+  'An office chair with a five-star wheeled base, a gas-lift column, a padded seat, a mesh backrest and adjustable armrests.',
 ];
 const MAX_PROMPT = 1000;
 
@@ -24,13 +21,17 @@ export function GeneratePage({ models }: { models: Model[] }) {
   const [loadingJob, setLoadingJob] = useState(false); // opening a past generation
   const [choices, setChoices] = useState<ModelChoices>({}); // dropdown picks; a missing slot runs its default
   const pollRef = useRef<number | undefined>(undefined);
+  // The job this page is showing; a late response for any other job (e.g. a slow shared link) is dropped.
+  const wantedJob = useRef<string | null>(null);
 
   const load = useCallback(async (jobId: string) => {
     try {
       const g = await getGeneration(jobId);
+      if (wantedJob.current !== jobId) return;
       setGeneration((prev) => mergeResults(prev, g));
       setError(null);
     } catch (e) {
+      if (wantedJob.current !== jobId) return;
       setError((e as Error).message);
     }
   }, []);
@@ -38,6 +39,7 @@ export function GeneratePage({ models }: { models: Model[] }) {
   useEffect(() => {
     const job = new URLSearchParams(window.location.search).get('job');
     if (job) {
+      wantedJob.current = job;
       setLoadingJob(true);
       load(job).finally(() => setLoadingJob(false));
     }
@@ -56,11 +58,13 @@ export function GeneratePage({ models }: { models: Model[] }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const text = prompt.trim();
-    if (text.length < 3) return;
+    // Ctrl+Enter calls this directly, so check here too, not only on the button.
+    if (text.length < 3 || submitting || running || loadingJob) return;
     setSubmitting(true);
     setError(null);
     try {
       const g = await createGeneration(text, choices);
+      wantedJob.current = g.jobId;
       setGeneration(g);
       window.history.replaceState(null, '', `/?job=${g.jobId}`);
     } catch (err) {
@@ -76,6 +80,7 @@ export function GeneratePage({ models }: { models: Model[] }) {
   function choose(slotKey: string, modelKey: string) {
     setChoices((prev) => ({ ...prev, [slotKey]: modelKey }));
     if (generation) {
+      wantedJob.current = null;
       setGeneration(null);
       window.history.replaceState(null, '', '/');
     }
@@ -104,8 +109,8 @@ export function GeneratePage({ models }: { models: Model[] }) {
               </button>
             ))}
           </div>
-          <button type="submit" className="primary" disabled={submitting || running || prompt.trim().length < 3}>
-            {submitting ? 'Starting…' : running ? 'Generating…' : 'Generate with 4 models'}
+          <button type="submit" className="primary" disabled={submitting || running || loadingJob || prompt.trim().length < 3}>
+            {submitting ? 'Starting…' : running ? 'Generating…' : loadingJob ? 'Loading…' : 'Generate with 4 models'}
           </button>
         </div>
         {error && <p className="error" role="alert">{error}</p>}

@@ -2,13 +2,19 @@
   "_comment": "Models compared side by side. api=converse uses bedrock-runtime Converse; api=mantle uses the bedrock-mantle OpenAI-compatible Chat Completions endpoint (SigV4). Prices are USD per 1M tokens, us-east-1 on-demand, from the AWS Price List API (2026-11-11).",
   "models": [
     {
-      "key": "gpt-6-astra",
-      "name": "GPT-6 Astra",
+      "key": "gpt-6-2-astra",
+      "name": "GPT-6.2 Astra",
       "provider": "OpenAI",
       "api": "converse",
-      "modelId": "us.openai.gpt-6-astra",
-      "baseModelId": "openai.gpt-6-astra",
-      "pricing": { "inputPerMTok": 11.0, "outputPerMTok": 55.0 }
+      "modelId": "us.openai.gpt-6.2-astra",
+      "baseModelId": "openai.gpt-6.2-astra",
+      "_pricingComment": "US Geo CRIS Standard short-context rates from the model card (input 272K tokens or fewer).",
+      "pricing": {
+        "inputPerMTok": 8.8,
+        "outputPerMTok": 44.0,
+        "cacheReadPerMTok": 0.44,
+        "cacheWritePerMTok": 11.0
+      }
     },
     {
       "key": "gpt-6-1-sol",
@@ -17,7 +23,10 @@
       "api": "converse",
       "modelId": "us.openai.gpt-6.1-sol",
       "baseModelId": "openai.gpt-6.1-sol",
-      "pricing": { "inputPerMTok": 2.2, "outputPerMTok": 11.0 }
+      "pricing": {
+        "inputPerMTok": 2.2,
+        "outputPerMTok": 11.0
+      }
     },
     {
       "key": "claude-opus-5-5",
@@ -26,7 +35,12 @@
       "api": "converse",
       "modelId": "us.anthropic.claude-opus-5-5",
       "baseModelId": "anthropic.claude-opus-5-5",
-      "pricing": { "inputPerMTok": 4.4, "outputPerMTok": 22.0, "cacheReadPerMTok": 0.22, "cacheWritePerMTok": 5.5 },
+      "pricing": {
+        "inputPerMTok": 4.4,
+        "outputPerMTok": 22.0,
+        "cacheReadPerMTok": 0.22,
+        "cacheWritePerMTok": 5.5
+      },
       "_optionsComment": "The Generate page lets users run one of these instead of the default (this entry). US Geo prices from the Price List API.",
       "options": [
         {
@@ -36,7 +50,12 @@
           "api": "converse",
           "modelId": "us.anthropic.claude-sonnet-5-5",
           "baseModelId": "anthropic.claude-sonnet-5-5",
-          "pricing": { "inputPerMTok": 2.2, "outputPerMTok": 11.0, "cacheReadPerMTok": 0.11, "cacheWritePerMTok": 2.75 }
+          "pricing": {
+            "inputPerMTok": 2.2,
+            "outputPerMTok": 11.0,
+            "cacheReadPerMTok": 0.11,
+            "cacheWritePerMTok": 2.75
+          }
         },
         {
           "key": "claude-haiku-5-5",
@@ -45,7 +64,12 @@
           "api": "converse",
           "modelId": "us.anthropic.claude-haiku-5-5",
           "baseModelId": "anthropic.claude-haiku-5-5",
-          "pricing": { "inputPerMTok": 0.11, "outputPerMTok": 0.55, "cacheReadPerMTok": 0.011, "cacheWritePerMTok": 0.1375 }
+          "pricing": {
+            "inputPerMTok": 0.11,
+            "outputPerMTok": 0.55,
+            "cacheReadPerMTok": 0.011,
+            "cacheWritePerMTok": 0.1375
+          }
         }
       ]
     },
@@ -57,11 +81,28 @@
       "modelId": "us.openai.gpt-6-luna",
       "baseModelId": "openai.gpt-6-luna",
       "_pricingComment": "US Geo CRIS short-context rates from the model card (input 272K tokens or fewer).",
-      "pricing": { "inputPerMTok": 0.11, "outputPerMTok": 0.55, "cacheReadPerMTok": 0.011, "cacheWritePerMTok": 0.1375 }
+      "pricing": {
+        "inputPerMTok": 0.11,
+        "outputPerMTok": 0.55,
+        "cacheReadPerMTok": 0.011,
+        "cacheWritePerMTok": 0.1375
+      }
     }
   ],
   "_retiredComment": "No longer run, kept so past generations still show the model's name and price.",
   "retired": [
+    {
+      "key": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "provider": "OpenAI",
+      "api": "converse",
+      "modelId": "us.openai.gpt-6-astra",
+      "baseModelId": "openai.gpt-6-astra",
+      "pricing": {
+        "inputPerMTok": 11.0,
+        "outputPerMTok": 55.0
+      }
+    },
     {
       "key": "gemma-4-31b",
       "name": "Gemma 4 31B",
@@ -70,7 +111,10 @@
       "mantlePath": "/openai/v1",
       "modelId": "google.gemma-4-31b",
       "baseModelId": "google.gemma-4-31b",
-      "pricing": { "inputPerMTok": 0.14, "outputPerMTok": 0.4 }
+      "pricing": {
+        "inputPerMTok": 0.14,
+        "outputPerMTok": 0.4
+      }
     },
     {
       "key": "qwen3-32b",
@@ -80,7 +124,10 @@
       "modelId": "qwen.qwen3-32b-v1:0",
       "baseModelId": "qwen.qwen3-32b-v1:0",
       "maxOutputTokens": 8192,
-      "pricing": { "inputPerMTok": 0.15, "outputPerMTok": 0.6 }
+      "pricing": {
+        "inputPerMTok": 0.15,
+        "outputPerMTok": 0.6
+      }
     },
     {
       "key": "grok-4-7",
@@ -89,8 +136,16 @@
       "api": "converse",
       "modelId": "us.xai.grok-4.7",
       "baseModelId": "xai.grok-4.7",
-      "requestFields": { "reasoning": { "effort": "low" } },
-      "pricing": { "inputPerMTok": 2.2, "outputPerMTok": 6.6, "cacheReadPerMTok": 0.55 }
+      "requestFields": {
+        "reasoning": {
+          "effort": "low"
+        }
+      },
+      "pricing": {
+        "inputPerMTok": 2.2,
+        "outputPerMTok": 6.6,
+        "cacheReadPerMTok": 0.55
+      }
     },
     {
       "key": "glm-5",
@@ -99,7 +154,10 @@
       "api": "mantle",
       "modelId": "zai.glm-5",
       "baseModelId": "zai.glm-5",
-      "pricing": { "inputPerMTok": 1.0, "outputPerMTok": 3.2 }
+      "pricing": {
+        "inputPerMTok": 1.0,
+        "outputPerMTok": 3.2
+      }
     }
   ]
 }

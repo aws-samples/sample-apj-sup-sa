@@ -1,7 +1,4 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { fmtCost, fmtSeconds, fmtTokens } from './format';
 import { ModelCard, type CardMode, type SlotPicker } from './ModelCard';
 import { isDone, type Generation, type Model, type ModelChoices, type ModelResult } from './types';
@@ -23,8 +20,39 @@ export function mergeResults(prev: Generation | null, next: Generation): Generat
 
 export const isRunning = (g: Generation | null) => !!g && g.results.some((r) => !isDone(r));
 
+const INPUT_LABEL = { SCANNING: 'Scanning the upload for malware…', REMOVING_BACKGROUND: 'Removing the background…' } as const;
+
+/** Image to 3D: the upload after background removal, or where it is in scanning and preparation. */
+export function InputImagePanel({ generation, original }: { generation: Generation; original?: string }) {
+  const input = generation.input;
+  if (!input) return null;
+  const busy = input.status === 'SCANNING' || input.status === 'REMOVING_BACKGROUND';
+  return (
+    <section className="input-panel" aria-label="Input image" aria-live="polite">
+      {original && (
+        <figure>
+          <img src={original} alt="Uploaded image" />
+          <figcaption className="muted">Uploaded</figcaption>
+        </figure>
+      )}
+      <figure className="input-panel__cutout">
+        {input.imageUrl ? (
+          <img src={input.imageUrl} alt="Uploaded image with the background removed" />
+        ) : (
+          <div className={`input-panel__msg${busy ? '' : ' viewer__msg--error'}`}>
+            {busy ? <><span className="spinner" aria-hidden /><span>{INPUT_LABEL[input.status as keyof typeof INPUT_LABEL]}</span></> : <span>{input.error ?? 'The image could not be prepared.'}</span>}
+          </div>
+        )}
+        <figcaption className="muted">
+          Background removed{input.backgroundSeconds !== undefined ? ` in ${fmtSeconds(input.backgroundSeconds)}` : ''} · what the models see
+        </figcaption>
+      </figure>
+    </section>
+  );
+}
+
 /** Summary bar and the 2x2 grid of model cards for one generation (or empty cards). */
-export function GenerationView({ generation, models, mode, choices, onChoose, pickerDisabled = false }: {
+export function GenerationView({ generation, models, mode, choices, onChoose, pickerDisabled = false, idleHint }: {
   generation: Generation | null;
   /** The slots, in display order. A slot with `options` gets a dropdown when `onChoose` is given. */
   models: Model[];
@@ -32,6 +60,7 @@ export function GenerationView({ generation, models, mode, choices, onChoose, pi
   choices?: ModelChoices;
   onChoose?: (slotKey: string, modelKey: string) => void;
   pickerDisabled?: boolean;
+  idleHint?: ReactNode;
 }) {
   // Before a run, each card shows the model chosen for its slot.
   const chosenModel = (slot: Model) => slot.options?.find((o) => o.key === choices?.[slot.key]) ?? slot;
@@ -57,7 +86,7 @@ export function GenerationView({ generation, models, mode, choices, onChoose, pi
     <>
       {generation && (
         <section className="summary" aria-live="polite">
-          <span className="summary__prompt">“{generation.prompt}”</span>
+          <span className="summary__prompt">{generation.kind === 'image' ? (generation.description ? `Image: “${generation.description}”` : 'Image to 3D') : `“${generation.prompt}”`}</span>
           <span>{summary.finished}/{results.length} finished · {summary.succeeded} succeeded</span>
           <span>Tokens <strong>{fmtTokens(summary.tokens)}</strong></span>
           <span>Cost <strong>{fmtCost(summary.cost)}</strong></span>
@@ -78,6 +107,7 @@ export function GenerationView({ generation, models, mode, choices, onChoose, pi
               result={r}
               mode={mode}
               picker={picker}
+              idleHint={idleHint}
               fastest={summary.fastest === r.model.key}
               cheapest={summary.cheapest === r.model.key}
             />

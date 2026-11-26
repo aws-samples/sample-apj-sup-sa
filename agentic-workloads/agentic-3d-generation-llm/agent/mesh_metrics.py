@@ -1,6 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 # Runs inside Blender (imported by blender_harness.py): mesh-quality counts for the scene the
 # generated script built, measured on evaluated (modifiers applied), world-space meshes.
 from collections import deque

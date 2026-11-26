@@ -1,10 +1,7 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteGeneration, getGeneration } from '../api';
 import { fmtWhen } from '../format';
-import { GenerationView, isRunning, mergeResults, POLL_MS } from '../GenerationView';
+import { GenerationView, InputImagePanel, isRunning, mergeResults, POLL_MS } from '../GenerationView';
 import { Link, navigate } from '../router';
 import type { Generation, Model } from '../types';
 
@@ -65,13 +62,19 @@ export function GalleryDetailPage({ jobId, models }: { jobId: string; models: Mo
       {error ? (
         <p className="error" role="alert">{error === 'Not found' ? 'This generation was not found. It may have expired.' : error}</p>
       ) : (
-        <GenerationView generation={generation} models={models} mode={generation ? 'job' : 'loading'} />
+        <>
+          {generation?.input && <InputImagePanel generation={generation} />}
+          <GenerationView generation={generation} models={models} mode={generation ? 'job' : 'loading'} />
+        </>
       )}
       {generation && (
         <div className="danger-zone">
           <div>
             <strong>Delete this object</strong>
-            <p className="muted">Removes all {generation.results.length} model generations, their GLB files and Blender scripts.</p>
+            <p className="muted">
+              Removes all {generation.results.length} model generations, their GLB files and Blender scripts
+              {generation.input ? ', and the uploaded image' : ''}.
+            </p>
             {running && <p className="muted">You can delete it once every model has finished.</p>}
             {deleteError && <p className="error" role="alert">{deleteError}</p>}
           </div>

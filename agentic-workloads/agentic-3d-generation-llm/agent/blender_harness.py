@@ -1,6 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
-
 # Runs inside Blender: blender -b --factory-startup --python blender_harness.py -- <script.py> <out.glb> [<metrics.json>]
 # Starts from an empty scene, executes the generated script, exports every object to GLB, then
 # writes mesh-quality metrics (a metrics failure never fails the export).
