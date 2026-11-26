@@ -1,0 +1,99 @@
+.quota {
+  display: grid;
+  gap: 7px;
+  min-width: 140px;
+}
+
+.quotaMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metricCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.metricLabel {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.metricValue {
+  margin-top: 9px;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.metricDetail {
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.metricIcon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  color: var(--primary);
+  place-items: center;
+  background: #edf4ff;
+  border-radius: 8px;
+}
+
+.dialogOverlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.dialogContent {
+  position: fixed;
+  z-index: 50;
+  top: 50%;
+  left: 50%;
+  width: min(480px, calc(100vw - 32px));
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  transform: translate(-50%, -50%);
+}
+
+.dialogTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.dialogDescription {
+  margin: 8px 0 16px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.reasonLabel {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}

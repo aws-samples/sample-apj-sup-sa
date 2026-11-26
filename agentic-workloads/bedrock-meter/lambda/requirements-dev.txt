@@ -1,0 +1,8 @@
+# Dev/test-only dependencies for the Python Lambda unit tests.
+# The Lambda runtime ships boto3/botocore built-in, so they are NOT in a runtime
+# requirements file — but the unit tests import the handler modules (which create
+# boto3 clients at import time), so a local/CI run needs boto3 installed.
+#
+#   python3 -m pip install -r lambda/requirements-dev.txt
+#   python3 -m unittest discover -s lambda -p 'test_*.py'   # from repo root
+boto3>=1.34
