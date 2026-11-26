@@ -1,0 +1,136 @@
+-- Error paths, spend guard, retries, auth and truncation detection.
+\set VERBOSITY terse
+SET decider.api_url = 'http://127.0.0.1:8766/v1/systemone';
+CREATE TABLE things (id int, v text);
+INSERT INTO things VALUES (1, 'a'), (2, 'b'), (3, 'c');
+-- Client-side validation, before anything is sent
+SELECT decide_eval(things, 'anything', 'bogus') FROM things WHERE id = 1;
+ERROR:  decider: unknown kind 'bogus' (expected noul, choice or score)
+SELECT decide_choice(things, 'pick', ARRAY['only']) FROM things WHERE id = 1;
+ERROR:  decider: choice needs at least 2 options
+SELECT decide_choice(things, 'pick', ARRAY['x', 'y'], ARRAY['one description']) FROM things WHERE id = 1;
+ERROR:  decider: 1 descriptions given for 2 options
+SELECT decide_score(things, 'rate', ARRAY['1','2','3','4','5','6','7','8','9','10','11']) FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: score 'q' needs between 2 and 10 non-empty levels, lowest first
+SELECT decide_ask(things, '{"q": {"type": "noul", "instructions": ""}}') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: question 'q' needs non-empty instructions
+SELECT decide_ask(things, '{"q": {"type": "noul", "instructions": "x", "criteria": {"maybe": "?"}}}') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: noul criteria for 'q' may only describe 'true' and 'false'
+SELECT decide_ask(things, '{"q": {"type": "choice", "instructions": "x", "criteria": {"a": null, "a": null}}}') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: questions are not valid JSON: duplicate key 'a'
+SELECT decide_ask(things, '{}') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: questions must be a non-empty JSON object of {name: question}
+SET decider.truncation = 'sometimes';
+SELECT decide(things, 'x') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: decider.truncation must be 'warn', 'error' or 'off', got 'sometimes'
+RESET decider.truncation;
+SELECT (decider_stats()->>'requests') AS requests_after_validation;
+ requests_after_validation 
+---------------------------
+ 0
+(1 row)
+
+-- The server's 422 surfaces as an SQL error
+SELECT decide(things, 'please trigger422') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: server rejected the request: HTTP 422: {"detail": "mock validation failure"}
+-- No server listening
+SET decider.api_url = 'http://127.0.0.1:1/v1/systemone';
+SELECT decide(things, 'anything') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: no Strands Decider server answering at http://127.0.0.1:1/v1/systemone ([Errno 111] Connection refused). Start one with: strands-decider serve StrandsAgents/strands-decider-2B-hobson-v19 --port 8000
+SET decider.api_url = 'http://127.0.0.1:8766/v1/systemone';
+-- A 503 is retried
+SELECT decide_prob(things, 'a flaky check on a') AS p FROM things WHERE id = 1;
+  p  
+-----
+ 0.9
+(1 row)
+
+SELECT (decider_stats()->>'retries')::int >= 1 AS retried;
+ retried 
+---------
+ t
+(1 row)
+
+-- Bearer auth for servers behind a proxy
+SET decider.api_url = 'http://127.0.0.1:8766/auth/v1/systemone';
+SELECT decide(things, 'needs a key') FROM things WHERE id = 1;
+ERROR:  plpy.Error: decider: server rejected the request: HTTP 401: {"detail": "unauthorised"}
+SET decider.api_key = 'test-key';
+SELECT decide(things, 'the value is a') FROM things WHERE id = 1;
+ decide 
+--------
+ t
+(1 row)
+
+RESET decider.api_key;
+SET decider.api_url = 'http://127.0.0.1:8766/v1/systemone';
+-- Per-statement row guard aborts before going over; cached rows do not count
+SET decider.max_rows_per_statement = 2;
+SELECT count(*) FROM things WHERE decide(things, 'the value is b');
+ERROR:  plpy.Error: decider: this statement would send more than 2 rows to the decider (decider.max_rows_per_statement)
+RESET decider.max_rows_per_statement;
+SELECT count(*) FROM things WHERE decide(things, 'the value is b');
+ count 
+-------
+     1
+(1 row)
+
+SET decider.max_rows_per_statement = 2;
+SELECT count(*) AS cached_rows_pass_guard FROM things WHERE decide(things, 'the value is b');
+ cached_rows_pass_guard 
+------------------------
+                      1
+(1 row)
+
+RESET decider.max_rows_per_statement;
+-- A row that hit the model window is reported (warn once per statement, or error)
+INSERT INTO things VALUES (4, 'TOOLONG one'), (5, 'TOOLONG two');
+SELECT count(*) FROM things WHERE id >= 4 AND decide(things, 'is long');
+WARNING:  decider: the row did not fit the model's 4096-token window and the server cut it (4096 input tokens); the answer may ignore part of the row. Send fewer or shorter columns, e.g. decide(t.body, ...) or a view with only the columns the question needs (warned once per statement)
+ count 
+-------
+     2
+(1 row)
+
+SELECT (decider_stats()->>'truncated')::int AS truncated;
+ truncated 
+-----------
+         2
+(1 row)
+
+SET decider.truncation = 'error';
+SELECT decide(things, 'is long, again') FROM things WHERE id = 4;
+ERROR:  plpy.Error: decider: the row did not fit the model's 4096-token window and the server cut it (4096 input tokens); the answer may ignore part of the row. Send fewer or shorter columns, e.g. decide(t.body, ...) or a view with only the columns the question needs
+RESET decider.truncation;
+-- Waiting on the server stays cancellable: statement_timeout fires mid-request,
+-- and the next statement does not queue behind the abandoned request
+SET statement_timeout = '500ms';
+SELECT decide(things, 'slowpoke') FROM things WHERE id = 1;
+ERROR:  spiexceptions.QueryCanceled: canceling statement due to statement timeout
+RESET statement_timeout;
+SELECT clock_timestamp() AS t0 \gset
+SELECT decide(things, 'the value is a, quickly') FROM things WHERE id = 1;
+ decide 
+--------
+ f
+(1 row)
+
+SELECT clock_timestamp() - :'t0'::timestamptz < interval '1 second' AS next_statement_fast;
+ next_statement_fast 
+---------------------
+ t
+(1 row)
+
+-- Errors are counted, and the session keeps working
+SELECT (decider_stats()->>'errors')::int AS errors;
+ errors 
+--------
+      3
+(1 row)
+
+SELECT decide(things, 'the value is c') FROM things WHERE id = 3;
+ decide 
+--------
+ t
+(1 row)
+
