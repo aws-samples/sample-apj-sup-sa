@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- LaunchAgent: keeps `ocgw proxy` running for the signed-in user (127.0.0.1 only). Install to /Library/LaunchAgents.
+     Install ocgw at /usr/local/bin/ocgw owned by root and writable only by root (where Homebrew owns /usr/local/bin,
+     use a root-owned path such as /Library/Application Support/OpencodeGateway/ocgw and change ProgramArguments);
+     this agent runs it in every user's session. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.ocgw-proxy</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/python3</string><string>-I</string><string>/usr/local/bin/ocgw</string><string>proxy</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+</dict>
+</plist>

@@ -1,0 +1,36 @@
+# Okta. In the Okta admin console (docs/okta.md walks through it):
+#   1. Applications > Create App Integration > OIDC > Native Application; grant types Authorization Code and Refresh
+#      Token; sign-in redirect URI http://127.0.0.1:8765/callback; assign the ocgw-team-a and ocgw-team-b groups.
+#   2. Security > API > Authorization Servers > default > Claims: add "groups" (ID token, Always, Groups filter
+#      "Starts with" ocgw-) and make sure the ID token carries "email".
+region             = "us-east-1"
+name               = "ocgw"
+idp                = "okta"
+oidc_discovery_url = "https://<your-org>.okta.com/oauth2/default/.well-known/openid-configuration"
+oidc_client_id     = "<native app client ID>"
+# The ID token's aud is the client ID, so accept it as the audience.
+oidc_allowed_audience = ["<native app client ID>"]
+oidc_allowed_clients  = []
+user_claim            = "sub"
+group_claim           = "groups"
+budget_overrides_usd  = {}
+rpm_overrides         = {}
+# Ledger users (budget, Mantle project, rate limits) and their group, and which IdP user is which. Use the immutable
+# sub claim, the Okta user ID (Directory > People > user > the 00u... in the URL). A signed-in user whose sub is not listed here is refused.
+users = {
+  alice = "ocgw-team-a"
+  bob   = "ocgw-team-b"
+}
+identity_map = {
+  "<alice's sub>" = "alice"
+  "<bob's sub>"   = "bob"
+}
+
+# Cost attribution: tags per ledger user (Usage explorer, group by tag).
+user_tags = {
+  alice = { team = "payments", project = "checkout" }
+  bob   = { team = "platform", project = "checkout" }
+}
+
+# Short names a client may send instead of the model ID (the test matrix uses kimi).
+model_aliases = { kimi = "ow/kimi-k3" }

@@ -1,0 +1,28 @@
+{
+  "name": "ocgw-dashboard-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:mock": "VITE_MOCK=1 vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "check-size": "node scripts/check-size.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudscape-design/collection-hooks": "1.0.110",
+    "@cloudscape-design/components": "3.0.1405",
+    "@cloudscape-design/global-styles": "1.0.71",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "7.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "typescript": "5.9.3",
+    "vite": "6.4.6"
+  }
+}
