@@ -379,7 +379,7 @@ export class ApiClient {
     kind: string,
     { filters, ...query }: { sort?: string; q?: string; cursor?: string; order?: string; include_closed?: 'true'; filters?: Record<string, string[]> } = {},
   ): Promise<InsightPage> => {
-    return this.get(`/api/insights/${seg(kind).replace('%3A', ':')}`, withFilters(query, filters));
+    return this.get(`/api/insights/${seg(kind).replaceAll('%3A', ':')}`, withFilters(query, filters));
   };
   /** The list as CSV or a Markdown table, with the same filters and field sort as on screen. */
   exportList = async (
@@ -388,10 +388,10 @@ export class ApiClient {
     { filters, ...query }: { sort?: string; order?: string; filters?: Record<string, string[]> } = {},
   ): Promise<string> => {
     const flat = withFilters({ ...query, format }, filters);
-    return (await this.raw('GET', `/api/insights/${seg(kind).replace('%3A', ':')}/export`, undefined, flat)).text();
+    return (await this.raw('GET', `/api/insights/${seg(kind).replaceAll('%3A', ':')}/export`, undefined, flat)).text();
   };
   facets = (kind: string, days = 90): Promise<InsightFacets> =>
-    this.get(`/api/insights/${seg(kind).replace('%3A', ':')}/facets`, { days });
+    this.get(`/api/insights/${seg(kind).replaceAll('%3A', ':')}/facets`, { days });
   insight = (id: string): Promise<InsightDetail> => this.get(`/api/insights/nodes/${nodePath(id)}`);
   feedback = (id: string, vote: 'up' | 'down', comment = ''): Promise<InsightDetail['feedback']> =>
     this.request('POST', `/api/nodes/${nodePath(id)}/feedback`, { vote, comment });

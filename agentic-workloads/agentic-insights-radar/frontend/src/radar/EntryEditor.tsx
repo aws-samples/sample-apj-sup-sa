@@ -45,7 +45,12 @@ export function displayTitle(title: string): string {
  * entities, so each `&` counts five (r3 F3-089: a long text with ampersands failed only at Save).
  */
 export function storedLength(description: string): number {
-  const text = description.replace(/<[^>]*>/g, '');
+  // Tags are dropped until none is left: one pass would leave half of a tag hidden in another (`<<b>b>`).
+  let text = description;
+  for (let prev = ''; prev !== text; ) {
+    prev = text;
+    text = text.replace(/<[^>]*>/g, '');
+  }
   const entities = (text.match(/&/g)?.length ?? 0) * 4 + (text.match(/[<>]/g)?.length ?? 0) * 3;
   return chars(text) + entities;
 }

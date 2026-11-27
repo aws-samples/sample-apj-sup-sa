@@ -338,7 +338,7 @@ describe('main', () => {
         return true;
       },
     });
-    expect(opened[0]).toMatch(new RegExp(`^https://${STACK_DOMAIN}/oauth2/authorize\\?`));
+    expect(opened[0].startsWith(`https://${STACK_DOMAIN}/oauth2/authorize?`)).toBe(true);
     expect(store.load()?.deployment).toEqual({
       api_url: 'https://api.example.com',
       client_id: 'mcp-client',

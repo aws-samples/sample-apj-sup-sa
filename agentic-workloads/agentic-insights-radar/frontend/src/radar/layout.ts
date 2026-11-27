@@ -30,7 +30,7 @@ export function readableText(hex: string): '#000000' | '#ffffff' {
 
 /** Split a segment name into lines of at most `max` characters, breaking at spaces, '&', '/' and '-'. */
 export function wrapLabel(name: string, max = 14): string[] {
-  const chunks = name.replace(/ & /g, ' & ').split(/[\s-]+/).filter(Boolean);
+  const chunks = name.split(/[\s-]+/).filter(Boolean);
   const lines: string[] = [];
   let cur = '';
   for (const c of chunks) {

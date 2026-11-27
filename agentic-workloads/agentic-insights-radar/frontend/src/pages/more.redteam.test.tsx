@@ -104,8 +104,8 @@ describe('Products (F-117..F-130)', () => {
       'GET /api/modules': { items: [] },
     });
     const { container } = render(wrap(page(), { api, path: '/products/p1' }));
-    expect(await screen.findByText(/Last crawl problems: 403 https:\/\/docs.example.com\/x; dns; robots.txt \(and 1 more\)/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /https:\/\/docs.example.com\// })).toBeInTheDocument();
+    expect(await screen.findByText(/Last crawl problems: 403 https:\/\/docs\.example\.com\/x; dns; robots\.txt \(and 1 more\)/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /https:\/\/docs\.example\.com\// })).toBeInTheDocument();
     expect(screen.getByText('javascript:alert(1)').tagName).toBe('LI'); // shown, never linked
     expect(container.querySelector('.air-pre')!.textContent).toBe(notes);
     expect(await screen.findByText('40 MB')).toBeInTheDocument();
