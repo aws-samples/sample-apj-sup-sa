@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Additional execution permissions for the SageMaker UCI Pipeline.
+
+Parameters:
+  BucketName:
+    Type: String
+  ExecutionRoleName:
+    Type: String
+  ExecutionRoleArn:
+    Type: String
+  ModelPackageGroupName:
+    Type: String
+    Default: sagemaker-xgboost-lab-pipeline
+
+Resources:
+  PipelineExecutionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: sagemaker-xgboost-lab-pipeline
+      Roles:
+        - !Ref ExecutionRoleName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadBucketLocation
+            Effect: Allow
+            Action: s3:GetBucketLocation
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}"
+          - Sid: ListPipelineArtifacts
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}"
+            Condition:
+              StringLike:
+                s3:prefix:
+                  - sagemaker-xgboost-lab/credit-card-default/pipeline/*
+          - Sid: ReadWritePipelineArtifacts
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:PutObject
+              - s3:AbortMultipartUpload
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}/sagemaker-xgboost-lab/credit-card-default/pipeline/*"
+          - Sid: RunPipelineJobs
+            Effect: Allow
+            Action:
+              - sagemaker:CreateProcessingJob
+              - sagemaker:DescribeProcessingJob
+              - sagemaker:StopProcessingJob
+              - sagemaker:CreateTrainingJob
+              - sagemaker:DescribeTrainingJob
+              - sagemaker:StopTrainingJob
+              - sagemaker:AddTags
+            Resource:
+              - !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:processing-job/pipelines-*"
+              - !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:processing-job/xgboost-lab-pipeline-*"
+              - !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:training-job/pipelines-*"
+              - !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:training-job/xgboost-lab-pipeline-*"
+          - Sid: RegisterPipelineModels
+            Effect: Allow
+            Action:
+              - sagemaker:CreateModelPackage
+              - sagemaker:CreateModelPackageGroup
+              - sagemaker:DescribeModelPackage
+              - sagemaker:DescribeModelPackageGroup
+              - sagemaker:AddTags
+            Resource:
+              - !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:model-package-group/${ModelPackageGroupName}"
+              - !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:model-package/${ModelPackageGroupName}/*"
+          - Sid: PassExecutionRole
+            Effect: Allow
+            Action: iam:PassRole
+            Resource: !Ref ExecutionRoleArn
+            Condition:
+              StringEquals:
+                iam:PassedToService: sagemaker.amazonaws.com
+          - Sid: WriteProcessingLogs
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogStreams
+            Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/ProcessingJobs*"

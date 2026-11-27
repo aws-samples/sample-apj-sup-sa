@@ -1,81 +1,73 @@
-"""Read Redshift Parquet extracts, make simple pandas features, and write time splits."""
+"""Validate a UCI CSV snapshot and write stratified train/validation/test CSVs."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
-import awswrangler as wr
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
-from sagemaker_xgboost_pipeline.config import LABEL_COLUMN
-from sagemaker_xgboost_pipeline.features import (
-    build_feature_frame,
-    fit_transformer,
-    model_feature_columns,
-    model_frame,
-    split_by_time,
-)
+RANDOM_SEED = 42
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--raw-prefix", required=True)
-    parser.add_argument("--validation-start", required=True)
-    parser.add_argument("--oot-start", required=True)
-    parser.add_argument("--label-column", default=LABEL_COLUMN)
-    parser.add_argument("--output-dir", default="/opt/ml/processing/output")
-    return parser.parse_args()
+def prepare_data(input_dir: Path, output_dir: Path) -> dict:
+    source = json.loads((input_dir / "source.json").read_text(encoding="utf-8"))
+    csv_path = input_dir / "data.csv"
+    digest = hashlib.sha256(csv_path.read_bytes()).hexdigest()
+    if source["dataset_id"] != 350 or digest != source["sha256"]:
+        raise ValueError("Expected a verified UCI dataset 350 input snapshot.")
+    feature_names = source["feature_names"]
+    if len(feature_names) != 23 or len(set(feature_names)) != 23 or "label" in feature_names:
+        raise ValueError("The input must describe 23 distinct UCI features.")
+    frame = pd.read_csv(csv_path)
+    if frame.columns.tolist() != ["label", *feature_names]:
+        raise ValueError("CSV columns must match the source metadata in label-first order.")
+    frame = frame.apply(pd.to_numeric, errors="raise")
+    if not np.isfinite(frame.to_numpy()).all():
+        raise ValueError("Input features and labels must be finite numeric values.")
+    if set(frame["label"].unique()) != {0, 1}:
+        raise ValueError("The input must contain binary labels 0 and 1.")
+
+    train, remaining = train_test_split(
+        frame, test_size=0.30, random_state=RANDOM_SEED, stratify=frame["label"]
+    )
+    validation, test = train_test_split(
+        remaining, test_size=0.50, random_state=RANDOM_SEED, stratify=remaining["label"]
+    )
+    splits = {"train": train, "validation": validation, "test": test}
+    for name, split in splits.items():
+        if set(split["label"].unique()) != {0, 1}:
+            raise ValueError(f"The {name} split must contain labels 0 and 1.")
+        destination = output_dir / name
+        destination.mkdir(parents=True, exist_ok=True)
+        split.to_csv(destination / f"{name}.csv", index=False, header=False)
+
+    summary = {
+        "dataset_id": source["dataset_id"],
+        "dataset_name": source["dataset_name"],
+        "source_sha256": digest,
+        "label_column": "label",
+        "feature_names": feature_names,
+        "random_seed": RANDOM_SEED,
+        "split_rows": {name: len(split) for name, split in splits.items()},
+    }
+    metadata_dir = output_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    (metadata_dir / "data-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
 
 
 def main() -> None:
-    args = parse_args()
-    raw_prefix = args.raw_prefix.rstrip("/")
-    applications = wr.s3.read_parquet(f"{raw_prefix}/applications/")
-    seller_profiles = wr.s3.read_parquet(f"{raw_prefix}/seller_profiles/")
-    settlements = wr.s3.read_parquet(f"{raw_prefix}/settlements/")
-
-    # `features` is the joined pandas DataFrame. The following steps select its model inputs,
-    # split it over time, and turn those inputs into the numeric matrix XGBoost consumes.
-    features = build_feature_frame(applications, seller_profiles, settlements)
-    train, validation, oot = split_by_time(
-        features,
-        args.validation_start,
-        args.oot_start,
-        args.label_column,
-    )
-    feature_columns = model_feature_columns(features, args.label_column)
-    transformer = fit_transformer(train, feature_columns)
-
-    output_dir = Path(args.output_dir)
-    for name, frame in {"train": train, "validation": validation, "oot": oot}.items():
-        path = output_dir / name
-        path.mkdir(parents=True, exist_ok=True)
-        model_frame(frame, args.label_column, feature_columns, transformer).to_csv(
-            path / f"{name}.csv", index=False, header=False
-        )
-
-    metadata_dir = output_dir / "metadata"
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    summary = {
-        "label_column": args.label_column,
-        "feature_names": feature_columns,
-        "feature_transform": transformer.as_dict(),
-        "raw_prefix": raw_prefix,
-        "split_rows": {"train": len(train), "validation": len(validation), "oot": len(oot)},
-        "date_ranges": {
-            "train": [
-                str(train.observation_date.min().date()),
-                str(train.observation_date.max().date()),
-            ],
-            "validation": [
-                str(validation.observation_date.min().date()),
-                str(validation.observation_date.max().date()),
-            ],
-            "oot": [str(oot.observation_date.min().date()), str(oot.observation_date.max().date())],
-        },
-    }
-    (metadata_dir / "data-summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input-dir", type=Path, default=Path("/opt/ml/processing/input/data"))
+    parser.add_argument("--output-dir", type=Path, default=Path("/opt/ml/processing/output"))
+    args = parser.parse_args()
+    summary = prepare_data(args.input_dir, args.output_dir)
+    print(json.dumps(summary["split_rows"]))
 
 
 if __name__ == "__main__":

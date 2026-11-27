@@ -14,12 +14,13 @@ Then:
 
 import gzip
 import json
+import os
 import pathlib
 import sys
 import urllib.request
 
 import boto3
-from sagemaker.core.helper.session_helper import Session, get_execution_role
+from sagemaker.core.helper.session_helper import Session
 from sagemaker.core.shapes.shapes import MetricDefinition, StoppingCondition
 from sagemaker.core.training.configs import Compute, InputData
 from sagemaker.train import ModelTrainer
@@ -38,8 +39,8 @@ ECR_REPO = "byoc-mnist"            # Repository name created by build_and_push.s
 IMAGE_TAG = "latest"
 IMAGE_URI = None                   # Set explicitly, or None = account/Region + ECR_REPO
 
-ROLE = None                        # SageMaker execution role ARN. None = auto-detect
-REGION = None                      # AWS Region. None = default session Region
+ROLE = None                        # Required: set your SageMaker execution role ARN
+REGION = None                      # AWS Region. None = environment/default session Region
 # ============================================================
 
 
@@ -76,26 +77,27 @@ def prepare_mnist_data():
     return str(HERE / "data")
 
 
-def resolve_role(session):
-    """Execution role ARN: CONFIG ROLE > Studio auto > discover a SageMaker role in the account."""
-    if ROLE:
-        return ROLE
-    try:
-        return get_execution_role(session)
-    except Exception:
-        pass
-    for r in boto3.client("iam").list_roles()["Roles"]:
-        if "SageMaker" in r["RoleName"] and "Execution" in r["RoleName"]:
-            return r["Arn"]
-    raise SystemExit(
-        "Could not find a SageMaker execution role. Set its ARN in ROLE in CONFIG."
-    )
+def resolve_role():
+    """Require an explicitly selected execution role; never search account roles."""
+    if not ROLE:
+        raise SystemExit(
+            "Set ROLE in launch.py CONFIG to your SageMaker execution role ARN. "
+            "See the IAM execution role instructions in the README."
+        )
+    return ROLE
 
 
 def main():
     dry_run = "--dry-run" in sys.argv[1:]
 
-    region = REGION or boto3.session.Session().region_name
+    # Validate before downloading data, uploading code, or submitting a job.
+    role = resolve_role() if not dry_run else ROLE
+    region = (
+        REGION
+        or os.getenv("AWS_REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or boto3.session.Session().region_name
+    )
     if not region:
         raise SystemExit("Could not find a region. Set REGION in CONFIG or run 'aws configure'.")
 
@@ -127,7 +129,7 @@ def main():
         stopping_condition=StoppingCondition(max_runtime_in_seconds=MAX_RUN_SECONDS),
         hyperparameters={"epochs": EPOCHS},  # delivered as /opt/ml/input/config/hyperparameters.json
         base_job_name="byoc-mnist",
-        role=resolve_role(session),
+        role=role,
         sagemaker_session=session,
     ).with_metric_definitions(
         [MetricDefinition(name="test:accuracy", regex=r"test_accuracy=([0-9\.]+)")]
@@ -137,6 +139,8 @@ def main():
     print(f"Submitting... (wait={WAIT})")
     trainer.train(input_data_config=[training_channel], wait=WAIT, logs=WAIT)
 
+    # sagemaker-train is pinned to 1.18.0: train() returns no job and exposes no
+    # public job accessor. Recheck this private access when upgrading the SDK.
     job = trainer._latest_training_job
     print(f"\n✅ Training Job: {job.training_job_name}")
 

@@ -10,12 +10,13 @@ To change settings, just edit the CONFIG values below.
 """
 
 import json
+import os
 import pathlib
 import sys
 
 import boto3
 from sagemaker.core import image_uris
-from sagemaker.core.helper.session_helper import Session, get_execution_role
+from sagemaker.core.helper.session_helper import Session
 from sagemaker.core.shapes.shapes import MetricDefinition, StoppingCondition
 from sagemaker.core.training.configs import Compute, SourceCode
 from sagemaker.train import ModelTrainer
@@ -30,32 +31,32 @@ INSTANCE_TYPE = "ml.c6i.2xlarge"   # For GPU training, e.g. "ml.g4dn.xlarge" (re
 FRAMEWORK_VERSION = "2.7.1"        # PyTorch DLC version (e.g. "2.7.1", "2.8.0")
 MAX_RUN_SECONDS = 3600             # Max run time (safety limit). e.g. 86400 (24h)
 WAIT = True                        # If False, return right after submitting (async)
-ROLE = None                        # SageMaker execution role ARN. None = auto-detect
-REGION = None                      # AWS Region. None = default session Region
+ROLE = None                        # Required: set your SageMaker execution role ARN
+REGION = None                      # AWS Region. None = environment/default session Region
 # ============================================================
 
 
-def resolve_role(session):
-    """Resolve the execution role ARN: CONFIG ROLE > Studio auto > a SageMaker role in the account."""
-    if ROLE:
-        return ROLE
-    try:
-        return get_execution_role(session)  # works as-is inside a SageMaker notebook/Studio
-    except Exception:
-        pass
-    for r in boto3.client("iam").list_roles()["Roles"]:  # local PC: pick one from the account
-        if "SageMaker" in r["RoleName"] and "Execution" in r["RoleName"]:
-            return r["Arn"]
-    raise SystemExit(
-        "Could not find a SageMaker execution role. Set its ARN in ROLE in CONFIG.\n"
-        "(See the 'IAM execution role' section in the README.)"
-    )
+def resolve_role():
+    """Require an explicitly selected execution role; never search account roles."""
+    if not ROLE:
+        raise SystemExit(
+            "Set ROLE in launch.py CONFIG to your SageMaker execution role ARN. "
+            "See the IAM execution role instructions in the README."
+        )
+    return ROLE
 
 
 def main():
     dry_run = "--dry-run" in sys.argv[1:]
 
-    region = REGION or boto3.session.Session().region_name
+    # Validate before downloading data, uploading code, or submitting a job.
+    role = resolve_role() if not dry_run else ROLE
+    region = (
+        REGION
+        or os.getenv("AWS_REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or boto3.session.Session().region_name
+    )
     if not region:
         raise SystemExit("Could not find a region. Set REGION in CONFIG or run 'aws configure'.")
 
@@ -87,7 +88,7 @@ def main():
         stopping_condition=StoppingCondition(max_runtime_in_seconds=MAX_RUN_SECONDS),
         hyperparameters={"epochs": EPOCHS},  # passed to train.py as "--epochs 3"
         base_job_name="hello-mnist",
-        role=resolve_role(session),
+        role=role,
         sagemaker_session=session,
     ).with_metric_definitions(
         # Parse train.py's "test_accuracy=..." output and plot it as a console metric
@@ -98,6 +99,8 @@ def main():
     print(f"\nSubmitting... (wait={WAIT})")
     trainer.train(wait=WAIT, logs=WAIT)
 
+    # sagemaker-train is pinned to 1.18.0: train() returns no job and exposes no
+    # public job accessor. Recheck this private access when upgrading the SDK.
     job = trainer._latest_training_job
     print(f"\n✅ Training Job: {job.training_job_name}")
 

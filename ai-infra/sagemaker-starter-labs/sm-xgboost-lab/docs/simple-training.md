@@ -71,4 +71,4 @@ Transform. It is therefore a good fit when you want to check the SageMaker Train
 first.
 
 When you need to compare experiments, move on to `train.py`; for automatic per-iteration logging, `train_autolog.py`;
-and to search multiple hyperparameter combinations, `train_tunner.py`.
+and to search multiple hyperparameter combinations, `train_tuner.py`.

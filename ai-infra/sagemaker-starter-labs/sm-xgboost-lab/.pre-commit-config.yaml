@@ -1,3 +1,4 @@
+files: ^ai-infra/sagemaker-starter-labs/sm-xgboost-lab/
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.8.6

@@ -5,7 +5,7 @@
 #   → No ENTRYPOINT is set, so the 'train' (training) / 'serve' (inference) argument
 #     SageMaker appends becomes the command itself, letting one image handle both modes.
 
-FROM python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.11-slim
 
 # Send logs to CloudWatch immediately, without buffering
 ENV PYTHONUNBUFFERED=TRUE \

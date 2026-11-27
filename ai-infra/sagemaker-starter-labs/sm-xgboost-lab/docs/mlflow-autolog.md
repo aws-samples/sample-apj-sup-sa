@@ -31,7 +31,7 @@ is kept unchanged. Looking at the two examples together makes the difference cle
 ## Why use XGBoost 3.0-5?
 
 The existing built-in example uses XGBoost `1.7-1`. However, the officially supported range for
-XGBoost autolog in MLflow `3.10.1` is XGBoost `2.1.0` through `3.2.0`.
+XGBoost autolog in MLflow `3.16.0` is XGBoost `2.1.2` through `3.4.1`.
 
 Of the versions SageMaker officially supports in framework mode, `3.0-5` falls within this range,
 so it is used only for the autolog example. The XGBoost version for the whole project was not
@@ -145,7 +145,7 @@ When the Training Job starts, it installs the MLflow client and AWS plugin liste
 package repository or a custom image that includes the dependencies.
 
 The purpose of this autolog example is experiment tracking. The MLflow Logged Models from the
-existing `train.py` and `train_tunner.py` also explicitly record a SageMaker inference
+existing `train.py` and `train_tuner.py` also explicitly record a SageMaker inference
 specification for Batch Transform. Therefore, the Registry and Batch Transform exercises in this
 repository continue to use the two existing flows.
 

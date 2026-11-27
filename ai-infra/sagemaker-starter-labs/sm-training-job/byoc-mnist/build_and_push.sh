@@ -21,7 +21,7 @@ TAG="latest"
 
 # Auto-detect account/Region (with a helpful message on failure)
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-REGION="$(aws configure get region || true)"
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region || true)}}"
 if [[ -z "${REGION}" ]]; then
   echo "Could not find a region. Set a default region with 'aws configure' or set AWS_REGION." >&2
   exit 1

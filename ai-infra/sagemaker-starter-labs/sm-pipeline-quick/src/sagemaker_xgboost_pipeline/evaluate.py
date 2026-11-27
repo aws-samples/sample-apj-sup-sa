@@ -1,4 +1,4 @@
-"""Compare the AMT candidate and the currently deployed model on the same OOT dataset."""
+"""Evaluate one XGBoost model on held-out test data and write a Pipeline property file."""
 
 from __future__ import annotations
 
@@ -6,96 +6,56 @@ import argparse
 import json
 import tarfile
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
-import boto3
 import numpy as np
 import xgboost as xgb
-from sklearn.metrics import brier_score_loss, roc_auc_score
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--production-model-package-arn", default="")
-    parser.add_argument("--min-auc-delta", type=float, default=0.01)
-    parser.add_argument("--max-brier-regression", type=float, default=0.005)
-    parser.add_argument("--first-model-min-auc", type=float, default=0.65)
-    parser.add_argument("--first-model-max-brier", type=float, default=0.25)
-    parser.add_argument("--output-dir", default="/opt/ml/processing/output/evaluation")
-    return parser.parse_args()
+from sklearn.metrics import roc_auc_score
 
 
 def load_model(model_tar: Path) -> xgb.Booster:
-    with TemporaryDirectory() as temp_dir:
-        with tarfile.open(model_tar) as archive:
-            archive.extractall(temp_dir)
-        model_path = next(Path(temp_dir).rglob("xgboost-model.json"))
-        model = xgb.Booster()
-        model.load_model(model_path)
-        return model
+    with tarfile.open(model_tar) as archive:
+        members = [
+            member
+            for member in archive.getmembers()
+            if member.isfile() and member.name.removeprefix("./") == "xgboost-model.json"
+        ]
+        if len(members) != 1:
+            raise ValueError("Model archive must contain exactly one xgboost-model.json.")
+        with archive.extractfile(members[0]) as model_file:
+            model = xgb.Booster()
+            model.load_model(bytearray(model_file.read()))
+    return model
 
 
-def score(model: xgb.Booster, features: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+def score(model: xgb.Booster, features: np.ndarray, labels: np.ndarray) -> float:
+    if set(np.unique(labels)) != {0, 1}:
+        raise ValueError("Test data must contain labels 0 and 1.")
     probabilities = model.predict(xgb.DMatrix(features, feature_names=model.feature_names))
-    thresholds = np.unique(probabilities)
-
-    def distribution_gap(threshold: float) -> float:
-        bad_cdf = (probabilities[labels == 1] <= threshold).mean()
-        good_cdf = (probabilities[labels == 0] <= threshold).mean()
-        return abs(bad_cdf - good_cdf)
-
-    ks = max(distribution_gap(threshold) for threshold in thresholds)
-    return {
-        "roc_auc": float(roc_auc_score(labels, probabilities)),
-        "brier_score": float(brier_score_loss(labels, probabilities)),
-        "ks": float(ks),
-    }
+    return float(roc_auc_score(labels, probabilities))
 
 
-def download_champion(model_package_arn: str, destination: Path) -> Path:
-    package = boto3.client("sagemaker").describe_model_package(ModelPackageName=model_package_arn)
-    model_uri = package["InferenceSpecification"]["Containers"][0]["ModelDataUrl"]
-    bucket, key = model_uri.removeprefix("s3://").split("/", 1)
-    boto3.client("s3").download_file(bucket, key, str(destination))
-    return destination
+def evaluate_model(test_dir: Path, model_dir: Path, output_dir: Path) -> dict:
+    test_files = list(test_dir.rglob("*.csv"))
+    model_files = list(model_dir.rglob("*.tar.gz"))
+    if len(test_files) != 1 or len(model_files) != 1:
+        raise ValueError("Expected one test CSV and one model archive.")
+    rows = np.loadtxt(test_files[0], delimiter=",", dtype=np.float32, ndmin=2)
+    auc = score(load_model(model_files[0]), rows[:, 1:], rows[:, 0])
+    report = {"binary_classification_metrics": {"auc": {"value": auc}}, "test_rows": len(rows)}
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "evaluation.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
 
 
 def main() -> None:
-    args = parse_args()
-    oot_csv = next(Path("/opt/ml/processing/oot").rglob("*.csv"))
-    rows = np.loadtxt(oot_csv, delimiter=",", dtype=np.float32, ndmin=2)
-    labels, features = rows[:, 0], rows[:, 1:]
-    candidate_tar = next(Path("/opt/ml/processing/candidate").rglob("*.tar.gz"))
-    candidate = score(load_model(candidate_tar), features, labels)
-
-    champion: dict[str, float] | None = None
-    if args.production_model_package_arn:
-        champion_tar = download_champion(
-            args.production_model_package_arn, Path("/tmp/champion-model.tar.gz")
-        )
-        champion = score(load_model(champion_tar), features, labels)
-        auc_delta = candidate["roc_auc"] - champion["roc_auc"]
-        brier_delta = candidate["brier_score"] - champion["brier_score"]
-        passes = auc_delta >= args.min_auc_delta and brier_delta <= args.max_brier_regression
-    else:
-        auc_delta = candidate["roc_auc"]
-        brier_delta = candidate["brier_score"]
-        passes = (
-            candidate["roc_auc"] >= args.first_model_min_auc
-            and candidate["brier_score"] <= args.first_model_max_brier
-        )
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    evaluation = {
-        "candidate": candidate,
-        "champion": champion,
-        "decision": {"auc_delta": auc_delta, "brier_delta": brier_delta, "passes": passes},
-    }
-    (output_dir / "evaluation.json").write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
-    (output_dir / "model-quality.json").write_text(
-        json.dumps({"binary_classification_metrics": candidate}, indent=2), encoding="utf-8"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test-dir", type=Path, default=Path("/opt/ml/processing/test"))
+    parser.add_argument("--model-dir", type=Path, default=Path("/opt/ml/processing/model"))
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("/opt/ml/processing/output/evaluation")
     )
+    args = parser.parse_args()
+    print(json.dumps(evaluate_model(args.test_dir, args.model_dir, args.output_dir)))
 
 
 if __name__ == "__main__":

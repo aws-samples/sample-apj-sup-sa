@@ -1,4 +1,4 @@
-"""XGBoost script-mode training entry point for AMT trials and managed MLflow autologging."""
+"""Train one XGBoost model and record metrics in MLflow."""
 
 from __future__ import annotations
 
@@ -19,21 +19,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min_child_weight", type=float, default=1.0)
     parser.add_argument("--subsample", type=float, default=0.9)
     parser.add_argument("--colsample_bytree", type=float, default=0.9)
-    parser.add_argument("--num_boost_round", type=int, default=300)
-    parser.add_argument("--early_stopping_rounds", type=int, default=30)
+    parser.add_argument("--num_boost_round", type=int, default=100)
+    parser.add_argument("--early_stopping_rounds", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
 
 def load_channel(channel_dir: str, feature_names: list[str]) -> xgb.DMatrix:
-    csv_path = next(Path(channel_dir).rglob("*.csv"))
-    rows = np.loadtxt(csv_path, delimiter=",", dtype=np.float32, ndmin=2)
+    paths = list(Path(channel_dir).rglob("*.csv"))
+    if len(paths) != 1:
+        raise ValueError(f"Expected one CSV in {channel_dir}.")
+    rows = np.loadtxt(paths[0], delimiter=",", dtype=np.float32, ndmin=2)
+    if rows.shape[1] != len(feature_names) + 1 or not np.isfinite(rows).all():
+        raise ValueError("Training CSV must contain a label and finite features matching metadata.")
     return xgb.DMatrix(rows[:, 1:], label=rows[:, 0], feature_names=feature_names)
 
 
 def main() -> None:
     args = parse_args()
-    metadata_path = next(Path(os.environ["SM_CHANNEL_METADATA"]).rglob("*.json"))
+    metadata_path = Path(os.environ["SM_CHANNEL_METADATA"]) / "data-summary.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     feature_names = metadata["feature_names"]
     train = load_channel(os.environ["SM_CHANNEL_TRAIN"], feature_names)
@@ -41,8 +45,8 @@ def main() -> None:
 
     mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
     mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
-    # In script mode we own xgb.train(), so MLflow can log parameters, metrics, and the model.
-    mlflow.xgboost.autolog(log_input_examples=True, log_model_signatures=True, log_datasets=True)
+    # Model registration belongs to the Pipeline's CheckQuality branch.
+    mlflow.xgboost.autolog(log_models=False, log_datasets=False, importance_types=[])
 
     parameters = {
         "objective": "binary:logistic",
@@ -55,12 +59,14 @@ def main() -> None:
         "colsample_bytree": args.colsample_bytree,
         "seed": args.seed,
     }
-    with mlflow.start_run(run_name=os.environ["TRAINING_JOB_NAME"]):
+    execution_id = os.getenv("PIPELINE_EXECUTION_ID", "local")
+    run_name = os.getenv("TRAINING_JOB_NAME", f"pipeline-{execution_id}")
+    with mlflow.start_run(run_name=run_name):
         mlflow.set_tags(
             {
-                "pipeline.execution_id": os.environ["PIPELINE_EXECUTION_ID"],
-                "sagemaker.training_job_name": os.environ["TRAINING_JOB_NAME"],
-                "data.summary_s3_uri": os.environ["DATA_SUMMARY_S3_URI"],
+                "pipeline.execution_id": execution_id,
+                "dataset.id": str(metadata["dataset_id"]),
+                "dataset.sha256": metadata["source_sha256"],
             }
         )
         evaluation_results: dict[str, dict[str, list[float]]] = {}
@@ -80,8 +86,7 @@ def main() -> None:
             ],
         )
         validation_auc = float(model.best_score)
-        mlflow.log_metric("validation-auc", validation_auc, step=model.best_iteration)
-        # AMT extracts this stable line with its MetricDefinition regex.
+        mlflow.log_metric("best-validation-auc", validation_auc)
         print(f"validation-auc={validation_auc:.6f}")
 
         model_dir = Path(os.environ["SM_MODEL_DIR"])
