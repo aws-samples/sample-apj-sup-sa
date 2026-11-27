@@ -16,7 +16,7 @@ from tests.test_stack import FEDERATED
 
 MCP = {
     **FEDERATED,
-    "mcpIssuer": "https://id.example.com",
+    "mcpIssuer": "https://idp.example.com",
     "mcpAudience": "https://app.example.com",
 }
 
@@ -49,7 +49,7 @@ def test_the_role_trusts_the_issuer_for_the_audience_with_the_subject_as_session
     mcp: Synth,
 ) -> None:
     (provider,) = mcp.props("AWS::IAM::OIDCProvider")
-    assert provider["Url"] == "https://id.example.com"
+    assert provider["Url"] == "https://idp.example.com"
     assert provider["ClientIdList"] == ["https://app.example.com"]
     role = _role(mcp)
     assert role["MaxSessionDuration"] == 3600
@@ -57,8 +57,8 @@ def test_the_role_trusts_the_issuer_for_the_audience_with_the_subject_as_session
     assert stmt["Action"] == "sts:AssumeRoleWithWebIdentity"
     assert stmt["Condition"] == {
         "StringEquals": {
-            "id.example.com:aud": "https://app.example.com",
-            "sts:RoleSessionName": "${id.example.com:sub}",
+            "idp.example.com:aud": "https://app.example.com",
+            "sts:RoleSessionName": "${idp.example.com:sub}",
         }
     }
 
@@ -90,7 +90,7 @@ def test_the_api_function_is_told_the_role_issuer_audience_and_url(mcp: Synth) -
         and "AIR_WATCH_FUNCTION" in f["Environment"]["Variables"]
     ]
     env = fn["Environment"]["Variables"]
-    assert env["AIR_MCP_ISSUER"] == "https://id.example.com"
+    assert env["AIR_MCP_ISSUER"] == "https://idp.example.com"
     assert env["AIR_MCP_AUDIENCE"] == "https://app.example.com"
     assert "Fn::GetAtt" in env["AIR_MCP_ROLE_ARN"]
     # The API Gateway origin is not in the function's environment, so the public config cannot name it.
@@ -115,7 +115,7 @@ def test_off_by_default(default: Synth, federated: Synth) -> None:
 def test_the_options_are_kept_for_the_next_deploy(mcp: Synth) -> None:
     out = mcp.template.find_outputs("DeployOptions")["DeployOptions"]["Value"]
     options = json.loads(out) if isinstance(out, str) else out
-    assert options["mcpIssuer"] == "https://id.example.com"
+    assert options["mcpIssuer"] == "https://idp.example.com"
     assert options["mcpAudience"] == "https://app.example.com"
 
 
@@ -123,17 +123,17 @@ def test_the_options_are_kept_for_the_next_deploy(mcp: Synth) -> None:
     ("ctx", "message"),
     [
         (
-            {"mcpIssuer": "https://id.example.com", "mcpAudience": "a"},
+            {"mcpIssuer": "https://idp.example.com", "mcpAudience": "a"},
             "need authMode=federated",
         ),
         (
-            {**FEDERATED, "mcpIssuer": "http://id.example.com", "mcpAudience": "a"},
+            {**FEDERATED, "mcpIssuer": "http://idp.example.com", "mcpAudience": "a"},
             "mcpIssuer must be",
         ),
-        ({**FEDERATED, "mcpIssuer": "https://id.example.com"}, "mcpAudience must be"),
+        ({**FEDERATED, "mcpIssuer": "https://idp.example.com"}, "mcpAudience must be"),
         ({**FEDERATED, "mcpAudience": "a"}, "mcpIssuer must be"),
         (
-            {**FEDERATED, "mcpIssuer": "https://id.example.com", "mcpAudience": "a b"},
+            {**FEDERATED, "mcpIssuer": "https://idp.example.com", "mcpAudience": "a b"},
             "mcpAudience must be",
         ),
     ],
@@ -179,7 +179,7 @@ def test_the_model_backed_routes_keep_their_limit_under_iam(mcp: Synth) -> None:
 def test_an_existing_provider_is_used_instead_of_a_new_one(bundles: None) -> None:
     from tests.conftest import synth
 
-    arn = "arn:aws:iam::111122223333:oidc-provider/id.example.com"
+    arn = "arn:aws:iam::111122223333:oidc-provider/idp.example.com"
     s = synth(**MCP, mcpProviderArn=arn)
     s.template.resource_count_is("AWS::IAM::OIDCProvider", 0)
     (stmt,) = _role(s)["AssumeRolePolicyDocument"]["Statement"]
@@ -191,9 +191,9 @@ def test_an_existing_provider_is_used_instead_of_a_new_one(bundles: None) -> Non
 @pytest.mark.parametrize(
     ("ctx", "message"),
     [
-        ({**MCP, "mcpIssuer": "https://id.example.com:8443"}, "without a port"),
+        ({**MCP, "mcpIssuer": "https://idp.example.com:8443"}, "without a port"),
         (
-            {**MCP, "mcpIssuer": "https://id.example.com/"},
+            {**MCP, "mcpIssuer": "https://idp.example.com/"},
             "without a port or a trailing slash",
         ),
         (
@@ -203,10 +203,14 @@ def test_an_existing_provider_is_used_instead_of_a_new_one(bundles: None) -> Non
             },
             "mcpProviderArn",
         ),
+        (
+            {**MCP, "mcpIssuer": "https://other.example.com"},
+            "mcpIssuer must be oidcIssuer",
+        ),
         ({**MCP, "mcpProviderArn": "not-an-arn"}, "mcpProviderArn"),
         (
             {
-                "mcpProviderArn": "arn:aws:iam::111122223333:oidc-provider/id.example.com"
+                "mcpProviderArn": "arn:aws:iam::111122223333:oidc-provider/idp.example.com"
             },
             "need authMode=federated",
         ),
@@ -225,3 +229,10 @@ def test_the_api_gateway_url_is_a_stack_output(mcp: Synth) -> None:
     out = mcp.template.find_outputs("McpApiUrl")["McpApiUrl"]
     assert "AIR_MCP_API_URL" in out["Description"]
     assert "BackendApi" in str(out["Value"])
+
+
+def test_an_issuer_with_a_trailing_slash_matches_the_mcp_issuer(bundles: None) -> None:
+    from tests.conftest import synth
+
+    s = synth(**{**MCP, "oidcIssuer": "https://idp.example.com/"})
+    s.template.resource_count_is("AWS::IAM::OIDCProvider", 1)

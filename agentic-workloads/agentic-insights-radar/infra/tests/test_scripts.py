@@ -833,9 +833,9 @@ def test_cr204_every_recorded_option_is_one_deploy_sh_keeps() -> None:
                 oidc_client_id="c",
                 oidc_client_secret_arn=OIDC_CLIENT_ARN,
                 admin_emails=("b@example.com",),
-                mcp_issuer="https://id.example.com",
+                mcp_issuer="https://idp.example.com",
                 mcp_audience="https://radar.example.com",
-                mcp_provider_arn="arn:aws:iam::111122223333:oidc-provider/id.example.com",
+                mcp_provider_arn="arn:aws:iam::111122223333:oidc-provider/idp.example.com",
                 digest=DigestDelivery.parse({"slackMode": "bot"}),
             ).options_json()
         )

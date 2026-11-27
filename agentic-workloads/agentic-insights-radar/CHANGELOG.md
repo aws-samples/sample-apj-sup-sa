@@ -100,7 +100,8 @@ runs (it said v1.0.0 after every upgrade so far).
   exchanges an id token from the web app's identity provider for short-lived AWS credentials and
   signs its requests with SigV4 to new `/iam/api/*` routes, acting as the user's own account; the
   new stack output `McpApiUrl` is the `AIR_MCP_API_URL` to give MCP users
-  ([MCP server](docs/implementation-guide.md#mcp-server)).
+  ([MCP server](docs/implementation-guide.md#mcp-server)). `mcpIssuer` must be `oidcIssuer`: a token's `sub`
+  names a user only at the issuer that set it, so the deploy refuses another issuer.
 
 - `deploy.sh --env-file=FILE` reads a deployment's options (`AIR_*`, `AWS_PROFILE`, `AWS_REGION`) from a
   file of `export NAME=value` lines, so one deployment's settings live in one file; `deployment/check.sh` runs the CI checks locally.

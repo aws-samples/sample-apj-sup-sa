@@ -770,6 +770,13 @@ class DeployConfig:
                 raise ValueError(
                     "mcpIssuer must be the https issuer URL of the MCP clients' id tokens, without a port or a trailing slash"
                 )
+            # The account an MCP session acts as is named after the token's sub (<oidcProviderName>_<sub>), and
+            # a sub is only an id at the issuer that set it: a token from another issuer could name another user.
+            if issuer is None or mcp_issuer != issuer.rstrip("/"):
+                raise ValueError(
+                    "mcpIssuer must be oidcIssuer (without a trailing slash): the MCP session acts as the account"
+                    " named after the token's sub, which identifies a user only at the web app's own provider"
+                )
             if mcp_audience is None or not _OIDC_CLIENT.fullmatch(mcp_audience):
                 raise ValueError(
                     "mcpAudience must be the id tokens' audience (client id), 1-255 printable characters"
