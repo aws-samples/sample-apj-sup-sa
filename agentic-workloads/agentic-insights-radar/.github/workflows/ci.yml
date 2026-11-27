@@ -1,0 +1,206 @@
+# Tests, lint, types, builds and security scans on every push and pull request. Nothing here deploys
+# (deploy-validate.yml does, on demand, into a sandbox account).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Only a pull request's runs are superseded. Cancelling on main would leave commits on main with
+  # no complete run: a broken commit followed quickly by a docs commit would never be tested (P2-045).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [backend, agents, infra]
+        python: ["3.12"]
+        # The Lambda functions and both AgentCore runtimes run Python 3.14: test the deployed code there too.
+        include:
+          - project: backend
+            python: "3.14"
+          - project: agents
+            python: "3.14"
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - name: mypy
+        run: |
+          if [ "${{ matrix.project }}" = infra ]; then uv run mypy --strict insights_radar_infra tests app.py
+          else uv run mypy --strict src; fi
+      # Each pyproject sets fail_under = 100 with branch coverage; the flags below only name the package.
+      - name: tests (100% line and branch coverage enforced)
+        run: |
+          case "${{ matrix.project }}" in
+            backend) uv run pytest -q --cov --cov-branch ;;
+            agents) uv run pytest -q --cov=insights_radar_agents --cov-branch ;;
+            infra) uv run pytest -q --cov=insights_radar_infra --cov-branch ;;
+          esac
+
+  mcp:
+    # The MCP server (TypeScript on Node.js); vitest enforces 100% line, branch, function and statement coverage.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=moderate --omit=dev
+
+  e2e-lint:
+    # The live suite needs a deployment; here it is linted, type-checked and collected.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen
+      - run: uvx ruff@0.16.9 check .
+      - run: uv run --frozen --with mypy==2.3.1 mypy --strict --ignore-missing-imports --explicit-package-bases .
+      - run: uv run --frozen pytest --collect-only -q
+
+  docs:
+    # The strict build the Pages publish runs, on every pull request too: a broken anchor or a broken
+    # mkdocs_hooks.py otherwise passes CI and fails only after the merge (P3-082).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: "3.12"
+      - run: uvx --from mkdocs==1.6.1 mkdocs build --strict --site-dir site
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+      - name: shellcheck
+        run: uvx --from shellcheck-py==0.10.0.1 shellcheck -x deployment/*.sh
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=moderate --omit=dev
+      # The pinned AWS CDK CLI (infra/package-lock.json) runs with the operator's deployment
+      # credentials, so it is audited like the web app's dependencies (P2-043).
+      - name: AWS CDK CLI dependency vulnerabilities
+        working-directory: infra
+        run: npm audit --audit-level=moderate --omit=dev
+
+  build:
+    # The deployment bundles exactly as deploy.sh builds them (arm64 wheels for Python 3.14), on an arm64
+    # runner so the bundled code can be imported as Lambda and AgentCore will import it.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          node-version: "22"
+      - run: python3 deployment/build.py
+      - name: the bundles import, and the site was built
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          test -f build/site/index.html
+          test -f build/agents/module_main.py && test -f build/agents/chat_main.py
+          uv venv --python 3.14 /tmp/py
+          PYTHONPATH=build/agents /tmp/py/bin/python -c "import insights_radar_agents.module_app, insights_radar_agents.chat_app"
+          PYTHONPATH=build/lambda /tmp/py/bin/python -c "import insights_radar.api.app, insights_radar.api.workers"
+          du -sb build/agents | awk '{ if ($1 > 700000000) { print "agent bundle too large: " $1; exit 1 } }'
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          fetch-depth: 0  # gitleaks scans the commits of the push or pull request
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          node-version: "22"
+      - name: bandit
+        run: uvx bandit==1.9.4 -q -r backend/src agents/src infra/insights_radar_infra deployment
+      - name: Python dependency vulnerabilities (every uv.lock, resolved versions)
+        run: |
+          for p in backend agents infra e2e; do
+            uv export --project "$p" --frozen --no-emit-project --no-emit-local --format requirements-txt \
+              --quiet -o "/tmp/req-$p.txt"
+            echo "pip-audit $p"
+            uvx pip-audit==2.9.0 --strict --disable-pip --require-hashes -r "/tmp/req-$p.txt"
+          done
+      - name: secrets in the new commits (gitleaks)
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: |
+          case "$RANGE" in 0000000000000000000000000000000000000000..*) RANGE="${RANGE#*..}" ;; esac
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2@sha256:0e99e8821643ea5b235718642b93bb32486af9c8162c8b8731f7cbdc951a7f46 \
+            git /repo --no-banner --redact --log-opts="$RANGE"
+      - name: synthesise templates (us-east-1 and an edge Region)
+        working-directory: infra
+        env:
+          CDK_DEFAULT_ACCOUNT: "111122223333"
+        run: |
+          # A stub site, so the template carries the BucketDeployment functions, their roles and the
+          # deploy log group: without build/site they are absent and checkov never scans them (P2-042).
+          mkdir -p ../build/lambda ../build/agents ../build/site
+          touch ../build/lambda/.ci ../build/agents/.ci
+          echo '<!doctype html><title>ci</title>' > ../build/site/index.html
+          uv sync --frozen
+          npm ci --ignore-scripts --no-audit --no-fund   # the pinned CDK CLI from infra/package-lock.json
+          CDK=node_modules/.bin/cdk
+          CDK_DEFAULT_REGION=us-east-1 $CDK synth -q -c adminEmail=ci@example.com -o /tmp/cdk-e
+          CDK_DEFAULT_REGION=eu-west-1 $CDK synth -q -c adminEmail=ci@example.com \
+            -c webAclArn=arn:aws:wafv2:us-east-1:111122223333:global/webacl/ci/0 -o /tmp/cdk-w
+          mkdir -p /tmp/cfn && cp /tmp/cdk-e/AgenticInsightsRadar.template.json /tmp/cfn/e.json \
+            && cp /tmp/cdk-w/AgenticInsightsRadar.template.json /tmp/cfn/w.json && cp /tmp/cdk-w/AgenticInsightsRadar-eu-west-1-Edge.template.json /tmp/cfn/edge.json
+      - name: checkov
+        run: uvx checkov==3.3.19 -d /tmp/cfn --framework cloudformation --quiet --compact

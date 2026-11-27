@@ -1,0 +1,2 @@
+# Internal design records stay in the internal repository: `git archive` (the release export) leaves them out.
+aidlc-docs export-ignore

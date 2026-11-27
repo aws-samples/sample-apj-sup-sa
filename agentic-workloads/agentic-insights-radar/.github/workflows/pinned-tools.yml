@@ -1,0 +1,28 @@
+# The scanners and tools CI and deployment/validate.sh pin exactly live outside every lockfile
+# Dependabot reads, so nothing proposed an update when one of them shipped a security fix. This job
+# audits those pins weekly and fails when a pinned release has a known vulnerability (red-team
+# P2-081). The pins themselves are in deployment/pinned-tools.txt.
+name: pinned-tools
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - deployment/pinned-tools.txt
+      - .github/workflows/pinned-tools.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: "3.12"
+      - name: the pinned tools have no known vulnerabilities
+        run: uvx pip-audit==2.9.0 --strict --disable-pip -r deployment/pinned-tools.txt

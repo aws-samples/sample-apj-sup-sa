@@ -1,0 +1,33 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+node_modules/
+dist/
+build/
+cdk.out/
+cdk.context.json
+*.zip
+.env
+.env.*
+.DS_Store
+frontend/public/config.json
+.hypothesis/
+frontend/dist/
+frontend/coverage/
+build/
+
+# ASH scanner working output
+.ash/
+*.tsbuildinfo
+mcp/coverage/
+site/
+
+# deployment/validate.sh records what it deployed, for --cleanup-only
+.validate-state
+.check-logs/

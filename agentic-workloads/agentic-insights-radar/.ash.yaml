@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/awslabs/automated-security-helper/refs/heads/main/automated_security_helper/schemas/AshConfig.json
+#
+# ASH (Automated Security Helper) configuration.
+#
+# Scan git-tracked files only, from a snapshot outside the repository:
+#   D=~/.cache/mr-tracked; rm -rf $D; mkdir -p $D
+#   git ls-files -z | tar --null -T - -cf - | tar -x -C $D
+#   ash --mode local --source-dir $D --output-dir ~/.cache/mr-ash-out
+#
+# Every suppression names the mechanism that makes the finding inapplicable and is as narrow as the
+# scanner allows (path + rule). Findings that could be removed were removed instead: test URLs with
+# credentials are built from parts, test ids are low-entropy, tests call httpx instead of urlopen.
+# CloudFormation scanners (Checkov, cfn-nag, cdk-nag) carry their skips per resource in the
+# template itself; see infra/insights_radar_infra/scanners.py and nag.py.
+
+project_name: agentic-insights-radar
+
+global_settings:
+  severity_threshold: MEDIUM
+
+  ignore_paths:
+    - path: "*.ash.yaml"
+      reason: >-
+        ASH matches with fnmatch, where "**/x" needs a slash before x and so missed this root file.
+        This file. Its reasons quote the strings they justify, so scanning it re-detects them.
+
+  suppressions:
+    - path: "**/deployment/build.py"
+      rule_id: B103
+      reason: >-
+        normalise() sets 755 on directories and executables and 644 on other files inside the
+        Lambda and AgentCore bundles. Both services run the code as a different user from the
+        file owner, so the files must be world-readable; nothing in a bundle is secret.
+    - path: "*deployment/build.py"
+      rule_id: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
+      reason: >-
+        Same normalise() call as B103: deployment package permissions that Lambda and AgentCore
+        require (world-readable code, no secrets in the bundle).
+    - path: "*.py"
+      rule_id: python.lang.compatibility.python37.python37-compatibility-importlib2
+      reason: >-
+        Flags importlib.resources for Python < 3.7. Every package declares requires-python >= 3.12.
+    - path: "**/tests/**/*.py"
+      rule_id: B101
+      reason: >-
+        assert in pytest tests is how a test asserts. B101 targets asserts in production code
+        (removed under python -O); production modules are outside tests/.
+    - path: "*tests/*.py"
+      rule_id: SECRET-SECRET-KEYWORD
+      reason: >-
+        Test fixtures named secret, secret_url, SECRET or oidcClientSecret*: example.com URLs, the
+        documentation account 111122223333, and config keys whose rejection the tests check. No
+        credential value is in any test.
+    - path: "**/infra/tests/test_scripts.py"
+      rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+      reason: >-
+        A faked `aws backup list-backup-vaults` stdout: CDK logical ids (BackupsVault8AB9676D) read as
+        high-entropy text.
+    - path: "**/frontend/src/pages/AdminPage.tsx"
+      rule_id: SECRET-SECRET-KEYWORD
+      reason: >-
+        FORCE_CHANGE_PASSWORD is the Cognito user status name, mapped to its label "Invited, first
+        sign-in pending". It holds no password.
+    - path: "**/frontend/src/**/*.test.tsx"
+      rule_id: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+      reason: >-
+        Test helpers build a RegExp from a literal entry name the test passes, with regex metacharacters
+        escaped first; nothing reaches it from users.
+    - path: "**/.github/workflows/deploy-validate.yml"
+      rule_id: CKV_GHA_7
+      reason: >-
+        A manual validation run whose two inputs (region, whether to run e2e) choose where the stack is
+        deployed and tested; they do not change what is built, and the job builds from the pinned lock files.

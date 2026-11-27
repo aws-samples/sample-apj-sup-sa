@@ -1,0 +1,21 @@
+[project]
+name = "insights-radar-infra"
+version = "1.0.0"
+description = "AWS CDK app for Agentic Insights Radar."
+requires-python = ">=3.12"
+license = { text = "MIT-0" }
+dependencies = ["aws-cdk-lib==2.271.0", "constructs==10.8.1", "cdk-nag==2.38.2"]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "mypy==2.3.1", "ruff==0.16.9"]
+
+[tool.uv]
+exclude-newer = "7 days"  # supply-chain cooldown: never resolve a release younger than a week
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=insights_radar_infra --cov-branch --cov-report=term-missing:skip-covered"
+
+[tool.coverage.report]
+fail_under = 100

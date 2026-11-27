@@ -1,0 +1,78 @@
+[project]
+name = "insights-radar-agents"
+version = "1.0.0"
+description = "Agentic Insights Radar agent runtimes (module runtime and chat) for Amazon Bedrock AgentCore."
+license = { text = "MIT-0" }
+requires-python = ">=3.12"
+dependencies = [
+    # >=1.18.1: PYSEC-2026-2395 / CVE-2026-16796 (Code Interpreter install_packages argument injection).
+    "bedrock-agentcore==1.23.1",
+    "strands-agents==1.57.0",
+    # Not the agent_core_* extras: they cap bedrock-agentcore below the fixed release.
+    "strands-agents-tools==0.8.9",
+    "playwright==1.63.0",
+    "nest-asyncio==1.6.0",
+    "boto3==1.43.102",
+    "httpx==0.28.1",
+    "mcp==2.2.0",  # streamable_http_client(http_client=...) and the httpx2 transport
+    "httpx2==2.13.1",
+    "httpcore2==2.13.1",
+    "anyio==4.15.1",
+    "insights-radar-backend",
+]
+
+[tool.uv.sources]
+insights-radar-backend = { path = "../backend", editable = true }
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "hypothesis==6.168.1", "mypy==2.3.1", "ruff==0.16.9", "moto[stepfunctions]==5.2.3", "boto3-stubs[stepfunctions]==1.43.102"]
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/insights_radar_agents"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Coverage is on in every run, so the documented `uv run pytest -q` is the 100% gate CI runs (P3-027).
+addopts = "--strict-markers --cov=insights_radar_agents --cov-branch"
+
+[tool.coverage.run]
+branch = true
+source = ["insights_radar_agents"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL", "N", "BLE", "C4", "PIE", "RET", "PT"]
+ignore = ["PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004", "S101", "BLE001"]
+
+[tool.ruff.lint.per-file-ignores]
+# Browser and Code Interpreter pull in Playwright and AgentCore clients: import them only when a
+# module is granted those tools.
+"src/insights_radar_agents/connectors.py" = ["PLC0415"]
+"tests/**" = ["S", "PLR", "B", "C408", "PLC0415", "N", "PT018", "RUF012", "RUF015"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+
+[tool.uv]
+exclude-newer = "7 days"  # supply-chain cooldown: never resolve a release younger than a week
+# strands-agents-tools caps pillow below 13, but every fix for the 12.x decoder CVEs is in 13.0
+# (GHSA-v9pv-5gc8-w2m6 and others). Only its image_reader and use_computer tools import it, and
+# the agents use neither (the browser and code interpreter do not).
+# mcp 2.2.0 fixes GHSA-rwrf-2pqf-9j8j (a client fetching server-chosen $ref URLs while validating tool results,
+# a path around the URL guard) and three more; strands-agents 1.57-1.62 still declare mcp<2.2.
+override-dependencies = ["pillow==13.0.0", "mcp==2.2.0", "opentelemetry-api==1.45.2"]  # 1.45.2 fixes GHSA-mf5v-w3w3-f6cg
+exclude-newer-package = { cryptography = false, pillow = false, certifi = false }  # security fixes (OpenSSL, image decoders, CA roots) ship without waiting

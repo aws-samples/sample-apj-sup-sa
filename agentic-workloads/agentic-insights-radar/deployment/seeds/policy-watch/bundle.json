@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "Example: a public-policy watch. Shows every bundle feature; copy it as a starting point.",
+  "profile": {
+    "app_name": "Policy Watch",
+    "tagline": "Public rule changes in the markets you follow, sorted by how soon they need action.",
+    "lists": {
+      "signals": {"label": "Rule changes", "item": "Rule change", "help": "One record per public rule change, with its source, stage and dates.", "order": 1},
+      "trends": {"label": "Themes", "item": "Theme", "help": "Patterns that repeat across several rule changes.", "order": 2},
+      "gaps": {"visible": false},
+      "content": {"visible": false},
+      "drafts": {"visible": false}
+    }
+  },
+  "modules": [
+    {
+      "slug": "signal",
+      "attribute_schema": [
+        {"key": "urgency", "label": "Urgency", "type": "enum", "required": true, "filter": true, "sort": true,
+         "help": "How soon a reader must act.",
+         "values": [{"value": "act_now", "label": "Act now", "rank": 1}, {"value": "plan", "label": "Plan", "rank": 2},
+                    {"value": "watch", "label": "Watch", "rank": 3}, {"value": "fyi", "label": "FYI", "rank": 4}]},
+        {"key": "countries", "label": "Countries", "type": "string_list", "filter": true, "max_items": 10,
+         "values": [{"value": "AU", "label": "Australia"}, {"value": "EU", "label": "European Union"},
+                    {"value": "GB", "label": "United Kingdom"}, {"value": "US", "label": "United States"}]},
+        {"key": "stage", "label": "Stage", "type": "enum", "filter": true,
+         "values": [{"value": "proposed", "label": "Proposed"}, {"value": "adopted", "label": "Adopted"},
+                    {"value": "in_force", "label": "In force"}]},
+        {"key": "effective_date", "label": "Effective date", "type": "date", "sort": true},
+        {"key": "source_url", "label": "Primary source", "type": "url", "required": true}
+      ]
+    },
+    {"slug": "gap", "enabled": false},
+    {"slug": "content", "enabled": false}
+  ],
+  "sources": [
+    {"module": "scout", "name": "US Federal Register: rules and proposed rules", "type": "public_api",
+     "address": "https://www.federalregister.gov/api/v1/documents.json?conditions%5Btype%5D%5B%5D=RULE&conditions%5Btype%5D%5B%5D=PRORULE&order=newest",
+     "instruction": "Record only documents that change an obligation; skip notices of meetings."}
+  ]
+}

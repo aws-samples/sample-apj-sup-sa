@@ -1,0 +1,27 @@
+{
+  "app": "uv run --frozen --python \">=3.12\" python app.py",
+  "versionReporting": false,
+  "watch": {
+    "include": [
+      "**"
+    ],
+    "exclude": [
+      "cdk.out",
+      "tests",
+      "**/__pycache__"
+    ]
+  },
+  "context": {
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:target-partitions": [
+      "aws"
+    ],
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true,
+    "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": true,
+    "@aws-cdk/aws-kms:aliasNameRef": true,
+    "@aws-cdk/aws-lambda:useCdkManagedLogGroup": true
+  }
+}

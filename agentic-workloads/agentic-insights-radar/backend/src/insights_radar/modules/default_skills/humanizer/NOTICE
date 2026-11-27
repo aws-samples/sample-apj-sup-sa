@@ -1,0 +1,13 @@
+humanizer, a local copy shipped as a default skill of Agentic Insights Radar
+
+Upstream: https://github.com/blader/humanizer
+Version: v3.1.0
+License: MIT, Copyright (c) 2025 Siqi Chen. The full license is in LICENSE next to this file.
+
+Local changes (everything else is upstream text, unchanged):
+1. Frontmatter: the description names the kinds of text this application writes and the audit mode.
+2. "Voice": an added rule that keeps em dashes out of the rewrite even when a writing sample uses them.
+3. "What to return": an added Audit mode (find and quote patterns, no rewrite, no score, no authorship
+   guess), adapted from the no-ai-slop skill.
+4. New section G, pattern 27 (announced weight, crowned points, false depth), new wording.
+5. "Source": a paragraph crediting the above.
