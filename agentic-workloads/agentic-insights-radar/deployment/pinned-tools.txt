@@ -1,0 +1,15 @@
+# The tools CI and deployment/validate.sh pin exactly, outside every lockfile Dependabot reads.
+# .github/workflows/pinned-tools.yml audits this file weekly and fails when one of these releases
+# has a known vulnerability, so a fix in a scanner is noticed instead of sitting for a year
+# (red-team P2-081). infra/tests/test_repo.py fails when a pin used in the repository is missing here.
+#
+# Not installable with pip, so update these two by hand:
+#   gitleaks            v8.21.2   ghcr.io/gitleaks/gitleaks@sha256:0e99e8821643ea5b235718642b93bb32486af9c8162c8b8731f7cbdc951a7f46   (.github/workflows/ci.yml, by digest)
+#   uv                  0.12.18   GitHub release + SHA-256    (deployment/validate.sh)
+bandit==1.9.4
+checkov==3.3.19
+mkdocs==1.6.1
+mypy==2.3.1
+pip-audit==2.9.0
+ruff==0.16.9
+shellcheck-py==0.10.0.1

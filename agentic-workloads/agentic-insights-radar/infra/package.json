@@ -1,0 +1,9 @@
+{
+  "name": "insights-radar-infra-cli",
+  "private": true,
+  "description": "The pinned AWS CDK CLI that the deployment scripts and CI run, installed with npm ci --ignore-scripts.",
+  "license": "MIT-0",
+  "devDependencies": {
+    "aws-cdk": "2.1144.0"
+  }
+}

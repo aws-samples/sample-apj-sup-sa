@@ -1,0 +1,44 @@
+{
+  "_source": "aws cloudwatch list-metrics --namespace <ns>, us-east-1 and us-west-2, 2026-10-08 (r3 P3-028): the dimension names each AWS service publishes each metric under. Only names, never values. Add a metric here only from real list-metrics output.",
+  "AWS/ApiGateway": {
+    "4xx": [["ApiId"], ["ApiId", "Stage"]],
+    "5xx": [["ApiId"], ["ApiId", "Stage"]],
+    "Count": [[], ["ApiId"], ["ApiId", "Stage"], ["ApiName"], ["ApiName", "Stage"]]
+  },
+  "AWS/Bedrock-AgentCore": {
+    "ActiveSessionCount": [["Service"]],
+    "InboundAuthorizationFailure": [["ExceptionType", "ResourceId"]],
+    "Invocations": [["ComputeType", "Name", "Operation", "Resource"], ["Name", "Operation", "Resource"], ["Operation"], ["Operation", "Resource"]],
+    "Sessions": [["AggregateOperation"], ["ComputeType", "Name", "Operation", "Resource"], ["Name", "Operation", "Resource"]],
+    "SystemErrors": [["ComputeType", "Name", "Operation", "Resource"], ["Name", "Operation", "Resource"], ["Operation"], ["Operation", "Resource"]],
+    "Throttles": [["ComputeType", "Name", "Operation", "Resource"], ["Name", "Operation", "Resource"], ["Operation"], ["Operation", "Resource"]],
+    "UserErrors": [["ComputeType", "Name", "Operation", "Resource"], ["Name", "Operation", "Resource"], ["Operation"], ["Operation", "Resource"]]
+  },
+  "AWS/CloudFront": {
+    "4xxErrorRate": [["DistributionId", "Region"]],
+    "5xxErrorRate": [["DistributionId", "Region"]],
+    "Requests": [["DistributionId", "Region"]]
+  },
+  "AWS/Lambda": {
+    "Errors": [[], ["ExecutedVersion", "FunctionName", "Resource"], ["FunctionName"], ["FunctionName", "Resource"]],
+    "Invocations": [[], ["ExecutedVersion", "FunctionName", "Resource"], ["FunctionName"], ["FunctionName", "Resource"]],
+    "IteratorAge": [["EventSourceMappingUUID"], ["FunctionName"], ["FunctionName", "Resource"]],
+    "Throttles": [[], ["ExecutedVersion", "FunctionName", "Resource"], ["FunctionName"], ["FunctionName", "Resource"]],
+    "Url4xxCount": [[], ["FunctionName"], ["FunctionName", "Resource"]],
+    "Url5xxCount": [[], ["FunctionName"], ["FunctionName", "Resource"]],
+    "UrlRequestCount": [[], ["FunctionName"], ["FunctionName", "Resource"]]
+  },
+  "AWS/SQS": {
+    "ApproximateNumberOfMessagesVisible": [["QueueName"]]
+  },
+  "AWS/States": {
+    "ExecutionsFailed": [[], ["StateMachineArn"]],
+    "ExecutionsStarted": [[], ["StateMachineArn"]],
+    "ExecutionsSucceeded": [[], ["StateMachineArn"]],
+    "ExecutionsTimedOut": [[], ["StateMachineArn"]]
+  },
+  "AWS/WAFV2": {
+    "AllowedRequests": [["Country", "WebACL"], ["Device", "WebACL"], ["Resource", "ResourceType"], ["Rule", "WebACL"]],
+    "BlockedRequests": [["Attack", "WebACL"], ["Country", "WebACL"], ["Device", "WebACL"], ["ManagedRuleGroup", "WebACL"], ["Resource", "ResourceType"], ["Rule", "WebACL"]]
+  }
+}

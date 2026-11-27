@@ -1,0 +1,51 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directories: ["/backend", "/agents", "/infra", "/e2e"]
+    schedule:
+      interval: weekly
+    # Wait a week before proposing a newly published version: most malicious releases are pulled by then.
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    # Wait a week before proposing a newly published version: most malicious releases are pulled by then.
+    cooldown:
+      default-days: 7
+    groups:
+      frontend:
+        patterns: ["*"]
+  # The MCP server (mcp/package-lock.json).
+  - package-ecosystem: npm
+    directory: /mcp
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      mcp:
+        patterns: ["*"]
+  # The AWS CDK CLI the deployment scripts and CI run (infra/package-lock.json).
+  - package-ecosystem: npm
+    directory: /infra
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait a week before proposing a newly published version: most malicious releases are pulled by then.
+    cooldown:
+      default-days: 7
+  # The scanners and tools CI and validate.sh pin exactly are outside every lockfile Dependabot
+  # reads. They are listed in deployment/pinned-tools.txt and audited weekly by
+  # .github/workflows/pinned-tools.yml, which fails when one of them has a known vulnerability
+  # (P2-081). gitleaks (a container image) and uv (a GitHub release with a checksum) are in that
+  # file as comments: update them by hand when the audit or a release note says so.

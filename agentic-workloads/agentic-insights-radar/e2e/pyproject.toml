@@ -1,0 +1,19 @@
+[project]
+name = "insights-radar-e2e"
+version = "1.0.0"
+description = "End-to-end checks against a deployed Agentic Insights Radar"
+requires-python = ">=3.12"
+license = { text = "MIT-0" }
+dependencies = ["boto3==1.43.102", "httpx==0.28.1", "pycognito==2024.5.1", "pyotp==2.10.0", "pytest==9.1.1", "playwright==1.63.0", "mcp==2.2.0"]
+
+[tool.uv]
+exclude-newer = "7 days"  # supply-chain cooldown: never resolve a release younger than a week
+exclude-newer-package = { cryptography = false, pillow = false, certifi = false }  # security fixes (OpenSSL, image decoders, CA roots) ship without waiting
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "browser: drives Chromium through the hosted sign-in (needs playwright browsers installed)",
+    "ai: calls a model through the deployment (costs tokens)",
+]

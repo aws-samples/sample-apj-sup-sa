@@ -1,0 +1,106 @@
+# Deploy this commit into a sandbox account, check it with deployment/validate.sh (and, optionally, the
+# e2e smoke tests), then destroy it again. Run by hand from the Actions tab.
+#
+# Setup, once per repository:
+#   1. In the sandbox account, create an IAM OIDC identity provider for token.actions.githubusercontent.com
+#      and a role this repository may assume (trust policy: aud sts.amazonaws.com,
+#      sub repo:<owner>/<repo>:environment:sandbox), with the permissions deploy.sh needs (see README, AWS
+#      account requirements). Do not trust sub repo:<owner>/<repo>:*: that lets any workflow on any branch,
+#      including an unreviewed one, assume this admin-level role. Set the role's MaxSessionDuration to
+#      3 hours (10800 s): a first deploy, the e2e tests and a destroy together can pass one hour, and
+#      credentials that expire during the destroy leave a whole deployment billing in the sandbox.
+#      If your organisation caps MaxSessionDuration, set the repository variable
+#      AIR_VALIDATION_ROLE_DURATION to the seconds the role allows; the cleanup step assumes the role
+#      again anyway, so a shorter session only risks the deploy and the tests, not the cleanup.
+#   2. Create the GitHub environment "sandbox" (the job runs in it) and protect it with required reviewers,
+#      so every run is approved by a person before it gets the role. Set the environment's
+#      "Deployment branches and tags" to Selected branches: main only. Otherwise workflow_dispatch can
+#      run this workflow file from any branch in the sandbox environment, and an approver who approves
+#      the run approves a workflow they have not reviewed.
+#   3. Save the role ARN as the repository variable AIR_VALIDATION_ROLE_ARN.
+# No AWS credentials are stored in GitHub: the job exchanges its OIDC token for role credentials, once
+# for the deploy and the checks and again for the destroy.
+name: deploy-validate
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Region to deploy in (us-west-2 exercises the edge stack)"
+        default: us-east-1
+        required: true
+      e2e:
+        description: "Also run the e2e tests"
+        type: boolean
+        default: true
+      e2e_markers:
+        description: "Which e2e tests (pytest -m). The default leaves out browser and AI tests."
+        default: "not browser and not ai"
+        required: true
+      retain_data:
+        description: "Validate the default customer path: deletion protection, retained data, --purge"
+        type: boolean
+        default: false
+      upgrade_from:
+        description: >-
+          Deploy this earlier release (a tag or branch) first and upgrade it to this commit. Set it to the
+          previous release for every release candidate: upgrade failures never show on a fresh install.
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-validate
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: sandbox
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          fetch-depth: 0  # every tag, so validate.sh can deploy the release named in upgrade_from
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
+        with:
+          node-version: "22"
+      # The official action exchanges the job's OIDC token for role credentials and masks them;
+      # no credential value passes through a run step or a workflow command.
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
+        with:
+          role-to-assume: ${{ vars.AIR_VALIDATION_ROLE_ARN }}
+          role-session-name: air-validate-${{ github.run_id }}
+          role-duration-seconds: ${{ vars.AIR_VALIDATION_ROLE_DURATION || 10800 }}
+          aws-region: ${{ inputs.region }}
+      - name: deploy and check
+        env:
+          AIR_VALIDATE_SOURCE: ${{ github.workspace }}
+          AIR_VALIDATE_REGION: ${{ inputs.region }}
+          AIR_VALIDATE_E2E: ${{ inputs.e2e }}
+          AIR_VALIDATE_E2E_MARKERS: ${{ inputs.e2e_markers }}
+          AIR_VALIDATE_RETAIN_DATA: ${{ inputs.retain_data }}
+          AIR_VALIDATE_UPGRADE_FROM: ${{ inputs.upgrade_from }}
+          AIR_VALIDATE_CLEANUP: "false"   # the step below destroys it with fresh credentials
+        run: ./deployment/validate.sh
+      # Fresh credentials for the destroy: the job may run for two hours, and an expired session
+      # during cleanup leaves the stacks, their retained log groups and their keys billing.
+      - uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
+        if: always()
+        with:
+          role-to-assume: ${{ vars.AIR_VALIDATION_ROLE_ARN }}
+          role-session-name: air-cleanup-${{ github.run_id }}
+          role-duration-seconds: 3600
+          aws-region: ${{ inputs.region }}
+      # Fails the job when a stack is left behind, so an orphan is never silent.
+      - name: destroy the deployment
+        if: always()
+        env:
+          AIR_VALIDATE_REGION: ${{ inputs.region }}
+        run: ./deployment/validate.sh --cleanup-only

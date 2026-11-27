@@ -1,0 +1,30 @@
+# The implementation guide as a website (GitHub Pages, .github/workflows/docs.yml).
+site_name: Agentic Insights Radar on AWS
+site_description: Implementation guide for Agentic Insights Radar (AIR)
+repo_url: https://github.com/aws-samples/sample-apj-sup-sa/tree/main/agentic-workloads/agentic-insights-radar
+edit_uri: ""
+docs_dir: docs
+theme:
+  name: readthedocs
+nav:
+  - Home: index.md
+  - Implementation guide: implementation-guide.md
+  - Cost estimate: cost-estimate.md
+  - Threat model: security/threat-model.md
+  - Security matrix: security/security-matrix.md
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+validation:
+  links:
+    # mkdocs_hooks.py rewrites every ../ link (the README and source files, which live outside
+    # docs/) to an absolute repository URL before validation, so what is left to check is links
+    # inside docs/ -- and a broken one of those is a real error, which --strict in docs.yml then
+    # fails the build on (P2-090). absolute_links stays info: the rewritten links are absolute.
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+    absolute_links: info
+hooks:
+  - mkdocs_hooks.py

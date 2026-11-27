@@ -1,0 +1,66 @@
+[project]
+name = "insights-radar-backend"
+version = "1.0.0"
+description = "Agentic Insights Radar backend: API, indexer, scheduler and domain model"
+requires-python = ">=3.12"
+license = { text = "MIT-0" }
+dependencies = [
+  "boto3==1.43.102",
+  # The crawler and the agents' http_fetch pin each connection to a vetted address (core/fetch.py).
+  "httpcore==1.0.9",
+  # Digest schedules need the newest time zone rules: a floor, never a pin (scan cycle 2). The lock picks it.
+  "tzdata>=2025.2",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "hypothesis==6.168.1",
+  "moto[dynamodb,s3,kms,stepfunctions,cognitoidp]==5.2.3",
+  "mypy==2.3.1",
+  "ruff==0.16.9",
+  "boto3-stubs[dynamodb,s3,kms,stepfunctions,s3vectors,bedrock-runtime,bedrock-agent,bedrock-agent-runtime,bedrock-agentcore,cognito-idp]==1.43.102",
+]
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/insights_radar"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["scenario(id): links a test to a scenario id in the catalog"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+packages = ["insights_radar"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "C4", "SIM", "RUF", "PL"]
+ignore = ["PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLR", "B", "C408", "PLC0415"]
+
+[tool.coverage.run]
+branch = true
+source = ["insights_radar"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+
+[tool.uv]
+exclude-newer = "7 days"  # supply-chain cooldown: never resolve a release younger than a week
+exclude-newer-package = { cryptography = false, pillow = false, certifi = false }  # security fixes (OpenSSL, image decoders, CA roots) ship without waiting
