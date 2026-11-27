@@ -1,0 +1,14 @@
+# Quick start without an external IdP: a Cognito user pool stands in, with test users alice, bob and carol.
+# cp cognito.tfvars.example terraform.tfvars && terraform init && terraform apply
+region = "us-east-1"
+name   = "ocgw"
+idp    = "cognito"
+
+# Cost attribution: tags per ledger user (Usage explorer, group by tag).
+user_tags = {
+  alice = { team = "payments", project = "checkout" }
+  bob   = { team = "platform", project = "checkout" }
+}
+
+# Short names a client may send instead of the model ID (the test matrix uses kimi).
+model_aliases = { kimi = "ow/kimi-k3" }

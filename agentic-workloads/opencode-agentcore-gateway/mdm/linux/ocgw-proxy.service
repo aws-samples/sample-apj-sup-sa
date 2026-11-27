@@ -1,0 +1,16 @@
+# systemd user unit: keeps `ocgw proxy` running for the signed-in user (127.0.0.1 only).
+# Install to /etc/systemd/user/ and enable with: systemctl --user enable --now ocgw-proxy
+# Install ocgw at /usr/local/bin/ocgw owned by root and writable only by root (or use another root-owned path and
+# change ExecStart); this unit runs it in the session of every user who enables it.
+[Unit]
+Description=ocgw local proxy for opencode (AgentCore Gateway)
+
+[Service]
+ExecStart=/usr/bin/python3 -I /usr/local/bin/ocgw proxy
+Restart=on-failure
+NoNewPrivileges=true
+# No PrivateTmp: in a user unit it needs unprivileged user namespaces, and where those are off the unit would not start
+# at all (status=226/NAMESPACE). The proxy writes nothing to /tmp.
+
+[Install]
+WantedBy=default.target

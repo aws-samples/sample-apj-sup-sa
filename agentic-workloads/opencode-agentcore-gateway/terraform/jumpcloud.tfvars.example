@@ -1,0 +1,34 @@
+# JumpCloud. In the JumpCloud admin console (docs/jumpcloud.md walks through it):
+#   1. SSO Applications > Add > Custom OIDC app; Grant types Authorization Code and Refresh Token; Client
+#      Authentication Type "Public (None, PKCE)"; redirect URI http://127.0.0.1:8765/callback.
+#   2. Attribute mapping: email; Group attribute name "groups"; assign the ocgw-team-a and ocgw-team-b user groups.
+region             = "us-east-1"
+name               = "ocgw"
+idp                = "jumpcloud"
+oidc_discovery_url = "https://oauth.id.jumpcloud.com/.well-known/openid-configuration"
+oidc_client_id     = "<JumpCloud app client ID>"
+oidc_allowed_audience = ["<JumpCloud app client ID>"]
+oidc_allowed_clients  = []
+user_claim            = "sub"
+group_claim           = "groups"
+budget_overrides_usd  = {}
+rpm_overrides         = {}
+# Ledger users (budget, Mantle project, rate limits) and their group, and which IdP user is which. Use the immutable
+# sub claim, the JumpCloud user ID (Users > user > the ID in the URL). A signed-in user whose sub is not listed here is refused.
+users = {
+  alice = "ocgw-team-a"
+  bob   = "ocgw-team-b"
+}
+identity_map = {
+  "<alice's sub>" = "alice"
+  "<bob's sub>"   = "bob"
+}
+
+# Cost attribution: tags per ledger user (Usage explorer, group by tag).
+user_tags = {
+  alice = { team = "payments", project = "checkout" }
+  bob   = { team = "platform", project = "checkout" }
+}
+
+# Short names a client may send instead of the model ID (the test matrix uses kimi).
+model_aliases = { kimi = "ow/kimi-k3" }
