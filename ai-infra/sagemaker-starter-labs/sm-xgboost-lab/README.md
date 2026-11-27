@@ -48,11 +48,17 @@ The dataset is a numeric table of 30,000 rows. It predicts next-month default fr
 - Permissions to use CloudFormation, IAM, S3, and SageMaker AI
 - SageMaker Studio access and permissions to create and run Studio
 
-First, check your AWS account and Region. The default Region for this example is Seoul, `ap-northeast-2`.
+First, check your AWS account and Region. The default Region for this example is Seoul, `ap-northeast-2`. To use another Region, set it in the same terminal before bootstrap and training:
+
+```bash
+export AWS_REGION=ap-northeast-1
+```
+
+Use the same Region in SageMaker Studio and for all subsequent commands.
 
 ```bash
 aws sts get-caller-identity
-aws configure get region
+printf '%s\n' "${AWS_REGION:-ap-northeast-2}"
 ```
 
 For the required permissions and the AWS resources that are created, see [Infrastructure deployment](infra/README.md). Training Jobs, the MLflow App, S3 storage, and Batch Transform may incur charges.
@@ -87,13 +93,15 @@ and data retention before adapting the lab to real data.
 
 ## 2. Create the infrastructure
 
-Run this only once. It creates the S3 artifact bucket, the SageMaker Training execution role, and the role required by the managed MLflow App, and then waits until the MLflow App is ready.
+For a new environment, run the following command. It creates the S3 artifact bucket, the SageMaker Training execution role, and the role required by the managed MLflow App, and then waits until the MLflow App is ready.
 
 ```bash
 ./scripts/bootstrap-infra.sh
 ```
 
-The bucket name is generated automatically in the form `sagemaker-xgboost-lab-<account-id>`. Because the script passes the CloudFormation outputs to subsequent runs, you do not need to `export` the bucket name or role ARN yourself.
+The bucket name is generated automatically in the form `sagemaker-xgboost-lab-<account-id>-<region>`. Existing stacks retain their current bucket name. Because the script passes the CloudFormation outputs to subsequent runs, you do not need to `export` the bucket name or role ARN yourself.
+
+For an existing deployment, review [Updating an earlier deployment](infra/README.md#updating-an-earlier-deployment) before rerunning bootstrap; the IAM roles may be replaced.
 
 ## 3. Run built-in XGBoost once without MLflow
 
@@ -129,7 +137,7 @@ In this example, `default` is a baseline intentionally kept small so that the im
 
 ## 5. Compare results in MLflow
 
-1. In the AWS Console, select the `ap-northeast-2` Region.
+1. In the AWS Console, select the Region used for bootstrap and training (default: `ap-northeast-2`).
 2. Go to **Amazon SageMaker AI → SageMaker Studio**. If you do not have Studio, complete **Create SageMaker Studio**.
 3. In the created Studio, choose **Open Studio**.
 4. In the left navigation of Studio, choose the **MLflow** icon and open the `sagemaker-xgboost-lab` App.
@@ -204,7 +212,7 @@ Run the following only as needed after completing the core flow. Each document c
 | `train_simple.py` | Runs a single built-in XGBoost Training Job without MLflow |
 | `train.py` | Runs two built-in XGBoost Training Jobs and logs them to MLflow |
 | `train_autolog.py` / `autolog.py` | Script mode XGBoost Training with MLflow autolog |
-| `train_tunner.py` | Runs SageMaker Automatic Model Tuning and logs the best result |
+| `train_tuner.py` | Runs SageMaker Automatic Model Tuning and logs the best result |
 | `batch_transform.py` | Runs Batch Transform with the latest Approved version |
 
 ## Clean up resources
@@ -216,27 +224,32 @@ artifacts/<run-id>/
 artifacts/simple/<run-id>/
 artifacts/batch/<run-id>/predictions.csv.out
 
-s3://sagemaker-xgboost-lab-<account-id>/sagemaker-xgboost-lab/credit-card-default/runs/<run-id>/
+s3://sagemaker-xgboost-lab-<account-id>-<region>/sagemaker-xgboost-lab/credit-card-default/runs/<run-id>/
 ```
 
 When you finish the lab, delete the MLflow App first.
 
 ```bash
 aws sagemaker list-mlflow-apps \
-  --region ap-northeast-2 \
+  --region "${AWS_REGION:-ap-northeast-2}" \
   --query "Summaries[?Name=='sagemaker-xgboost-lab'].[Arn,Status]" \
   --output table
 
 aws sagemaker delete-mlflow-app \
   --arn '<mlflow-app-arn>' \
-  --region ap-northeast-2
+  --region "${AWS_REGION:-ap-northeast-2}"
 ```
 
 If you no longer need the S3 artifacts, empty the bucket and then delete the CloudFormation stack. An empty artifact bucket created by the current stack is deleted along with the stack. Delete separately any bucket that was left behind by the previous `Retain` policy and reused by bootstrap.
 
 ```bash
-aws s3 rm "s3://sagemaker-xgboost-lab-<account-id>/" --recursive
+BUCKET_NAME="$(aws cloudformation describe-stacks \
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}" \
+  --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue | [0]" \
+  --output text)"
+aws s3 rm "s3://${BUCKET_NAME}/" --recursive
 aws cloudformation delete-stack \
-  --stack-name sagemaker-xgboost-lab \
-  --region ap-northeast-2
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}"
 ```

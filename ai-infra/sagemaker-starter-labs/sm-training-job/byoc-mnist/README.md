@@ -68,10 +68,11 @@ byoc-mnist/
 ## Prerequisites
 
 - **Docker Desktop** must be running (for building the image)
-- **AWS credentials** + default region (verify with `aws configure`, `aws sts get-caller-identity`)
-- **IAM execution role** — `launch.py` automatically detects `AmazonSageMaker-ExecutionRole-*` in your account.
-  If none exists, create a SageMaker execution role in IAM (`AmazonSageMakerFullAccess` is sufficient)
-  and set its ARN in `ROLE` in the CONFIG block of `launch.py`.
+- **AWS credentials** + region (verify credentials with `aws sts get-caller-identity`).
+  Both build and launch use `AWS_REGION`, then `AWS_DEFAULT_REGION`, then the default AWS configuration.
+  An explicit launcher CONFIG `REGION` overrides these; keep it consistent with the build region.
+- **IAM execution role** — Set the intended role ARN explicitly in `ROLE` in `launch.py` CONFIG.
+  The launcher never searches account roles. If needed, create a SageMaker execution role in IAM.
 - The role must be able to pull images from ECR (included in `AmazonSageMakerFullAccess`).
 
 ---
@@ -140,7 +141,7 @@ WAIT = True                        # If False, return immediately after submissi
 ECR_REPO = "byoc-mnist"            # Must match the repository name in build_and_push.sh
 IMAGE_TAG = "latest"
 IMAGE_URI = None                   # Can be set explicitly. If None, built from account/region + ECR_REPO
-ROLE = None                        # If None, auto-detected
+ROLE = "arn:aws:iam::<account-id>:role/<role-name>"  # Required execution role
 REGION = None                      # If None, uses the default session region
 ```
 
@@ -364,3 +365,13 @@ value means failure (Failed)
 There is also a separate contract for inference. The container is run with `docker run <image> serve` and
 provides `GET /ping` (health check) and `POST /invocations` (inference) on port 8080; details are summarized
 in "Next step: inference container" above.
+
+## Development checks
+
+Run from this project folder. The shared tests mock AWS calls and data downloads.
+
+```bash
+uv sync --frozen --group dev
+uv run --group dev ruff check launch.py jobstatus.py ../tests
+uv run --group dev pytest ../tests
+```

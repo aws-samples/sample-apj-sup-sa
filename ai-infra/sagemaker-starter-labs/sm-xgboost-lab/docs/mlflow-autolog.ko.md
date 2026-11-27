@@ -142,7 +142,7 @@ Training Job이 시작될 때 `autolog-requirements.txt`에 있는 MLflow 클라
 설치합니다. 기본 인터넷 연결이 없는 private VPC에서는 private 패키지 리포지토리를
 사용하거나 의존성을 포함한 커스텀 이미지가 필요합니다.
 
-이 autolog 예제의 목적은 experiment tracking입니다. 기존 `train.py`와 `train_tunner.py`는
+이 autolog 예제의 목적은 experiment tracking입니다. 기존 `train.py`와 `train_tuner.py`는
 MLflow Logged Model에 Batch Transform용 SageMaker inference specification도
 명시적으로 기록합니다. 따라서 현재 리포지토리의 Registry와 Batch Transform
 실습에서는 기존 두 흐름을 계속 사용합니다.

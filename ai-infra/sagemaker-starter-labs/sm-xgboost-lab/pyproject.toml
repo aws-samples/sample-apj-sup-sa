@@ -31,7 +31,7 @@ dev = [
 [project.scripts]
 sagemaker-xgboost-lab = "sagemaker_xgboost_lab.train:main"
 sagemaker-xgboost-simple = "sagemaker_xgboost_lab.train_simple:main"
-sagemaker-xgboost-tune = "sagemaker_xgboost_lab.train_tunner:main"
+sagemaker-xgboost-tune = "sagemaker_xgboost_lab.train_tuner:main"
 sagemaker-xgboost-autolog = "sagemaker_xgboost_lab.train_autolog:main"
 
 [tool.setuptools.packages.find]

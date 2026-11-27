@@ -145,7 +145,7 @@ When the Training Job starts, it installs the MLflow client and AWS plugin liste
 package repository or a custom image that includes the dependencies.
 
 The purpose of this autolog example is experiment tracking. The MLflow Logged Models from the
-existing `train.py` and `train_tunner.py` also explicitly record a SageMaker inference
+existing `train.py` and `train_tuner.py` also explicitly record a SageMaker inference
 specification for Batch Transform. Therefore, the Registry and Batch Transform exercises in this
 repository continue to use the two existing flows.
 

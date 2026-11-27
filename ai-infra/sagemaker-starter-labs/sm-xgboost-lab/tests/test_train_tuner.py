@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from sagemaker.core.parameter import ContinuousParameter, IntegerParameter
 from sagemaker.train.tuner import HyperparameterTuner
 
-import sagemaker_xgboost_lab.train_tunner as tuner_module
-from sagemaker_xgboost_lab.train_tunner import (
+import sagemaker_xgboost_lab.train_tuner as tuner_module
+from sagemaker_xgboost_lab.train_tuner import (
     BOOSTER_EARLY_STOPPING_ROUNDS,
     HYPERPARAMETER_RANGES,
     MAX_BOOST_ROUNDS,

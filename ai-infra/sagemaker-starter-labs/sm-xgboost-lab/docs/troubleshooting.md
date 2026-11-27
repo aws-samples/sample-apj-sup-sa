@@ -44,17 +44,17 @@ Check the current status as follows.
 
 ```bash
 aws sagemaker list-mlflow-apps \
-  --region ap-northeast-2 \
+  --region "${AWS_REGION:-ap-northeast-2}" \
   --query "Summaries[?Name=='sagemaker-xgboost-lab'].[Name,Status,MlflowVersion,Arn]" \
   --output table
 ```
 
 ## HTTP 502 from the MLflow endpoint
 
-Even if the MLflow App status is `Created`, the endpoint can return `502` if the App references a deleted old IAM role. Running the following command again compares the App's role and artifact store with the current CloudFormation outputs and, if they differ, deletes the App and recreates it with the correct configuration.
+Even if the MLflow App status is `Created`, the endpoint can return `502` if the App references a deleted old IAM role. Bootstrap compares the App's role and artifact store with the current CloudFormation outputs. A mismatch stops the script without deleting the App. Only if you intend to delete and recreate that App, run the replacement command below.
 
 ```bash
-./scripts/bootstrap-infra.sh
+./scripts/bootstrap-infra.sh --replace-mlflow-app
 ./scripts/run-training.sh --instance-type ml.g5.xlarge
 ```
 
@@ -64,9 +64,9 @@ The Training code also checks the MLflow connection before creating a billable T
 
 The autolog Training Job uploads `data-summary.json`, the model, and feature importance directly to the MLflow artifact
 prefix. Therefore, not only the MLflow App role but also the **SageMaker Training
-role** needs `s3:PutObject` permission on `${ArtifactPrefix}/mlflow/*`.
+role** needs `s3:PutObject` permission on `sagemaker-xgboost-lab/mlflow/*`.
 
-If you see an `s3:PutObject` error for the `sagemaker-xgboost-lab-training` role like this,
+If you see an `s3:PutObject` error for the role identified by the stack's `SageMakerExecutionRoleArn`,
 redeploy the infrastructure.
 
 ```bash
@@ -101,7 +101,7 @@ cost than regular Training, and even if you stop a Tuning Job, you are still cha
 ## AMT interprets CSV as LIBSVM
 
 If the Training Job's `InputDataConfig` does not have `ContentType=text/csv`, built-in XGBoost
-interprets the CSV in its default LIBSVM format and fails. This project's `train_tunner.py` uses `Channel` instead of
+interprets the CSV in its default LIBSVM format and fails. This project's `train_tuner.py` uses `Channel` instead of
 SDK v3's simple `InputData` conversion to specify the content type explicitly.
 
 ## Batch Transform cannot find an Approved model

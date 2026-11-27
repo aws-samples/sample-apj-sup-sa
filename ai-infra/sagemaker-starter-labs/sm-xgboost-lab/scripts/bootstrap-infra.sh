@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+replace_mlflow_app=false
+for arg in "$@"; do
+  case "$arg" in
+    --replace-mlflow-app) replace_mlflow_app=true ;;
+    -h | --help)
+      printf 'Usage: %s [--replace-mlflow-app]\n' "$0"
+      printf 'Replacement deletes an incompatible or failed MLflow App and creates a new one.\n'
+      exit 0
+      ;;
+    *) printf 'Unknown option: %s\n' "$arg" >&2; exit 1 ;;
+  esac
+done
+
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 STACK_NAME="${STACK_NAME:-sagemaker-xgboost-lab}"
 MLFLOW_APP_NAME="${MLFLOW_APP_NAME:-sagemaker-xgboost-lab}"
 PERMISSIONS_BOUNDARY_ARN="${PERMISSIONS_BOUNDARY_ARN:-}"
 account_id="$(aws sts get-caller-identity --query Account --output text)"
-bucket_name="sagemaker-xgboost-lab-${account_id}"
-mlflow_artifact_uri="s3://${bucket_name}/sagemaker-xgboost-lab/mlflow/"
+bucket_name="sagemaker-xgboost-lab-${account_id}-${AWS_REGION}"
 
 stack_output() {
   aws cloudformation describe-stacks \
@@ -60,6 +72,18 @@ create_mlflow_app() {
     --output text
 }
 
+replace_app() {
+  if [[ "$replace_mlflow_app" != true ]]; then
+    printf 'Existing MLflow App needs replacement: %s\n' "$mlflow_app_arn" >&2
+    printf 'No App was deleted. Review the mismatch above; to delete and recreate this App, rerun with --replace-mlflow-app.\n' >&2
+    exit 1
+  fi
+  aws sagemaker delete-mlflow-app \
+    --arn "$mlflow_app_arn" --region "$AWS_REGION" >/dev/null
+  wait_for_app_deletion
+  mlflow_app_arn="$(create_mlflow_app "$mlflow_role_arn")"
+}
+
 wait_for_app_ready() {
   local arn="$1"
   local deadline=$((SECONDS + 600))
@@ -86,13 +110,20 @@ wait_for_app_ready() {
   exit 1
 }
 
-stack_status="$(
+if ! stack_status="$(
   aws cloudformation describe-stacks \
     --stack-name "$STACK_NAME" \
     --region "$AWS_REGION" \
     --query 'Stacks[0].StackStatus' \
-    --output text 2>/dev/null || true
-)"
+    --output text 2>&1
+)"; then
+  if [[ "$stack_status" == *"does not exist"* ]]; then
+    stack_status=""
+  else
+    printf '%s\n' "$stack_status" >&2
+    exit 1
+  fi
+fi
 if [[ "$stack_status" == "ROLLBACK_COMPLETE" ]]; then
   printf 'Removing failed stack: %s\n' "$STACK_NAME"
   aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$AWS_REGION"
@@ -103,6 +134,12 @@ if [[ "$stack_status" == "ROLLBACK_COMPLETE" ]]; then
 fi
 
 if [[ -n "$stack_status" ]]; then
+  # Preserve the bucket of an existing stack, including names from earlier versions.
+  bucket_name="$(stack_output ArtifactBucketName)"
+  if [[ -z "$bucket_name" || "$bucket_name" == "None" ]]; then
+    printf 'Existing stack has no ArtifactBucketName output. Inspect it before retrying.\n' >&2
+    exit 1
+  fi
   create_bucket="$(
     aws cloudformation describe-stacks \
       --stack-name "$STACK_NAME" \
@@ -110,16 +147,34 @@ if [[ -n "$stack_status" ]]; then
       --query "Stacks[0].Parameters[?ParameterKey=='CreateArtifactBucket'].ParameterValue | [0]" \
       --output text
   )"
-  if [[ "$create_bucket" == "false" ]] &&
-    ! aws s3api head-bucket --bucket "$bucket_name" >/dev/null 2>&1; then
-    create_bucket=true
-  fi
-elif aws s3api head-bucket --bucket "$bucket_name" >/dev/null 2>&1; then
-  create_bucket=false
-  printf 'Reusing existing artifact bucket: %s\n' "$bucket_name"
-else
-  create_bucket=true
 fi
+if bucket_region="$(aws s3api get-bucket-location \
+  --bucket "$bucket_name" --expected-bucket-owner "$account_id" \
+  --region "$AWS_REGION" --query LocationConstraint --output text 2>&1)"; then
+  case "$bucket_region" in
+    None | null) bucket_region=us-east-1 ;;
+    EU) bucket_region=eu-west-1 ;;
+  esac
+  if [[ "$bucket_region" != "$AWS_REGION" ]]; then
+    printf 'Bucket %s is in %s, not %s. No changes applied.\n' \
+      "$bucket_name" "$bucket_region" "$AWS_REGION" >&2
+    exit 1
+  fi
+  if [[ -z "$stack_status" ]]; then
+    create_bucket=false
+    printf 'Reusing existing artifact bucket: %s\n' "$bucket_name"
+  fi
+elif [[ "$bucket_region" == *"NoSuchBucket"* ]]; then
+  if [[ -n "$stack_status" && "$create_bucket" == true ]]; then
+    printf 'Stack-managed bucket %s is missing. Restore it or clean up the old stack before redeploying.\n' "$bucket_name" >&2
+    exit 1
+  fi
+  create_bucket=true
+else
+  printf '%s\n' "$bucket_region" >&2
+  exit 1
+fi
+mlflow_artifact_uri="s3://${bucket_name}/sagemaker-xgboost-lab/mlflow/"
 
 printf '\n[1/2] Deploy S3 bucket and IAM role\n'
 if ! aws cloudformation deploy \
@@ -165,22 +220,14 @@ else
   )"
   if [[ "$current_role_arn" != "$mlflow_role_arn" ||
         "$current_artifact_uri" != "$mlflow_artifact_uri" ]]; then
-    printf 'Replacing MLflow App with the current role and artifact store.\n'
-    aws sagemaker delete-mlflow-app \
-      --arn "$mlflow_app_arn" \
-      --region "$AWS_REGION" \
-      >/dev/null
-    wait_for_app_deletion
-    mlflow_app_arn="$(create_mlflow_app "$mlflow_role_arn")"
+    printf 'MLflow role: current=%s expected=%s\n' "$current_role_arn" "$mlflow_role_arn" >&2
+    printf 'MLflow artifact store: current=%s expected=%s\n' "$current_artifact_uri" "$mlflow_artifact_uri" >&2
+    replace_app
   else
     case "$status" in
       CreateFailed | UpdateFailed | DeleteFailed)
-        aws sagemaker delete-mlflow-app \
-          --arn "$mlflow_app_arn" \
-          --region "$AWS_REGION" \
-          >/dev/null
-        wait_for_app_deletion
-        mlflow_app_arn="$(create_mlflow_app "$mlflow_role_arn")"
+        printf 'MLflow App status requires replacement: %s\n' "$status" >&2
+        replace_app
         ;;
       Deleting)
         wait_for_app_deletion

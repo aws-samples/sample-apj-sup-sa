@@ -7,9 +7,13 @@ requires-python = ">=3.10,<3.13"
 # Dependencies needed only on your local PC — for submitting and checking jobs.
 # Training frameworks such as torch are not listed here; they are installed in container/Dockerfile.
 dependencies = [
-    "sagemaker>=3.0",
+    "sagemaker-core==2.18.0",
+    "sagemaker-train==1.18.0",
     "boto3>=1.34",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8,<9", "ruff>=0.6"]
 
 [tool.uv]
 package = false

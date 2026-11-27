@@ -16,7 +16,7 @@ This is the most important part of this example. The development environment and
 |---|---|---|
 | What it does | Submits the job with `launch.py` | Runs the actual training with `src/train.py` |
 | Managed by | **uv** (`pyproject.toml`) | **AWS DLC** (torch etc. built in) |
-| Required packages | `sagemaker`, `boto3` | `torch`, `torchvision` (already included in the DLC) |
+| Required packages | `sagemaker-core`, `sagemaker-train`, `boto3` | `torch`, `torchvision` (already included in the DLC) |
 | GPU/CUDA | ❌ Not needed | ✅ Included in the DLC |
 
 > **You do not install torch locally.** The training code (`train.py`) does not run locally; it runs
@@ -53,21 +53,25 @@ aws configure          # Or SSO / environment variables / EC2 instance role, etc
 aws sts get-caller-identity   # Verify credentials
 ```
 
-A default region must be configured (the region in `aws configure`). If not, set `REGION` in CONFIG.
+Region selection is CONFIG `REGION`, then `AWS_REGION`, `AWS_DEFAULT_REGION`, and the default AWS configuration.
 
 ### 3. IAM execution role (SageMaker Execution Role)
 
-The Training Job runs under a **SageMaker execution role**. `launch.py` **automatically looks for** a role such as
-`AmazonSageMaker-ExecutionRole-*` in your account. If none exists, you need to create one:
+The Training Job runs under a **SageMaker execution role**. Set its ARN explicitly in the
+`ROLE` value in `launch.py` CONFIG. The launcher never searches account roles. If no suitable role exists, create one:
 
 - Console: **IAM → Roles → Create role → Use case: SageMaker** →
   attach the `AmazonSageMakerFullAccess` policy (sufficient for training)
-- If you have multiple roles or want to use a specific role: set the ARN directly in `ROLE` in the `launch.py` CONFIG
+- Choose the role intended for this lab and copy its ARN into `ROLE` before submitting a job.
 
 Minimum permissions the role needs: SageMaker training, read/write on the artifact S3 bucket, ECR pull (DLC), and CloudWatch Logs.
 `AmazonSageMakerFullAccess` covers all of these.
 
 ---
+
+MNIST is downloaded inside the training container, which needs internet access. Network isolation or a VPC
+without an internet route (such as NAT) prevents this download. For S3 input prepared locally, see
+[byoc-mnist](../byoc-mnist/README.md).
 
 ## How to run
 
@@ -80,7 +84,7 @@ virtual environment (`.venv`) and runs inside it, so you do not need to `activat
 uv sync
 ```
 
-Reads `pyproject.toml`, creates `.venv`, and installs `sagemaker` and `boto3`.
+Reads `pyproject.toml`, creates `.venv`, and installs `sagemaker-core`, `sagemaker-train`, and `boto3`.
 
 ### Step 1. Validate the configuration (recommended, no AWS charges)
 
@@ -131,7 +135,7 @@ INSTANCE_TYPE = "ml.c6i.2xlarge"   # To train on GPU, e.g. "ml.g4dn.xlarge" (req
 FRAMEWORK_VERSION = "2.7.1"        # PyTorch DLC version (e.g. "2.7.1", "2.8.0")
 MAX_RUN_SECONDS = 3600             # Maximum run time (safeguard). e.g. 86400 (24h)
 WAIT = True                        # If False, returns immediately after submission (asynchronous)
-ROLE = None                        # SageMaker execution role ARN. If None, detected automatically
+ROLE = "arn:aws:iam::<account-id>:role/<role-name>"  # Required execution role
 REGION = None                      # AWS region. If None, uses the default session region
 ```
 
@@ -168,8 +172,18 @@ Once the job is submitted, in the [SageMaker console](https://console.aws.amazon
 
 | Symptom | Cause / Fix |
 |---|---|
-| `Could not find a SageMaker execution role` | No execution role exists. See the **IAM execution role** section above, then set the ARN in `ROLE` in CONFIG |
+| `Set ROLE in launch.py CONFIG` | No execution role exists. See the **IAM execution role** section above, then set the ARN in `ROLE` in CONFIG |
 | `Could not find a region` | Set a default region with `aws configure`, or set `REGION` in CONFIG |
 | `ResourceLimitExceeded` (GPU) | The quota for that instance type is 0. Run on CPU or request an increase in Service Quotas |
 | Job is `Failed` | Check `FailureReason` with `uv run jobstatus.py` → see the detailed stack trace in CloudWatch Logs |
 | Data download fails | Happens when the training instance is configured as VPC-only (no internet access). In that case, upload MNIST to S3 and inject it as an input channel |
+
+## Development checks
+
+Run from this project folder. The shared tests mock AWS calls and data downloads.
+
+```bash
+uv sync --frozen --group dev
+uv run --group dev ruff check launch.py jobstatus.py ../tests
+uv run --group dev pytest ../tests
+```

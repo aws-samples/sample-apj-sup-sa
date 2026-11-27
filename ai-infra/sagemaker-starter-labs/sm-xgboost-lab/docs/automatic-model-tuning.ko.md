@@ -69,7 +69,7 @@ Bayesian 전략은 앞선 trial 결과를 바탕으로 다음 조합을 선택�
 
 ## 코드에서 정의하는 것
 
-[`train_tunner.py`](../src/sagemaker_xgboost_lab/train_tunner.py)는 먼저 SDK v3 `ModelTrainer`로 모든
+[`train_tuner.py`](../src/sagemaker_xgboost_lab/train_tuner.py)는 먼저 SDK v3 `ModelTrainer`로 모든
 trial에 공통으로 적용할 설정을 정의합니다.
 
 ```text
@@ -96,7 +96,7 @@ Built-in XGBoost는 `validation:auc`를 기본 지표로 내보내므로 custom 
 
 이 프로젝트가 고정한 SageMaker SDK v3 버전에서는 Tuner가 간단한 `InputData`를 변환할 때
 `content_type`을 유지하지 않습니다. CSV가 LIBSVM으로 잘못 해석되지 않도록
-`train_tunner.py`는 `ContentType=text/csv`를 포함한 `Channel`을 직접 전달합니다.
+`train_tuner.py`는 `ContentType=text/csv`를 포함한 `Channel`을 직접 전달합니다.
 
 ## Boosting round와 두 종류의 early stopping
 

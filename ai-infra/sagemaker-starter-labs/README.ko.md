@@ -2,7 +2,7 @@
 
 # SageMaker 학습 예제 모음
 
-Amazon SageMaker에서 모델을 학습하고 운영하는 방법을 여러 방식으로 보여주는 예제 저장소입니다.
+Amazon SageMaker에서 모델을 학습하고 운영하는 방법을 여러 방식으로 보여주는 예제 폴더입니다.
 MNIST 분류로 SageMaker Training Job의 기본 구조를 비교하는 예제와, 공개 신용 연체
 데이터셋으로 XGBoost, managed MLflow, Model Registry, Pipeline 흐름을 다루는 실습이 있습니다.
 
@@ -13,7 +13,7 @@ SageMaker Studio는 Training Job, MLflow 실험, 등록된 모델과 Pipeline DA
 이 예제들의 실행 환경은 다음 두 가지로 나뉩니다.
 
 - **로컬 환경(로컬 PC)** — 학습 코드를 작성하고, Job을 제출하고, 상태를 확인하는 곳입니다.
-  이 환경에는 `sagemaker`, `boto3` 같은 제어용 패키지만 필요합니다.
+  MNIST는 `sagemaker-core`, `sagemaker-train`, `boto3`로 Job을 제출하고 조회합니다.
 - **학습 컨테이너(AWS)** — 실제 학습이 GPU/CPU에서 실행되는 곳입니다. `torch` 같은 학습
   프레임워크와 CUDA는 여기에 들어갑니다.
 
@@ -23,8 +23,8 @@ SageMaker Studio는 Training Job, MLflow 실험, 등록된 모델과 Pipeline DA
 ## 프로젝트별 uv 환경
 
 각 예제는 독립된 프로젝트이고, 환경은 [uv](https://docs.astral.sh/uv/)로 관리합니다.
-프로젝트마다 `pyproject.toml`, `uv.lock`, `.python-version`을 두어 서로 간섭 없이 정확히
-같은 의존성을 재현할 수 있게 했습니다.
+프로젝트마다 `pyproject.toml`과 `uv.lock`으로 의존성을 분리합니다.
+MNIST 두 프로젝트는 `.python-version`으로 로컬 Python 버전도 지정합니다.
 
 프로젝트 폴더에서 `uv sync`로 환경을 만든 뒤 `uv run <스크립트>`로 실행합니다.
 `uv run`이 해당 프로젝트의 가상환경에서 실행하므로 `activate` 과정은 필요 없습니다.
@@ -35,8 +35,9 @@ uv sync
 uv run launch.py --dry-run
 ```
 
-로컬 의존성은 `sagemaker`(v3)와 `boto3`뿐입니다. 학습 프레임워크는 각 예제의 컨테이너
-정의(스크립트 모드는 관리형 DLC, BYOC는 `container/Dockerfile`) 안에 들어갑니다.
+MNIST 학습 프레임워크는 컨테이너에 들어갑니다(스크립트 모드는 관리형 DLC, BYOC는
+`container/Dockerfile`). XGBoost와 Pipeline은 데이터 준비, MLflow, 평가를 위한 로컬 패키지도
+사용합니다. 의존성 목록은 각 프로젝트의 `pyproject.toml`을 참고하세요.
 
 ## 예제 목록
 
@@ -65,7 +66,7 @@ uv run launch.py --dry-run
 
 - **uv** — 파이썬 환경/패키지 관리
 - **AWS CLI v2** + 자격증명과 기본 리전 (`aws configure`, `aws sts get-caller-identity`로 확인)
-- **SageMaker 실행 역할** — MNIST 예제의 `launch.py`는 계정에서 자동 탐지합니다.
+- **SageMaker 실행 역할** — MNIST 예제의 `launch.py` CONFIG에 실행 역할 ARN(`ROLE`)을 직접 지정합니다.
   XGBoost 실습은 `scripts/bootstrap-infra.sh`가 CloudFormation으로 필요한 역할을 만듭니다.
   자세한 내용은 각 프로젝트 README를 참고하세요.
 - **Docker** — BYOC 예제(byoc-mnist)와 XGBoost Pipeline의 Processing 이미지 빌드에 필요합니다.

@@ -71,4 +71,4 @@ Transform을 만들지 않습니다. 따라서 SageMaker Training Job과 S3 모�
 먼저 확인하려는 경우에 적합합니다.
 
 실험 비교에는 `train.py`, 반복별 자동 기록에는 `train_autolog.py`, 여러 하이퍼파라미터
-조합 탐색에는 `train_tunner.py`를 사용합니다.
+조합 탐색에는 `train_tuner.py`를 사용합니다.

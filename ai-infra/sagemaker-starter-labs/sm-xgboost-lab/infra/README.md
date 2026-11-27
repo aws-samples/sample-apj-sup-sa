@@ -20,9 +20,9 @@ It deploys `infra/main.yaml` as the `sagemaker-xgboost-lab` CloudFormation stack
 | SageMaker Training role | Lets the Training Job read input and container images and store models, logs, and metrics |
 | MLflow App role | Used by managed MLflow to read and write its dedicated S3 prefix |
 
-The bucket has Block Public Access and a policy that denies HTTP access. The Training role's S3 permissions are limited to the project prefix, and the role also includes the permissions needed to pull ECR images, write Training logs and metrics, and call the MLflow App API for the autolog example. It also includes network interface permissions to pass the SageMaker SDK v3 role pre-check, although this sample itself does not use a VPC configuration.
+New buckets have Block Public Access and a policy that denies HTTP access. Reused buckets keep their existing policy; this stack does not manage it. The Training role's S3 permissions are limited to the project prefix, and the role also includes the permissions needed to pull ECR images, write Training logs and metrics, and call the MLflow App API for the autolog example. It also includes network interface permissions to pass the SageMaker SDK v3 role pre-check, although this sample itself does not use a VPC configuration.
 
-The bucket name is set to `sagemaker-xgboost-lab-<account-id>` using the current account ID. If the same bucket created by a previous version is found, the new stack reuses it instead of creating it again.
+New deployments use `sagemaker-xgboost-lab-<account-id>-<region>`. Existing stacks retain the bucket named in their outputs. Bootstrap checks the bucket owner and Region before reusing it. CloudFormation generates unique IAM role names; launchers use the role ARNs from stack outputs. The S3 artifact prefix is fixed to `sagemaker-xgboost-lab` in both code and policies.
 
 If your organization requires an IAM permissions boundary, you can pass it as an environment variable.
 
@@ -43,7 +43,7 @@ MLflow App status: Creating
 MLflow App status: Created
 ```
 
-If an App is already in place, the script compares the App's IAM role and artifact store with the current CloudFormation outputs. An App that references a deleted old role, uses a different S3 path, or is in a failed state is deleted and recreated with the current configuration.
+If an App already exists, bootstrap compares its role and artifact store with the stack outputs. A mismatch or failed state stops bootstrap without deleting the App. After reviewing the printed values, use `./scripts/bootstrap-infra.sh --replace-mlflow-app` only if you intend to delete and recreate that App. This is not an in-place migration of the existing App's tracking history.
 
 ## Deployment output
 
@@ -51,7 +51,7 @@ When it completes, the following values are printed.
 
 ```text
 Infrastructure ready.
-Artifact bucket: sagemaker-xgboost-lab-<account-id>
+Artifact bucket: sagemaker-xgboost-lab-<account-id>-<region>
 Execution role: <training-role-arn>
 MLflow App: <mlflow-app-arn>
 Next: ./scripts/run-training.sh
@@ -93,6 +93,38 @@ role.
 
 ## Running again
 
-You can run the same command again. CloudFormation updates only the parts that changed. If the existing MLflow App's IAM role and artifact store match the current infrastructure, the App is reused; otherwise, it is recreated.
+You can run the same command again. CloudFormation updates only the parts that changed. If the existing MLflow App's IAM role and artifact store match the current infrastructure, the App is reused; otherwise, bootstrap stops and requires `--replace-mlflow-app` to recreate it.
 
 If the stack is in `ROLLBACK_COMPLETE`, bootstrap deletes the failed stack and redeploys it. If the deployment fails, the last CloudFormation failure event is shown in the terminal.
+
+## Updating an earlier deployment
+
+Review a CloudFormation change set before rerunning bootstrap against an older stack. Removing fixed
+role names can replace the roles, and adding the bucket policy condition can remove a policy previously
+managed on a reused bucket. Check the current bucket policy and any custom artifact prefix before applying.
+
+From `sm-xgboost-lab`, create a change set without executing it:
+
+```bash
+BUCKET_NAME="$(aws cloudformation describe-stacks \
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}" \
+  --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue | [0]" --output text)"
+CREATE_BUCKET="$(aws cloudformation describe-stacks \
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}" \
+  --query "Stacks[0].Parameters[?ParameterKey=='CreateArtifactBucket'].ParameterValue | [0]" --output text)"
+aws cloudformation deploy --template-file infra/main.yaml \
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}" \
+  --parameter-overrides "BucketName=${BUCKET_NAME}" "CreateArtifactBucket=${CREATE_BUCKET}" \
+  --capabilities CAPABILITY_NAMED_IAM --no-execute-changeset
+```
+
+Inspect the change set in CloudFormation before executing it. Keep the existing bucket name and creation
+setting. Unspecified existing parameters, including the permissions boundary, retain their previous values.
+If the execution role changes, update dependent policies and rerun Pipeline setup and registration.
+If the MLflow role changes, plan the App replacement explicitly; ordinary bootstrap will stop on the mismatch.
+
+If the stack still owns a bucket that was manually deleted, bootstrap stops rather than silently switching
+buckets. Restore that bucket or deliberately clean up the obsolete stack before starting a fresh deployment.

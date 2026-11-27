@@ -2,7 +2,7 @@ English | [한국어](README.ko.md)
 
 # SageMaker Training Examples
 
-This repository contains examples that show several ways to train and operate models on Amazon SageMaker.
+This folder contains examples that show several ways to train and operate models on Amazon SageMaker.
 It includes examples that compare the basic structure of **SageMaker Training Jobs** through MNIST
 classification, and **a hands-on lab that uses a public credit default dataset to cover XGBoost, managed MLflow, Model Registry, and Pipeline workflows**.
 
@@ -13,7 +13,7 @@ to inspect training jobs, MLflow experiments, registered models, and Pipeline DA
 The key point is that there are two separate environments.
 
 - **Local environment (your local PC)** — where you write training code, submit jobs, and check their status.
-  It only needs control-plane packages such as `sagemaker` and `boto3`.
+  MNIST uses `sagemaker-core`, `sagemaker-train`, and `boto3` to submit and inspect jobs.
 - **Training container (AWS)** — where the actual training runs on GPU/CPU. Training frameworks such as
   `torch` and CUDA live here.
 
@@ -23,8 +23,8 @@ not on your local PC. This keeps the local environment lightweight and makes it 
 ## Per-project uv environments
 
 Each example is an independent project, and its environment is managed with [uv](https://docs.astral.sh/uv/).
-Each project has its own `pyproject.toml`, `uv.lock`, and `.python-version`, so you can reproduce exactly the
-same dependencies without projects interfering with each other.
+Each project has its own `pyproject.toml` and `uv.lock` to keep dependencies separate.
+The two MNIST projects also pin their local Python version with `.python-version`.
 
 To use one, go into the project folder, create the environment with `uv sync`, and then run scripts with
 `uv run <script>`. Because `uv run` executes in that project's virtual environment, you do not need to `activate` it.
@@ -35,8 +35,9 @@ uv sync
 uv run launch.py --dry-run
 ```
 
-The only local dependencies are `sagemaker` (v3) and `boto3`. Training frameworks are included in each
-example's container definition (a managed DLC for script mode, `container/Dockerfile` for BYOC).
+The MNIST projects keep training frameworks in their containers (a managed DLC for script mode,
+`container/Dockerfile` for BYOC). XGBoost and Pipeline also use local packages for data preparation,
+MLflow, and evaluation; see each project's `pyproject.toml` for the dependency list.
 
 ## Examples
 
@@ -65,7 +66,7 @@ example's container definition (a managed DLC for script mode, `container/Docker
 
 - **uv** — Python environment and package management
 - **AWS CLI v2** + credentials and a default region (verify with `aws configure` and `aws sts get-caller-identity`)
-- **SageMaker execution role** — `launch.py` in the MNIST examples detects it automatically from your account.
+- **SageMaker execution role** — Set its ARN explicitly in the MNIST examples' `launch.py` CONFIG (`ROLE`).
   For the XGBoost lab, `scripts/bootstrap-infra.sh` creates the required roles with CloudFormation.
   See each project's README for details.
 - **Docker** — Required to build the BYOC image (byoc-mnist) and the XGBoost Pipeline's Processing image.

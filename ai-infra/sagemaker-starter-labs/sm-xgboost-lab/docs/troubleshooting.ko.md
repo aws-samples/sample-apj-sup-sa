@@ -44,17 +44,17 @@ SageMaker Training Job 생성 권한이 필요하고, AMT에는 Hyperparameter T
 
 ```bash
 aws sagemaker list-mlflow-apps \
-  --region ap-northeast-2 \
+  --region "${AWS_REGION:-ap-northeast-2}" \
   --query "Summaries[?Name=='sagemaker-xgboost-lab'].[Name,Status,MlflowVersion,Arn]" \
   --output table
 ```
 
 ## MLflow 엔드포인트에서 HTTP 502 발생
 
-MLflow App의 상태가 `Created`여도 App이 이미 삭제된 예전 IAM 역할을 참조하고 있으면 엔드포인트가 `502`를 반환할 수 있습니다. 다음 명령을 다시 실행하면 현재 CloudFormation 출력과 App의 역할 및 artifact store를 비교하고, 값이 다르면 App을 삭제한 뒤 올바른 설정으로 다시 생성합니다.
+MLflow App의 상태가 `Created`여도 App이 이미 삭제된 예전 IAM 역할을 참조하고 있으면 엔드포인트가 `502`를 반환할 수 있습니다. bootstrap은 현재 CloudFormation 출력과 App의 역할 및 artifact store를 비교하고, 값이 다르면 App을 삭제하지 않고 중단합니다. 해당 App을 삭제하고 다시 만들려는 경우에만 아래 교체 명령을 실행하세요.
 
 ```bash
-./scripts/bootstrap-infra.sh
+./scripts/bootstrap-infra.sh --replace-mlflow-app
 ./scripts/run-training.sh --instance-type ml.g5.xlarge
 ```
 
@@ -64,9 +64,9 @@ MLflow App의 상태가 `Created`여도 App이 이미 삭제된 예전 IAM 역�
 
 autolog Training Job은 `data-summary.json`, 모델, feature importance를 MLflow 아티팩트
 prefix에 직접 업로드합니다. 따라서 MLflow App 역할뿐 아니라 **SageMaker Training
-역할**에도 `${ArtifactPrefix}/mlflow/*`에 대한 `s3:PutObject` 권한이 필요합니다.
+역할**에도 `sagemaker-xgboost-lab/mlflow/*`에 대한 `s3:PutObject` 권한이 필요합니다.
 
-`sagemaker-xgboost-lab-training` 역할에서 `s3:PutObject` 오류가 발생하면 다음과 같이
+stack의 `SageMakerExecutionRoleArn`에 해당하는 역할에서 `s3:PutObject` 오류가 발생하면 다음과 같이
 인프라를 다시 배포합니다.
 
 ```bash
@@ -101,7 +101,7 @@ AMT는 `max-jobs`만큼 Training Job을 실행할 수 있습니다. 일반 Train
 ## AMT에서 CSV를 LIBSVM으로 해석함
 
 Training Job의 `InputDataConfig`에 `ContentType=text/csv`가 없으면 built-in XGBoost가
-CSV를 기본 형식인 LIBSVM으로 해석해 실패합니다. 이 프로젝트의 `train_tunner.py`는 SDK v3의
+CSV를 기본 형식인 LIBSVM으로 해석해 실패합니다. 이 프로젝트의 `train_tuner.py`는 SDK v3의
 간단한 `InputData` 변환 대신 `Channel`을 사용해 content type을 명시합니다.
 
 ## Batch Transform에서 Approved 모델을 찾지 못함

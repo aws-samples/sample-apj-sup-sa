@@ -71,7 +71,7 @@ likely to hit the initial account quota.
 
 ## What the code defines
 
-[`train_tunner.py`](../src/sagemaker_xgboost_lab/train_tunner.py) first uses the SDK v3 `ModelTrainer` to define the settings
+[`train_tuner.py`](../src/sagemaker_xgboost_lab/train_tuner.py) first uses the SDK v3 `ModelTrainer` to define the settings
 shared by all trials.
 
 ```text
@@ -98,7 +98,7 @@ required.
 
 In the pinned SageMaker SDK v3 version, the Tuner does not preserve `content_type` when it
 converts a simple `InputData`. To prevent CSV from being misinterpreted as LIBSVM,
-`train_tunner.py` passes a `Channel` that includes `ContentType=text/csv` directly.
+`train_tuner.py` passes a `Channel` that includes `ContentType=text/csv` directly.
 
 ## Boosting rounds and two kinds of early stopping
 

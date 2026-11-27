@@ -67,10 +67,11 @@ byoc-mnist/
 ## 사전 준비
 
 - **Docker Desktop** 실행 중 (이미지 빌드용)
-- **AWS 자격증명** + 기본 리전 (`aws configure`, `aws sts get-caller-identity`로 확인)
-- **IAM 실행 역할** — `launch.py`가 계정에서 `AmazonSageMaker-ExecutionRole-*`를 자동으로 찾습니다.
-  역할이 없으면 IAM에서 SageMaker 실행 역할을 만들고(`AmazonSageMakerFullAccess`면 충분)
-  `launch.py`의 CONFIG `ROLE`에 ARN을 지정하세요.
+- **AWS 자격증명** + 리전 (`aws sts get-caller-identity`로 자격증명 확인).
+  빌드와 실행은 `AWS_REGION`, `AWS_DEFAULT_REGION`, 기본 AWS 설정 순서로 리전을 선택합니다.
+  launcher CONFIG의 `REGION`을 직접 지정했다면 빌드 리전과 일치시킵니다.
+- **IAM 실행 역할** — `launch.py` CONFIG의 `ROLE`에 사용할 역할 ARN을 직접 지정하세요.
+  계정에서 역할을 자동으로 선택하지 않습니다. 필요하면 IAM에서 SageMaker 실행 역할을 만듭니다.
 - 역할이 ECR에서 이미지를 pull할 수 있어야 합니다(`AmazonSageMakerFullAccess`에 포함됨).
 
 ---
@@ -139,7 +140,7 @@ WAIT = True                        # False면 제출 즉시 리턴(비동기)
 ECR_REPO = "byoc-mnist"            # build_and_push.sh 의 리포명과 일치해야 함
 IMAGE_TAG = "latest"
 IMAGE_URI = None                   # 직접 지정 가능. None이면 계정/리전+ECR_REPO로 자동 조합
-ROLE = None                        # None이면 자동 탐지
+ROLE = "arn:aws:iam::<account-id>:role/<role-name>"  # 필수 실행 역할
 REGION = None                      # None이면 기본 세션 리전
 ```
 
@@ -360,3 +361,13 @@ docker run <이미지> train
 추론용 규약은 별도로 정의되어 있습니다. `docker run <이미지> serve`로 실행되어 8080 포트에서
 `GET /ping`(헬스체크)과 `POST /invocations`(추론)를 제공하는 방식이며, 자세한 내용은
 위 "다음 단계: 추론 컨테이너"에 정리했습니다.
+
+## 개발 검사
+
+이 프로젝트 폴더에서 실행합니다. 공통 테스트는 AWS 호출과 데이터 다운로드를 모킹합니다.
+
+```bash
+uv sync --frozen --group dev
+uv run --group dev ruff check launch.py jobstatus.py ../tests
+uv run --group dev pytest ../tests
+```

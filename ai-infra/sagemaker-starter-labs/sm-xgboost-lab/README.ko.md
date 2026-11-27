@@ -48,11 +48,17 @@ Automatic Model Tuning을 실행하면 완료된 trial 수만큼 학습 비용�
 - CloudFormation, IAM, S3, SageMaker AI를 사용할 권한
 - SageMaker Studio 접근 권한과 Studio 생성·실행 권한
 
-먼저 AWS 계정과 Region을 확인합니다. 이 예제의 기본 Region은 서울 `ap-northeast-2`입니다.
+먼저 AWS 계정과 Region을 확인합니다. 이 예제의 기본 Region은 서울 `ap-northeast-2`입니다. 다른 리전을 사용하려면 bootstrap과 학습을 실행할 터미널에서 먼저 설정하세요.
+
+```bash
+export AWS_REGION=ap-northeast-1
+```
+
+SageMaker Studio와 이후 명령에서도 같은 리전을 사용합니다.
 
 ```bash
 aws sts get-caller-identity
-aws configure get region
+printf '%s\n' "${AWS_REGION:-ap-northeast-2}"
 ```
 
 필요한 권한과 생성되는 AWS 리소스는 [인프라 배포](infra/README.ko.md)를 참고하세요. Training Job, MLflow App, S3 저장소, Batch Transform에는 비용이 발생할 수 있습니다.
@@ -93,7 +99,9 @@ uv run pre-commit run --all-files
 ./scripts/bootstrap-infra.sh
 ```
 
-버킷 이름은 `sagemaker-xgboost-lab-<account-id>` 형식으로 자동 생성됩니다. 스크립트가 CloudFormation output을 이후 실행에 전달하므로 버킷 이름이나 역할 ARN을 직접 `export`하지 않아도 됩니다.
+버킷 이름은 `sagemaker-xgboost-lab-<account-id>-<region>` 형식으로 자동 생성됩니다. 기존 stack은 현재 버킷 이름을 유지합니다. 스크립트가 CloudFormation output을 이후 실행에 전달하므로 버킷 이름이나 역할 ARN을 직접 `export`하지 않아도 됩니다.
+
+기존 배포를 갱신한다면 bootstrap 재실행 전에 [이전 배포 갱신](infra/README.ko.md#이전-배포-갱신)을 확인하세요. IAM 역할이 교체될 수 있습니다.
 
 ## 3. MLflow 없이 Built-in XGBoost를 한 번 실행
 
@@ -129,7 +137,7 @@ uv run pre-commit run --all-files
 
 ## 5. MLflow에서 결과 비교
 
-1. AWS Console에서 Region을 `ap-northeast-2`로 선택합니다.
+1. AWS Console에서 bootstrap과 학습에 사용한 리전(기본값: `ap-northeast-2`)을 선택합니다.
 2. **Amazon SageMaker AI → SageMaker Studio**로 이동합니다. Studio가 없으면 **Create SageMaker Studio**를 완료합니다.
 3. 생성된 Studio에서 **Open Studio**를 선택합니다.
 4. Studio 왼쪽 탐색 창에서 **MLflow** 아이콘을 선택하고 `sagemaker-xgboost-lab` App을 엽니다.
@@ -204,7 +212,7 @@ Batch Transform의 모델 선택, 병렬 처리, 결과 파일 형식은 [Model 
 | `train_simple.py` | MLflow 없이 built-in XGBoost Training Job 1개 실행 |
 | `train.py` | built-in XGBoost Training Job 2개 실행과 MLflow 기록 |
 | `train_autolog.py` / `autolog.py` | script mode XGBoost 학습과 MLflow autolog |
-| `train_tunner.py` | SageMaker Automatic Model Tuning 실행과 최적 결과 기록 |
+| `train_tuner.py` | SageMaker Automatic Model Tuning 실행과 최적 결과 기록 |
 | `batch_transform.py` | 최신 Approved 버전으로 Batch Transform 실행 |
 
 ## 리소스 정리
@@ -216,27 +224,32 @@ artifacts/<run-id>/
 artifacts/simple/<run-id>/
 artifacts/batch/<run-id>/predictions.csv.out
 
-s3://sagemaker-xgboost-lab-<account-id>/sagemaker-xgboost-lab/credit-card-default/runs/<run-id>/
+s3://sagemaker-xgboost-lab-<account-id>-<region>/sagemaker-xgboost-lab/credit-card-default/runs/<run-id>/
 ```
 
 실습이 끝나면 먼저 MLflow App을 삭제합니다.
 
 ```bash
 aws sagemaker list-mlflow-apps \
-  --region ap-northeast-2 \
+  --region "${AWS_REGION:-ap-northeast-2}" \
   --query "Summaries[?Name=='sagemaker-xgboost-lab'].[Arn,Status]" \
   --output table
 
 aws sagemaker delete-mlflow-app \
   --arn '<mlflow-app-arn>' \
-  --region ap-northeast-2
+  --region "${AWS_REGION:-ap-northeast-2}"
 ```
 
 S3 아티팩트가 더 이상 필요하지 않으면 버킷을 비운 뒤 CloudFormation stack을 삭제합니다. 현재 stack이 만든 빈 아티팩트 버킷은 stack과 함께 삭제됩니다. 이전 `Retain` 정책 때문에 남아 있다가 bootstrap이 재사용한 버킷은 별도로 삭제해야 합니다.
 
 ```bash
-aws s3 rm "s3://sagemaker-xgboost-lab-<account-id>/" --recursive
+BUCKET_NAME="$(aws cloudformation describe-stacks \
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}" \
+  --query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue | [0]" \
+  --output text)"
+aws s3 rm "s3://${BUCKET_NAME}/" --recursive
 aws cloudformation delete-stack \
-  --stack-name sagemaker-xgboost-lab \
-  --region ap-northeast-2
+  --stack-name "${STACK_NAME:-sagemaker-xgboost-lab}" \
+  --region "${AWS_REGION:-ap-northeast-2}"
 ```
