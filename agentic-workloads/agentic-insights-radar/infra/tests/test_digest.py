@@ -1022,10 +1022,12 @@ def test_c60_the_key_alarm_text_and_outputs_follow_email(
     slack_only: Synth, mail_only: Synth
 ) -> None:
     def faults(synth: Synth) -> str:
-        return next(
-            a["AlarmDescription"]
-            for a in synth.props("AWS::CloudWatch::Alarm")
-            if "because of a deployment setting" in a["AlarmDescription"]
+        return str(
+            next(
+                a["AlarmDescription"]
+                for a in synth.props("AWS::CloudWatch::Alarm")
+                if "because of a deployment setting" in a["AlarmDescription"]
+            )
         )
 
     assert "unsubscribe" not in faults(
