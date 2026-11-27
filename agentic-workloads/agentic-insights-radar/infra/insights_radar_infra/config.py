@@ -451,7 +451,7 @@ class DeployConfig:
     # identity provider resource changes).
     oidc_client_secret_version: str | None = None
     # Federated: the AWS service principal of the provider's user-lifecycle service, for example
-    # killswitch.federate.aws.internal. Creates a role it may assume to sign this pool's users out
+    # signout.idp.example.com. Creates a role it may assume to sign this pool's users out
     # (ListUsers, AdminUserGlobalSignOut, DescribeIdentityProvider on this pool only).
     oidc_sign_out_principal: str | None = None
     # Federated mode: the administrators besides admin_email (who always is one).
@@ -744,7 +744,7 @@ class DeployConfig:
                 )
             if sign_out is not None and not _SERVICE_PRINCIPAL.fullmatch(sign_out):
                 raise ValueError(
-                    "oidcSignOutPrincipal must be the identity provider's sign-out service principal, such as killswitch.federate.aws.internal, not an amazonaws.com service"
+                    "oidcSignOutPrincipal must be the identity provider's sign-out service principal, such as signout.idp.example.com, not an amazonaws.com service"
                 )
             if len(extra) > MAX_ADMIN_EMAILS or not all(
                 _EMAIL.fullmatch(e) for e in extra
@@ -772,7 +772,7 @@ class DeployConfig:
                 )
             # The account an MCP session acts as is named after the token's sub (<oidcProviderName>_<sub>), and
             # a sub is only an id at the issuer that set it: a token from another issuer could name another user.
-            if issuer is None or mcp_issuer != issuer.rstrip("/"):
+            if issuer is None or mcp_issuer != issuer.removesuffix("/"):
                 raise ValueError(
                     "mcpIssuer must be oidcIssuer (without a trailing slash): the MCP session acts as the account"
                     " named after the token's sub, which identifies a user only at the web app's own provider"

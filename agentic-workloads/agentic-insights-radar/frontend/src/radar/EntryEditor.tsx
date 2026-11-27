@@ -45,7 +45,8 @@ export function displayTitle(title: string): string {
  * entities, so each `&` counts five (r3 F3-089: a long text with ampersands failed only at Save).
  */
 export function storedLength(description: string): number {
-  // Tags are dropped until none is left: one pass would leave half of a tag hidden in another (`<<b>b>`).
+  // Tags are dropped until none is left. One pass already gives the same text; the loop states the
+  // intent so a scanner (and a reader) need not prove that.
   let text = description;
   for (let prev = ''; prev !== text; ) {
     prev = text;

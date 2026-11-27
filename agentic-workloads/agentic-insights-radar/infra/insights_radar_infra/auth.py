@@ -266,8 +266,8 @@ class Auth(Construct):
                 ],
                 prevent_user_existence_errors=True,
                 enable_token_revocation=True,
-                # Federated: the short lifetimes a company identity provider asks for (Amazon Federate's
-                # Cognito template: access 10 minutes, ID one hour, refresh 10 hours).
+                # Federated: the short lifetimes company identity providers often ask for (access
+                # 10 minutes, ID one hour, refresh 10 hours).
                 id_token_validity=Duration.hours(1),
                 access_token_validity=Duration.minutes(10)
                 if self.provider_name
