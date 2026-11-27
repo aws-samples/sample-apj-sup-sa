@@ -2,10 +2,10 @@
 
 # byoc-mnist — SageMaker BYOC(커스텀 컨테이너) 예제
 
-같은 MNIST를 내가 만든 Docker 이미지로 학습하는 SageMaker Training Job 예제입니다.
+같은 MNIST 데이터셋을 직접 만든 Docker 이미지로 학습하는 SageMaker Training Job 예제입니다.
 옆 폴더 `hello-mnist`(관리형 컨테이너 + 스크립트 모드)와 짝을 이루는 BYOC(Bring Your Own
-Container) 버전입니다. AWS가 주는 컨테이너 대신 내가 처음부터 만든 컨테이너를 SageMaker에
-넘겨 학습시킵니다.
+Container) 버전입니다. AWS가 제공하는 컨테이너 대신 처음부터 직접 만든 컨테이너를 SageMaker에
+전달해 학습합니다.
 
 ---
 
@@ -13,36 +13,36 @@ Container) 버전입니다. AWS가 주는 컨테이너 대신 내가 처음부�
 
 | | hello-mnist (스크립트 모드) | byoc-mnist (BYOC) |
 |---|---|---|
-| 컨테이너 | AWS 관리형 PyTorch DLC | **내가 만든 이미지 (ECR)** |
-| 내가 주는 것 | `train.py` 코드만 | **Docker 이미지 통째로** |
+| 컨테이너 | AWS 관리형 PyTorch DLC | **직접 만든 이미지 (ECR)** |
+| 제공하는 것 | `train.py` 코드만 | **Docker 이미지 통째로** |
 | Docker 빌드 | 불필요 | 직접 빌드 & ECR 푸시 |
-| torch 설치 | DLC에 이미 있음 | 내 Dockerfile에서 설치 |
+| torch 설치 | DLC에 이미 있음 | 직접 작성한 Dockerfile에서 설치 |
 | SageMaker 실행 | SDK가 넣은 래퍼가 `train.py` 실행 | `docker run <image> train` 그대로 |
-| 언제 쓰나 | 지원 프레임워크로 충분할 때 (대부분) | 특수 런타임/OS/의존성이 필요할 때 |
+| 사용 시점 | 지원 프레임워크로 충분할 때 (대부분) | 특수 런타임/OS/의존성이 필요할 때 |
 
-스크립트 모드는 AWS가 컨테이너와 실행 방식을 관리해주고, BYOC는 컨테이너 규약을 내가 직접
-지킵니다. 반대로 말하면, BYOC를 한 번 만들어 보면 스크립트 모드에서 SageMaker가 뒤에서 뭘
-대신 해주고 있었는지 알게 됩니다.
+스크립트 모드에서는 AWS가 컨테이너와 실행 방식을 관리해 주고, BYOC에서는 컨테이너 규약을 직접
+지켜야 합니다. BYOC 이미지를 직접 만들어 보면 스크립트 모드에서 SageMaker가 내부적으로 대신
+처리하던 작업을 파악할 수 있습니다.
 
-실무에서는 BYOC까지 갈 일이 많지 않습니다. 컨테이너를 다루는 방법은 세 가지고 대부분 앞의 두
-가지로 끝나는데, 이건 다음 섹션에서 다룹니다. 이 예제는 학습 목적으로 가장 밑바닥인 BYOC를
-직접 만들어 봅니다.
+실무에서 BYOC가 필요한 경우는 많지 않습니다. 컨테이너를 다루는 방법은 세 가지이고 대부분 앞의 두
+가지로 해결되는데, 이 내용은 다음 섹션에서 다룹니다. 이 예제는 학습 목적으로 가장 낮은 수준의 방식인
+BYOC를 직접 구현합니다.
 
 ---
 
 ## 세 가지 방식: 스크립트 모드 · DLC 확장 · BYOC
 
-SageMaker에서 학습 컨테이너를 다루는 방법은 세 가지고, 아래로 갈수록 손이 많이 가고 깨질
-여지도 커집니다. BYOC를 만들기 전에 앞의 두 방법으로 해결되는지 먼저 따져보는 편이 낫습니다.
+SageMaker에서 학습 컨테이너를 다루는 방법은 세 가지이며, 뒤로 갈수록 관리 부담과 장애
+가능성이 커집니다. BYOC를 만들기 전에 앞의 두 방법으로 요구 사항을 충족할 수 있는지 먼저 검토할 것을 권장합니다.
 
 | | 스크립트 모드 | DLC 확장 | BYOC (이 예제) |
 |---|---|---|---|
-| 하는 일 | 코드만 넘김 | prebuilt에 패키지 추가 | 이미지를 밑바닥부터 |
+| 하는 일 | 코드만 전달 | prebuilt에 패키지 추가 | 이미지를 처음부터 작성 |
 | Dockerfile | 없음 | `FROM <prebuilt DLC>` + 몇 줄 | 전부 직접 |
-| CUDA·드라이버·서빙스택 | AWS 관리 | AWS 관리 (그대로 물려받음) | 내가 직접 |
+| CUDA·드라이버·서빙스택 | AWS 관리 | AWS 관리 (그대로 물려받음) | 직접 관리 |
 | 난이도 / 위험 | 가장 낮음 | 낮음 | 높음 |
 
-버전이 안 맞는 문제는 대부분 중간 단계인 DLC 확장으로 해결됩니다. DLC 확장이 무엇이고
+버전 불일치 문제는 대부분 중간 단계인 DLC 확장으로 해결됩니다. DLC 확장이 무엇이고
 prebuilt 이미지를 어떻게 찾는지는 [부록 A](#부록-a-dlc-확장)와 [부록 B](#부록-b-prebuilt-이미지-확인하기)에,
 BYOC 컨테이너가 지켜야 하는 규약은 [부록 C](#부록-c-byoc-컨테이너-규약)에 정리했습니다.
 
@@ -66,11 +66,11 @@ byoc-mnist/
 
 ## 사전 준비
 
-- **Docker Desktop** 실행 중이어야 함 (이미지 빌드용)
+- **Docker Desktop** 실행 중 (이미지 빌드용)
 - **AWS 자격증명** + 기본 리전 (`aws configure`, `aws sts get-caller-identity`로 확인)
-- **IAM 실행 역할** — `launch.py`가 계정에서 `AmazonSageMaker-ExecutionRole-*`를 자동 탐지.
-  없으면 IAM에서 SageMaker 실행 역할을 만들고(`AmazonSageMakerFullAccess`면 충분)
-  `launch.py`의 CONFIG `ROLE`에 ARN 지정.
+- **IAM 실행 역할** — `launch.py`가 계정에서 `AmazonSageMaker-ExecutionRole-*`를 자동으로 찾습니다.
+  역할이 없으면 IAM에서 SageMaker 실행 역할을 만들고(`AmazonSageMakerFullAccess`면 충분)
+  `launch.py`의 CONFIG `ROLE`에 ARN을 지정하세요.
 - 역할이 ECR에서 이미지를 pull할 수 있어야 합니다(`AmazonSageMakerFullAccess`에 포함됨).
 
 ---
@@ -91,7 +91,7 @@ uv sync
 ./build_and_push.sh
 ```
 
-- `container/`의 Dockerfile로 이미지를 빌드하고 ECR 리포(`byoc-mnist`)에 올립니다.
+- `container/`의 Dockerfile로 이미지를 빌드하고 ECR 리포지토리(`byoc-mnist`)에 올립니다.
 - SageMaker 학습 인스턴스는 x86_64(amd64)이므로 `--platform linux/amd64`로 빌드합니다
   (빌드 스크립트에 이미 반영됨).
 - 완료되면 이미지 URI를 출력합니다:
@@ -111,10 +111,10 @@ uv run launch.py --dry-run
 uv run launch.py
 ```
 
-먼저 MNIST를 로컬 `data/`에 준비해 `training` 채널로 넘깁니다(S3 업로드는 SDK가 합니다).
-`ModelTrainer`에는 내 이미지(`training_image`)만 넘기고 `source_code`는 주지 않기 때문에,
-SageMaker가 `docker run <image> train`으로 실행해 컨테이너의 `train`이 그대로 돌아갑니다.
-기본값은 학습이 끝날 때까지 대기하면서 CloudWatch 로그를 실시간으로 보여줍니다.
+먼저 MNIST를 로컬 `data/`에 준비해 `training` 채널로 전달합니다(S3 업로드는 SDK가 수행합니다).
+`ModelTrainer`에는 커스텀 이미지(`training_image`)만 전달하고 `source_code`는 지정하지 않으므로,
+SageMaker가 `docker run <image> train`으로 컨테이너를 실행하고 컨테이너의 `train`이 그대로 실행됩니다.
+기본적으로 학습이 끝날 때까지 대기하면서 CloudWatch 로그를 실시간으로 출력합니다.
 
 ### Step 4. 상태 / 결과 확인
 
@@ -148,11 +148,11 @@ REGION = None                      # None이면 기본 세션 리전
 ## 동작 원리
 
 1. `build_and_push.sh`가 `container/`를 linux/amd64 이미지로 빌드해 ECR에 올립니다.
-2. `launch.py`가 그 이미지 URI로 `ModelTrainer.train()`을 호출합니다. `source_code`를 주지
+2. `launch.py`가 그 이미지 URI로 `ModelTrainer.train()`을 호출합니다. `source_code`를 지정하지
    않으므로 순수 BYOC로 동작합니다.
-3. `launch.py`가 MNIST를 로컬에 준비해 `training` 채널로 넘기면, SDK가 S3에 올리고
-   SageMaker가 인스턴스를 띄워 `docker run <image> train`을 실행합니다. 이때 `container/train`이
-   돌아갑니다.
+3. `launch.py`가 MNIST를 로컬에 준비해 `training` 채널로 전달하면, SDK가 S3에 업로드하고
+   SageMaker가 인스턴스를 시작해 `docker run <image> train`을 실행합니다. 이때 `container/train`이
+   실행됩니다.
 4. `train`은 `/opt/ml/input/config/hyperparameters.json`을 읽고,
    `/opt/ml/input/data/training/`에 마운트된 MNIST로 학습한 뒤 모델을 `/opt/ml/model/`에 저장합니다.
 5. SageMaker가 `/opt/ml/model`을 `model.tar.gz`로 묶어 S3에 업로드하고, 인스턴스는
@@ -162,7 +162,7 @@ REGION = None                      # None이면 기본 세션 리전
 
 ## 데이터 흐름 (준비, S3 업로드, Job 제출)
 
-`uv run launch.py`를 실행하면 아래 단계가 순서대로 일어납니다. 앞 두 단계는 로컬 PC에서,
+`uv run launch.py`를 실행하면 아래 단계가 순서대로 진행됩니다. 앞의 두 단계는 로컬 PC에서,
 세 번째 단계부터는 AWS에서 실행됩니다.
 
 ```
@@ -180,7 +180,7 @@ REGION = None                      # None이면 기본 세션 리전
 
 ### 1) MNIST 준비 (`prepare_mnist_data`)
 
-`launch.py`가 MNIST 원시 파일 4개를 로컬 `data/MNIST/raw/`에 내려받아 압축을 풉니다.
+`launch.py`가 MNIST 원본 파일 4개를 로컬 `data/MNIST/raw/`에 다운로드하고 압축을 풉니다.
 이 디렉터리 구조는 컨테이너 안의 torchvision이 `download=False`로 읽을 때 기대하는
 레이아웃(`<root>/MNIST/raw/`)과 정확히 일치합니다. 함수는 준비된 로컬 경로 문자열을 반환합니다.
 
@@ -191,13 +191,13 @@ training_channel = InputData(channel_name="training", data_source=data_dir)
 trainer.train(input_data_config=[training_channel], ...)
 ```
 
-여기서 중요한 건 `data_source`에 S3 URI가 아니라 로컬 경로를 넘긴다는 점입니다. SageMaker는
-AWS의 학습 인스턴스에서 돌기 때문에 로컬 PC의 파일을 볼 수 없습니다. 그래서 SDK가
-`train()` 호출 시점에 S3 업로드를 자동으로 끼워 넣습니다.
+`data_source`에는 S3 URI가 아니라 로컬 경로를 전달합니다. SageMaker는 AWS의 학습 인스턴스에서
+실행되어 로컬 PC의 파일에 접근할 수 없으므로, SDK가 `train()` 호출 시점에 S3 업로드를
+자동으로 수행합니다.
 
 ### S3 업로드는 SDK가 대신 합니다
 
-SDK는 `data_source` 값을 보고 분기합니다. `s3://...` URI면 그대로 쓰고, 로컬 경로면 S3에
+SDK는 `data_source` 값을 보고 분기합니다. `s3://...` URI면 그대로 사용하고, 로컬 경로면 S3에
 업로드한 뒤 그 S3 URI로 채널을 구성합니다. 이 예제는 후자입니다.
 
 로컬 경로일 때 업로드 위치는 규칙으로 자동 결정됩니다.
@@ -207,10 +207,10 @@ s3://<계정 기본 SageMaker 버킷>/<base_job_name>/input/<channel_name>/
   예) s3://sagemaker-ap-northeast-2-<account>/byoc-mnist/input/training/
 ```
 
-버킷은 따로 만들 필요가 없습니다. SDK가 계정·리전별 기본 버킷 `sagemaker-<region>-<account>`를
-쓰고, 없으면 만듭니다. 경로는 `base_job_name`(`"byoc-mnist"`)에 `input/`과 채널명(`training`)을
-붙여 정해집니다. 실제 업로드는 SDK 내부에서 boto3로 파일을 올리는 것뿐이라, 내 코드에는 버킷
-이름도 `upload` 호출도 없지만 `data_source`에 로컬 경로를 준 것만으로 처리됩니다.
+버킷을 별도로 만들 필요는 없습니다. SDK는 계정·리전별 기본 버킷 `sagemaker-<region>-<account>`를
+사용하고, 버킷이 없으면 생성합니다. 경로는 `base_job_name`(`"byoc-mnist"`)에 `input/`과 채널명(`training`)을
+붙여 정합니다. 실제 업로드는 SDK 내부에서 boto3로 수행됩니다. 따라서 예제 코드에는
+버킷 이름이나 `upload` 호출이 없으며, `data_source`에 로컬 경로를 전달하는 것만으로 업로드가 처리됩니다.
 
 업로드가 끝나면 SDK는 채널의 위치를 방금 만든 S3 URI로 바꿔 `create_training_job`을
 호출합니다. 이 요청의 `InputDataConfig`에 이 채널이 담깁니다(채널이 하나도 없으면 이 값이
@@ -218,25 +218,25 @@ s3://<계정 기본 SageMaker 버킷>/<base_job_name>/input/<channel_name>/
 
 ### 4) 컨테이너가 채널을 받음
 
-SageMaker가 인스턴스를 띄우고, S3의 `training` 채널 데이터를 컨테이너의
-`/opt/ml/input/data/training/`로 내려받아 마운트합니다. 그다음 `docker run <image> train`이
+SageMaker가 인스턴스를 시작하고, S3의 `training` 채널 데이터를 컨테이너의
+`/opt/ml/input/data/training/`으로 다운로드해 마운트합니다. 그다음 `docker run <image> train`이
 실행되고, `train`은 그 경로에서 MNIST를 읽어 학습합니다.
 
-정리하면, `InputData`에 로컬 경로를 넘기면 SDK가 그 폴더를 기본 SageMaker 버킷의
-`<job이름>/input/<채널명>/`에 올리고, 그 S3 위치를 Job에 알려주고, SageMaker가 학습 시점에
-컨테이너의 `/opt/ml/input/data/<채널명>/`로 내려주는 흐름입니다.
+`InputData`에 로컬 경로를 전달하면 SDK가 그 폴더를 기본 SageMaker 버킷의
+`<job이름>/input/<채널명>/`에 업로드하고 해당 S3 위치를 Job에 전달합니다. SageMaker는 학습 시점에
+이 데이터를 컨테이너의 `/opt/ml/input/data/<채널명>/`으로 다운로드합니다.
 
 ---
 
 ## 다음 단계: 추론 컨테이너
 
-이 예제는 학습만 다룹니다. 같은 이미지에 추론을 넣으려면 `serve` 실행파일을 추가하면 됩니다.
-SageMaker가 `docker run <image> serve`로 호출하면 8080 포트에서 웹서버를 띄우고, 두 엔드포인트를
-제공하면 됩니다. `GET /ping`은 모델이 로드됐으면 HTTP 200을 반환하는 헬스체크(요청당 타임아웃
+이 예제는 학습만 다룹니다. 같은 이미지에 추론 기능을 넣으려면 `serve` 실행 파일을 추가합니다.
+SageMaker가 `docker run <image> serve`로 호출하면 8080 포트에서 웹 서버를 실행해 두 엔드포인트를
+제공해야 합니다. `GET /ping`은 모델이 로드됐으면 HTTP 200을 반환하는 헬스체크(요청당 타임아웃
 2초)이고, `POST /invocations`는 요청 본문을 받아 추론 결과를 돌려줍니다(기본 응답은 60초 이내).
-모델은 SageMaker가 `/opt/ml/model`에 미리 풀어 두므로 거기서 읽으면 됩니다(읽기 전용).
+모델은 SageMaker가 `/opt/ml/model`에 미리 풀어 두므로 해당 경로에서 모델을 읽습니다(읽기 전용).
 
-MNIST 정도면 Flask 앱 하나를 8080에 띄워 위 두 엔드포인트만 구현해도 규약상 충분합니다
+MNIST 규모라면 Flask 앱 하나를 8080 포트에서 실행해 위 두 엔드포인트만 구현해도 규약을 충족합니다
 (nginx/gunicorn/MMS는 필요 없습니다). 배포는
 `sagemaker.model.Model(image_uri=..., model_data=<S3 model.tar.gz>).deploy(...)`로 합니다.
 규약 상세는 [추론 컨테이너 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html)를
@@ -250,8 +250,8 @@ MNIST 정도면 Flask 앱 하나를 8080에 띄워 위 두 엔드포인트만 �
 |---|---|
 | `exec format error` (Job 즉시 실패) | 이미지 아키텍처 불일치. `--platform linux/amd64`로 빌드 (SageMaker는 x86_64) |
 | `train: not found` / permission denied | `train`이 PATH에 없거나 실행권한 없음. Dockerfile의 `chmod 755` + `ENV PATH` 확인 |
-| 모델이 S3에 안 올라옴 | 모델을 `/opt/ml/model/`이 아닌 다른 곳에 저장함 |
-| 하이퍼파라미터가 안 먹음 | JSON 값은 문자열이라 `int(hp["epochs"])`처럼 캐스팅해야 함 |
+| 모델이 S3에 올라가지 않음 | 모델을 `/opt/ml/model/`이 아닌 다른 곳에 저장함 |
+| 하이퍼파라미터가 적용되지 않음 | JSON 값은 문자열이라 `int(hp["epochs"])`처럼 캐스팅해야 함 |
 | Job이 `Failed` | `uv run jobstatus.py`로 `FailureReason` 확인 후 CloudWatch 로그에서 스택트레이스 확인 |
 | ECR pull 권한 오류 | 실행 역할에 ECR 읽기 권한 필요(`AmazonSageMakerFullAccess`에 포함) |
 
@@ -262,7 +262,7 @@ MNIST 정도면 Flask 앱 하나를 8080에 띄워 위 두 엔드포인트만 �
 - BYOC 학습 컨테이너 규약: https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-algo-dockerfile.html
 - `/opt/ml` 디렉터리 구조: https://docs.aws.amazon.com/sagemaker/latest/dg/amazon-sagemaker-toolkits.html
 - 추론 컨테이너 규약(`serve`, `/ping`, `/invocations`): https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html
-- 언제 BYOC를 쓰나: https://docs.aws.amazon.com/sagemaker/latest/dg/docker-containers-create.html
+- BYOC를 쓰는 경우: https://docs.aws.amazon.com/sagemaker/latest/dg/docker-containers-create.html
 
 ---
 
@@ -272,8 +272,8 @@ DLC(Deep Learning Container)는 AWS가 미리 만들어 둔 학습용 Docker 이
 PyTorch와 그에 맞는 CUDA·cuDNN·GPU 드라이버 설정, SageMaker 컨테이너 규약(입력/출력 경로
 처리, 학습 실행 래퍼), 추론용 서빙 스택이 이미 들어 있습니다.
 
-DLC 확장은 이 이미지를 `FROM`으로 베이스 삼아 부족한 패키지만 얹는 방식입니다. AWS가 검증해
-둔 토대는 그대로 두고 그 위에 얇은 층 하나만 추가하는 셈입니다.
+DLC 확장은 이 이미지를 `FROM`으로 베이스 삼아 부족한 패키지만 추가하는 방식입니다. AWS가
+검증한 기반은 그대로 유지하고 그 위에 얇은 레이어 하나만 추가합니다.
 
 ```dockerfile
 # 예: AWS의 PyTorch 2.7.1 GPU 이미지를 그대로 베이스로 사용
@@ -283,16 +283,16 @@ FROM 763104351884.dkr.ecr.ap-northeast-2.amazonaws.com/pytorch-training:2.7.1-gp
 RUN pip install --no-cache-dir transformers==4.44 accelerate
 ```
 
-이렇게 만든 이미지는 ECR에 올린 뒤 스크립트 모드처럼 쓰거나(SDK가 `SAGEMAKER_PROGRAM`으로
-지정한 코드를 실행) BYOC처럼 쓸 수 있습니다. CUDA·드라이버 조합을 AWS가 맞춰 놓은 걸 그대로
-쓰니 GPU에서 버전이 안 맞아 안 도는 문제를 피할 수 있고, 베이스 이미지가 갱신되면 `FROM`
-태그만 올리면 보안 패치도 따라옵니다. 직접 손대는 건 pip 패키지 몇 줄뿐이라 깨질 곳이 적습니다.
+이렇게 만든 이미지는 ECR에 올린 뒤 스크립트 모드처럼 사용하거나(SDK가 `SAGEMAKER_PROGRAM`으로
+지정한 코드를 실행) BYOC처럼 사용할 수 있습니다. AWS가 맞춰 둔 CUDA·드라이버 조합을 그대로
+사용하므로 GPU에서 버전이 맞지 않아 실행되지 않는 문제를 피할 수 있고, 베이스 이미지가 갱신되면 `FROM`
+태그만 변경해도 보안 패치가 함께 적용됩니다. 직접 수정하는 부분이 pip 패키지 몇 줄에 불과하므로 장애 요인이 적습니다.
 
-버전이 안 맞는 경우는 대부분 이 방식으로 해결됩니다. 예를 들어 prebuilt의 최신이 PyTorch
-2.7인데 2.7.2가 필요하다면, `FROM` 한 뒤 `pip install torch==2.7.2`로 그 버전만 덮어쓰면
-됩니다. `FROM`으로 시작해서 `pip install`로 끝나는 일이면 DLC 확장이고, 그걸로 안 되는 경우
+버전이 맞지 않는 경우는 대부분 이 방식으로 해결됩니다. 예를 들어 prebuilt의 최신이 PyTorch
+2.7인데 2.7.2가 필요하다면, `FROM` 한 뒤 `pip install torch==2.7.2`로 그 버전만
+덮어씁니다. `FROM`으로 시작해 `pip install`로 끝나는 일이면 DLC 확장으로 충분합니다. DLC 확장으로 해결되지 않는 경우
 — 애초에 베이스가 될 prebuilt가 없거나, CUDA·OS 자체를 바꿔야 하거나, 이미 있는 프로덕션
-이미지를 그대로 가져와야 하는 경우 — 에만 BYOC로 갑니다.
+이미지를 그대로 가져와야 하는 경우 — 에만 BYOC를 선택합니다.
 
 ---
 
@@ -302,16 +302,16 @@ RUN pip install --no-cache-dir transformers==4.44 accelerate
 
 전체 목록을 한눈에 보려면 AWS가 관리하는
 [available_images.md](https://github.com/aws/deep-learning-containers/blob/master/available_images.md)를
-봅니다. 프레임워크·버전·CPU/GPU·Python·CUDA·용도(training/inference)별 태그가 표로 정리돼
+확인합니다. 프레임워크·버전·CPU/GPU·Python·CUDA·용도(training/inference)별 태그가 표로 정리되어
 있습니다.
 
-리전마다 이미지 계정과 URI가 다르므로, 내 리전의 정확한 값은 공식 문서의
+리전마다 이미지 계정과 URI가 다르므로, 사용 중인 리전의 정확한 값은 공식 문서의
 [Docker Registry Paths 목록](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-algo-docker-registry-paths.html)에서
 리전을 골라 확인합니다.
 
-가장 빠른 방법은 SDK로 직접 조회하는 것입니다(이 프로젝트에 이미 설치돼 있습니다).
-`image_uris.retrieve`가 내 리전에 맞는 URI를 계산해 주므로 원하는 버전이 있는지 바로 알 수
-있습니다.
+SDK로 직접 조회하는 방법이 가장 빠릅니다(SDK는 이 프로젝트에 이미 설치되어 있습니다).
+`image_uris.retrieve`가 현재 리전에 맞는 URI를 계산하므로 원하는 버전의 제공 여부를 바로
+확인할 수 있습니다.
 
 ```python
 from sagemaker.core import image_uris
@@ -328,24 +328,24 @@ cfg = image_uris.config_for_framework("pytorch")
 print(sorted(cfg["training"]["versions"]))
 ```
 
-`763104351884`은 AWS 공식 DLC 이미지 계정입니다(대부분의 리전이 공통이고 일부는 다르니 위
-문서에서 확인). `instance_type`이 CPU 계열이면 `-cpu-`, GPU 계열이면 `-gpu-` 이미지가
+`763104351884`은 AWS 공식 DLC 이미지 계정입니다(대부분의 리전에서 같지만 일부 리전은 다르므로 위
+문서에서 확인하세요). `instance_type`이 CPU 계열이면 `-cpu-`, GPU 계열이면 `-gpu-` 이미지가
 반환됩니다.
 
 ---
 
 ## 부록 C. BYOC 컨테이너 규약
 
-SageMaker는 학습을 시작할 때 이렇게 실행합니다
+SageMaker는 학습을 시작할 때 다음과 같이 실행합니다
 ([문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-algo-dockerfile.html)):
 
 ```
 docker run <이미지> train
 ```
 
-즉 `train`이라는 실행파일(PATH 위에 있고 실행권한이 있어야 함)이 돌아갑니다. 이 `train`이
-아래 경로들을 규약대로 다루면 됩니다. 파일 자체는 SageMaker가 컨테이너 안에 만들어 줍니다.
-각 경로의 근거 문서를 오른쪽 열에 달아 뒀습니다.
+이 명령은 `train`이라는 실행 파일(PATH에 있고 실행 권한이 있어야 함)을 실행합니다. `train`은
+아래 경로를 규약에 맞게 처리해야 합니다. 각 경로의 파일 자체는 SageMaker가 컨테이너 안에 만듭니다.
+각 경로의 근거 문서는 오른쪽 열에 링크해 두었습니다.
 
 | 경로 | 용도 | 공식 문서 |
 |---|---|---|
@@ -354,9 +354,9 @@ docker run <이미지> train
 | `/opt/ml/model/` | 여기 저장하면 SageMaker가 `model.tar.gz`로 묶어 S3 업로드 | [모델·출력 경로](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-algo-output.html) |
 | `/opt/ml/output/failure` | 실패 시 이유를 적으면 콘솔 `FailureReason`에 표시 (앞 1024자) | [실패 파일](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-algo-output.html) |
 
-성패는 종료코드로 전달됩니다. `exit 0`이면 성공(Completed), 0이 아니면 실패(Failed)입니다
+성공 여부는 종료 코드로 전달됩니다. `exit 0`이면 성공(Completed), 0이 아니면 실패(Failed)입니다
 ([성공/실패 신호 문서](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-signal-success-failure.html)).
 
-추론용 규약도 따로 있습니다. `docker run <이미지> serve`로 실행되어 8080 포트에서
-`GET /ping`(헬스체크)과 `POST /invocations`(추론)를 제공하는 방식으로, 자세한 내용은
+추론용 규약은 별도로 정의되어 있습니다. `docker run <이미지> serve`로 실행되어 8080 포트에서
+`GET /ping`(헬스체크)과 `POST /invocations`(추론)를 제공하는 방식이며, 자세한 내용은
 위 "다음 단계: 추론 컨테이너"에 정리했습니다.

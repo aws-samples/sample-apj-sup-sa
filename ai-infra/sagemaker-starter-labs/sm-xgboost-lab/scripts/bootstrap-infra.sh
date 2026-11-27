@@ -130,6 +130,7 @@ if ! aws cloudformation deploy \
     "CreateArtifactBucket=${create_bucket}" \
     "PermissionsBoundaryArn=${PERMISSIONS_BOUNDARY_ARN}" \
   --capabilities CAPABILITY_NAMED_IAM \
+  --no-fail-on-empty-changeset \
   --region "$AWS_REGION"; then
   aws cloudformation describe-stack-events \
     --stack-name "$STACK_NAME" \
@@ -214,10 +215,9 @@ mlflow_version="$(
     --query MlflowVersion \
     --output text
 )"
-if [[ "$mlflow_version" != 3.10.* ]]; then
-  printf 'Unsupported MLflow App version: %s (expected 3.10.x)\n' "$mlflow_version" >&2
-  exit 1
-fi
+# Managed Apps can receive newer MLflow versions independently of this sample.
+# Report the server version; a fixed minor-version check is not a connectivity test.
+printf 'MLflow App version: %s\n' "$mlflow_version"
 
 printf '\nInfrastructure ready.\n'
 printf 'Artifact bucket: %s\n' "$bucket_name"

@@ -20,17 +20,20 @@ def main() -> None:
     args = parser.parse_args()
 
     client = boto3.client("sagemaker", region_name=args.region)
-    existing = client.list_model_package_groups(NameContains=args.model_package_group_name)
-    group_names = {
-        group["ModelPackageGroupName"] for group in existing["ModelPackageGroupSummaryList"]
-    }
-    if args.model_package_group_name in group_names:
-        print(f"Model Package Group already exists: {args.model_package_group_name}")
-        return
+    pages = client.get_paginator("list_model_package_groups").paginate(
+        NameContains=args.model_package_group_name
+    )
+    for page in pages:
+        if any(
+            group["ModelPackageGroupName"] == args.model_package_group_name
+            for group in page["ModelPackageGroupSummaryList"]
+        ):
+            print(f"Model Package Group already exists: {args.model_package_group_name}")
+            return
 
     client.create_model_package_group(
         ModelPackageGroupName=args.model_package_group_name,
-        ModelPackageGroupDescription="SageMaker XGBoost Pipeline candidate models",
+        ModelPackageGroupDescription="UCI XGBoost models that pass the Pipeline AUC gate",
     )
     print(f"Created Model Package Group: {args.model_package_group_name}")
 

@@ -2,6 +2,21 @@ English | [한국어](troubleshooting.ko.md)
 
 # Troubleshooting
 
+## Bootstrap reports `Unsupported MLflow App version`
+
+Older bootstrap scripts restricted the MLflow App to `3.10.x`. The current script reports the
+App version, and the local and autolog training environments pin the MLflow client to `3.16.0`.
+After updating the code, sync dependencies and rerun bootstrap:
+
+```bash
+uv sync --frozen --extra dev
+./scripts/bootstrap-infra.sh
+```
+
+This version error does not require deleting or recreating the App. If using the Pipeline,
+run `uv sync --frozen --extra dev` and `./scripts/setup.sh` in `sm-pipeline-quick` as well.
+Reporting the server version is not a connectivity check; investigate connection errors separately.
+
 ## AWS credentials not found
 
 Check that the following command returns your account information.

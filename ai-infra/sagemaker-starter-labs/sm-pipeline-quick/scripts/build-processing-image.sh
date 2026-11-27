@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AWS_REGION="${AWS_REGION:-ap-northeast-2}"
-REPOSITORY_NAME="${PROCESSING_IMAGE_REPOSITORY:-sagemaker-xgboost-pipeline-processing}"
-IMAGE_TAG="${IMAGE_TAG:-dev}"
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+cd "$PIPELINE_PROJECT_DIR"
+REPOSITORY_NAME="$PROCESSING_IMAGE_REPOSITORY"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPOSITORY_NAME}:${IMAGE_TAG}"
 
@@ -18,7 +18,7 @@ aws ecr get-login-password --region "$AWS_REGION" |
 docker build --platform linux/amd64 \
   --file images/processing.Dockerfile \
   --tag "$IMAGE_URI" \
-  .
+  images
 docker push "$IMAGE_URI"
 
-printf 'export PROCESSING_IMAGE_URI=%s\n' "$IMAGE_URI"
+printf 'Processing image ready: %s\n' "$IMAGE_URI"

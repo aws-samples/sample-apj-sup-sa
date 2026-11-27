@@ -70,8 +70,20 @@ cd sm-xgboost-lab
 
 ```bash
 uv sync --extra dev
+uv run ruff check src tests
 uv run python -m pytest
 ```
+
+When modifying the lab, you can optionally install and run its pre-commit hook from
+`sm-xgboost-lab`. The hook checks only this lab's files and may apply Ruff fixes.
+
+```bash
+uv run pre-commit install
+uv run pre-commit run --all-files
+```
+
+Do not add customer data or credentials to the repository. Review encryption, network access,
+and data retention before adapting the lab to real data.
 
 ## 2. Create the infrastructure
 

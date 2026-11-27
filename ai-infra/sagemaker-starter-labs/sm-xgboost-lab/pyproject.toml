@@ -8,11 +8,10 @@ version = "1.0.0"
 description = "A SageMaker XGBoost credit default and managed MLflow learning project."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
-authors = [{ name = "SageMaker XGBoost Lab Contributors" }]
+license = { text = "MIT-0" }
 dependencies = [
   "boto3>=1.34,<2",
-  "mlflow==3.10.1",
+  "mlflow==3.16.0",
   "numpy>=1.26,<3",
   "pandas>=2.2,<3",
   "sagemaker-core==2.18.0",

@@ -1,4 +1,4 @@
-"""Step 4: OOT candidate versus champion evaluation."""
+"""Step 3: evaluate the trained model on the held-out test split."""
 
 from __future__ import annotations
 
@@ -9,12 +9,10 @@ from sagemaker.core.processing import ScriptProcessor
 from sagemaker.core.workflow.functions import Join
 from sagemaker.core.workflow.pipeline_context import PipelineSession
 from sagemaker.core.workflow.properties import PropertyFile
-from sagemaker.mlops.workflow import ProcessingStep
+from sagemaker.mlops.workflow import ProcessingStep, TrainingStep
 
 from sagemaker_xgboost_pipeline.config import Resources
-from sagemaker_xgboost_pipeline.parameters import PipelineParameters
 from sagemaker_xgboost_pipeline.step_common import processing_input, processing_output
-from sagemaker_xgboost_pipeline.step_tuning import TuningResult
 
 
 @dataclass(frozen=True)
@@ -23,16 +21,15 @@ class EvaluationResult:
     report: PropertyFile
 
 
-# Step 4: Compare the candidate with the currently deployed champion on the same OOT test set.
-# The `passes` field in evaluation.json decides whether the next step registers the model.
+# Step 3: Test data comes from PrepareData; the model comes from TrainModel.
+# Step 4 reads the AUC from evaluation.json.
 def create_step(
     resources: Resources,
     session: PipelineSession,
     code_dir: Path,
-    parameters: PipelineParameters,
     execution_prefix: Join,
     prepare_step: ProcessingStep,
-    tuning: TuningResult,
+    training_step: TrainingStep,
 ) -> EvaluationResult:
     processor = ScriptProcessor(
         role=resources.execution_role_arn,
@@ -40,6 +37,7 @@ def create_step(
         command=["python3"],
         instance_count=1,
         instance_type="ml.m5.xlarge",
+        max_runtime_in_seconds=1200,
         sagemaker_session=session,
         base_job_name="xgboost-lab-pipeline-evaluate",
     )
@@ -47,23 +45,15 @@ def create_step(
         code=str(code_dir / "evaluate.py"),
         inputs=[
             processing_input(
-                "oot",
-                prepare_step.properties.ProcessingOutputConfig.Outputs["oot"].S3Output.S3Uri,
-                "/opt/ml/processing/oot",
+                "test",
+                prepare_step.properties.ProcessingOutputConfig.Outputs["test"].S3Output.S3Uri,
+                "/opt/ml/processing/test",
             ),
             processing_input(
-                "candidate",
-                tuning.candidate_model_uri,
-                "/opt/ml/processing/candidate",
+                "model",
+                training_step.properties.ModelArtifacts.S3ModelArtifacts,
+                "/opt/ml/processing/model",
             ),
-        ],
-        arguments=[
-            "--production-model-package-arn",
-            parameters.production_model_package_arn,
-            "--min-auc-delta",
-            parameters.min_auc_delta,
-            "--max-brier-regression",
-            parameters.max_brier_regression,
         ],
         outputs=[
             processing_output(
@@ -79,6 +69,6 @@ def create_step(
         path="evaluation.json",
     )
     return EvaluationResult(
-        step=ProcessingStep(name="EvaluateCandidate", step_args=step_args, property_files=[report]),
+        step=ProcessingStep(name="EvaluateModel", step_args=step_args, property_files=[report]),
         report=report,
     )

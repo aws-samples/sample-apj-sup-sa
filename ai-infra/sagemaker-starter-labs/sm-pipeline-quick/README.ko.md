@@ -1,168 +1,159 @@
 [English](README.md) | 한국어
 
-# SageMaker XGBoost Pipeline Flow
+# SageMaker XGBoost Pipeline
 
-[`sm-xgboost-lab`](../sm-xgboost-lab/README.ko.md)의 local data preparation과 단일
-Training Job 다음에 보는 **SageMaker Pipeline 흐름 참고 예제**다. Redshift snapshot,
-Processing, Automatic Model Tuning, managed MLflow, Model Registry quality gate가 한 DAG로
-연결되는 모습을 보여 준다.
-
-> [!IMPORTANT]
-> 이 repository의 Redshift view, 날짜, Processing image, UNLOAD role은 모두 **흐름 설명용
-> 가상 값**이다. 기본 목적은 SageMaker Studio에서 Pipeline DAG를 보는 것이다.
-> `--start`로 실행하면 안 된다.
-
-## 흐름
+`sm-xgboost-lab`에서 사용한 실제 UCI 신용카드 연체 데이터를 네 단계의 SageMaker Pipeline으로 실행합니다.
+로컬 PC에서 코드를 작성하고 Pipeline을 등록한 뒤 SageMaker Studio에서 실행합니다. 실행이 끝나면
+Processing Job과 Training Job의 결과, 평가 결과, 그리고 평가 기준을 통과한 모델이 등록되는 과정을 확인할 수 있습니다.
 
 ```text
-Redshift source view (illustrative)
-  -> S3 raw Parquet snapshot
-  -> Processing: pandas + awswrangler
-  -> train / validation / OOT CSV
-  -> AMT: XGBoost script mode + managed MLflow
-  -> candidate versus champion evaluation
-  -> Model Registry registration gate
+로컬 PC: UCI 다운로드 -> 데이터 버전별 S3 업로드 -> Pipeline 등록
+
+PrepareData -> TrainModel -> EvaluateModel -> CheckQuality
+                                               | AUC >= MinAuc
+                                               +-> RegisterModel (PendingManualApproval)
+                                               | AUC < MinAuc
+                                               +-> 종료
 ```
 
-| Step | 역할 | 실행 코드 |
+| 단계 | 역할 | 실행 코드 |
 | --- | --- | --- |
-| `ExportRedshift` | 실행별 raw Parquet snapshot 생성 | `export_redshift.py` |
-| `PrepareFeatures` | 조인, 결측 처리, feature와 시간 분할 | `prepare.py` |
-| `TrainTuneModel` | AMT로 XGBoost 학습과 hyperparameter 탐색 | `train.py` |
-| `EvaluateCandidate` | 동일 OOT data로 candidate와 champion 비교 | `evaluate.py` |
-| `RegisterOnlyIfBetter` | 통과 모델만 Registry에 등록 | SageMaker API call |
+| `PrepareData` | 컬럼과 체크섬을 검증하고, 클래스 비율을 유지하며 70/15/15 비율의 train/validation/test 분할 생성 | `prepare.py` |
+| `TrainModel` | script mode XGBoost Training Job 1회 실행, managed MLflow에 파라미터와 지표 기록 | `train.py` |
+| `EvaluateModel` | 학습에 사용하지 않은 test 데이터로 평가한 뒤 AUC를 JSON으로 저장 | `evaluate.py` |
+| `CheckQuality` | 평가 JSON의 AUC가 `MinAuc` 이상이면 모델 등록 | `step_register.py` |
 
-`step_*.py`는 DAG Step을 정의한다. `train.py`, `prepare.py`처럼 `step_`이 없는 파일은
-각 SageMaker container에서 실행되는 코드다.
+전체 흐름은 `src/sagemaker_xgboost_pipeline/pipeline.py`의 각 `create_step()` 호출에 정의되어 있습니다.
+Step property를 사용해 전처리 결과는 학습·평가 입력으로, 학습된 모델은 평가·등록 입력으로 연결합니다.
+`CheckQuality`의 통과 분기에는 `RegisterModel` Step이 있습니다.
 
-## sm-xgboost-lab과 연결
+## 준비 사항
 
-이 예제는 `sm-xgboost-lab`이 만드는 resource를 그대로 읽는다.
+- `uv`, AWS CLI v2, 그리고 `linux/amd64` 이미지를 빌드할 수 있는 Docker 엔진이 실행 중인 로컬 PC
+- 같은 상위 폴더에 있는 `sm-xgboost-lab`. 이 예제의 UCI 로더와 공유 인프라를 재사용합니다.
+- 샘플 CloudFormation 배포, 실행 역할 정책 갱신, S3 업로드, ECR 이미지 푸시, Model Package Group 생성,
+  Pipeline 등록·실행 권한이 있는 AWS 자격 증명. 권한이 있으면 SDK가 IAM policy simulation으로 학습 역할도 검증합니다.
+  조직에서 permissions boundary를 사용한다면 샘플의 작업·아티팩트 접근 권한을 허용해야 합니다.
+- 선택한 리전의 SageMaker Studio 접근 권한
 
-| 항목 | 사용 값 |
-| --- | --- |
-| CloudFormation stack | `sagemaker-xgboost-lab` |
-| S3 bucket | stack output `ArtifactBucketName` |
-| Pipeline S3 prefix | `sagemaker-xgboost-lab/credit-card-default/pipeline/` |
-| execution role | stack output `SageMakerExecutionRoleArn` |
-| MLflow App | `sagemaker-xgboost-lab` |
-| Pipeline name | `sagemaker-xgboost-lab-pipeline` |
-| MLflow experiment | `sagemaker-xgboost-lab-pipeline` |
+기본 리전은 `ap-northeast-2`입니다. 다른 리전을 사용한다면 준비와 실행에 같은 `AWS_REGION`을 지정합니다.
+Processing, Training, MLflow 사용과 아티팩트 저장에는 AWS 비용이 발생할 수 있습니다.
 
-먼저 인프라를 준비한다.
+## 1. 공유 인프라 준비
+
+앞의 `sm-xgboost-lab`에서 인프라를 이미 준비했다면 다음 절로 넘어갑니다.
+처음 준비하는 환경이라면 `sm-pipeline-quick`에서 다음 명령을 실행합니다.
 
 ```bash
 cd ../sm-xgboost-lab
 ./scripts/bootstrap-infra.sh
+cd ../sm-pipeline-quick
 ```
 
-그다음 이 repository에서 launcher를 실행한다.
+이 실습은 앞 예제의 아티팩트 버킷, 실행 역할, managed MLflow App을 재사용합니다.
+
+## 2. Pipeline 준비와 등록
+
+`sm-pipeline-quick`에서 실행합니다.
 
 ```bash
-cd ../sm-pipeline-quick
-uv sync --extra dev
+./scripts/setup.sh
+```
+
+스크립트는 필요한 준비 작업을 순서대로 수행합니다.
+
+1. lock 파일에 맞춰 Python 환경을 설치하고 `infra/pipeline.yaml`을
+   `sagemaker-xgboost-lab-pipeline` CloudFormation stack으로 배포합니다. 기존 실행 역할에 Pipeline 작업,
+   S3 출력, 모델 등록, 역할 전달 권한을 추가하고 Model Package Group을 준비합니다.
+2. Processing 이미지를 `uci-v1` 태그로 빌드해 ECR에 푸시합니다.
+3. 앞 예제의 `uv` 환경에서 `load_credit_default_data()`를 호출해 공개 데이터를 다운로드하고,
+   `data.csv`와 `source.json`을 내용 해시로 구분한 S3 prefix에 업로드합니다.
+4. `pipeline-definition.json`을 생성하고 `sagemaker-xgboost-lab-pipeline`을 등록합니다.
+
+업로드 경로는 `artifacts/input/input-location.json`에 저장되며, Pipeline의 기본 `InputDataS3Uri`로
+설정됩니다. 준비 중에 실패했다면 원인을 해결한 뒤 같은 setup 명령을 다시 실행합니다.
+
+Pipeline 코드를 수정했다면 로컬 터미널에서 새 정의를 등록합니다.
+
+```bash
 ./scripts/run-pipeline.sh --upsert
 ```
 
-launcher는 CloudFormation output과 준비된 MLflow App ARN을 읽는다. Redshift와
-Processing image에는 DAG 표시용 가상 값을 넣는다. `--upsert`는 Pipeline 정의와 code artifact를
-S3에 올리고 Studio에서 볼 Pipeline을 등록하지만, Redshift query, Processing, Training을
-실행하지 않는다.
+Processing 의존성을 변경했다면 등록 전에 `./scripts/build-processing-image.sh`로 이미지를 다시 빌드합니다.
+두 명령은 같은 `IMAGE_TAG`를 사용합니다. Step 실행 스크립트는 Pipeline 정의를 생성할 때 업로드됩니다.
 
-Studio에서 **Pipelines**를 열고 `sagemaker-xgboost-lab-pipeline`을 선택한 뒤 최신
-version의 DAG를 확인한다. Designer에서 바꾼 Step 연결과 parameter는 실험용으로만 사용하고,
-유지할 변경은 `pipeline.py`와 `step_*.py`에 반영한다.
+## 3. Studio에서 실행
 
-## 가상 데이터 계약
+SageMaker Studio의 **Pipelines**에서 `sagemaker-xgboost-lab-pipeline`을 선택하고 실행을 시작합니다.
+첫 실행에서는 준비된 기본값을 그대로 사용합니다.
 
-`export_redshift.py`의 view와 SQL은 실제 database를 전제하지 않는 예시다. 실제 데이터로
-바꿀 때는 `sm-xgboost-lab`의 공개 credit default data와 같은 계약을 먼저 고정한다.
-
-| 가상 view | 예시 컬럼 | 목적 |
+| 파라미터 | 기본값 | 의미 |
 | --- | --- | --- |
-| `analytics.ml_seller_applications` | `application_id`, `seller_id`, `observation_date`, `advance_amount`, `default_payment_next_month` | 기준 시점과 성숙된 label |
-| `analytics.ml_seller_profiles` | `seller_id`, `industry_code`, `business_age_days` | 기준 시점에 이용 가능한 profile |
-| `analytics.ml_daily_settlements` | `seller_id`, `settlement_date`, `scheduled_amount`, `settled_amount`, `days_late` | 기준일 이전 정산 이력 |
+| `InputDataS3Uri` | setup에서 실제로 업로드한 S3 경로 | `data.csv`와 `source.json`이 들어 있는 prefix |
+| `MinAuc` | `0.70` | test AUC에 적용하는 예제용 모델 등록 기준 |
 
-`default_payment_next_month`는 `sm-xgboost-lab`의 공개 data와 같은 양성 label 의미를
-가리키는 가상 column이다. 실제 warehouse에서는 label의 성과 윈도우가 끝난 시점과
-feature의 관측 시점을 별도 column 또는 view 계약으로 보장해야 한다.
+실행 DAG에는 `PrepareData`, `TrainModel`, `EvaluateModel`, `CheckQuality`의 네 단계가 표시됩니다.
+컴퓨팅 작업은 Processing Job 2개와 Training Job 1개이며, 각각 CPU 인스턴스 1대를 사용합니다.
+최대 실행 시간은 Processing Job마다 20분, Training Job은 30분으로 설정되어 있습니다.
 
-`PrepareFeatures`는 정산일이 `observation_date` 이후인 row를 제외하고, train split에서만
-결측값과 category mapping을 fit한다. 각 train, validation, OOT split에는 양성·음성 label이
-모두 있어야 AUC를 계산할 수 있다.
-
-### Athena에서 S3를 읽고 저장하는 참고 흐름
-
-Athena external table이 S3 raw data를 가리키고 있다면, 아래처럼 query 결과를 실행별 S3
-prefix에 Parquet로 저장할 수 있다. 이 SQL은 Pipeline에 의해 실행되지는 않으며, S3 input
--> feature 처리 -> S3 output이라는 같은 흐름을 보여 주는 참고 예시다.
-
-```sql
-CREATE TABLE analytics.pipeline_prepared_<run_id>
-WITH (
-  format = 'PARQUET',
-  write_compression = 'SNAPPY',
-  external_location = 's3://<artifact-bucket>/sagemaker-xgboost-lab/credit-card-default/pipeline/executions/<run-id>/athena-prepared/',
-  partitioned_by = ARRAY['split']
-) AS
-WITH applications AS (
-  SELECT
-    application_id,
-    seller_id,
-    observation_date,
-    advance_amount,
-    requested_limit,
-    default_payment_next_month
-  FROM raw_credit_default.applications
-  WHERE label_available_at <= DATE '<label-maturity-date>'
-),
-settlement_30d AS (
-  SELECT
-    a.application_id,
-    SUM(s.settled_amount) AS settled_amount_30d,
-    SUM(s.scheduled_amount) AS scheduled_amount_30d
-  FROM applications a
-  LEFT JOIN raw_credit_default.settlements s
-    ON a.seller_id = s.seller_id
-   AND s.settlement_date <= a.observation_date
-   AND s.settlement_date > date_add('day', -30, a.observation_date)
-  GROUP BY a.application_id
-)
-SELECT
-  a.default_payment_next_month AS label,
-  a.advance_amount,
-  a.requested_limit,
-  COALESCE(h.settled_amount_30d / NULLIF(h.scheduled_amount_30d, 0), 0.0) AS settlement_ratio,
-  CASE
-    WHEN a.observation_date < DATE '<validation-start>' THEN 'train'
-    WHEN a.observation_date < DATE '<oot-start>' THEN 'validation'
-    ELSE 'oot'
-  END AS split
-FROM applications a
-LEFT JOIN settlement_30d h ON a.application_id = h.application_id;
-```
-
-예시의 `label_available_at`은 label 성숙 여부를 표현하는 가상 column이다. 실제 schema에
-맞는 성숙 조건으로 바꿔야 하며, profile feature도 반드시 `observation_date` 당시의
-snapshot을 사용해야 한다.
-
-## 실제 실행으로 확장할 때
-
-이 예제를 실행 가능한 Pipeline으로 바꾸려면 다음을 실제 값으로 교체한다.
-
-- `scripts/run-pipeline.sh`의 Redshift workgroup, database, UNLOAD role
-- Processing ECR image: `./scripts/build-processing-image.sh`
-- 실제 source view와 label maturity 조건
-- `sm-xgboost-lab` execution role의 Pipeline, Processing, Redshift Data API, Model Registry 권한
-
-그 뒤에만 명시적인 날짜 parameter로 `start-pipeline-execution`을 호출한다. 첫 model은
-`ProductionModelPackageArn`을 생략하고, candidate가 champion보다 AUC가 `0.01` 이상 높으며
-Brier score가 `0.005`보다 많이 나빠지지 않을 때만 `PendingManualApproval`로 등록된다.
-
-## 테스트
+등록된 Pipeline은 로컬 터미널에서도 실행할 수 있습니다.
 
 ```bash
-uv run --extra dev ruff check .
-uv run python -m pytest
+aws sagemaker start-pipeline-execution \
+  --pipeline-name sagemaker-xgboost-lab-pipeline \
+  --region "${AWS_REGION:-ap-northeast-2}"
 ```
+
+## 4. 결과 확인과 분기 체험
+
+아래 Studio 실행 그래프는 `CheckQuality`의 `true` 분기를 거쳐 `RegisterModel`까지
+성공한 실행 결과입니다.
+
+![조건부 모델 등록까지 성공한 Studio Pipeline 실행 화면](docs/images/sagemaker-pipeline.png)
+
+- MLflow의 `sagemaker-xgboost-lab-pipeline` experiment에서 학습 파라미터와 train·validation 지표를
+  확인합니다. `pipeline.execution_id` 태그로 실행을 찾을 수 있습니다.
+- `EvaluateModel`의 S3 출력에서 `evaluation.json`을 확인합니다.
+  조건 Step은 `binary_classification_metrics.auc.value` 값을 읽습니다.
+- test AUC가 `MinAuc` 이상이면 `sagemaker-xgboost-lab-pipeline` Model Package Group에
+  새 `PendingManualApproval` 버전이 생성됩니다.
+- 조건이 false이면 등록 Step을 건너뛰고 실행이 종료됩니다. `MinAuc`를 앞에서 확인한 test AUC보다 높게 설정해
+  다시 실행하면 이 분기를 확인할 수 있습니다.
+
+MLflow는 모델 autologging을 끈 상태에서 학습 파라미터와 지표를 기록하고, 모델 등록은 Pipeline 조건에 따라
+수행됩니다. validation은 학습 중 early stopping에, test는 최종 평가에 사용합니다.
+이 실습은 소규모 워크플로를 익히기 위한 예제이며, 등록 임계값은 예시 값입니다.
+
+## 데이터와 재현성
+
+공개 데이터는 I.-C. Yeh의 *Default of Credit Card Clients*(UCI 데이터셋 `350`,
+DOI `10.24432/C55S3H`)이며 라이선스는 CC BY 4.0입니다. 출처와 변수 설명은
+[공유 데이터 가이드](../sm-xgboost-lab/docs/data-preparation.ko.md)를 참고하세요.
+두 예제는 같은 로더로 23개 수치형 변수와 이진 정답을 읽습니다.
+
+`data.csv`에는 헤더가 있고, `label` 다음에 23개 feature 컬럼이 옵니다. `source.json`에는 출처,
+feature 순서, 행 수, SHA-256 체크섬이 들어 있습니다. `PrepareData`는 이 정보를 검증한 뒤 seed `42`로 분할해
+정답이 첫 컬럼이고 헤더가 없는 학습용 CSV를 만듭니다. 30,000행은 train 21,000행, validation 4,500행,
+test 4,500행으로 나뉩니다. 원본 데이터의 관측 기간이 하나뿐이므로, 클래스 비율을 유지하는 무작위 분할을 사용합니다.
+
+입력 snapshot과 실행 코드는 공유 버킷의 Pipeline prefix에 저장됩니다. Processing 출력은
+Pipeline 실행별 prefix에, 학습된 모델은 Training Job별 경로에 저장됩니다.
+반복 실행할 때는 같은 입력 snapshot을 사용하고, 실행 결과는 실행마다 별도의 경로에 저장됩니다.
+
+## 검증
+
+```bash
+uv sync --frozen --extra dev
+uv run ruff check src tests scripts/prepare-input.py
+uv run pytest
+```
+
+테스트는 분할의 재현성과 중복 없음, 잘못된 입력 처리, 모델 아카이브 읽기, AUC 출력을 검증합니다.
+또한 AWS 호출을 모킹한 상태에서 실제 SDK로 Pipeline 정의를 생성해 DAG 연결과 조건 분기도 확인합니다.
+
+## 정리
+
+실습이 끝나면 Studio에서 Pipeline을 삭제하고, 더 이상 사용하지 않는 Model Package 버전과 Group을 정리합니다.
+추가 권한 stack은 CloudFormation에서 삭제합니다. `sagemaker-xgboost-pipeline-processing` ECR 리포지토리와
+Pipeline S3 아티팩트도 사용이 끝나면 정리합니다. 공유 버킷과 MLflow App 정리 방법은
+[앞 예제 README](../sm-xgboost-lab/README.ko.md#리소스-정리)를 참고하세요.
