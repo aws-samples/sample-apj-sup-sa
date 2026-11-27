@@ -1,0 +1,25 @@
+node_modules/
+cdk.out/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+.env
+*.log
+.DS_Store
+frontend/dist/
+edge-auth/dist/
+
+# ProtoShield scan results
+.protoshield/
+
+# Holmes scan results
+.holmes/
+
+# Local Claude Code settings
+.claude/settings.local.json
+.claude
+
+# CDK context lookups (AZ names for the account)
+infra/cdk.context.json
