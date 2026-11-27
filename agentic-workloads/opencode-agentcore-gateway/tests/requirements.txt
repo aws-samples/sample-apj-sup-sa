@@ -1,0 +1,7 @@
+# Unit test dependencies, pinned to the versions the suite was last run with (docs/test-results.md).
+# Update: change a version here, run the suite, record the run.
+pytest==9.2.0
+boto3==1.44.1
+moto[dynamodb,cloudwatch]==5.2.5
+cryptography==50.0.2
+requests==2.34.2

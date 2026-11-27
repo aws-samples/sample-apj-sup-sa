@@ -1,0 +1,5 @@
+# Checkov settings, read from the working directory: run `checkov -d terraform` from the repository root.
+# terraform/build/ holds generated, git-ignored output (the Lambda zips and the vendored boto3 layer, whose botocore
+# example JSON trips the secrets checks); it is not part of the source.
+skip-path:
+  - build

@@ -1,0 +1,32 @@
+# Local settings and anything that can hold credentials, tokens or account details
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+*.plan
+.terraform/
+.terraform.lock.hcl.bak
+**/terraform/build/
+.secrets/
+.local/
+.env
+*.pem
+# Test and scan output
+results/
+logs/
+tests/e2e/out/
+security/reports/
+# Build output
+client/dist/
+mdm/build/
+dashboard/ui-src/node_modules/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage

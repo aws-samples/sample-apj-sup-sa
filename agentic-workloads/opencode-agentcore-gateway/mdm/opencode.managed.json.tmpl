@@ -1,0 +1,24 @@
+{
+  "$$schema": "https://opencode.ai/config.json",
+  "enabled_providers": ["ocgw"],
+  "permission": {"edit": "ask", "bash": "ask", "webfetch": "ask"},
+  "model": "ocgw/${DEFAULT_MODEL}",
+  "small_model": "ocgw/${SMALL_MODEL}",
+  "provider": {
+    "ocgw": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "AgentCore Gateway (Amazon Bedrock)",
+      "options": {"baseURL": "http://127.0.0.1:${PROXY_PORT}/inference/v1", "apiKey": "{file:~/.config/ocgw/local.key}"},
+      "models": ${MODELS_JSON}
+    }
+  },
+  "mcp": {
+    "web-search": {
+      "type": "remote",
+      "url": "http://127.0.0.1:${PROXY_PORT}/mcp",
+      "headers": {"Authorization": "Bearer {file:~/.config/ocgw/local.key}"},
+      "oauth": false,
+      "enabled": ${WEB_SEARCH}
+    }
+  }
+}
