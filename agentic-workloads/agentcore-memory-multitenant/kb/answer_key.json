@@ -1,0 +1,101 @@
+{
+  "description": "Answer key for scripts/rag_eval.py. Each question is asked through the live /api/chat as the given brand/agent with a fresh shopper. must_include: every string must appear in the reply (case-insensitive; any one alternative per inner list). expected_doc: the doc that should be retrieved and cited. must_not_include: distinctive facts from OTHER brands' policies -- seeing one means a cross-brand leak.",
+  "questions": [
+    {
+      "id": "nw-return-window",
+      "tenant": "northwind", "agent": "support",
+      "question": "How many days do I have to return something?",
+      "must_include": [["30 days", "30-day", "thirty"]],
+      "expected_doc": "returns-policy",
+      "must_not_include": ["60 days", "60-day", "Trail Promise", "14 days", "restocking"]
+    },
+    {
+      "id": "nw-return-fee",
+      "tenant": "northwind", "agent": "support",
+      "question": "My order was $40. Do I pay anything to send it back?",
+      "must_include": [["$6.95", "6.95"]],
+      "expected_doc": "returns-policy",
+      "must_not_include": ["always free", "Trail Promise"]
+    },
+    {
+      "id": "nw-express",
+      "tenant": "northwind", "agent": "support",
+      "question": "How much is express shipping and how fast is it?",
+      "must_include": [["$14.95", "14.95"], ["1-2", "1 to 2", "one to two"]],
+      "expected_doc": "shipping-policy",
+      "must_not_include": ["$19", "$4.99"]
+    },
+    {
+      "id": "nw-between-sizes",
+      "tenant": "northwind", "agent": "support",
+      "question": "I'm between two sizes for a top. Which should I pick?",
+      "must_include": [["larger", "size up", "bigger"]],
+      "expected_doc": "sizing-guide",
+      "must_not_include": ["athletic cut", "run small"]
+    },
+    {
+      "id": "br-return-window",
+      "tenant": "borealis", "agent": "support",
+      "question": "How long do I have to return a jacket I tried on a hike?",
+      "must_include": [["60 days", "60-day", "sixty"]],
+      "expected_doc": "returns-policy",
+      "must_not_include": ["30 days", "14 days", "$6.95", "restocking"]
+    },
+    {
+      "id": "br-return-cost",
+      "tenant": "borealis", "agent": "support",
+      "question": "Do I have to pay for return shipping?",
+      "must_include": [["free"]],
+      "expected_doc": "returns-policy",
+      "must_not_include": ["$6.95"]
+    },
+    {
+      "id": "br-jacket-fit",
+      "tenant": "borealis", "agent": "merch",
+      "question": "I want to wear a fleece under my jacket. Should I size up?",
+      "must_include": [["size up", "one size up", "larger", "go up"]],
+      "expected_doc": "sizing-guide",
+      "must_not_include": ["Classic Fit", "true to size"]
+    },
+    {
+      "id": "br-expedited",
+      "tenant": "borealis", "agent": "merch",
+      "question": "What does two-day shipping cost?",
+      "must_include": [["$19", "19 dollars"]],
+      "expected_doc": "shipping-policy",
+      "must_not_include": ["$14.95", "$4.99"]
+    },
+    {
+      "id": "cm-return-window",
+      "tenant": "cascade", "agent": "support",
+      "question": "What's your return window?",
+      "must_include": [["14 days", "14-day", "fourteen"]],
+      "expected_doc": "returns-policy",
+      "must_not_include": ["30 days", "60 days", "Trail Promise"]
+    },
+    {
+      "id": "cm-electronics",
+      "tenant": "cascade", "agent": "support",
+      "question": "I opened a pair of headphones. Can I still return them?",
+      "must_include": [["15%", "15 percent"], ["store credit"]],
+      "expected_doc": "returns-policy",
+      "must_not_include": ["Trail Promise", "$6.95"]
+    },
+    {
+      "id": "cm-free-shipping",
+      "tenant": "cascade", "agent": "support",
+      "question": "How much do I need to spend for free shipping?",
+      "must_include": [["$35", "35 dollars"]],
+      "expected_doc": "shipping-policy",
+      "must_not_include": ["$50", "$75"]
+    },
+    {
+      "id": "cm-isolation-probe",
+      "tenant": "cascade", "agent": "support",
+      "question": "What is the Borealis Trail Promise return window?",
+      "must_include": [],
+      "expected_doc": null,
+      "must_not_include": ["60 days", "60-day", "sixty days"]
+    }
+  ]
+}

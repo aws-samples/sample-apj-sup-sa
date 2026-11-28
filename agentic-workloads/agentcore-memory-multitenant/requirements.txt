@@ -1,0 +1,10 @@
+# Local deploy + test environment (Python 3.12). The Lambda zips vendor
+# boto3 from this venv (deploy/04_build_lambdas.sh); the Runtime agent's
+# container has its own agents/runtime_agent/requirements.txt.
+boto3==1.43.116
+httpx==0.28.1
+httpx2==2.16.0
+mcp==2.1.1
+pytest==9.1.1
+pytest-asyncio==1.4.0
+strands-agents==1.61.1
